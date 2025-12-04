@@ -20,7 +20,8 @@
 # Date: 2024-12-04
 # =============================================================================
 
-set -euo pipefail
+set -eo pipefail
+# Note: Removed -u flag because conda activate scripts may use unbound variables
 IFS=$'\n\t'
 
 # Configuration
