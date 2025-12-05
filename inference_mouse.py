@@ -268,11 +268,15 @@ def prepare_batch(
     bg_color = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float32)
     bg_color_batch = bg_color.unsqueeze(0).unsqueeze(0).repeat(1, num_views, 1)  # [1, V, 3]
 
+    # View indices [B, V]
+    index = torch.arange(num_views).unsqueeze(0)  # [1, V]
+
     batch = {
         "image": images.unsqueeze(0).to(device),  # [1, V, C, H, W]
         "c2w": c2ws.unsqueeze(0).to(device),  # [1, V, 4, 4]
         "fxfycxcy": fxfycxcys.unsqueeze(0).to(device),  # [1, V, 4]
         "bg_color": bg_color_batch.to(device),  # [1, V, 3]
+        "index": index.to(device),  # [1, V]
     }
 
     return batch
