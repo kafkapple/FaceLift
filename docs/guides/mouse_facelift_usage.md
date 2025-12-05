@@ -22,8 +22,8 @@ This guide covers environment setup, data preprocessing, training, and inference
 ssh gpu05
 cd /home/joon/FaceLift
 
-# 2. Activate environment (매 세션마다 필요!)
-source activate_gpu05.sh
+# 2. Activate environment (conda activate만 하면 됨!)
+conda activate mouse_facelift
 
 # 3. Process mouse video data
 python scripts/process_mouse_data.py \
@@ -50,28 +50,25 @@ conda env list | grep mouse_facelift
 # 출력: mouse_facelift    /home/joon/anaconda3/envs/mouse_facelift
 ```
 
-### Step 2: 매 세션마다 환경 활성화
+### Step 2: 환경 활성화
 ```bash
 ssh gpu05
 cd /home/joon/FaceLift
-source activate_gpu05.sh   # 매번 새 터미널 세션에서 실행 필요!
+conda activate mouse_facelift   # CUDA/GCC 환경변수 자동 설정됨!
 ```
 
-**중요**: `conda activate mouse_facelift`만 하면 안 됩니다!
-- `activate_gpu05.sh`는 CUDA 11.8 경로, GCC-9 등 필수 환경변수를 설정함
-- 이 설정 없이는 diff-gaussian-rasterization 등이 정상 작동하지 않음
+**참고**: 환경변수가 conda 환경에 영구 설정되어 있음
+- 위치: `~/anaconda3/envs/mouse_facelift/etc/conda/activate.d/env_vars.sh`
+- `conda activate` 시 CUDA 11.8, GCC-9 자동 설정
+- `conda deactivate` 시 원래 환경으로 자동 복원
 
 ### 환경 활성화 확인
 ```bash
-# activate_gpu05.sh 실행 후 자동으로 출력됨:
-# ==============================================
-# Mouse-FaceLift Environment Activated (gpu05)
-# ==============================================
-# Conda env: mouse_facelift
-# CUDA_HOME: /usr/local/cuda-11.8
-# CUDA version: 11.8
-# PyTorch: 2.4.0+cu118
-# GPU available: True
+# 확인 방법:
+echo $CUDA_HOME    # /usr/local/cuda-11.8
+echo $CC           # /usr/bin/gcc-9
+nvcc --version     # CUDA 11.8
+python -c "import torch; print(torch.cuda.is_available())"  # True
 ```
 
 ---
@@ -279,7 +276,7 @@ git pull
 
 | 파일 | 용도 |
 |------|------|
-| `activate_gpu05.sh` | gpu05 환경 활성화 (매 세션마다) |
+| `activate_gpu05.sh` | gpu05 환경 활성화 (레거시, 이제 불필요) |
 | `setup_mouse_env.sh` | Conda 환경 최초 설정 (1회) |
 | `scripts/process_mouse_data.py` | 비디오 → FaceLift 포맷 변환 |
 | `gslrm/data/mouse_dataset.py` | PyTorch Dataset 클래스 |
