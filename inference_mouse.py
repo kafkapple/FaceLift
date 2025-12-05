@@ -299,9 +299,13 @@ def save_results(
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    # Save rendered views
-    if "rendered_images" in result:
-        rendered = result["rendered_images"]
+    # Debug: print available keys
+    print(f"Result keys: {list(result.keys()) if hasattr(result, 'keys') else 'N/A'}")
+
+    # Save rendered views (model outputs 'render' key)
+    render_key = "render" if "render" in result else "rendered_images"
+    if render_key in result and result[render_key] is not None:
+        rendered = result[render_key]
         if isinstance(rendered, torch.Tensor):
             rendered = rendered.detach().cpu().numpy()
 
