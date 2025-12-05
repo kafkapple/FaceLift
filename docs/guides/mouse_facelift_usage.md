@@ -15,19 +15,20 @@ generator_tool: claude-code
 Mouse-FaceLift adapts the FaceLift 3D reconstruction pipeline for mouse multi-view data.
 This guide covers environment setup, data preprocessing, training, and inference.
 
-## Quick Start
+## Quick Start (gpu05)
 
 ```bash
-# 1. Create conda environment
-bash setup_mouse_env.sh mouse_facelift
+# 1. SSH to gpu05
+ssh gpu05
+cd /home/joon/FaceLift
 
-# 2. Activate environment
-conda activate mouse_facelift
+# 2. Activate environment (매 세션마다 필요!)
+source activate_gpu05.sh
 
 # 3. Process mouse video data
 python scripts/process_mouse_data.py \
-    --video_dir /path/to/videos \
-    --meta_dir /path/to/masks \
+    --video_dir /home/joon/data/markerless_mouse_1_nerf/videos_undist \
+    --meta_dir /home/joon/data/markerless_mouse_1_nerf \
     --output_dir data_mouse \
     --num_samples 2000
 
@@ -38,114 +39,140 @@ python train_mouse.py --config configs/mouse_config.yaml --overfit 10
 torchrun --nproc_per_node 4 train_mouse.py --config configs/mouse_config.yaml
 ```
 
-## Detailed Instructions
+---
 
-### 1. Environment Setup
+## GPU05 환경 설정 (처음 1회)
 
-#### Local Development
+### Step 1: Conda 환경 생성 (이미 완료됨)
 ```bash
-cd /home/joon/dev/FaceLift
-bash setup_mouse_env.sh mouse_facelift
-conda activate mouse_facelift
+# 환경이 이미 생성되어 있음. 확인:
+conda env list | grep mouse_facelift
+# 출력: mouse_facelift    /home/joon/anaconda3/envs/mouse_facelift
 ```
 
-#### GPU Server (gpu05)
+### Step 2: 매 세션마다 환경 활성화
 ```bash
 ssh gpu05
 cd /home/joon/FaceLift
-bash setup_mouse_env.sh mouse_facelift
-conda activate mouse_facelift
+source activate_gpu05.sh   # 매번 새 터미널 세션에서 실행 필요!
 ```
 
-### 2. Data Preprocessing
+**중요**: `conda activate mouse_facelift`만 하면 안 됩니다!
+- `activate_gpu05.sh`는 CUDA 11.8 경로, GCC-9 등 필수 환경변수를 설정함
+- 이 설정 없이는 diff-gaussian-rasterization 등이 정상 작동하지 않음
 
-The preprocessing script converts multi-view mouse videos into FaceLift training format.
-
-#### Input Data Structure
-```
-/home/joon/data/markerless_mouse/
-├── videos_undist/          # 6 synchronized videos
-│   ├── 0.mp4
-│   ├── 1.mp4
-│   └── ...
-└── simpleclick_undist/     # Mask videos (optional)
-    ├── 0.mp4
-    └── ...
-
-/home/joon/data/markerless_mouse_1_nerf/
-├── new_cam.pkl             # Camera calibration
-└── transforms.json         # NeRF-style cameras (alternative)
-```
-
-#### Run Preprocessing
+### 환경 활성화 확인
 ```bash
+# activate_gpu05.sh 실행 후 자동으로 출력됨:
+# ==============================================
+# Mouse-FaceLift Environment Activated (gpu05)
+# ==============================================
+# Conda env: mouse_facelift
+# CUDA_HOME: /usr/local/cuda-11.8
+# CUDA version: 11.8
+# PyTorch: 2.4.0+cu118
+# GPU available: True
+```
+
+---
+
+## 데이터 전처리 (현재 마우스 데이터 기준)
+
+### 현재 데이터 위치
+```
+/home/joon/data/markerless_mouse_1_nerf/
+├── videos_undist/          # 6개 동기화된 비디오
+│   ├── 0.mp4 (25.8MB)
+│   ├── 1.mp4 (17.6MB)
+│   ├── 2.mp4 (23.4MB)
+│   ├── 3.mp4 (21.6MB)
+│   ├── 4.mp4 (19.9MB)
+│   └── 5.mp4 (25.0MB)
+├── simpleclick_undist/     # 마스크 비디오
+│   ├── 0.mp4 ~ 5.mp4
+├── new_cam.pkl             # 카메라 캘리브레이션
+└── keypoints2d_undist/     # 2D 키포인트 (선택)
+```
+
+### 전처리 실행
+```bash
+# gpu05에서 환경 활성화 후:
+source activate_gpu05.sh
+
+# 데이터 전처리 (약 2000개 샘플 추출)
 python scripts/process_mouse_data.py \
-    --video_dir /home/joon/data/markerless_mouse \
+    --video_dir /home/joon/data/markerless_mouse_1_nerf/videos_undist \
     --meta_dir /home/joon/data/markerless_mouse_1_nerf \
     --output_dir data_mouse \
     --num_samples 2000 \
     --image_size 512 \
     --num_views 6
+
+# 출력 확인
+ls data_mouse/
+# data_mouse_train.txt, data_mouse_val.txt, sample_000000/, ...
 ```
 
-#### Output Structure
+### 출력 구조
 ```
 data_mouse/
-├── data_mouse_train.txt    # Training sample paths
-├── data_mouse_val.txt      # Validation sample paths
+├── data_mouse_train.txt    # 학습 샘플 경로 목록
+├── data_mouse_val.txt      # 검증 샘플 경로 목록
 ├── sample_000000/
 │   ├── images/
 │   │   ├── cam_000.png     # 512x512 RGBA
 │   │   ├── cam_001.png
-│   │   └── ...
-│   └── opencv_cameras.json # Camera parameters
-└── sample_000001/
-    └── ...
+│   │   ├── cam_002.png
+│   │   ├── cam_003.png
+│   │   ├── cam_004.png
+│   │   └── cam_005.png
+│   └── opencv_cameras.json # 카메라 파라미터
+├── sample_000001/
+│   └── ...
+└── ...
 ```
 
-### 3. Training
+---
 
-#### Configuration
-Edit `configs/mouse_config.yaml` to adjust:
-- Dataset paths
-- Batch size
-- Learning rate
-- Number of views
-- Checkpointing frequency
+## 학습
 
-#### Overfitting Test (Recommended First Step)
+### Step 1: Overfitting 테스트 (필수 권장)
 ```bash
-# Use 10 samples to verify code works
+# 10개 샘플로 코드 정상 동작 확인
 python train_mouse.py --config configs/mouse_config.yaml --overfit 10
 ```
 
-Expected behavior:
-- Loss should drop to near-zero
-- Input images should be perfectly reconstructed
-- This validates the pipeline before full training
+**기대 결과**:
+- Loss가 0에 가깝게 감소
+- 입력 이미지가 완벽하게 복원됨
+- 이것이 성공해야 전체 학습 진행
 
-#### Single GPU Training
+### Step 2: 전체 학습
+
+#### 단일 GPU
 ```bash
 python train_mouse.py --config configs/mouse_config.yaml
 ```
 
-#### Multi-GPU Training
+#### 멀티 GPU (권장)
 ```bash
-# 4 GPUs on single node
+# 4 GPU 사용
 torchrun --nproc_per_node 4 --nnodes 1 \
     --rdzv_id ${RANDOM} --rdzv_backend c10d --rdzv_endpoint localhost:29500 \
     train_mouse.py --config configs/mouse_config.yaml
 ```
 
-#### Resume from Checkpoint
+### Step 3: 체크포인트에서 재개
 ```bash
 python train_mouse.py --config configs/mouse_config.yaml \
     --load checkpoints/gslrm/mouse/
 ```
 
-### 4. Inference
+---
 
-#### Single Image
+## 추론
+
+### 단일 이미지
 ```bash
 python inference_mouse.py \
     --input_image path/to/mouse.png \
@@ -154,7 +181,7 @@ python inference_mouse.py \
     --save_video
 ```
 
-#### Directory of Images
+### 디렉토리 내 모든 이미지
 ```bash
 python inference_mouse.py \
     --input_dir examples/mouse/ \
@@ -163,124 +190,109 @@ python inference_mouse.py \
     --num_views 6
 ```
 
-### 5. Monitoring
+---
 
-#### Weights & Biases
-Training automatically logs to W&B if configured:
+## 설정 파일
+
+### configs/mouse_config.yaml 주요 설정
 ```yaml
-# In configs/mouse_config.yaml
 training:
-  logging:
-    wandb:
-      project: "mouse_facelift"
-      exp_name: "mouse_6view"
-      offline: false
+  dataset:
+    dataset_path: "data_mouse/data_mouse_train.txt"  # 전처리 출력 경로
+    num_views: 6               # 총 뷰 수
+    num_input_views: 1         # 입력 뷰 (단일 이미지)
+
+  dataloader:
+    batch_size_per_gpu: 2      # GPU 메모리에 따라 조절
+    num_workers: 4
+
+  optimizer:
+    lr: 0.00005                # 학습률
+
+  checkpointing:
+    resume_ckpt: "checkpoints/gslrm/stage_2"  # 사전학습 가중치
+    checkpoint_dir: "checkpoints/gslrm/mouse"
 ```
 
-View at: https://wandb.ai/
+---
 
-#### TensorBoard (Alternative)
-```bash
-# Not implemented by default, but can be added
-```
-
-## Troubleshooting
+## 문제 해결
 
 ### CUDA Out of Memory
 ```yaml
-# Reduce batch size in config
+# batch_size 줄이기
 training:
   dataloader:
-    batch_size_per_gpu: 1  # Default is 2
+    batch_size_per_gpu: 1
 ```
 
-### Slow Data Loading
-```yaml
-# Adjust workers
-training:
-  dataloader:
-    num_workers: 8  # Increase if CPU bound
-    prefetch_factor: 32
+### CUDA 버전 불일치 에러
+```bash
+# 반드시 activate_gpu05.sh로 환경 활성화
+source activate_gpu05.sh
+
+# 확인
+echo $CUDA_HOME  # /usr/local/cuda-11.8 이어야 함
 ```
 
-### Training Not Converging
-1. Run overfitting test first
-2. Check data visualization in `checkpoints/*/data_examples/`
-3. Verify camera parameters are correct
-4. Try lower learning rate
+### 학습이 수렴하지 않음
+1. Overfitting 테스트 먼저 실행
+2. `checkpoints/*/data_examples/` 에서 데이터 시각화 확인
+3. 카메라 파라미터 검증
+4. 학습률 낮추기
 
-### Camera Coordinate Issues
-```python
-# Debug camera visualization
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+---
 
-def visualize_cameras(cameras):
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+## Git 동기화 워크플로우
 
-    for cam in cameras:
-        c2w = np.linalg.inv(np.array(cam["w2c"]))
-        pos = c2w[:3, 3]
-        forward = c2w[:3, 2]
-
-        ax.scatter(*pos, c='b', s=100)
-        ax.quiver(*pos, *forward, length=0.3, color='r')
-
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    plt.show()
-```
-
-## Git Workflow
-
-### Sync between local and gpu05
-
-#### On Local (after making changes)
+### 로컬에서 코드 수정 후
 ```bash
 cd /home/joon/dev/FaceLift
 git add -A
-git commit -m "feat(mouse): add preprocessing pipeline"
+git commit -m "feat(mouse): description"
 git push
 ```
 
-#### On gpu05 (before training)
+### gpu05에서 학습 전
 ```bash
 ssh gpu05
 cd /home/joon/FaceLift
 git pull
-conda activate mouse_facelift
+source activate_gpu05.sh
 ```
 
-#### After training on gpu05
+### gpu05에서 학습 후
 ```bash
-# On gpu05
+# 체크포인트 커밋 (선택)
 git add checkpoints/ outputs/
 git commit -m "chore: add training checkpoints"
 git push
 
-# On local
+# 로컬에서 pull
 cd /home/joon/dev/FaceLift
 git pull
 ```
 
-## File Reference
+---
 
-| File | Purpose |
-|------|---------|
-| `setup_mouse_env.sh` | Conda environment setup |
-| `scripts/process_mouse_data.py` | Video → FaceLift format |
-| `gslrm/data/mouse_dataset.py` | PyTorch Dataset class |
-| `configs/mouse_config.yaml` | Training configuration |
-| `train_mouse.py` | Training script |
-| `inference_mouse.py` | Inference script |
+## 파일 참조
 
-## Next Steps
+| 파일 | 용도 |
+|------|------|
+| `activate_gpu05.sh` | gpu05 환경 활성화 (매 세션마다) |
+| `setup_mouse_env.sh` | Conda 환경 최초 설정 (1회) |
+| `scripts/process_mouse_data.py` | 비디오 → FaceLift 포맷 변환 |
+| `gslrm/data/mouse_dataset.py` | PyTorch Dataset 클래스 |
+| `configs/mouse_config.yaml` | 학습 설정 |
+| `train_mouse.py` | 학습 스크립트 |
+| `inference_mouse.py` | 추론 스크립트 |
 
-1. [ ] Verify camera coordinate conversion
-2. [ ] Run overfitting test
-3. [ ] Full training on gpu05
-4. [ ] Evaluate on held-out frames
-5. [ ] Iterate on hyperparameters
+---
+
+## 체크리스트
+
+- [ ] `source activate_gpu05.sh` 실행 확인
+- [ ] 데이터 전처리 완료 (`data_mouse/` 생성)
+- [ ] Overfitting 테스트 통과
+- [ ] 전체 학습 실행
+- [ ] 결과 평가
