@@ -309,11 +309,31 @@ def save_results(
         if isinstance(rendered, torch.Tensor):
             rendered = rendered.detach().cpu().numpy()
 
+        print(f"Rendered shape: {rendered.shape}")
+
+        # Handle different tensor shapes: [B, V, C, H, W] or [B, V, H, W, C] or [V, C, H, W]
+        if rendered.ndim == 5:
+            # [B, V, C, H, W] -> take first batch
+            rendered = rendered[0]  # [V, C, H, W]
+
+        if rendered.ndim == 4:
+            # Could be [V, C, H, W] or [V, H, W, C]
+            if rendered.shape[1] in [3, 4]:
+                # [V, C, H, W] -> [V, H, W, C]
+                rendered = rendered.transpose(0, 2, 3, 1)
+
         # Save individual views
         for i, view in enumerate(rendered):
+            # view should be [H, W, C] now
             if view.ndim == 3 and view.shape[0] in [3, 4]:
                 view = view.transpose(1, 2, 0)
+
+            # Ensure 2D image with channels
+            while view.ndim > 3:
+                view = view[0]
+
             view_uint8 = (view * 255).clip(0, 255).astype(np.uint8)
+            print(f"View {i} shape: {view_uint8.shape}")
 
             if view_uint8.shape[-1] == 4:
                 Image.fromarray(view_uint8, mode="RGBA").save(
@@ -323,6 +343,8 @@ def save_results(
                 Image.fromarray(view_uint8[..., :3]).save(
                     os.path.join(output_dir, f"{image_name}_view_{i:02d}.png")
                 )
+
+        print(f"Saved {len(rendered)} views")
 
         # Save as video if requested
         if save_video and len(rendered) > 1:
