@@ -543,9 +543,9 @@ class MouseTrainer:
             )
             os.makedirs(vis_dir, exist_ok=True)
             try:
-                model_module.save_visuals(
-                    vis_dir, result, None, prefix=f"step_{self.fwdbwd_pass_step:08d}"
-                )
+                step_vis_dir = os.path.join(vis_dir, f"step_{self.fwdbwd_pass_step:08d}")
+                os.makedirs(step_vis_dir, exist_ok=True)
+                model_module.save_visuals(step_vis_dir, result, None)
             except Exception as e:
                 print(f"[MouseTrainer] Warning: Could not save visuals: {e}")
 
