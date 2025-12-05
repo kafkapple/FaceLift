@@ -232,6 +232,63 @@ print("\nSetup complete!")
 EOF
 
 # =============================================================================
+# Setup Permanent Environment Variables (for gpu05)
+# =============================================================================
+
+# Detect conda env path
+CONDA_ENV_PATH=$(conda info --envs | grep "^${ENV_NAME} " | awk '{print $NF}')
+if [[ -z "$CONDA_ENV_PATH" ]]; then
+    CONDA_ENV_PATH=$(conda info --envs | grep "^${ENV_NAME}$" -A1 | tail -1 | awk '{print $1}')
+fi
+
+if [[ -n "$CONDA_ENV_PATH" && -d "$CONDA_ENV_PATH" ]]; then
+    echo ""
+    echo "Setting up permanent environment variables..."
+
+    ACTIVATE_DIR="$CONDA_ENV_PATH/etc/conda/activate.d"
+    DEACTIVATE_DIR="$CONDA_ENV_PATH/etc/conda/deactivate.d"
+
+    mkdir -p "$ACTIVATE_DIR" "$DEACTIVATE_DIR"
+
+    # Create activate script
+    cat > "$ACTIVATE_DIR/env_vars.sh" << 'ACTIVATE_EOF'
+#!/bin/bash
+# Save original values
+export _OLD_CUDA_HOME=$CUDA_HOME
+export _OLD_PATH=$PATH
+export _OLD_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
+export _OLD_CC=$CC
+export _OLD_CXX=$CXX
+
+# Set Mouse-FaceLift environment
+export CUDA_HOME=/usr/local/cuda-11.8
+export PATH=$CUDA_HOME/bin:$PATH
+export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+export CC=/usr/bin/gcc-9
+export CXX=/usr/bin/g++-9
+ACTIVATE_EOF
+
+    # Create deactivate script
+    cat > "$DEACTIVATE_DIR/env_vars.sh" << 'DEACTIVATE_EOF'
+#!/bin/bash
+# Restore original values
+export CUDA_HOME=$_OLD_CUDA_HOME
+export PATH=$_OLD_PATH
+export LD_LIBRARY_PATH=$_OLD_LD_LIBRARY_PATH
+export CC=$_OLD_CC
+export CXX=$_OLD_CXX
+
+# Cleanup
+unset _OLD_CUDA_HOME _OLD_PATH _OLD_LD_LIBRARY_PATH _OLD_CC _OLD_CXX
+DEACTIVATE_EOF
+
+    chmod +x "$ACTIVATE_DIR/env_vars.sh" "$DEACTIVATE_DIR/env_vars.sh"
+    echo "Environment variables configured at: $ACTIVATE_DIR/env_vars.sh"
+else
+    echo "Warning: Could not find conda environment path for ${ENV_NAME}"
+fi
+
+# =============================================================================
 # Post-installation Notes
 # =============================================================================
 

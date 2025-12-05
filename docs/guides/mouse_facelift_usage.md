@@ -276,8 +276,7 @@ git pull
 
 | 파일 | 용도 |
 |------|------|
-| `activate_gpu05.sh` | gpu05 환경 활성화 (레거시, 이제 불필요) |
-| `setup_mouse_env.sh` | Conda 환경 최초 설정 (1회) |
+| `setup_mouse_env.sh` | Conda 환경 최초 설정 (1회, 환경변수 영구 설정 포함) |
 | `scripts/process_mouse_data.py` | 비디오 → FaceLift 포맷 변환 |
 | `gslrm/data/mouse_dataset.py` | PyTorch Dataset 클래스 |
 | `configs/mouse_config.yaml` | 학습 설정 |
