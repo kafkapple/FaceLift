@@ -344,9 +344,25 @@ def save_results(
 
     # Save gaussian parameters if available
     if "gaussians" in result:
-        gaussians_path = os.path.join(output_dir, f"{image_name}_gaussians.pt")
-        torch.save(result["gaussians"], gaussians_path)
-        print(f"Saved gaussians: {gaussians_path}")
+        try:
+            gaussians = result["gaussians"]
+            # Extract serializable tensor data only
+            gaussians_data = {}
+            if hasattr(gaussians, '__dict__'):
+                for k, v in gaussians.__dict__.items():
+                    if isinstance(v, torch.Tensor):
+                        gaussians_data[k] = v.detach().cpu()
+            elif isinstance(gaussians, dict):
+                for k, v in gaussians.items():
+                    if isinstance(v, torch.Tensor):
+                        gaussians_data[k] = v.detach().cpu()
+
+            if gaussians_data:
+                gaussians_path = os.path.join(output_dir, f"{image_name}_gaussians.pt")
+                torch.save(gaussians_data, gaussians_path)
+                print(f"Saved gaussians: {gaussians_path}")
+        except Exception as e:
+            print(f"Warning: Could not save gaussians: {e}")
 
 
 def find_images(input_path: str) -> List[str]:
