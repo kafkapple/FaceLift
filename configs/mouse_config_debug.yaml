@@ -1,0 +1,135 @@
+# =============================================================================
+# Mouse-FaceLift Debug Configuration
+# 빠른 테스트용 - 약 10-30분 내 결과 확인 가능
+# =============================================================================
+profile: false
+debug: true
+
+# =============================================================================
+# Model Configuration (동일)
+# =============================================================================
+model:
+  class_name: gslrm.model.gslrm.GSLRM
+
+  image_tokenizer:
+    image_size: 512
+    patch_size: 8
+    in_channels: 9
+
+  transformer:
+    d: 1024
+    d_head: 64
+    n_layer: 24
+
+  gaussians:
+    n_gaussians: 2
+    sh_degree: 0
+    upsampler:
+      upsample_factor: 1
+
+  add_refsrc_marker: false
+  hard_pixelalign: true
+  use_custom_plucker: true
+  clip_xyz: true
+
+# =============================================================================
+# Training Configuration (디버그용 최적화)
+# =============================================================================
+training:
+  runtime:
+    use_tf32: true
+    use_amp: true
+    amp_dtype: "bf16"
+    torch_compile: false
+    grad_accum_steps: 1
+    grad_clip_norm: 1.0
+    grad_checkpoint_every: 1
+
+  dataset:
+    dataset_path: "data_mouse/data_mouse_train.txt"
+    maximize_view_overlap: false
+    num_views: 6
+    num_input_views: 1
+    target_has_input: true
+    normalize_distance_to: 0.0
+    remove_alpha: false
+    background_color: "white"
+
+  dataloader:
+    batch_size_per_gpu: 4      # 배치 증가 (빠른 iteration)
+    num_workers: 4
+    num_threads: 16
+    prefetch_factor: 16
+
+  losses:
+    l2_loss_weight: 1.0
+    lpips_loss_weight: 0.5
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.2
+    pixelalign_loss_weight: 0.0
+    masked_pixelalign_loss: true
+    pointsdist_loss_weight: 0.0
+    warmup_pointsdist: false
+    distill_loss_weight: 0.0
+
+  optimizer:
+    lr: 0.0001                 # 학습률 증가 (빠른 수렴)
+    beta1: 0.9
+    beta2: 0.95
+    weight_decay: 0.05
+    reset_lr: false
+    reset_weight_decay: false
+    reset_training_state: true
+
+  schedule:
+    num_epochs: 10             # 10 epoch만 (디버그)
+    early_stop_after_epochs: 10
+    max_fwdbwd_passes: 1000    # 1000 스텝만
+    warmup: 50
+    l2_warmup_steps: 50
+
+  checkpointing:
+    resume_ckpt: "checkpoints/gslrm/stage_2"
+    checkpoint_every: 200      # 자주 저장
+    checkpoint_dir: "checkpoints/gslrm/mouse_debug"
+
+  logging:
+    print_every: 10
+    vis_every: 50              # 자주 시각화
+
+    wandb:
+      project: "mouse_facelift"
+      exp_name: "mouse_debug"
+      group: "mouse"
+      job_type: "debug"
+      log_every: 10
+      offline: true            # wandb 비활성화 (빠른 실행)
+
+# =============================================================================
+# Validation (디버그에서는 비활성화)
+# =============================================================================
+validation:
+  enabled: false
+  val_every: 500
+  output_dir: "experiments/validation/mouse_debug"
+  dataset_path: "data_mouse/data_mouse_val.txt"
+
+# =============================================================================
+# Mouse-specific Settings
+# =============================================================================
+mouse:
+  camera:
+    num_views: 6
+    camera_distance: 2.7
+
+  preprocessing:
+    use_face_detection: false
+    auto_crop: false
+    background_removal: true
+
+  augmentation:
+    enabled: false             # 디버그에서는 augmentation 비활성화
+    horizontal_flip: false
+    rotation_range: 0
+    brightness_range: [1.0, 1.0]
+    contrast_range: [1.0, 1.0]
