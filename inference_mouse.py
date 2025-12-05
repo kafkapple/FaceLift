@@ -264,14 +264,15 @@ def prepare_batch(
     c2ws = torch.from_numpy(np.array(c2ws)).float()  # [V, 4, 4]
     fxfycxcys = torch.from_numpy(np.array(fxfycxcys)).float()  # [V, 4]
 
-    # Background color
+    # Background color - must be [B, V, 3] to match data_splitter expectations
     bg_color = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float32)
+    bg_color_batch = bg_color.unsqueeze(0).unsqueeze(0).repeat(1, num_views, 1)  # [1, V, 3]
 
     batch = {
         "image": images.unsqueeze(0).to(device),  # [1, V, C, H, W]
         "c2w": c2ws.unsqueeze(0).to(device),  # [1, V, 4, 4]
         "fxfycxcy": fxfycxcys.unsqueeze(0).to(device),  # [1, V, 4]
-        "bg_color": bg_color.to(device),
+        "bg_color": bg_color_batch.to(device),  # [1, V, 3]
     }
 
     return batch
