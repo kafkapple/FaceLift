@@ -90,13 +90,23 @@ def load_model(config: edict, checkpoint_dir: str, device: str) -> torch.nn.Modu
     latest_ckpt = checkpoint_files[-1]
 
     print(f"Loading checkpoint: {latest_ckpt}")
-    state_dict = torch.load(latest_ckpt, map_location=device)
+    checkpoint = torch.load(latest_ckpt, map_location=device, weights_only=False)
+
+    # Extract model state dict from checkpoint
+    if isinstance(checkpoint, dict) and "model" in checkpoint:
+        state_dict = checkpoint["model"]
+        print(f"Loaded from training checkpoint (step {checkpoint.get('fwdbwd_pass_step', 'unknown')})")
+    else:
+        state_dict = checkpoint
 
     # Handle DDP wrapped state dict
     if any(k.startswith("module.") for k in state_dict.keys()):
         state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
 
-    model.load_state_dict(state_dict)
+    # Filter out loss calculator weights (not needed for inference)
+    state_dict = {k: v for k, v in state_dict.items() if not k.startswith("loss_calculator.")}
+
+    model.load_state_dict(state_dict, strict=False)
     model.eval()
 
     return model
