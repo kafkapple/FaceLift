@@ -102,15 +102,15 @@ training:
   schedule:
     num_epochs: 100000
     early_stop_after_epochs: 100000
-    max_fwdbwd_passes: 10000      # Fewer passes for smaller dataset
+    max_fwdbwd_passes: 100000     # ~111 epochs for 1799 samples
     warmup: 200
     l2_warmup_steps: 200
 
   # Checkpointing
   checkpointing:
-    # Start from Objaverse pretrained weights (Stage 2)
-    # Or use face pretrained: "checkpoints/gslrm/stage_3"
-    resume_ckpt: "checkpoints/gslrm/stage_2"
+    # Start from pretrained GS-LRM weights (downloaded from HuggingFace)
+    # Run: python scripts/download_checkpoints.py
+    resume_ckpt: "checkpoints/gslrm"
     checkpoint_every: 1000
     checkpoint_dir: "checkpoints/gslrm/mouse"
 
