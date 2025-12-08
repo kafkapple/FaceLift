@@ -534,7 +534,7 @@ class MouseTrainer:
 
             wandb.log(log_dict, step=self.fwdbwd_pass_step)
 
-        # Save visualizations
+        # Save visualizations and log to wandb
         if create_visual and self.ddp_rank == 0:
             model_module = self.model.module if self.is_distributed else self.model
             vis_dir = os.path.join(
@@ -546,8 +546,83 @@ class MouseTrainer:
                 step_vis_dir = os.path.join(vis_dir, f"step_{self.fwdbwd_pass_step:08d}")
                 os.makedirs(step_vis_dir, exist_ok=True)
                 model_module.save_visuals(step_vis_dir, result, None)
+
+                # Log images to wandb
+                if wandb.run is not None:
+                    self._log_visuals_to_wandb(result, batch, step_vis_dir)
             except Exception as e:
                 print(f"[MouseTrainer] Warning: Could not save visuals: {e}")
+
+    def _log_visuals_to_wandb(self, result, batch, vis_dir):
+        """Log visualization images to wandb as a grid."""
+        import numpy as np
+        from PIL import Image
+        import glob
+
+        try:
+            # Find saved visualization images
+            vis_files = sorted(glob.glob(os.path.join(vis_dir, "*.jpg"))) + \
+                        sorted(glob.glob(os.path.join(vis_dir, "*.png")))
+
+            if not vis_files:
+                return
+
+            wandb_images = {}
+
+            # Log individual images
+            for vis_file in vis_files[:5]:  # Limit to 5 images
+                img_name = os.path.basename(vis_file).replace(".jpg", "").replace(".png", "")
+                wandb_images[f"vis/{img_name}"] = wandb.Image(vis_file)
+
+            # Create grid from rendered vs GT if available
+            if hasattr(result, 'render') and result.render is not None:
+                render = result.render  # [B, V, C, H, W] or [B, V, H, W, C]
+                if render.dim() == 5:
+                    # Take first batch
+                    render = render[0]  # [V, C, H, W] or [V, H, W, C]
+                    if render.shape[-1] == 3 or render.shape[-1] == 4:
+                        # [V, H, W, C] format
+                        render = render.permute(0, 3, 1, 2)  # -> [V, C, H, W]
+
+                    # Create grid: concat all views horizontally
+                    V = render.shape[0]
+                    grid_images = []
+                    for v in range(min(V, 6)):  # Max 6 views
+                        img = render[v].detach().cpu()
+                        if img.shape[0] == 4:
+                            img = img[:3]  # Remove alpha
+                        img = (img.clamp(0, 1) * 255).byte()
+                        grid_images.append(img)
+
+                    if grid_images:
+                        # Concat horizontally
+                        grid = torch.cat(grid_images, dim=2)  # [C, H, W*V]
+                        grid_np = grid.permute(1, 2, 0).numpy()
+                        wandb_images["vis/rendered_views_grid"] = wandb.Image(grid_np)
+
+            # Log GT images if available
+            if batch is not None and 'image' in batch:
+                gt_images = batch['image'][0]  # [V, C, H, W]
+                if gt_images.dim() == 4:
+                    grid_images = []
+                    V = gt_images.shape[0]
+                    for v in range(min(V, 6)):
+                        img = gt_images[v].detach().cpu()
+                        if img.shape[0] == 4:
+                            img = img[:3]
+                        img = (img.clamp(0, 1) * 255).byte()
+                        grid_images.append(img)
+
+                    if grid_images:
+                        grid = torch.cat(grid_images, dim=2)
+                        grid_np = grid.permute(1, 2, 0).numpy()
+                        wandb_images["vis/gt_views_grid"] = wandb.Image(grid_np)
+
+            if wandb_images:
+                wandb.log(wandb_images, step=self.fwdbwd_pass_step)
+
+        except Exception as e:
+            print(f"[MouseTrainer] Warning: Could not log visuals to wandb: {e}")
 
     def validate(self):
         """Run validation."""
