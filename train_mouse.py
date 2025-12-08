@@ -499,7 +499,7 @@ class MouseTrainer:
 
         return should_step
 
-    def log_metrics(self, result, create_visual: bool, batch_time: float):
+    def log_metrics(self, result, create_visual: bool, batch_time: float, batch=None):
         """Log training metrics."""
         if self.ddp_rank != 0:
             return
@@ -710,7 +710,7 @@ class MouseTrainer:
 
                 # Logging
                 batch_time = time.time() - start_time
-                self.log_metrics(result, create_visual, batch_time)
+                self.log_metrics(result, create_visual, batch_time, batch)
 
                 # Validation
                 if create_val:
