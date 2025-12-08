@@ -567,10 +567,84 @@ def main():
         samples = find_sample_dirs(args.data_dir)
         print(f"Found {len(samples)} samples in {args.data_dir}")
     elif args.input_image:
-        # Single image mode - requires MVDiffusion
-        print("Single image mode not yet implemented - need trained MVDiffusion")
-        print("Please use --sample_dir with 6-view data")
-        return
+        # Single image mode - use Zero123++ or MVDiffusion
+        if args.use_zero123pp or args.zero123pp_model:
+            print("Using Zero123++ for single-image to multi-view generation")
+            try:
+                from mvdiffusion.pipelines.zero123pp_pipeline import Zero123PlusPipeline
+
+                # Load Zero123++
+                zero123_model = args.zero123pp_model or "sudo-ai/zero123plus-v1.2"
+                print(f"Loading Zero123++ from {zero123_model}...")
+                zero123_pipe = Zero123PlusPipeline.from_pretrained(
+                    zero123_model,
+                    device=args.device
+                )
+
+                # Process single image
+                sample_name = Path(args.input_image).stem
+                output_path = Path(args.output_dir) / sample_name
+                output_path.mkdir(parents=True, exist_ok=True)
+
+                # Generate views
+                print(f"Generating 6 views from {args.input_image}...")
+                batch = zero123_pipe.generate_for_gslrm(
+                    args.input_image,
+                    output_size=args.image_size,
+                    seed=args.seed,
+                    num_inference_steps=args.zero123pp_steps,
+                    guidance_scale=args.zero123pp_guidance
+                )
+
+                # Save generated views
+                views, _ = zero123_pipe.generate_views(
+                    args.input_image,
+                    output_size=args.image_size,
+                    seed=args.seed
+                )
+                zero123_pipe.save_views(views, str(output_path / "generated_views"))
+
+                # Run GSLRM
+                print("Running GSLRM inference...")
+                result = run_inference(
+                    model,
+                    batch['image'],
+                    batch['c2w'],
+                    batch['fxfycxcy'],
+                    batch['index'],
+                    args.device
+                )
+
+                # Save outputs
+                save_outputs(
+                    result,
+                    args.output_dir,
+                    sample_name,
+                    save_turntable=save_turntable,
+                    save_mesh=args.save_mesh,
+                    turntable_views=args.turntable_views,
+                    image_size=args.image_size
+                )
+
+                print(f"Done! Output saved to {output_path}")
+                return
+
+            except ImportError as e:
+                print(f"Error: Could not import Zero123++ pipeline: {e}")
+                print("Please install required dependencies: pip install diffusers")
+                return
+            except Exception as e:
+                print(f"Error with Zero123++: {e}")
+                import traceback
+                traceback.print_exc()
+                return
+        elif args.mvdiffusion_checkpoint:
+            print("MVDiffusion single-image mode not yet implemented")
+            print("Use --use_zero123pp for single-image inference")
+            return
+        else:
+            print("Single image mode requires --use_zero123pp or --mvdiffusion_checkpoint")
+            return
 
     if not samples:
         print("No samples found to process")

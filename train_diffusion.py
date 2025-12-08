@@ -70,20 +70,25 @@ logger = get_logger(__name__, log_level="INFO")
 @dataclass
 class TrainingConfig:
     """Configuration class for training parameters."""
-    
+
     # Model and data parameters
     val_out_dir: str
     n_views: int
     img_wh: int
-    
+
     # Pre-trained model paths
     pretrained_model_name_or_path: str
     pretrained_unet_path: Optional[str]
     revision: Optional[str]
-    
+
     # Dataset configuration
     train_dataset: Dict
     validation_dataset: Dict
+
+    # Mouse-specific dataset options
+    dataset_type: Optional[str] = None  # 'mouse' or None for default
+    reference_view_idx: int = 0  # Which view to use as input
+    prompt_embed_path: Optional[str] = None  # Path to prompt embeddings
     
     # Training configuration
     output_dir: str
