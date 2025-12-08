@@ -85,11 +85,6 @@ class TrainingConfig:
     train_dataset: Dict
     validation_dataset: Dict
 
-    # Mouse-specific dataset options
-    dataset_type: Optional[str] = None  # 'mouse' or None for default
-    reference_view_idx: int = 0  # Which view to use as input
-    prompt_embed_path: Optional[str] = None  # Path to prompt embeddings
-    
     # Training configuration
     output_dir: str
     checkpoint_prefix: str
@@ -147,6 +142,12 @@ class TrainingConfig:
     wandb_exp_name: str
     wandb_group: str
     wandb_job_type: str
+
+    # Mouse-specific dataset options (optional, with defaults)
+    dataset_type: Optional[str] = None  # 'mouse' or None for default
+    reference_view_idx: int = 0  # Which view to use as input
+    prompt_embed_path: Optional[str] = None  # Path to prompt embeddings
+
 
 def noise_image_embeddings(
     image_embeds: torch.Tensor,
