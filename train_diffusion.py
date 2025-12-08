@@ -60,6 +60,7 @@ from transformers import CLIPImageProcessor, CLIPVisionModelWithProjection, CLIP
 # Local imports
 from mvdiffusion.models.unet_mv2d_condition import UNetMV2DConditionModel
 from mvdiffusion.data.dataset import FixViewDataset
+from mvdiffusion.data.mouse_dataset import MouseMVDiffusionDataset
 from mvdiffusion.pipelines.pipeline_mvdiffusion_unclip import StableUnCLIPImg2ImgPipeline
 from utils_folder.metrics_utils import compute_psnr, compute_lpips, compute_ssim
 
@@ -399,16 +400,24 @@ def setup_optimizer(models: Dict, cfg: TrainingConfig, accelerator: Accelerator)
 def setup_datasets_and_dataloaders(cfg: TrainingConfig):
     """
     Create datasets and dataloaders for training and validation.
-    
+
     Args:
         cfg: Training configuration
-        
+
     Returns:
         Training and validation dataloaders
     """
-    # Create datasets
-    train_dataset = FixViewDataset(cfg, split="train")
-    validation_dataset = FixViewDataset(cfg, split="val")
+    # Choose dataset class based on config
+    dataset_type = getattr(cfg, 'dataset_type', 'default')
+
+    if dataset_type == 'mouse':
+        logger.info("Using MouseMVDiffusionDataset")
+        train_dataset = MouseMVDiffusionDataset(cfg, split="train")
+        validation_dataset = MouseMVDiffusionDataset(cfg, split="val")
+    else:
+        logger.info("Using FixViewDataset (default)")
+        train_dataset = FixViewDataset(cfg, split="train")
+        validation_dataset = FixViewDataset(cfg, split="val")
 
     # Create dataloaders
     train_dataloader = torch.utils.data.DataLoader(
