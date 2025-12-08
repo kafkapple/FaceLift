@@ -536,14 +536,36 @@ def main():
         help="Image size"
     )
 
+    # Zero123++ options (for single-image input)
+    parser.add_argument(
+        "--use_zero123pp", action="store_true",
+        help="Use Zero123++ for single-image to multi-view generation"
+    )
+    parser.add_argument(
+        "--zero123pp_model", type=str, default=None,
+        help="Zero123++ model ID (default: sudo-ai/zero123plus-v1.2)"
+    )
+    parser.add_argument(
+        "--zero123pp_steps", type=int, default=75,
+        help="Number of diffusion steps for Zero123++"
+    )
+    parser.add_argument(
+        "--zero123pp_guidance", type=float, default=4.0,
+        help="Guidance scale for Zero123++"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42,
+        help="Random seed for reproducibility"
+    )
+
     args = parser.parse_args()
 
     # Validate inputs
     if not args.sample_dir and not args.data_dir and not args.input_image:
         parser.error("Must specify --sample_dir, --data_dir, or --input_image")
 
-    if args.input_image and not args.mvdiffusion_checkpoint:
-        parser.error("--input_image requires --mvdiffusion_checkpoint")
+    if args.input_image and not (args.use_zero123pp or args.zero123pp_model or args.mvdiffusion_checkpoint):
+        parser.error("--input_image requires --use_zero123pp or --mvdiffusion_checkpoint")
 
     # Check device
     if args.device == "cuda" and not torch.cuda.is_available():
