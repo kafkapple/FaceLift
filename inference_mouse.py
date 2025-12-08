@@ -60,6 +60,22 @@ from tqdm import tqdm
 # Local imports
 from gslrm.model.gaussians_renderer import render_turntable, imageseq2video
 
+# Auto-download utility
+def ensure_weights_available():
+    """Check and download model weights if missing."""
+    try:
+        from scripts.download_weights import ensure_weights
+        return ensure_weights(auto_download=True)
+    except ImportError:
+        # Fallback: manual check
+        from pathlib import Path
+        gslrm_path = Path("checkpoints/gslrm/ckpt_0000000000021125.pt")
+        if not gslrm_path.exists():
+            print("WARNING: Model weights not found!")
+            print("Run: python scripts/download_weights.py")
+            return False
+        return True
+
 # Constants
 DEFAULT_IMG_SIZE = 512
 DEFAULT_TURNTABLE_VIEWS = 120
@@ -558,7 +574,28 @@ def main():
         help="Random seed for reproducibility"
     )
 
+    parser.add_argument(
+        "--use_pretrained_facelift", action="store_true",
+        help="Use original FaceLift weights (auto-downloads from HuggingFace)"
+    )
+    parser.add_argument(
+        "--auto_download", action="store_true", default=True,
+        help="Auto-download weights if missing"
+    )
+
     args = parser.parse_args()
+
+    # Auto-download weights if needed
+    if args.auto_download or args.use_pretrained_facelift:
+        if not ensure_weights_available():
+            print("ERROR: Could not ensure weights are available")
+            print("Try manual download: python scripts/download_weights.py")
+            return
+
+    # Use FaceLift pretrained weights if requested
+    if args.use_pretrained_facelift:
+        args.checkpoint = "checkpoints/gslrm"
+        print("Using FaceLift pretrained weights")
 
     # Validate inputs
     if not args.sample_dir and not args.data_dir and not args.input_image:
@@ -638,11 +675,12 @@ def main():
                 )
 
                 # Save outputs
+                do_turntable = args.save_turntable and not args.no_turntable
                 save_outputs(
                     result,
                     args.output_dir,
                     sample_name,
-                    save_turntable=save_turntable,
+                    save_turntable=do_turntable,
                     save_mesh=args.save_mesh,
                     turntable_views=args.turntable_views,
                     image_size=args.image_size
