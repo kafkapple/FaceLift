@@ -10,14 +10,10 @@ reference_view_idx: 0  # Which view to use as input (cam_000)
 dataset_type: 'mouse'  # Use MouseMVDiffusionDataset
 
 # Model paths
-# Option 1: From scratch (requires HuggingFace access to stable-diffusion-2-1-unclip)
-# pretrained_model_name_or_path: 'stabilityai/stable-diffusion-2-1-unclip'
-# pretrained_unet_path: null
-
-# Option 2: Fine-tune from FaceLift pretrained (RECOMMENDED)
+# Fine-tune from FaceLift pretrained (all components included!)
 # First run: python scripts/download_weights.py
-pretrained_model_name_or_path: 'stabilityai/stable-diffusion-2-1-unclip'
-pretrained_unet_path: 'checkpoints/mvdiffusion/pipeckpts'  # FaceLift pretrained UNet
+pretrained_model_name_or_path: 'checkpoints/mvdiffusion/pipeckpts'  # FaceLift pretrained (local)
+pretrained_unet_path: null  # UNet already in pipeckpts
 revision: null
 
 # Prompt embeddings path (direction-based, can reuse from FaceLift)
