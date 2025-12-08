@@ -79,15 +79,15 @@ training:
     beta1: 0.9
     beta2: 0.95
     weight_decay: 0.05
-    reset_lr: false
+    reset_lr: true            # Reset LR schedule for fine-tuning
     reset_weight_decay: false
-    reset_training_state: false  # Keep pretrained optimizer momentum
+    reset_training_state: true  # IMPORTANT: Reset step counter to 0!
 
   # Fine-tune schedule (shorter)
   schedule:
     num_epochs: 20000
     early_stop_after_epochs: 20000
-    max_fwdbwd_passes: 20000     # 20k steps (vs 100k for from-scratch)
+    max_fwdbwd_passes: 20000     # 20k NEW steps for fine-tuning
     warmup: 100                   # Shorter warmup
     l2_warmup_steps: 100
 
