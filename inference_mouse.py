@@ -17,24 +17,28 @@
 """
 Mouse-FaceLift Inference Script
 
-Takes a single mouse image and outputs:
-1. Rendered novel views from multiple angles
-2. Optional 3D mesh export (if supported by model)
+Complete inference pipeline for mouse 3D reconstruction:
+1. Load 6-view images from mouse dataset
+2. Run GSLRM to generate Gaussian splats
+3. Render novel views (turntable video)
+4. Export PLY and OBJ mesh
 
 Usage:
+    # From 6-view sample folder
     python inference_mouse.py \
-        --input_dir examples/mouse/ \
-        --output_dir outputs/mouse/ \
-        --checkpoint checkpoints/gslrm/mouse/
+        --sample_dir data_mouse/sample_000000 \
+        --checkpoint checkpoints/gslrm/mouse/ \
+        --output_dir outputs/mouse_inference/
 
-    # Single image
+    # Single image with MVDiffusion (when trained)
     python inference_mouse.py \
-        --input_image path/to/mouse.png \
-        --output_dir outputs/ \
-        --checkpoint checkpoints/gslrm/mouse/
+        --input_image examples/mouse.png \
+        --mvdiffusion_checkpoint checkpoints/mouse_mvdiffusion/ \
+        --checkpoint checkpoints/gslrm/mouse/ \
+        --output_dir outputs/
 
 Author: Claude Code (AI-assisted)
-Date: 2024-12-04
+Date: 2024-12-09
 """
 
 import argparse
@@ -44,12 +48,22 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import cv2
 import numpy as np
 import torch
 import yaml
 from easydict import EasyDict as edict
+from einops import rearrange
 from PIL import Image
 from tqdm import tqdm
+
+# Local imports
+from gslrm.model.gaussians_renderer import render_turntable, imageseq2video
+
+# Constants
+DEFAULT_IMG_SIZE = 512
+DEFAULT_TURNTABLE_VIEWS = 120
+DEFAULT_TURNTABLE_FPS = 30
 
 
 def load_config(config_path: str) -> edict:
@@ -61,11 +75,11 @@ def load_config(config_path: str) -> edict:
 
 def load_model(config: edict, checkpoint_dir: str, device: str) -> torch.nn.Module:
     """
-    Load trained model from checkpoint.
+    Load trained GSLRM model from checkpoint.
 
     Args:
         config: Model configuration
-        checkpoint_dir: Directory containing checkpoint
+        checkpoint_dir: Directory containing checkpoint files
         device: Device to load model on
 
     Returns:
@@ -78,7 +92,8 @@ def load_model(config: edict, checkpoint_dir: str, device: str) -> torch.nn.Modu
     model = GSLRM(config).to(device)
 
     # Find latest checkpoint
-    checkpoint_files = list(Path(checkpoint_dir).glob("ckpt_*.pt"))
+    checkpoint_dir = Path(checkpoint_dir)
+    checkpoint_files = list(checkpoint_dir.glob("ckpt_*.pt"))
     if not checkpoint_files:
         raise FileNotFoundError(f"No checkpoint found in {checkpoint_dir}")
 
@@ -112,420 +127,488 @@ def load_model(config: edict, checkpoint_dir: str, device: str) -> torch.nn.Modu
     return model
 
 
-def load_camera_params(camera_json_path: str) -> Dict:
-    """Load camera parameters from JSON file."""
-    with open(camera_json_path, 'r') as f:
-        return json.load(f)
-
-
-def get_default_cameras(num_views: int = 6, image_size: int = 512) -> Dict:
-    """
-    Generate default camera parameters for inference.
-
-    Creates cameras arranged in a circle around the object.
-
-    Args:
-        num_views: Number of camera views
-        image_size: Image size for intrinsics
-
-    Returns:
-        Camera parameters dict in FaceLift format
-    """
-    frames = []
-    radius = 2.7
-    fov_deg = 50
-    fx = fy = 0.5 * image_size / np.tan(0.5 * np.deg2rad(fov_deg))
-    cx = cy = image_size / 2
-
-    for i in range(num_views):
-        angle = 2 * np.pi * i / num_views
-        cam_pos = np.array([
-            radius * np.cos(angle),
-            radius * np.sin(angle),
-            0.0
-        ])
-
-        # Camera orientation (looking at origin)
-        forward = -cam_pos / np.linalg.norm(cam_pos)
-        up = np.array([0, 0, 1])
-        right = np.cross(forward, up)
-        right = right / np.linalg.norm(right)
-        up = np.cross(right, forward)
-
-        R = np.stack([right, -up, forward], axis=0)
-        T = -R @ cam_pos.reshape(3, 1)
-
-        w2c = np.eye(4)
-        w2c[:3, :3] = R
-        w2c[:3, 3] = T.flatten()
-
-        frame = {
-            "w": image_size,
-            "h": image_size,
-            "fx": float(fx),
-            "fy": float(fy),
-            "cx": float(cx),
-            "cy": float(cy),
-            "w2c": w2c.tolist(),
-            "file_path": f"images/cam_{i:03d}.png"
-        }
-        frames.append(frame)
-
-    return {"frames": frames}
-
-
-def preprocess_image(
-    image_path: str,
-    target_size: int = 512,
-    bg_color: Tuple[int, int, int] = (255, 255, 255)
-) -> torch.Tensor:
-    """
-    Preprocess input image for inference.
-
-    Args:
-        image_path: Path to input image
-        target_size: Target image size
-        bg_color: Background color for compositing
-
-    Returns:
-        Preprocessed image tensor [C, H, W]
-    """
-    image = Image.open(image_path)
-
-    # Convert to RGBA if needed
-    if image.mode != "RGBA":
-        image = image.convert("RGBA")
-
-    # Resize to square
-    w, h = image.size
-    if w != h:
-        # Center crop to square
-        min_dim = min(w, h)
-        left = (w - min_dim) // 2
-        top = (h - min_dim) // 2
-        image = image.crop((left, top, left + min_dim, top + min_dim))
-
-    # Resize to target size
-    if image.size[0] != target_size:
-        image = image.resize((target_size, target_size), resample=Image.LANCZOS)
-
-    # Convert to numpy
-    image_np = np.array(image).astype(np.float32) / 255.0
-
-    # Composite onto background if has alpha
-    if image_np.shape[-1] == 4:
-        alpha = image_np[..., 3:4]
-        bg = np.array(bg_color, dtype=np.float32) / 255.0
-        rgb = image_np[..., :3] * alpha + bg * (1 - alpha)
-        image_np = np.concatenate([rgb, alpha[..., 0:1]], axis=-1)
-
-    # To tensor [C, H, W]
-    image_tensor = torch.from_numpy(image_np).permute(2, 0, 1)
-
-    return image_tensor
-
-
-def prepare_batch(
-    image_tensor: torch.Tensor,
-    cameras: Dict,
+def load_sample_data(
+    sample_dir: str,
+    image_size: int = 512,
     device: str = "cuda"
-) -> Dict[str, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
-    Prepare input batch for model inference.
+    Load 6-view images and camera parameters from a sample directory.
 
     Args:
-        image_tensor: Preprocessed image tensor [C, H, W]
-        cameras: Camera parameters dict
-        device: Device to move tensors to
+        sample_dir: Path to sample directory containing images/ and opencv_cameras.json
+        image_size: Target image size
+        device: Device to load tensors on
 
     Returns:
-        Batch dict ready for model input
+        Tuple of (images, c2w, fxfycxcy, index)
     """
-    frames = cameras["frames"]
+    sample_path = Path(sample_dir)
+
+    # Load camera parameters
+    camera_json_path = sample_path / "opencv_cameras.json"
+    if not camera_json_path.exists():
+        raise FileNotFoundError(f"Camera file not found: {camera_json_path}")
+
+    with open(camera_json_path, 'r') as f:
+        camera_data = json.load(f)
+
+    frames = camera_data["frames"]
     num_views = len(frames)
 
-    # Replicate input image for all views (will be used as reference)
-    images = image_tensor.unsqueeze(0).repeat(num_views, 1, 1, 1)  # [V, C, H, W]
+    # Determine images directory
+    images_dir = sample_path / "images"
+    if not images_dir.exists():
+        images_dir = sample_path
 
-    # Extract camera parameters
+    # Load images and camera params
+    images = []
     c2ws = []
     fxfycxcys = []
 
-    for frame in frames:
+    for i, frame in enumerate(frames):
+        # Load image
+        image_path = images_dir / f"cam_{i:03d}.png"
+        if not image_path.exists():
+            image_path = images_dir / frame.get("file_path", f"cam_{i:03d}.png").split("/")[-1]
+
+        image = Image.open(image_path)
+
+        # Handle RGBA
+        if image.mode == "RGBA":
+            # Composite on white background
+            bg = Image.new("RGBA", image.size, (255, 255, 255, 255))
+            image = Image.alpha_composite(bg, image).convert("RGB")
+        elif image.mode != "RGB":
+            image = image.convert("RGB")
+
+        # Resize if needed
+        if image.size[0] != image_size:
+            image = image.resize((image_size, image_size), Image.LANCZOS)
+
+        # To tensor [C, H, W]
+        image_np = np.array(image).astype(np.float32) / 255.0
+        image_tensor = torch.from_numpy(image_np).permute(2, 0, 1)
+        images.append(image_tensor)
+
+        # Camera extrinsics (w2c -> c2w)
         w2c = np.array(frame["w2c"])
         c2w = np.linalg.inv(w2c)
         c2ws.append(c2w)
 
-        intrinsics = np.array([
-            frame["fx"], frame["fy"], frame["cx"], frame["cy"]
-        ])
-        fxfycxcys.append(intrinsics)
+        # Camera intrinsics
+        fx, fy = frame["fx"], frame["fy"]
+        cx, cy = frame["cx"], frame["cy"]
+        # Scale intrinsics if image was resized
+        scale = image_size / frame.get("w", image_size)
+        fxfycxcys.append([fx * scale, fy * scale, cx * scale, cy * scale])
 
-    c2ws = torch.from_numpy(np.array(c2ws)).float()  # [V, 4, 4]
-    fxfycxcys = torch.from_numpy(np.array(fxfycxcys)).float()  # [V, 4]
+    # Stack tensors
+    images = torch.stack(images, dim=0).unsqueeze(0).to(device)  # [1, V, C, H, W]
+    c2ws = torch.from_numpy(np.array(c2ws)).float().unsqueeze(0).to(device)  # [1, V, 4, 4]
+    fxfycxcys = torch.from_numpy(np.array(fxfycxcys)).float().unsqueeze(0).to(device)  # [1, V, 4]
 
-    # Background color - must be [B, V, 3] to match data_splitter expectations
-    bg_color = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float32)
-    bg_color_batch = bg_color.unsqueeze(0).unsqueeze(0).repeat(1, num_views, 1)  # [1, V, 3]
+    # Create index tensor [B, V, 2] - (sample_idx, view_idx)
+    index = torch.stack([
+        torch.zeros(num_views).long(),  # sample index (all 0 for single sample)
+        torch.arange(num_views).long()  # view index
+    ], dim=-1).unsqueeze(0).to(device)  # [1, V, 2]
 
-    # View indices [B, V]
-    index = torch.arange(num_views).unsqueeze(0)  # [1, V]
+    print(f"Loaded {num_views} views from {sample_dir}")
+    print(f"  Images shape: {images.shape}")
+    print(f"  C2W shape: {c2ws.shape}")
+    print(f"  Intrinsics shape: {fxfycxcys.shape}")
+    print(f"  Index shape: {index.shape}")
 
-    batch = {
-        "image": images.unsqueeze(0).to(device),  # [1, V, C, H, W]
-        "c2w": c2ws.unsqueeze(0).to(device),  # [1, V, 4, 4]
-        "fxfycxcy": fxfycxcys.unsqueeze(0).to(device),  # [1, V, 4]
-        "bg_color": bg_color_batch.to(device),  # [1, V, 3]
-        "index": index.to(device),  # [1, V]
-    }
-
-    return batch
+    return images, c2ws, fxfycxcys, index
 
 
-def save_results(
-    result: Dict,
-    output_dir: str,
-    image_name: str,
-    save_video: bool = True
-):
+def run_inference(
+    model: torch.nn.Module,
+    images: torch.Tensor,
+    c2ws: torch.Tensor,
+    fxfycxcys: torch.Tensor,
+    index: torch.Tensor,
+    device: str = "cuda"
+) -> edict:
     """
-    Save inference results.
+    Run GSLRM inference on multi-view images.
 
     Args:
-        result: Model output dict
-        output_dir: Output directory
-        image_name: Name for output files
-        save_video: Whether to save as video
+        model: GSLRM model
+        images: Input images [B, V, C, H, W]
+        c2ws: Camera-to-world matrices [B, V, 4, 4]
+        fxfycxcys: Camera intrinsics [B, V, 4]
+        index: View indices [B, V, 2]
+        device: Device
+
+    Returns:
+        Model output containing gaussians and rendered images
     """
-    os.makedirs(output_dir, exist_ok=True)
+    # Create batch
+    batch = edict({
+        "image": images,
+        "c2w": c2ws,
+        "fxfycxcy": fxfycxcys,
+        "index": index,
+    })
 
-    # Debug: print available keys
-    print(f"Result keys: {list(result.keys()) if hasattr(result, 'keys') else 'N/A'}")
+    # Run inference
+    with torch.no_grad(), torch.autocast(
+        enabled=True,
+        device_type="cuda" if "cuda" in device else "cpu",
+        dtype=torch.float16
+    ):
+        result = model.forward(batch, create_visual=True, split_data=True)
 
-    # Save rendered views (model outputs 'render' key)
-    render_key = "render" if "render" in result else "rendered_images"
-    if render_key in result and result[render_key] is not None:
-        rendered = result[render_key]
-        if isinstance(rendered, torch.Tensor):
-            rendered = rendered.detach().cpu().numpy()
+    return result
 
-        print(f"Rendered shape: {rendered.shape}")
 
-        # Handle different tensor shapes: [B, V, C, H, W] or [B, V, H, W, C] or [V, C, H, W]
-        if rendered.ndim == 5:
-            # [B, V, C, H, W] -> take first batch
-            rendered = rendered[0]  # [V, C, H, W]
+def save_outputs(
+    result: edict,
+    output_dir: str,
+    sample_name: str,
+    save_turntable: bool = True,
+    save_mesh: bool = True,
+    turntable_views: int = DEFAULT_TURNTABLE_VIEWS,
+    turntable_fps: int = DEFAULT_TURNTABLE_FPS,
+    image_size: int = DEFAULT_IMG_SIZE
+):
+    """
+    Save inference outputs: PLY, OBJ, rendered views, turntable video.
 
-        if rendered.ndim == 4:
-            # Could be [V, C, H, W] or [V, H, W, C]
-            if rendered.shape[1] in [3, 4]:
-                # [V, C, H, W] -> [V, H, W, C]
-                rendered = rendered.transpose(0, 2, 3, 1)
+    Args:
+        result: Model output
+        output_dir: Output directory
+        sample_name: Name for output files
+        save_turntable: Whether to generate turntable video
+        save_mesh: Whether to save mesh files (PLY, OBJ)
+        turntable_views: Number of turntable views
+        turntable_fps: Turntable video FPS
+        image_size: Image size for rendering
+    """
+    output_path = Path(output_dir) / sample_name
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    print(f"Saving outputs to {output_path}")
+
+    # Get Gaussian model
+    gaussians = result.gaussians[0]
+
+    # Apply filters to clean up Gaussians
+    filtered_gaussians = gaussians.apply_all_filters(
+        opacity_thres=0.04,
+        scaling_thres=0.1,
+        floater_thres=0.6,
+        crop_bbx=[-0.91, 0.91, -0.91, 0.91, -1.0, 1.0],
+        cam_origins=None,
+        nearfar_percent=(0.0001, 1.0),
+    )
+
+    # Save PLY
+    if save_mesh:
+        ply_path = output_path / "gaussians.ply"
+        filtered_gaussians.save_ply(str(ply_path))
+        print(f"  Saved PLY: {ply_path}")
+
+        # Convert PLY to OBJ (point cloud as vertices)
+        try:
+            obj_path = output_path / "mesh.obj"
+            ply_to_obj(str(ply_path), str(obj_path))
+            print(f"  Saved OBJ: {obj_path}")
+        except Exception as e:
+            print(f"  Warning: Could not save OBJ: {e}")
+
+    # Save rendered views from training
+    if result.render is not None:
+        comp_image = result.render[0].detach()
+        v = comp_image.size(0)
 
         # Save individual views
-        for i, view in enumerate(rendered):
-            # view should be [H, W, C] now
-            if view.ndim == 3 and view.shape[0] in [3, 4]:
-                view = view.transpose(1, 2, 0)
+        for i in range(v):
+            view_img = comp_image[i].permute(1, 2, 0).cpu().numpy()
+            view_img = (view_img * 255.0).clip(0, 255).astype(np.uint8)
+            Image.fromarray(view_img).save(output_path / f"render_view_{i:02d}.png")
 
-            # Ensure 2D image with channels
-            while view.ndim > 3:
-                view = view[0]
+        # Save grid view
+        if v > 1:
+            comp_image_grid = rearrange(comp_image, "v c h w -> h (v w) c")
+            comp_image_grid = (comp_image_grid.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+            Image.fromarray(comp_image_grid).save(output_path / "render_grid.png")
 
-            view_uint8 = (view * 255).clip(0, 255).astype(np.uint8)
-            print(f"View {i} shape: {view_uint8.shape}")
+        print(f"  Saved {v} rendered views")
 
-            if view_uint8.shape[-1] == 4:
-                Image.fromarray(view_uint8, mode="RGBA").save(
-                    os.path.join(output_dir, f"{image_name}_view_{i:02d}.png")
-                )
-            else:
-                Image.fromarray(view_uint8[..., :3]).save(
-                    os.path.join(output_dir, f"{image_name}_view_{i:02d}.png")
-                )
-
-        print(f"Saved {len(rendered)} views")
-
-        # Save as video if requested
-        if save_video and len(rendered) > 1:
-            try:
-                import cv2
-                video_path = os.path.join(output_dir, f"{image_name}_views.mp4")
-                h, w = rendered[0].shape[:2] if rendered[0].ndim == 3 else rendered[0].shape[1:3]
-
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                out = cv2.VideoWriter(video_path, fourcc, 10.0, (w, h))
-
-                for view in rendered:
-                    if view.ndim == 3 and view.shape[0] in [3, 4]:
-                        view = view.transpose(1, 2, 0)
-                    frame = (view[..., :3] * 255).clip(0, 255).astype(np.uint8)
-                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                    out.write(frame)
-
-                out.release()
-                print(f"Saved video: {video_path}")
-            except Exception as e:
-                print(f"Warning: Could not save video: {e}")
-
-    # Save gaussian parameters if available
-    if "gaussians" in result:
+    # Generate turntable video
+    if save_turntable:
+        print(f"  Generating turntable video ({turntable_views} views)...")
         try:
-            gaussians = result["gaussians"]
-            # Extract serializable tensor data only
-            gaussians_data = {}
-            if hasattr(gaussians, '__dict__'):
-                for k, v in gaussians.__dict__.items():
-                    if isinstance(v, torch.Tensor):
-                        gaussians_data[k] = v.detach().cpu()
-            elif isinstance(gaussians, dict):
-                for k, v in gaussians.items():
-                    if isinstance(v, torch.Tensor):
-                        gaussians_data[k] = v.detach().cpu()
+            vis_image = render_turntable(
+                filtered_gaussians,
+                rendering_resolution=image_size,
+                num_views=turntable_views,
+            )
+            vis_image = rearrange(vis_image, "h (v w) c -> v h w c", v=turntable_views)
+            vis_image = np.ascontiguousarray(vis_image)
 
-            if gaussians_data:
-                gaussians_path = os.path.join(output_dir, f"{image_name}_gaussians.pt")
-                torch.save(gaussians_data, gaussians_path)
-                print(f"Saved gaussians: {gaussians_path}")
+            video_path = output_path / "turntable.mp4"
+            imageseq2video(vis_image, str(video_path), fps=turntable_fps)
+            print(f"  Saved turntable video: {video_path}")
         except Exception as e:
-            print(f"Warning: Could not save gaussians: {e}")
+            print(f"  Warning: Could not generate turntable: {e}")
+
+    print(f"  Done saving outputs for {sample_name}")
 
 
-def find_images(input_path: str) -> List[str]:
-    """Find all image files in directory or return single image path."""
-    image_extensions = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+def ply_to_obj(ply_path: str, obj_path: str):
+    """
+    Convert PLY point cloud to OBJ format.
 
-    if os.path.isfile(input_path):
-        return [input_path]
+    For Gaussian splats, we extract the point positions and colors
+    and save as a colored point cloud in OBJ format.
 
-    if os.path.isdir(input_path):
-        images = []
-        for ext in image_extensions:
-            images.extend(Path(input_path).glob(f"*{ext}"))
-            images.extend(Path(input_path).glob(f"*{ext.upper()}"))
-        return sorted([str(p) for p in images])
+    Args:
+        ply_path: Path to input PLY file
+        obj_path: Path to output OBJ file
+    """
+    try:
+        # Try using Open3D for better mesh handling
+        import open3d as o3d
 
-    return []
+        pcd = o3d.io.read_point_cloud(ply_path)
+
+        # Option 1: Save as point cloud OBJ
+        o3d.io.write_point_cloud(obj_path.replace('.obj', '_points.ply'), pcd)
+
+        # Option 2: Create mesh using Poisson reconstruction (if enough points)
+        if len(pcd.points) > 1000:
+            # Estimate normals if not present
+            if not pcd.has_normals():
+                pcd.estimate_normals(
+                    search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
+                )
+                pcd.orient_normals_consistent_tangent_plane(k=15)
+
+            # Poisson surface reconstruction
+            mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+                pcd, depth=9
+            )
+
+            # Remove low-density vertices
+            vertices_to_remove = densities < np.quantile(densities, 0.05)
+            mesh.remove_vertices_by_mask(vertices_to_remove)
+
+            # Save mesh
+            o3d.io.write_triangle_mesh(obj_path, mesh)
+            print(f"    Created mesh with {len(mesh.vertices)} vertices, {len(mesh.triangles)} triangles")
+        else:
+            # Just save points as OBJ vertices
+            save_points_as_obj(pcd, obj_path)
+
+    except ImportError:
+        # Fallback: manual PLY parsing and OBJ writing
+        print("    Open3D not available, using fallback PLY->OBJ conversion")
+        convert_ply_to_obj_simple(ply_path, obj_path)
+
+
+def save_points_as_obj(pcd, obj_path: str):
+    """Save Open3D point cloud as OBJ file with vertex colors."""
+    import open3d as o3d
+
+    points = np.asarray(pcd.points)
+    colors = np.asarray(pcd.colors) if pcd.has_colors() else None
+
+    with open(obj_path, 'w') as f:
+        f.write(f"# Point cloud converted from PLY\n")
+        f.write(f"# {len(points)} points\n")
+
+        for i, p in enumerate(points):
+            if colors is not None:
+                c = colors[i]
+                f.write(f"v {p[0]:.6f} {p[1]:.6f} {p[2]:.6f} {c[0]:.6f} {c[1]:.6f} {c[2]:.6f}\n")
+            else:
+                f.write(f"v {p[0]:.6f} {p[1]:.6f} {p[2]:.6f}\n")
+
+
+def convert_ply_to_obj_simple(ply_path: str, obj_path: str):
+    """Simple PLY to OBJ conversion without Open3D."""
+    from plyfile import PlyData
+
+    ply = PlyData.read(ply_path)
+    vertex = ply['vertex']
+
+    x = vertex['x']
+    y = vertex['y']
+    z = vertex['z']
+
+    # Try to get colors
+    has_color = 'red' in vertex.data.dtype.names
+
+    with open(obj_path, 'w') as f:
+        f.write(f"# Converted from {ply_path}\n")
+        f.write(f"# {len(x)} vertices\n")
+
+        for i in range(len(x)):
+            if has_color:
+                r = vertex['red'][i] / 255.0
+                g = vertex['green'][i] / 255.0
+                b = vertex['blue'][i] / 255.0
+                f.write(f"v {x[i]:.6f} {y[i]:.6f} {z[i]:.6f} {r:.6f} {g:.6f} {b:.6f}\n")
+            else:
+                f.write(f"v {x[i]:.6f} {y[i]:.6f} {z[i]:.6f}\n")
+
+
+def find_sample_dirs(data_dir: str) -> List[str]:
+    """Find all sample directories in data directory."""
+    data_path = Path(data_dir)
+    samples = []
+
+    # Look for directories with opencv_cameras.json
+    for item in sorted(data_path.iterdir()):
+        if item.is_dir():
+            if (item / "opencv_cameras.json").exists():
+                samples.append(str(item))
+            elif (item / "images" / "cam_000.png").exists():
+                samples.append(str(item))
+
+    return samples
 
 
 def main():
     parser = argparse.ArgumentParser(description="Mouse-FaceLift Inference")
+
+    # Input options
     parser.add_argument(
-        "--input_dir", type=str, default=None,
-        help="Directory containing input images"
+        "--sample_dir", type=str, default=None,
+        help="Path to sample directory with 6 views and opencv_cameras.json"
+    )
+    parser.add_argument(
+        "--data_dir", type=str, default=None,
+        help="Directory containing multiple sample directories"
     )
     parser.add_argument(
         "--input_image", type=str, default=None,
-        help="Path to single input image"
+        help="Single input image (requires MVDiffusion)"
     )
-    parser.add_argument(
-        "--output_dir", type=str, default="outputs/mouse/",
-        help="Output directory for results"
-    )
+
+    # Model options
     parser.add_argument(
         "--checkpoint", type=str, default="checkpoints/gslrm/mouse/",
-        help="Path to model checkpoint directory"
+        help="Path to GSLRM checkpoint directory"
     )
     parser.add_argument(
         "--config", type=str, default="configs/mouse_config.yaml",
-        help="Path to config file"
+        help="Path to model config"
     )
     parser.add_argument(
-        "--camera_json", type=str, default=None,
-        help="Path to camera parameters JSON (optional)"
+        "--mvdiffusion_checkpoint", type=str, default=None,
+        help="Path to MVDiffusion checkpoint (for single image input)"
+    )
+
+    # Output options
+    parser.add_argument(
+        "--output_dir", type=str, default="outputs/mouse_inference/",
+        help="Output directory"
     )
     parser.add_argument(
-        "--num_views", type=int, default=6,
-        help="Number of output views"
+        "--save_turntable", action="store_true", default=True,
+        help="Generate turntable video"
     )
     parser.add_argument(
-        "--image_size", type=int, default=512,
-        help="Image size for inference"
+        "--no_turntable", action="store_true",
+        help="Skip turntable video generation"
     )
+    parser.add_argument(
+        "--save_mesh", action="store_true", default=True,
+        help="Save PLY and OBJ files"
+    )
+    parser.add_argument(
+        "--turntable_views", type=int, default=DEFAULT_TURNTABLE_VIEWS,
+        help="Number of turntable views"
+    )
+
+    # Hardware options
     parser.add_argument(
         "--device", type=str, default="cuda",
         help="Device to run on"
     )
     parser.add_argument(
-        "--save_video", action="store_true",
-        help="Save results as video"
+        "--image_size", type=int, default=DEFAULT_IMG_SIZE,
+        help="Image size"
     )
+
     args = parser.parse_args()
 
-    # Determine input path
-    input_path = args.input_image or args.input_dir
-    if not input_path:
-        parser.error("Either --input_dir or --input_image must be specified")
+    # Validate inputs
+    if not args.sample_dir and not args.data_dir and not args.input_image:
+        parser.error("Must specify --sample_dir, --data_dir, or --input_image")
 
-    # Find images
-    image_paths = find_images(input_path)
-    if not image_paths:
-        print(f"No images found in {input_path}")
-        return
+    if args.input_image and not args.mvdiffusion_checkpoint:
+        parser.error("--input_image requires --mvdiffusion_checkpoint")
 
-    print(f"Found {len(image_paths)} images to process")
-
-    # Load configuration
-    config = load_config(args.config)
-
-    # Override config with command line args
-    config.model.image_tokenizer.image_size = args.image_size
-
-    # Check if CUDA is available
+    # Check device
     if args.device == "cuda" and not torch.cuda.is_available():
-        print("CUDA not available, falling back to CPU")
+        print("CUDA not available, using CPU")
         args.device = "cpu"
 
-    # Load model
-    print("Loading model...")
+    # Load config and model
+    print("Loading configuration...")
+    config = load_config(args.config)
+    config.model.image_tokenizer.image_size = args.image_size
+
+    print("Loading GSLRM model...")
     model = load_model(config, args.checkpoint, args.device)
     print("Model loaded successfully")
 
-    # Load or generate camera parameters
-    if args.camera_json and os.path.exists(args.camera_json):
-        cameras = load_camera_params(args.camera_json)
-    else:
-        cameras = get_default_cameras(args.num_views, args.image_size)
-        print(f"Using default camera arrangement with {args.num_views} views")
+    # Collect samples to process
+    samples = []
+    if args.sample_dir:
+        samples.append(args.sample_dir)
+    elif args.data_dir:
+        samples = find_sample_dirs(args.data_dir)
+        print(f"Found {len(samples)} samples in {args.data_dir}")
+    elif args.input_image:
+        # Single image mode - requires MVDiffusion
+        print("Single image mode not yet implemented - need trained MVDiffusion")
+        print("Please use --sample_dir with 6-view data")
+        return
 
-    # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    if not samples:
+        print("No samples found to process")
+        return
 
-    # Process each image
-    for image_path in tqdm(image_paths, desc="Processing images"):
-        image_name = Path(image_path).stem
+    # Process each sample
+    save_turntable = args.save_turntable and not args.no_turntable
+
+    for sample_dir in tqdm(samples, desc="Processing samples"):
+        sample_name = Path(sample_dir).name
 
         try:
-            # Preprocess image
-            image_tensor = preprocess_image(
-                image_path, args.image_size
+            # Load data
+            images, c2ws, fxfycxcys, index = load_sample_data(
+                sample_dir, args.image_size, args.device
             )
-
-            # Prepare batch
-            batch = prepare_batch(image_tensor, cameras, args.device)
 
             # Run inference
-            with torch.no_grad(), torch.autocast(
-                enabled=True, device_type="cuda" if "cuda" in args.device else "cpu",
-                dtype=torch.bfloat16
-            ):
-                result = model(batch, create_visual=True)
+            result = run_inference(model, images, c2ws, fxfycxcys, index, args.device)
 
-            # Save results
-            save_results(
-                result, args.output_dir, image_name,
-                save_video=args.save_video
+            # Save outputs
+            save_outputs(
+                result,
+                args.output_dir,
+                sample_name,
+                save_turntable=save_turntable,
+                save_mesh=args.save_mesh,
+                turntable_views=args.turntable_views,
+                image_size=args.image_size
             )
 
-            print(f"Processed: {image_name}")
-
         except Exception as e:
-            print(f"Error processing {image_path}: {e}")
+            print(f"Error processing {sample_dir}: {e}")
             import traceback
             traceback.print_exc()
             continue
 
-    print(f"\nResults saved to: {args.output_dir}")
+    print(f"\nAll outputs saved to: {args.output_dir}")
 
 
 if __name__ == "__main__":
