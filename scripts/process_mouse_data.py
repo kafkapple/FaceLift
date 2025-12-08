@@ -50,14 +50,32 @@ def load_camera_params(meta_dir: str, num_views: int = 6) -> List[Dict]:
     cam_pkl_path = os.path.join(meta_dir, "new_cam.pkl")
     if os.path.exists(cam_pkl_path):
         with open(cam_pkl_path, "rb") as f:
-            cam_dict = pickle.load(f)
-        for i in range(num_views):
-            if i in cam_dict:
-                cameras.append(cam_dict[i])
-            elif str(i) in cam_dict:
-                cameras.append(cam_dict[str(i)])
+            cam_data = pickle.load(f)
+
+        # Handle both list and dict formats
+        if isinstance(cam_data, list):
+            # MAMMAL format: list of camera dicts
+            for i in range(min(num_views, len(cam_data))):
+                cameras.append(cam_data[i])
+        elif isinstance(cam_data, dict):
+            # Dict format with integer or string keys
+            for i in range(num_views):
+                if i in cam_data:
+                    cameras.append(cam_data[i])
+                elif str(i) in cam_data:
+                    cameras.append(cam_data[str(i)])
+
         if cameras:
             print(f"Loaded {len(cameras)} cameras from {cam_pkl_path}")
+            # Debug: print camera info
+            for i, cam in enumerate(cameras):
+                R = np.array(cam.get("R", []))
+                T = np.array(cam.get("T", [])).flatten()
+                if R.size > 0 and T.size > 0:
+                    cam_pos = -R.T @ T
+                    dist = np.linalg.norm(cam_pos)
+                    elev = np.degrees(np.arcsin(cam_pos[2] / dist)) if dist > 0 else 0
+                    print(f"  Camera {i}: dist={dist:.1f}, elevation={elev:.1f}°")
             return cameras
 
     # Try loading from transforms.json (NeRF format)
@@ -105,41 +123,52 @@ def load_camera_params(meta_dir: str, num_views: int = 6) -> List[Dict]:
     return cameras
 
 
-def generate_default_cameras(num_views: int = 6, radius: float = 2.7,
-                             image_size: int = 512) -> List[Dict]:
+def generate_default_cameras(
+    num_views: int = 6,
+    radius: float = 2.7,
+    elevation_deg: float = 20.0,
+    fov_deg: float = 50.0,
+    image_size: int = 512
+) -> List[Dict]:
     """
     Generate default camera parameters in a circular arrangement.
 
+    Uses FaceLift-standard settings: radius=2.7, elevation=20°, FOV=50°.
+
     Args:
         num_views: Number of cameras
-        radius: Distance from origin
+        radius: Distance from origin (FaceLift default: 2.7)
+        elevation_deg: Camera elevation angle in degrees (FaceLift default: 20)
+        fov_deg: Field of view in degrees (FaceLift default: 50)
         image_size: Image width/height
 
     Returns:
         List of camera dictionaries with R, T, K
     """
     cameras = []
-    fov_deg = 50  # Field of view in degrees
     fx = fy = 0.5 * image_size / np.tan(0.5 * np.deg2rad(fov_deg))
     cx = cy = image_size / 2
 
+    elevation_rad = np.deg2rad(elevation_deg)
+    up_vector = np.array([0, 0, 1])
+
     for i in range(num_views):
-        angle = 2 * np.pi * i / num_views
-        # Camera position (looking at origin from circular path)
-        cam_pos = np.array([
-            radius * np.cos(angle),
-            radius * np.sin(angle),
-            0.0  # All cameras at same height
-        ])
+        azimuth = 2 * np.pi * i / num_views
+
+        # Camera position with elevation (matching FaceLift get_turntable_cameras)
+        z = radius * np.sin(elevation_rad)
+        base = radius * np.cos(elevation_rad)
+        x = base * np.cos(azimuth)
+        y = base * np.sin(azimuth)
+        cam_pos = np.array([x, y, z])
 
         # Camera orientation (looking at origin)
         forward = -cam_pos / np.linalg.norm(cam_pos)
-        up = np.array([0, 0, 1])
-        right = np.cross(forward, up)
+        right = np.cross(forward, up_vector)
         right = right / np.linalg.norm(right)
         up = np.cross(right, forward)
 
-        # Rotation matrix (world to camera)
+        # Rotation matrix (world to camera) - OpenCV convention
         R = np.stack([right, -up, forward], axis=0)
         T = -R @ cam_pos.reshape(3, 1)
 
@@ -151,46 +180,79 @@ def generate_default_cameras(num_views: int = 6, radius: float = 2.7,
 
         cameras.append({"R": R, "T": T, "K": K})
 
+    print(f"Generated {num_views} default cameras: radius={radius}, "
+          f"elevation={elevation_deg}°, fov={fov_deg}°")
+
     return cameras
 
 
-def convert_to_facelift_format(cameras: List[Dict], image_size: int = 512) -> Dict:
+def convert_to_facelift_format(
+    cameras: List[Dict],
+    image_size: int = 512,
+    target_distance: float = 2.7,
+    target_fov_deg: float = 50.0
+) -> Dict:
     """
     Convert MAMMAL-style cameras to FaceLift opencv_cameras.json format.
+
+    IMPORTANT: FaceLift model was trained with normalized cameras:
+    - Camera distance: ~2.7 units
+    - FOV: ~50 degrees
+    - fx ≈ 549 for 512px images
+
+    MAMMAL cameras have distance 246-414 units, so we must normalize!
 
     Args:
         cameras: List of camera dicts with R, T, K
         image_size: Target image size
+        target_distance: Target camera distance (FaceLift default: 2.7)
+        target_fov_deg: Target field of view in degrees (FaceLift default: 50)
 
     Returns:
         FaceLift-style camera dict ready for JSON serialization
     """
     frames = []
 
+    # First pass: compute average camera distance for normalization
+    distances = []
+    for cam in cameras:
+        R = np.array(cam["R"])
+        T = np.array(cam["T"]).flatten()
+        # Camera position in world coords: -R^T @ T
+        cam_pos = -R.T @ T
+        dist = np.linalg.norm(cam_pos)
+        distances.append(dist)
+
+    avg_distance = np.mean(distances) if distances else 1.0
+    scale_factor = target_distance / avg_distance if avg_distance > 0 else 1.0
+
+    print(f"Camera normalization: avg_dist={avg_distance:.1f}, "
+          f"target={target_distance}, scale={scale_factor:.6f}")
+
+    # Target intrinsics for FaceLift
+    target_fx = 0.5 * image_size / np.tan(0.5 * np.deg2rad(target_fov_deg))
+    target_fy = target_fx
+    target_cx = image_size / 2
+    target_cy = image_size / 2
+
     for i, cam in enumerate(cameras):
         R = np.array(cam["R"])
         T = np.array(cam["T"]).flatten()
-        K = np.array(cam["K"])
+
+        # Normalize camera distance by scaling translation
+        # w2c = [R | T], where T = -R @ cam_pos
+        # Scaling cam_pos scales T proportionally
+        T_normalized = T * scale_factor
 
         # Build w2c matrix (world-to-camera 4x4)
         w2c = np.eye(4)
         w2c[:3, :3] = R
-        w2c[:3, 3] = T
+        w2c[:3, 3] = T_normalized
 
-        # Extract intrinsics
-        fx, fy = K[0, 0], K[1, 1]
-        cx, cy = K[0, 2], K[1, 2]
-
-        # Scale intrinsics if original image size differs
-        # Assuming original calibration is for some size, scale to target
-        # This is a placeholder - adjust based on actual calibration
-        orig_size = max(K[0, 2] * 2, K[1, 2] * 2)
-        if orig_size > 0:
-            scale = image_size / orig_size
-            fx *= scale
-            fy *= scale
-            cx = image_size / 2  # Center principal point
-            cy = image_size / 2
+        # Use FaceLift-standard intrinsics for consistency
+        # The model was trained with specific FOV, so we match that
+        fx, fy = target_fx, target_fy
+        cx, cy = target_cx, target_cy
 
         frame = {
             "w": image_size,
@@ -204,6 +266,14 @@ def convert_to_facelift_format(cameras: List[Dict], image_size: int = 512) -> Di
             "view_id": i
         }
         frames.append(frame)
+
+        if i == 0:
+            # Debug: print first camera info after normalization
+            cam_pos_norm = -R.T @ T_normalized
+            dist_norm = np.linalg.norm(cam_pos_norm)
+            elev = np.degrees(np.arcsin(cam_pos_norm[2] / dist_norm)) if dist_norm > 0 else 0
+            print(f"  Camera 0 after norm: dist={dist_norm:.2f}, elev={elev:.1f}°, "
+                  f"fx={fx:.1f}, fov={np.degrees(2*np.arctan(image_size/(2*fx))):.1f}°")
 
     return {"frames": frames}
 
@@ -480,6 +550,14 @@ def main():
         choices=["white", "black", "gray"],
         help="Background color (default: white)"
     )
+    parser.add_argument(
+        "--target_distance", type=float, default=2.7,
+        help="Target camera distance for normalization (FaceLift default: 2.7)"
+    )
+    parser.add_argument(
+        "--target_fov", type=float, default=50.0,
+        help="Target field of view in degrees (FaceLift default: 50)"
+    )
 
     args = parser.parse_args()
 
@@ -528,8 +606,16 @@ def main():
         print(f"Warning: Only {len(cameras)} cameras loaded, generating defaults")
         cameras = generate_default_cameras(args.num_views, image_size=args.image_size)
 
-    # Convert to FaceLift format
-    facelift_cameras = convert_to_facelift_format(cameras, args.image_size)
+    # Convert to FaceLift format with distance normalization
+    print(f"\nNormalizing cameras to FaceLift format...")
+    print(f"  Target distance: {args.target_distance}")
+    print(f"  Target FOV: {args.target_fov}°")
+    facelift_cameras = convert_to_facelift_format(
+        cameras,
+        image_size=args.image_size,
+        target_distance=args.target_distance,
+        target_fov_deg=args.target_fov
+    )
 
     # Get total frame count from first video
     if video_files:
