@@ -81,6 +81,73 @@ DEFAULT_IMG_SIZE = 512
 DEFAULT_TURNTABLE_VIEWS = 120
 DEFAULT_TURNTABLE_FPS = 30
 
+# MVDiffusion camera configuration (6 fixed views)
+# Based on FaceLift paper: evenly distributed around the object
+MVDIFFUSION_AZIMUTHS = [0, 60, 120, 180, 240, 300]  # degrees
+MVDIFFUSION_ELEVATION = 0  # degrees (frontal view plane)
+
+
+def compute_mvdiffusion_cameras(
+    image_size: int = 512,
+    device: str = "cuda",
+    camera_distance: float = 2.7
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Compute camera parameters for MVDiffusion 6-view setup.
+
+    MVDiffusion generates 6 views evenly distributed around the object
+    at the same elevation level.
+
+    Args:
+        image_size: Image size for computing intrinsics
+        device: Device to create tensors on
+        camera_distance: Distance from camera to origin
+
+    Returns:
+        Tuple of (c2w matrices [6, 4, 4], fxfycxcy [6, 4])
+    """
+    c2ws = []
+    fxfycxcys = []
+
+    # Approximate FOV (~50 degrees) -> focal length
+    fov = 50.0
+    focal = image_size / (2 * np.tan(np.radians(fov / 2)))
+    cx, cy = image_size / 2, image_size / 2
+
+    for azim in MVDIFFUSION_AZIMUTHS:
+        azim_rad = np.radians(azim)
+        elev_rad = np.radians(MVDIFFUSION_ELEVATION)
+
+        # Camera position on sphere
+        x = camera_distance * np.cos(elev_rad) * np.sin(azim_rad)
+        y = camera_distance * np.sin(elev_rad)
+        z = camera_distance * np.cos(elev_rad) * np.cos(azim_rad)
+
+        cam_pos = np.array([x, y, z])
+
+        # Look-at matrix (camera looks at origin)
+        forward = -cam_pos / np.linalg.norm(cam_pos)
+        right = np.cross(np.array([0, 1, 0]), forward)
+        if np.linalg.norm(right) < 1e-6:
+            right = np.array([1, 0, 0])
+        right = right / np.linalg.norm(right)
+        up = np.cross(forward, right)
+
+        # Camera-to-world matrix
+        c2w = np.eye(4)
+        c2w[:3, 0] = right
+        c2w[:3, 1] = up
+        c2w[:3, 2] = -forward  # OpenGL convention
+        c2w[:3, 3] = cam_pos
+
+        c2ws.append(c2w)
+        fxfycxcys.append([focal, focal, cx, cy])
+
+    c2ws = torch.from_numpy(np.array(c2ws)).float().to(device)
+    fxfycxcys = torch.from_numpy(np.array(fxfycxcys)).float().to(device)
+
+    return c2ws, fxfycxcys
+
 
 def load_config(config_path: str) -> edict:
     """Load configuration from YAML file."""
@@ -569,6 +636,22 @@ def main():
         "--zero123pp_guidance", type=float, default=4.0,
         help="Guidance scale for Zero123++"
     )
+
+    # MVDiffusion options (for single-image input with fine-tuned model)
+    parser.add_argument(
+        "--mvdiffusion_steps", type=int, default=50,
+        help="Number of diffusion steps for MVDiffusion"
+    )
+    parser.add_argument(
+        "--mvdiffusion_guidance", type=float, default=3.0,
+        help="Guidance scale for MVDiffusion"
+    )
+    parser.add_argument(
+        "--prompt_embed_path", type=str,
+        default="mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt",
+        help="Path to prompt embeddings for MVDiffusion"
+    )
+
     parser.add_argument(
         "--seed", type=int, default=42,
         help="Random seed for reproducibility"
@@ -699,9 +782,133 @@ def main():
                 traceback.print_exc()
                 return
         elif args.mvdiffusion_checkpoint:
-            print("MVDiffusion single-image mode not yet implemented")
-            print("Use --use_zero123pp for single-image inference")
-            return
+            print("Using MVDiffusion for single-image to multi-view generation")
+            try:
+                from mvdiffusion.pipelines.pipeline_mvdiffusion_unclip import StableUnCLIPImg2ImgPipeline
+                from diffusers import DDIMScheduler
+                from PIL import Image
+                import torchvision.transforms.functional as TF
+
+                # Load MVDiffusion pipeline
+                print(f"Loading MVDiffusion from {args.mvdiffusion_checkpoint}...")
+                mvdiff_pipe = StableUnCLIPImg2ImgPipeline.from_pretrained(
+                    args.mvdiffusion_checkpoint,
+                    torch_dtype=torch.float16
+                )
+                mvdiff_pipe.to(args.device)
+
+                # Enable memory optimizations
+                if hasattr(mvdiff_pipe, 'enable_xformers_memory_efficient_attention'):
+                    try:
+                        mvdiff_pipe.enable_xformers_memory_efficient_attention()
+                        print("  Enabled xformers attention")
+                    except Exception:
+                        pass
+
+                # Load and preprocess input image
+                input_img = Image.open(args.input_image)
+                if input_img.mode == 'RGBA':
+                    bg = Image.new('RGBA', input_img.size, (255, 255, 255, 255))
+                    input_img = Image.alpha_composite(bg, input_img).convert('RGB')
+                elif input_img.mode != 'RGB':
+                    input_img = input_img.convert('RGB')
+
+                if input_img.size != (args.image_size, args.image_size):
+                    input_img = input_img.resize((args.image_size, args.image_size), Image.LANCZOS)
+
+                # Load prompt embeddings
+                prompt_embed_path = getattr(args, 'prompt_embed_path', None) or \
+                    "mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt"
+                if os.path.exists(prompt_embed_path):
+                    prompt_embeds = torch.load(prompt_embed_path)
+                else:
+                    print(f"Warning: Prompt embeddings not found at {prompt_embed_path}")
+                    prompt_embeds = torch.zeros(6, 77, 1024)
+
+                prompt_embeds = prompt_embeds.to(args.device, dtype=torch.float16)
+
+                # Replicate input image for all views
+                input_tensor = TF.to_tensor(input_img).unsqueeze(0).repeat(6, 1, 1, 1)
+                input_tensor = input_tensor.to(args.device)
+
+                # Set seed
+                generator = torch.Generator(device=args.device).manual_seed(args.seed)
+
+                # Generate multi-view images
+                print(f"Generating 6 views from {args.input_image}...")
+                mvdiff_output = mvdiff_pipe(
+                    image=input_tensor,
+                    prompt=[""] * 6,
+                    prompt_embeds=prompt_embeds,
+                    num_inference_steps=args.mvdiffusion_steps,
+                    guidance_scale=args.mvdiffusion_guidance,
+                    generator=generator,
+                    output_type='pt'
+                )
+
+                generated_views = mvdiff_output.images  # [6, C, H, W]
+
+                # Save generated views
+                sample_name = Path(args.input_image).stem
+                output_path = Path(args.output_dir) / sample_name
+                output_path.mkdir(parents=True, exist_ok=True)
+                views_dir = output_path / "generated_views"
+                views_dir.mkdir(exist_ok=True)
+
+                for i, view in enumerate(generated_views):
+                    view_img = (view.permute(1, 2, 0).cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                    Image.fromarray(view_img).save(views_dir / f"view_{i:02d}.png")
+                print(f"  Saved generated views to {views_dir}")
+
+                # Prepare data for GSLRM (use fixed camera poses)
+                # MVDiffusion uses similar camera setup to Zero123++
+                c2ws, fxfycxcys = compute_mvdiffusion_cameras(args.image_size, args.device)
+
+                # Stack views for GSLRM
+                images = generated_views.unsqueeze(0)  # [1, 6, C, H, W]
+                c2ws = c2ws.unsqueeze(0)  # [1, 6, 4, 4]
+                fxfycxcys = fxfycxcys.unsqueeze(0)  # [1, 6, 4]
+
+                # Index tensor
+                index = torch.stack([
+                    torch.zeros(6).long(),
+                    torch.arange(6).long()
+                ], dim=-1).unsqueeze(0).to(args.device)
+
+                # Run GSLRM
+                print("Running GSLRM inference...")
+                result = run_inference(
+                    model,
+                    images,
+                    c2ws,
+                    fxfycxcys,
+                    index,
+                    args.device
+                )
+
+                # Save outputs
+                do_turntable = args.save_turntable and not args.no_turntable
+                save_outputs(
+                    result,
+                    args.output_dir,
+                    sample_name,
+                    save_turntable=do_turntable,
+                    save_mesh=args.save_mesh,
+                    turntable_views=args.turntable_views,
+                    image_size=args.image_size
+                )
+
+                print(f"Done! Output saved to {output_path}")
+                return
+
+            except ImportError as e:
+                print(f"Error: Could not import MVDiffusion pipeline: {e}")
+                return
+            except Exception as e:
+                print(f"Error with MVDiffusion: {e}")
+                import traceback
+                traceback.print_exc()
+                return
         else:
             print("Single image mode requires --use_zero123pp or --mvdiffusion_checkpoint")
             return
