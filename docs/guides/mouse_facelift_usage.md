@@ -15,29 +15,93 @@ generator_tool: claude-code
 Mouse-FaceLift adapts the FaceLift 3D reconstruction pipeline for mouse multi-view data.
 This guide covers environment setup, data preprocessing, training, and inference.
 
-## Quick Start (gpu05)
+## Quick Start - 전체 파이프라인 (gpu05)
 
+### Step 0: 환경 설정
 ```bash
-# 1. SSH to gpu05
 ssh gpu05
 cd /home/joon/FaceLift
-
-# 2. Activate environment (conda activate만 하면 됨!)
 conda activate mouse_facelift
+```
 
-# 3. Process mouse video data
+### Step 1: 데이터 전처리 (Video → FaceLift Format)
+```bash
+# 입력: /home/joon/data/markerless_mouse_1_nerf/
+# 출력: data_mouse/
 python scripts/process_mouse_data.py \
     --video_dir /home/joon/data/markerless_mouse_1_nerf/videos_undist \
     --meta_dir /home/joon/data/markerless_mouse_1_nerf \
     --output_dir data_mouse \
     --num_samples 2000
 
-# 4. Run overfitting test (verify setup)
-python train_mouse.py --config configs/mouse_config.yaml --overfit 10
-
-# 5. Full training (multi-GPU)
-torchrun --nproc_per_node 4 train_mouse.py --config configs/mouse_config.yaml
+# 결과 확인
+ls data_mouse/
+# data_mouse_train.txt, data_mouse_val.txt, sample_000000/, ...
 ```
+
+### Step 2: Stage 1 - MVDiffusion Fine-tune (Single View → 6 Views)
+```bash
+# Config: configs/mouse_mvdiffusion.yaml
+# 출력: checkpoints/experiments/train/mouse_mvdiffusion/pipeckpts/
+
+# Single GPU
+python train_diffusion.py --config configs/mouse_mvdiffusion.yaml
+
+# Multi GPU (권장)
+accelerate launch --num_processes 4 \
+    train_diffusion.py --config configs/mouse_mvdiffusion.yaml
+```
+
+### Step 3: Stage 2 - GSLRM Fine-tune (6 Views → 3D Gaussian)
+```bash
+# Config: configs/mouse_config_finetune.yaml
+# 출력: checkpoints/gslrm/mouse_finetune/
+
+# Overfitting 테스트 (선택)
+python train_mouse.py --config configs/mouse_config_finetune.yaml --overfit 10
+
+# Full training (Multi GPU)
+torchrun --nproc_per_node 4 --nnodes 1 \
+    --rdzv_id ${RANDOM} --rdzv_backend c10d --rdzv_endpoint localhost:29500 \
+    train_mouse.py --config configs/mouse_config_finetune.yaml
+```
+
+### Step 4: 추론 - Single Image → Multi-View 생성
+
+```bash
+# 옵션 A: Zero123++ (pretrained, 빠른 테스트용)
+python inference_mouse.py \
+    --input_image examples/mouse.png \
+    --use_zero123pp \
+    --checkpoint checkpoints/gslrm/mouse_finetune/ \
+    --output_dir outputs/
+
+# 옵션 B: MVDiffusion (fine-tuned, 권장)
+python inference_mouse.py \
+    --input_image examples/mouse.png \
+    --mvdiffusion_checkpoint checkpoints/experiments/train/mouse_mvdiffusion/pipeckpts \
+    --checkpoint checkpoints/gslrm/mouse_finetune/ \
+    --output_dir outputs/
+```
+
+### Step 5: 최종 출력물 확인
+```bash
+ls outputs/{sample_name}/
+# gaussians.ply        ← 3D Gaussian Splat (Blender/MeshLab)
+# mesh.obj             ← 3D Mesh (Poisson reconstruction)
+# turntable.mp4        ← 360° 회전 비디오
+# render_grid.png      ← 6개 뷰 렌더링 그리드
+# generated_views/     ← 생성된 Multi-view 이미지
+```
+
+### 전체 파이프라인 요약
+
+| Step | 입력 | 출력 | 명령어 |
+|------|------|------|--------|
+| 1. 전처리 | Video (6 views) | `data_mouse/` | `process_mouse_data.py` |
+| 2. MVDiffusion | 1 view → 6 views | `pipeckpts/` | `train_diffusion.py` |
+| 3. GSLRM | 6 views → 3D | `mouse_finetune/` | `train_mouse.py` |
+| 4. 추론 | Single image | PLY/OBJ/MP4 | `inference_mouse.py` |
 
 ---
 
