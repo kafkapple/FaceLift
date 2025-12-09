@@ -117,7 +117,7 @@ training:
   # Logging and monitoring
   logging:
     print_every: 10
-    vis_every: 100
+    vis_every: 500  # 100k steps / 500 = 200회 vis
 
     # Weights & Biases configuration
     wandb:

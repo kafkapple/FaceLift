@@ -81,7 +81,7 @@ checkpointing_steps: 2000
 checkpoints_total_limit: 10
 resume_from_checkpoint: latest
 enable_xformers_memory_efficient_attention: true
-validation_steps: 1000
+validation_steps: 500  # 30k steps / 500 = 60회 validation (GSLRM과 유사 비율)
 validation_sanity_check: true
 tracker_project_name: 'mouse_mvdiffusion'
 

@@ -99,7 +99,7 @@ training:
 
   logging:
     print_every: 10
-    vis_every: 100
+    vis_every: 200  # 20k steps / 200 = 100회 vis (MVDiffusion과 유사 비율)
     wandb:
       project: "mouse_facelift"
       exp_name: "mouse_6view_finetune"

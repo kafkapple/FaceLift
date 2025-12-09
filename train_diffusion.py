@@ -765,6 +765,8 @@ def log_validation(dataloader, vae, feature_extractor, image_encoder, image_norm
 
     # Calculate and log overall metrics
     metrics_txt = ""
+    wandb_images = {}
+
     for guidance_scale in cfg.validation_guidance_scales:
         psnr = torch.stack(val_metrics[f"psnr-{guidance_scale:.1f}"]).mean().item()
         lpips = torch.stack(val_metrics[f"lpips-{guidance_scale:.1f}"]).mean().item()
@@ -780,12 +782,46 @@ def log_validation(dataloader, vae, feature_extractor, image_encoder, image_norm
             wandb.log(wandb_log_dict, step=global_step)
             metrics_txt += f"guidance_scale: {guidance_scale:.1f}\n psnr: {psnr}\nlpips: {lpips}\nssim: {ssim}\n"
 
+    # Log images to wandb (first batch only)
+    if accelerator.is_main_process and len(images_cond) > 0:
+        try:
+            # Input image (reference view)
+            input_grid = images_cond[0][0]  # First sample, first view [C, H, W]
+            input_grid = (input_grid.cpu().numpy().transpose(1, 2, 0) * 255).clip(0, 255).astype(np.uint8)
+            wandb_images["vis/input_view"] = wandb.Image(input_grid, caption="Input (Reference)")
+
+            # Ground truth views grid
+            if len(images_gt) > 0:
+                gt_grid = images_gt[0][:cfg.n_views]  # First batch, all views
+                gt_grid = rearrange(gt_grid, "V C H W -> H (V W) C")
+                gt_grid = (gt_grid.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                wandb_images["vis/gt_views_grid"] = wandb.Image(gt_grid, caption="Ground Truth (6 views)")
+
+            # Predicted views grid (for each guidance scale)
+            for guidance_scale in cfg.validation_guidance_scales:
+                key = f"{name}-sample_cfg{guidance_scale:.1f}"
+                if key in images_pred and len(images_pred[key]) > 0:
+                    pred_grid = images_pred[key][0][:cfg.n_views]  # First batch
+                    pred_grid = rearrange(pred_grid, "V C H W -> H (V W) C")
+                    pred_grid = (pred_grid.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                    wandb_images[f"vis/pred_views_grid_cfg{guidance_scale:.1f}"] = wandb.Image(
+                        pred_grid, caption=f"Predicted (cfg={guidance_scale:.1f})"
+                    )
+
+            # Log all images
+            if wandb_images:
+                wandb.log(wandb_images, step=global_step)
+                logger.info(f"Logged {len(wandb_images)} images to wandb")
+
+        except Exception as e:
+            logger.warning(f"Could not log images to wandb: {e}")
+
     val_out_dir = os.path.join(val_out_dir, f"global_step_{global_step:04d}")
 
     if accelerator.is_main_process:
         with open(os.path.join(val_out_dir, f"{name}-metrics.txt"), "w") as f:
             f.write(metrics_txt)
-    
+
     torch.cuda.empty_cache()
 
 
