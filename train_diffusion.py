@@ -222,18 +222,52 @@ def compute_snr(timesteps: torch.Tensor, noise_scheduler: DDPMScheduler) -> torc
     return snr
 
 
+def ensure_tokenizer_files(pretrained_path: str, subfolder: str = "tokenizer"):
+    """
+    Ensure CLIPTokenizer required files exist, download if missing.
+
+    CLIPTokenizer requires both vocab.json and merges.txt for BPE tokenization.
+    Some checkpoint downloads may be incomplete and miss merges.txt.
+
+    Args:
+        pretrained_path: Path to pretrained model directory
+        subfolder: Tokenizer subfolder name (default: "tokenizer")
+    """
+    tokenizer_dir = os.path.join(pretrained_path, subfolder)
+    merges_file = os.path.join(tokenizer_dir, "merges.txt")
+
+    if not os.path.exists(merges_file):
+        logger.warning(f"merges.txt not found in {tokenizer_dir}. Downloading from HuggingFace...")
+
+        import urllib.request
+        merges_url = "https://huggingface.co/openai/clip-vit-large-patch14/resolve/main/merges.txt"
+
+        try:
+            os.makedirs(tokenizer_dir, exist_ok=True)
+            urllib.request.urlretrieve(merges_url, merges_file)
+            logger.info(f"Successfully downloaded merges.txt to {merges_file}")
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to download merges.txt: {e}\n"
+                f"Please manually download from {merges_url} to {merges_file}"
+            )
+
+
 def load_models(cfg: TrainingConfig):
     """
     Load all required models for training.
-    
+
     Args:
         cfg: Training configuration
-        
+
     Returns:
         Dictionary containing all loaded models
     """
     models = {}
-    
+
+    # Ensure tokenizer files are complete before loading
+    ensure_tokenizer_files(cfg.pretrained_model_name_or_path)
+
     # Load CLIP models
     models['image_encoder'] = CLIPVisionModelWithProjection.from_pretrained(
         cfg.pretrained_model_name_or_path, subfolder="image_encoder", revision=cfg.revision
@@ -783,30 +817,44 @@ def log_validation(dataloader, vae, feature_extractor, image_encoder, image_norm
             metrics_txt += f"guidance_scale: {guidance_scale:.1f}\n psnr: {psnr}\nlpips: {lpips}\nssim: {ssim}\n"
 
     # Log images to wandb (first batch only)
+    # Section structure:
+    #   train/  - input and ground truth
+    #   val/    - predictions and comparisons
     if accelerator.is_main_process and len(images_cond) > 0:
         try:
+            # === train/ section: Input and Ground Truth ===
             # Input image (reference view)
             input_grid = images_cond[0][0]  # First sample, first view [C, H, W]
             input_grid = (input_grid.cpu().numpy().transpose(1, 2, 0) * 255).clip(0, 255).astype(np.uint8)
-            wandb_images["vis/input_view"] = wandb.Image(input_grid, caption="Input (Reference)")
+            wandb_images["train/input"] = wandb.Image(input_grid, caption="Input (Reference)")
 
             # Ground truth views grid
+            gt_grid_np = None
             if len(images_gt) > 0:
                 gt_grid = images_gt[0][:cfg.n_views]  # First batch, all views
                 gt_grid = rearrange(gt_grid, "V C H W -> H (V W) C")
-                gt_grid = (gt_grid.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-                wandb_images["vis/gt_views_grid"] = wandb.Image(gt_grid, caption="Ground Truth (6 views)")
+                gt_grid_np = (gt_grid.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                wandb_images["train/gt_grid"] = wandb.Image(gt_grid_np, caption=f"Ground Truth ({cfg.n_views} views)")
 
-            # Predicted views grid (for each guidance scale)
+            # === val/ section: Predictions and Comparisons ===
             for guidance_scale in cfg.validation_guidance_scales:
                 key = f"{name}-sample_cfg{guidance_scale:.1f}"
                 if key in images_pred and len(images_pred[key]) > 0:
                     pred_grid = images_pred[key][0][:cfg.n_views]  # First batch
                     pred_grid = rearrange(pred_grid, "V C H W -> H (V W) C")
-                    pred_grid = (pred_grid.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-                    wandb_images[f"vis/pred_views_grid_cfg{guidance_scale:.1f}"] = wandb.Image(
-                        pred_grid, caption=f"Predicted (cfg={guidance_scale:.1f})"
+                    pred_grid_np = (pred_grid.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+
+                    # Prediction grid
+                    wandb_images[f"val/pred_grid_cfg{guidance_scale:.1f}"] = wandb.Image(
+                        pred_grid_np, caption=f"Predicted (cfg={guidance_scale:.1f})"
                     )
+
+                    # Comparison: GT on top, Pred on bottom (stacked vertically)
+                    if gt_grid_np is not None:
+                        comparison = np.concatenate([gt_grid_np, pred_grid_np], axis=0)
+                        wandb_images[f"val/comparison_cfg{guidance_scale:.1f}"] = wandb.Image(
+                            comparison, caption=f"GT(top) vs Pred(bottom) cfg={guidance_scale:.1f}"
+                        )
 
             # Log all images
             if wandb_images:
@@ -839,17 +887,20 @@ def main(cfg: TrainingConfig):
     # Set up accelerator hooks for model saving/loading
     if version.parse(accelerate.__version__) >= version.parse("0.16.0"):
         def save_model_hook(models_to_save, weights, output_dir):
+            # Note: output_dir is the full checkpoint path from accelerator
+            # Do NOT prepend checkpoint_prefix again (it's already in output_dir)
             if cfg.use_ema:
-                models['ema_unet'].save_pretrained(os.path.join(cfg.checkpoint_prefix, output_dir, "unet_ema"))
-            
+                models['ema_unet'].save_pretrained(os.path.join(output_dir, "unet_ema"))
+
             for i, model in enumerate(models_to_save):
-                model.save_pretrained(os.path.join(cfg.checkpoint_prefix, output_dir, "unet"))
+                model.save_pretrained(os.path.join(output_dir, "unet"))
                 weights.pop()
 
         def load_model_hook(models_to_load, input_dir):
+            # Note: input_dir is the full checkpoint path from accelerator
             if cfg.use_ema:
                 load_model = EMAModel.from_pretrained(
-                    os.path.join(cfg.checkpoint_prefix, input_dir, "unet_ema"), UNetMV2DConditionModel
+                    os.path.join(input_dir, "unet_ema"), UNetMV2DConditionModel
                 )
                 models['ema_unet'].load_state_dict(load_model.state_dict())
                 models['ema_unet'].to(accelerator.device)
@@ -858,7 +909,7 @@ def main(cfg: TrainingConfig):
             for i in range(len(models_to_load)):
                 model = models_to_load.pop()
                 load_model = UNetMV2DConditionModel.from_pretrained(
-                    os.path.join(cfg.checkpoint_prefix, input_dir), subfolder="unet"
+                    input_dir, subfolder="unet"
                 )
                 model.register_to_config(**load_model.config)
                 model.load_state_dict(load_model.state_dict())
