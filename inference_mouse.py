@@ -291,10 +291,13 @@ def load_sample_data(
     c2ws = torch.from_numpy(np.array(c2ws)).float().unsqueeze(0).to(device)  # [1, V, 4, 4]
     fxfycxcys = torch.from_numpy(np.array(fxfycxcys)).float().unsqueeze(0).to(device)  # [1, V, 4]
 
-    # Create index tensor [B, V, 2] - (sample_idx, view_idx)
+    # Create index tensor [B, V, 2] - (view_idx, scene_idx)
+    # IMPORTANT: Order must match training data loader!
+    # - First element (index[:,:,0]): view_idx - used by model for view identification
+    # - Second element (index[:,:,-1]): scene_idx - used for scene identification
     index = torch.stack([
-        torch.zeros(num_views).long(),  # sample index (all 0 for single sample)
-        torch.arange(num_views).long()  # view index
+        torch.arange(num_views).long(),  # view index (FIRST!)
+        torch.zeros(num_views).long(),   # scene index (all 0 for single sample)
     ], dim=-1).unsqueeze(0).to(device)  # [1, V, 2]
 
     print(f"Loaded {num_views} views from {sample_dir}")
