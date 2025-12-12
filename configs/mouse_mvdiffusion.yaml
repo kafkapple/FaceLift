@@ -79,7 +79,7 @@ report_to: 'wandb'
 local_rank: -1
 checkpointing_steps: 1000  # More frequent saves
 checkpoints_total_limit: 3   # Keep only 3 most recent
-resume_from_checkpoint: latest
+resume_from_checkpoint: null  # Start fresh (previous checkpoints corrupted)
 enable_xformers_memory_efficient_attention: true
 validation_steps: 500  # 30k steps / 500 = 60회 validation (GSLRM과 유사 비율)
 validation_sanity_check: true
