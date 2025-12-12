@@ -817,52 +817,64 @@ def log_validation(dataloader, vae, feature_extractor, image_encoder, image_norm
             metrics_txt += f"guidance_scale: {guidance_scale:.1f}\n psnr: {psnr}\nlpips: {lpips}\nssim: {ssim}\n"
 
     # Log images to wandb (first batch only)
-    # Section structure:
-    #   train/  - input and ground truth
-    #   val/    - predictions and comparisons
+    # Grid structure: Input (repeated) | GT | Pred - stacked vertically
     if accelerator.is_main_process and len(images_cond) > 0:
+        logger.info(f"Preparing wandb image logging: images_cond={len(images_cond)}, images_gt={len(images_gt)}, images_pred keys={list(images_pred.keys())}")
         try:
-            # === train/ section: Input and Ground Truth ===
-            # Input image (reference view)
-            input_grid = images_cond[0][0]  # First sample, first view [C, H, W]
-            input_grid = (input_grid.cpu().numpy().transpose(1, 2, 0) * 255).clip(0, 255).astype(np.uint8)
-            wandb_images["train/input"] = wandb.Image(input_grid, caption="Input (Reference)")
+            # Get input image and repeat to match view count
+            input_img = images_cond[0][0]  # First sample, reference view [C, H, W]
+            h, w = input_img.shape[1], input_img.shape[2]
 
-            # Ground truth views grid
-            gt_grid_np = None
+            # Create input row (repeated n_views times)
+            input_repeated = input_img.unsqueeze(0).repeat(cfg.n_views, 1, 1, 1)  # [V, C, H, W]
+            input_row = rearrange(input_repeated, "V C H W -> H (V W) C")
+            input_row_np = (input_row.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+
+            # Log input separately
+            input_single = (input_img.cpu().numpy().transpose(1, 2, 0) * 255).clip(0, 255).astype(np.uint8)
+            wandb_images["samples/input"] = wandb.Image(input_single, caption="Input (Reference View)")
+
+            # Ground truth row
+            gt_row_np = None
             if len(images_gt) > 0:
-                gt_grid = images_gt[0][:cfg.n_views]  # First batch, all views
-                gt_grid = rearrange(gt_grid, "V C H W -> H (V W) C")
-                gt_grid_np = (gt_grid.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-                wandb_images["train/gt_grid"] = wandb.Image(gt_grid_np, caption=f"Ground Truth ({cfg.n_views} views)")
+                gt_views = images_gt[0][:cfg.n_views]  # [V, C, H, W]
+                gt_row = rearrange(gt_views, "V C H W -> H (V W) C")
+                gt_row_np = (gt_row.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                wandb_images["samples/gt_views"] = wandb.Image(gt_row_np, caption=f"Ground Truth ({cfg.n_views} views)")
 
-            # === val/ section: Predictions and Comparisons ===
+            # Predictions for each guidance scale
             for guidance_scale in cfg.validation_guidance_scales:
                 key = f"{name}-sample_cfg{guidance_scale:.1f}"
                 if key in images_pred and len(images_pred[key]) > 0:
-                    pred_grid = images_pred[key][0][:cfg.n_views]  # First batch
-                    pred_grid = rearrange(pred_grid, "V C H W -> H (V W) C")
-                    pred_grid_np = (pred_grid.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                    pred_views = images_pred[key][0][:cfg.n_views]  # [V, C, H, W]
+                    pred_row = rearrange(pred_views, "V C H W -> H (V W) C")
+                    pred_row_np = (pred_row.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
 
-                    # Prediction grid
-                    wandb_images[f"val/pred_grid_cfg{guidance_scale:.1f}"] = wandb.Image(
-                        pred_grid_np, caption=f"Predicted (cfg={guidance_scale:.1f})"
+                    # Individual prediction grid
+                    wandb_images[f"samples/pred_cfg{guidance_scale:.1f}"] = wandb.Image(
+                        pred_row_np, caption=f"Predicted (guidance={guidance_scale:.1f})"
                     )
 
-                    # Comparison: GT on top, Pred on bottom (stacked vertically)
-                    if gt_grid_np is not None:
-                        comparison = np.concatenate([gt_grid_np, pred_grid_np], axis=0)
-                        wandb_images[f"val/comparison_cfg{guidance_scale:.1f}"] = wandb.Image(
-                            comparison, caption=f"GT(top) vs Pred(bottom) cfg={guidance_scale:.1f}"
+                    # Combined comparison grid: Input | GT | Pred (3 rows stacked)
+                    if gt_row_np is not None:
+                        # Add row labels (simple approach: stack vertically)
+                        combined_grid = np.concatenate([input_row_np, gt_row_np, pred_row_np], axis=0)
+                        wandb_images[f"comparison/input_gt_pred_cfg{guidance_scale:.1f}"] = wandb.Image(
+                            combined_grid,
+                            caption=f"Row1:Input | Row2:GT | Row3:Pred (cfg={guidance_scale:.1f})"
                         )
 
-            # Log all images
+            # Log all images at once
             if wandb_images:
                 wandb.log(wandb_images, step=global_step)
-                logger.info(f"Logged {len(wandb_images)} images to wandb")
+                logger.info(f"Successfully logged {len(wandb_images)} images to wandb at step {global_step}")
+            else:
+                logger.warning("No images to log to wandb")
 
         except Exception as e:
-            logger.warning(f"Could not log images to wandb: {e}")
+            import traceback
+            logger.error(f"Failed to log images to wandb: {e}")
+            logger.error(traceback.format_exc())
 
     val_out_dir = os.path.join(val_out_dir, f"global_step_{global_step:04d}")
 

@@ -94,16 +94,17 @@ training:
   # Checkpointing - IMPORTANT: Load from FaceLift pretrained
   checkpointing:
     resume_ckpt: "checkpoints/gslrm/ckpt_0000000000021125.pt"  # FaceLift pretrained!
-    checkpoint_every: 1000
+    checkpoint_every: 500   # More frequent saves
+    checkpoints_total_limit: 3  # Keep only 3 most recent
     checkpoint_dir: "checkpoints/gslrm/mouse_finetune"  # New directory
 
   logging:
     print_every: 10
     vis_every: 200  # 20k steps / 200 = 100회 vis (MVDiffusion과 유사 비율)
     wandb:
-      project: "mouse_facelift"
-      exp_name: "mouse_6view_finetune"
-      group: "mouse"
+      project: "mouse_facelift"  # Common project for all mouse experiments
+      exp_name: "gslrm_finetune"
+      group: "gslrm"  # Stage: mvdiffusion or gslrm
       job_type: "finetune"
       log_every: 20
       offline: false

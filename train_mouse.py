@@ -554,53 +554,24 @@ class MouseTrainer:
                 print(f"[MouseTrainer] Warning: Could not save visuals: {e}")
 
     def _log_visuals_to_wandb(self, result, batch, vis_dir):
-        """Log visualization images to wandb as a grid."""
+        """
+        Log visualization images to wandb with organized section structure.
+
+        Section structure:
+            train/      - Input and ground truth images
+            train/      - Rendered predictions and comparisons
+            vis_3d/     - 3D visualizations (turntable, depth, opacity)
+        """
         import numpy as np
         from PIL import Image
         import glob
 
         try:
-            # Find saved visualization images
-            vis_files = sorted(glob.glob(os.path.join(vis_dir, "*.jpg"))) + \
-                        sorted(glob.glob(os.path.join(vis_dir, "*.png")))
-
-            if not vis_files:
-                return
-
             wandb_images = {}
+            gt_grid_np = None
+            pred_grid_np = None
 
-            # Log individual images
-            for vis_file in vis_files[:5]:  # Limit to 5 images
-                img_name = os.path.basename(vis_file).replace(".jpg", "").replace(".png", "")
-                wandb_images[f"vis/{img_name}"] = wandb.Image(vis_file)
-
-            # Create grid from rendered vs GT if available
-            if hasattr(result, 'render') and result.render is not None:
-                render = result.render  # [B, V, C, H, W] or [B, V, H, W, C]
-                if render.dim() == 5:
-                    # Take first batch
-                    render = render[0]  # [V, C, H, W] or [V, H, W, C]
-                    if render.shape[-1] == 3 or render.shape[-1] == 4:
-                        # [V, H, W, C] format
-                        render = render.permute(0, 3, 1, 2)  # -> [V, C, H, W]
-
-                    # Create grid: concat all views horizontally
-                    V = render.shape[0]
-                    grid_images = []
-                    for v in range(min(V, 6)):  # Max 6 views
-                        img = render[v].detach().cpu()
-                        if img.shape[0] == 4:
-                            img = img[:3]  # Remove alpha
-                        img = (img.clamp(0, 1) * 255).byte()
-                        grid_images.append(img)
-
-                    if grid_images:
-                        # Concat horizontally
-                        grid = torch.cat(grid_images, dim=2)  # [C, H, W*V]
-                        grid_np = grid.permute(1, 2, 0).numpy()
-                        wandb_images["vis/rendered_views_grid"] = wandb.Image(grid_np)
-
-            # Log GT images if available
+            # === train/ section: Ground Truth ===
             if batch is not None and 'image' in batch:
                 gt_images = batch['image'][0]  # [V, C, H, W]
                 if gt_images.dim() == 4:
@@ -608,15 +579,71 @@ class MouseTrainer:
                     V = gt_images.shape[0]
                     for v in range(min(V, 6)):
                         img = gt_images[v].detach().cpu()
-                        if img.shape[0] == 4:
+                        if img.shape[0] >= 3:
+                            img = img[:3]  # RGB only
+                        img = (img.clamp(0, 1) * 255).byte()
+                        grid_images.append(img)
+
+                    if grid_images:
+                        grid = torch.cat(grid_images, dim=2)  # [C, H, W*V]
+                        gt_grid_np = grid.permute(1, 2, 0).numpy()
+                        wandb_images["train/gt_grid"] = wandb.Image(
+                            gt_grid_np, caption=f"Ground Truth ({len(grid_images)} views)"
+                        )
+
+            # === train/ section: Rendered predictions ===
+            if hasattr(result, 'render') and result.render is not None:
+                render = result.render
+                if render.dim() == 5:
+                    render = render[0]  # Take first batch [V, C, H, W]
+                    if render.shape[-1] == 3 or render.shape[-1] == 4:
+                        render = render.permute(0, 3, 1, 2)
+
+                    V = render.shape[0]
+                    grid_images = []
+                    for v in range(min(V, 6)):
+                        img = render[v].detach().cpu()
+                        if img.shape[0] >= 3:
                             img = img[:3]
                         img = (img.clamp(0, 1) * 255).byte()
                         grid_images.append(img)
 
                     if grid_images:
                         grid = torch.cat(grid_images, dim=2)
-                        grid_np = grid.permute(1, 2, 0).numpy()
-                        wandb_images["vis/gt_views_grid"] = wandb.Image(grid_np)
+                        pred_grid_np = grid.permute(1, 2, 0).numpy()
+                        wandb_images["train/pred_grid"] = wandb.Image(
+                            pred_grid_np, caption=f"Rendered ({len(grid_images)} views)"
+                        )
+
+                        # Comparison: GT on top, Pred on bottom
+                        if gt_grid_np is not None and gt_grid_np.shape == pred_grid_np.shape:
+                            comparison = np.concatenate([gt_grid_np, pred_grid_np], axis=0)
+                            wandb_images["train/comparison"] = wandb.Image(
+                                comparison, caption="GT (top) vs Pred (bottom)"
+                            )
+
+            # === vis_3d/ section: 3D visualizations from saved files ===
+            # Map file patterns to fixed wandb keys (avoid dynamic names)
+            file_patterns = {
+                "turntable": "vis_3d/turntable",
+                "supervision": "vis_3d/supervision",
+                "aligned_gs_opacity_depth": "vis_3d/opacity_depth",
+                "input": "train/input",
+            }
+
+            vis_files = sorted(glob.glob(os.path.join(vis_dir, "*.jpg"))) + \
+                        sorted(glob.glob(os.path.join(vis_dir, "*.png")))
+
+            for vis_file in vis_files:
+                img_name = os.path.basename(vis_file).replace(".jpg", "").replace(".png", "")
+
+                # Match file to fixed key pattern
+                for pattern, wandb_key in file_patterns.items():
+                    if pattern in img_name.lower():
+                        # Only log if not already logged (avoid duplicates)
+                        if wandb_key not in wandb_images:
+                            wandb_images[wandb_key] = wandb.Image(vis_file)
+                        break
 
             if wandb_images:
                 wandb.log(wandb_images, step=self.fwdbwd_pass_step)
@@ -653,7 +680,7 @@ class MouseTrainer:
         model_module.train()
 
     def save_checkpoint(self):
-        """Save model checkpoint."""
+        """Save model checkpoint with optional cleanup of old checkpoints."""
         if self.ddp_rank != 0:
             return
 
@@ -662,6 +689,20 @@ class MouseTrainer:
 
         checkpoint_dir = self.config.training.checkpointing.checkpoint_dir
         os.makedirs(checkpoint_dir, exist_ok=True)
+
+        # Clean up old checkpoints if limit is set
+        checkpoints_total_limit = self.config.training.checkpointing.get("checkpoints_total_limit", None)
+        if checkpoints_total_limit is not None:
+            import glob
+            import shutil
+            # Find existing checkpoints (ckpt_*.pt pattern)
+            existing_ckpts = sorted(glob.glob(os.path.join(checkpoint_dir, "ckpt_*.pt")))
+
+            if len(existing_ckpts) >= checkpoints_total_limit:
+                num_to_remove = len(existing_ckpts) - checkpoints_total_limit + 1
+                for old_ckpt in existing_ckpts[:num_to_remove]:
+                    os.remove(old_ckpt)
+                    print(f"[MouseTrainer] Removed old checkpoint: {os.path.basename(old_ckpt)}")
 
         model_module = self.model.module if self.is_distributed else self.model
 

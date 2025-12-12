@@ -442,6 +442,21 @@ python train_mouse.py --config configs/mouse_config_debug.yaml
 
 ## 문제 해결
 
+### CLIPTokenizer merges.txt 오류
+```
+TypeError: expected str, bytes or os.PathLike object, not NoneType
+```
+
+**원인**: CLIPTokenizer에 필요한 `merges.txt` 파일 누락
+
+**해결**: 자동 다운로드 로직이 포함되어 있음 (v2024.12.10+). 수동 해결 필요 시:
+```bash
+cd checkpoints/mvdiffusion/pipeckpts/tokenizer
+wget https://huggingface.co/openai/clip-vit-large-patch14/resolve/main/merges.txt
+```
+
+자세한 내용: [docs/troubleshooting/clip_tokenizer_merges_error.md](../troubleshooting/clip_tokenizer_merges_error.md)
+
 ### CUDA Out of Memory
 ```yaml
 # batch_size 줄이기

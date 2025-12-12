@@ -83,7 +83,7 @@ resume_from_checkpoint: null  # Start fresh (previous checkpoints corrupted)
 enable_xformers_memory_efficient_attention: true
 validation_steps: 500  # 30k steps / 500 = 60회 validation (GSLRM과 유사 비율)
 validation_sanity_check: true
-tracker_project_name: 'mouse_mvdiffusion'
+tracker_project_name: 'mouse_facelift'  # Common project for all mouse experiments
 
 # =============================================================================
 # Training Specifics
@@ -122,6 +122,6 @@ unet_from_pretrained_kwargs:
 # =============================================================================
 # Weights & Biases
 # =============================================================================
-wandb_exp_name: "mouse_mvdiff_v1"
-wandb_group: "mouse_facelift"
-wandb_job_type: "train"
+wandb_exp_name: "mvdiff_finetune"
+wandb_group: "mvdiffusion"  # Stage: mvdiffusion or gslrm
+wandb_job_type: "finetune"
