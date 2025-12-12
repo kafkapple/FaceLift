@@ -974,6 +974,7 @@ def main(cfg: TrainingConfig):
     
     global_step = 0
     first_epoch = 0
+    initial_global_step = 0  # Default for fresh training
 
     # Resume from checkpoint if specified
     if cfg.resume_from_checkpoint:
