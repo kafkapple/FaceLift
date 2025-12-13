@@ -1,0 +1,45 @@
+# Option A: MVDiffusion with FaceLift Camera Setting
+# 마우스 데이터를 FaceLift 카메라 설정 (수평 6방향)으로 학습
+
+experiment:
+  name: "mouse_mvdiffusion_facelift_cam"
+  description: "MVDiffusion fine-tune with FaceLift camera (elevation 0°, 6 views)"
+  camera_setting: "facelift"  # facelift or mouse
+
+# 모델 설정
+pretrained_model_name_or_path: 'checkpoints/mvdiffusion/pipeckpts'
+unet_from_pretrained_kwargs:
+  unclip: True
+  cross_attention_dim: 1024
+  added_kv_proj_dim: 768
+
+# 학습 데이터
+data_root: 'data_mouse/facelift_cam'  # FaceLift 카메라로 변환된 데이터
+data_train_txt: 'data_mouse/facelift_cam/data_train.txt'
+data_val_txt: 'data_mouse/facelift_cam/data_val.txt'
+
+# 카메라 설정 (FaceLift 기준)
+camera:
+  type: "facelift"
+  elevation: 0.0  # 수평
+  num_views: 6
+  azimuth_angles: [0, 60, 120, 180, 240, 300]  # degrees
+  distance: 2.7
+  fov: 50.0
+
+# prompt embeddings (FaceLift 기존 것 사용)
+prompt_embeds_path: 'mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt'
+
+# 체크포인트 저장
+checkpoint_prefix: 'checkpoints/mvdiffusion/mouse/facelift_cam'
+
+# 학습 설정
+num_views: 6
+reference_view_idx: 0
+image_size: 512
+train_batch_size: 1
+num_train_epochs: 100
+learning_rate: 1.0e-05
+gradient_accumulation_steps: 4
+validation_steps: 500
+checkpointing_steps: 1000

@@ -1,0 +1,45 @@
+# Option B: MVDiffusion with Mouse Camera Setting
+# 마우스 데이터를 원본 Mouse 카메라 설정 (경사 6방향)으로 학습
+
+experiment:
+  name: "mouse_mvdiffusion_mouse_cam"
+  description: "MVDiffusion fine-tune with Mouse camera (elevation ~20°, 6 views)"
+  camera_setting: "mouse"  # facelift or mouse
+
+# 모델 설정
+pretrained_model_name_or_path: 'checkpoints/mvdiffusion/pipeckpts'
+unet_from_pretrained_kwargs:
+  unclip: True
+  cross_attention_dim: 1024
+  added_kv_proj_dim: 768
+
+# 학습 데이터 (기존 mouse 데이터)
+data_root: 'data_mouse'
+data_train_txt: 'data_mouse/data_mouse_train.txt'
+data_val_txt: 'data_mouse/data_mouse_val.txt'
+
+# 카메라 설정 (Mouse 기준)
+camera:
+  type: "mouse"
+  elevation: 20.0  # 경사
+  num_views: 6
+  # Mouse 데이터의 실제 카메라 방향 (data에서 추출 필요)
+  distance: 2.7
+  fov: 50.0
+
+# prompt embeddings (Mouse 카메라용 - 새로 생성됨)
+prompt_embed_path: 'mvdiffusion/data/mouse_prompt_embeds_6view/clr_embeds.pt'
+
+# 체크포인트 저장
+checkpoint_prefix: 'checkpoints/mvdiffusion/mouse/mouse_cam'
+
+# 학습 설정
+num_views: 6
+reference_view_idx: 0
+image_size: 512
+train_batch_size: 1
+num_train_epochs: 100
+learning_rate: 1.0e-05
+gradient_accumulation_steps: 4
+validation_steps: 500
+checkpointing_steps: 1000
