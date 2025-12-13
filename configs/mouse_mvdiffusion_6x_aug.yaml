@@ -38,7 +38,7 @@ validation_dataset:
 # =============================================================================
 checkpoint_prefix: ''
 output_dir: 'checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug'
-val_out_dir: 'checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/val/'
+val_out_dir: 'outputs/mouse_mvdiff_6x_aug/val/'
 
 # =============================================================================
 # Training Parameters
@@ -76,8 +76,8 @@ logging_dir: logs
 mixed_precision: 'fp16'
 report_to: 'wandb'
 local_rank: -1
-checkpointing_steps: 2000
-checkpoints_total_limit: 3
+checkpointing_steps: 500
+checkpoints_total_limit: 5
 resume_from_checkpoint: null  # Fresh start with mouse embeds
 enable_xformers_memory_efficient_attention: true
 validation_steps: 500
