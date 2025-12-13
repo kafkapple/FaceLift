@@ -1,0 +1,35 @@
+{
+  "mode": "text_only",
+  "preset": "mouse",
+  "views": [
+    "top-front",
+    "top-front-right",
+    "top-right",
+    "top-back",
+    "top-left",
+    "top-front-left"
+  ],
+  "description": "from above at an angle",
+  "color_prompts": [
+    "a rendering image of a 3D model, top-front view, from above at an angle, color map.",
+    "a rendering image of a 3D model, top-front-right view, from above at an angle, color map.",
+    "a rendering image of a 3D model, top-right view, from above at an angle, color map.",
+    "a rendering image of a 3D model, top-back view, from above at an angle, color map.",
+    "a rendering image of a 3D model, top-left view, from above at an angle, color map.",
+    "a rendering image of a 3D model, top-front-left view, from above at an angle, color map."
+  ],
+  "normal_prompts": [
+    "a rendering image of a 3D model, top-front view, from above at an angle, normal map.",
+    "a rendering image of a 3D model, top-front-right view, from above at an angle, normal map.",
+    "a rendering image of a 3D model, top-right view, from above at an angle, normal map.",
+    "a rendering image of a 3D model, top-back view, from above at an angle, normal map.",
+    "a rendering image of a 3D model, top-left view, from above at an angle, normal map.",
+    "a rendering image of a 3D model, top-front-left view, from above at an angle, normal map."
+  ],
+  "shape": [
+    6,
+    77,
+    768
+  ],
+  "model": "openai/clip-vit-large-patch14"
+}

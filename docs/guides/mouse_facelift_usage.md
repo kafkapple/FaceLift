@@ -1,19 +1,29 @@
 # Mouse-FaceLift Usage Guide
 
 ---
-date: 2024-12-04
+date: 2025-12-12
 context_name: "2_Research"
-tags: [ai-assisted, mouse-reconstruction, multi-view, 3d-reconstruction]
+tags: [ai-assisted, mouse-reconstruction, multi-view, 3d-reconstruction, mvdiffusion, gslrm]
 project: FaceLift
-status: in-progress
+status: active
 generator: ai-assisted
 generator_tool: claude-code
+last_updated: 2025-12-12
 ---
 
 ## Overview
 
 Mouse-FaceLift adapts the FaceLift 3D reconstruction pipeline for mouse multi-view data.
 This guide covers environment setup, data preprocessing, training, and inference.
+
+### 현재 상태 (2025-12-12)
+
+| 모델 | 상태 | 체크포인트 |
+|------|:----:|-----------|
+| **GSLRM** | ✅ Fine-tuned | `checkpoints/gslrm/mouse_finetune/ckpt_*20000.pt` |
+| **MVDiffusion** | 🔄 학습중 | `checkpoints/mvdiffusion/mouse/` |
+
+**Wandb**: Project `mouse_facelift`, Groups: `mvdiffusion`, `gslrm`
 
 ## Quick Start - 전체 파이프라인 (gpu05)
 
@@ -42,7 +52,7 @@ ls data_mouse/
 ### Step 2: Stage 1 - MVDiffusion Fine-tune (Single View → 6 Views)
 ```bash
 # Config: configs/mouse_mvdiffusion.yaml
-# 출력: checkpoints/experiments/train/mouse_mvdiffusion/pipeckpts/
+# 출력: checkpoints/mvdiffusion/mouse/
 
 # Single GPU
 python train_diffusion.py --config configs/mouse_mvdiffusion.yaml
@@ -73,16 +83,26 @@ torchrun --nproc_per_node 4 --nnodes 1 \
 python inference_mouse.py \
     --input_image examples/mouse.png \
     --use_zero123pp \
-    --checkpoint checkpoints/gslrm/mouse_finetune/ \
+    --checkpoint checkpoints/gslrm/mouse_finetune/ckpt_0000000000020000.pt \
     --output_dir outputs/
 
-# 옵션 B: MVDiffusion (fine-tuned, 권장)
+# 옵션 B: MVDiffusion (fine-tuned, 권장) - MVDiffusion 학습 완료 후
 python inference_mouse.py \
     --input_image examples/mouse.png \
-    --mvdiffusion_checkpoint checkpoints/experiments/train/mouse_mvdiffusion/pipeckpts \
-    --checkpoint checkpoints/gslrm/mouse_finetune/ \
+    --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse/checkpoint-XXXXX \
+    --checkpoint checkpoints/gslrm/mouse_finetune/ckpt_0000000000020000.pt \
+    --output_dir outputs/
+
+# 옵션 C: 6-view 데이터 직접 입력 (도메인 갭 주의)
+python inference_mouse.py \
+    --sample_dir data_mouse/sample_000000 \
+    --checkpoint checkpoints/gslrm/mouse_finetune/ckpt_0000000000020000.pt \
     --output_dir outputs/
 ```
+
+> **도메인 갭 주의**: 실제 이미지를 직접 GSLRM에 입력하면 품질이 저하될 수 있음.
+> End-to-End 파이프라인 (MVDiffusion → GSLRM) 사용 권장.
+> 자세한 내용: [251212 연구노트](../reports/251212_research_mouse_facelift_daily.md)
 
 ### Step 5: 최종 출력물 확인
 ```bash
