@@ -25,6 +25,22 @@ last_updated: 2025-12-13
 
 **WandB**: https://wandb.ai → project: `mouse_facelift`
 
+### 실험 결과에 따른 다음 단계
+
+> **상세 가이드**: [mouse_experiment_options.md](./mouse_experiment_options.md)
+
+| 결과 | 다음 단계 | Config |
+|------|----------|--------|
+| ✅ 수렴 성공 | Phase 2 진행 | - |
+| ⚠️ 수렴 느림 | FaceLift 프롬프트 실험 | `mouse_mvdiffusion_facelift_prompt.yaml` |
+| ❌ 수렴 실패 | Realistic 프롬프트 실험 | `mouse_mvdiffusion_realistic_prompt.yaml` |
+
+**프롬프트 대안 생성**:
+```bash
+python scripts/generate_mouse_prompt_embeds_realistic.py --list-styles
+python scripts/generate_mouse_prompt_embeds_realistic.py --style [facelift|realistic|hybrid]
+```
+
 ---
 
 ### Phase 1: MVDiffusion Fine-tune (1뷰 → 6뷰)
@@ -173,7 +189,9 @@ python test_full_pipeline.py \
 |--------|------|
 | `scripts/process_mouse_data.py` | 비디오 → FaceLift 포맷 변환 |
 | `scripts/generate_mouse_prompt_embeds_simple.py` | Mouse prompt embeds 생성 |
+| `scripts/generate_mouse_prompt_embeds_realistic.py` | 다양한 스타일 prompt embeds 생성 |
 | `scripts/generate_gslrm_training_data.py` | Phase 2 합성 데이터 생성 |
+| `scripts/check_server_resources.sh` | 서버 리소스 모니터링 |
 
 ### Checkpoints
 
@@ -438,6 +456,8 @@ conda activate mouse_facelift
 
 ## 관련 문서
 
+- [실험 옵션 가이드](./mouse_experiment_options.md) - 상황별 실험 전략
+- [Prompt Embedding 연구](../reports/251213_research_prompt_embedding_adaptation.md) - 프롬프트 적응 분석
 - [2단계 학습 전략 연구노트](../reports/251213_research_two_phase_training_strategy.md)
 - [MVDiffusion 체크포인트 이슈](../reports/251212_research_mvdiffusion_training_checkpoint_issue.md)
 - [CLIP Tokenizer 문제 해결](../troubleshooting/clip_tokenizer_merges_error.md)
