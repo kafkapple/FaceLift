@@ -80,7 +80,7 @@ checkpointing_steps: 500
 checkpoints_total_limit: 5
 resume_from_checkpoint: null  # Fresh start with mouse embeds
 enable_xformers_memory_efficient_attention: true
-validation_steps: 500
+validation_steps: 100
 validation_sanity_check: true
 tracker_project_name: 'mouse_facelift'
 
