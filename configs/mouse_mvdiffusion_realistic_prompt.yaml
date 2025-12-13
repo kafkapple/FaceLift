@@ -1,0 +1,127 @@
+# =============================================================================
+# Mouse MVDiffusion - Realistic Prompts
+# Uses realistic prompts for real captured video data
+# "photograph of a mouse" instead of "rendering of 3D model"
+# =============================================================================
+
+# Basic model configuration
+n_views: 6
+img_wh: 512
+reference_view_idx: "random"  # 6x augmentation
+dataset_type: 'mouse'
+
+# Model paths
+pretrained_model_name_or_path: 'checkpoints/mvdiffusion/pipeckpts'
+pretrained_unet_path: null
+revision: null
+
+# Realistic prompt embeddings (for real video data)
+# Generate first: python scripts/generate_mouse_prompt_embeds_realistic.py --style realistic
+prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_realistic/clr_embeds.pt"
+
+# =============================================================================
+# Dataset Configuration
+# =============================================================================
+train_dataset:
+  path: data_mouse/data_mouse_train.txt
+  bg_color: 'three_choices'
+  augmentation: true
+  aug_brightness: [0.9, 1.1]
+  aug_contrast: [0.9, 1.1]
+  aug_hflip: false
+
+validation_dataset:
+  path: data_mouse/data_mouse_val.txt
+  bg_color: 'white'
+
+# =============================================================================
+# Output Directories
+# =============================================================================
+checkpoint_prefix: ''
+output_dir: 'checkpoints/mvdiffusion/mouse/realistic_prompt_6x'
+val_out_dir: 'outputs/mouse_mvdiff_realistic_prompt/val/'
+
+# =============================================================================
+# Training Parameters
+# =============================================================================
+seed: 42
+train_batch_size: 4
+validation_batch_size: 2
+max_train_steps: 20000
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+learning_rate: 5e-5
+step_rules: "1:100000,0.5"
+scale_lr: false
+lr_scheduler: "piecewise_constant"
+lr_warmup_steps: 100
+snr_gamma: 5.0
+use_8bit_adam: false
+allow_tf32: true
+use_ema: true
+dataloader_num_workers: 8
+
+# Optimizer
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 1.e-2
+adam_epsilon: 1.e-08
+max_grad_norm: 1.0
+prediction_type: null
+
+# =============================================================================
+# Logging and Validation
+# =============================================================================
+vis_dir: vis
+logging_dir: logs
+mixed_precision: 'fp16'
+report_to: 'wandb'
+local_rank: -1
+checkpointing_steps: 500
+checkpoints_total_limit: 5
+resume_from_checkpoint: null
+enable_xformers_memory_efficient_attention: true
+validation_steps: 100
+validation_sanity_check: true
+tracker_project_name: 'mouse_facelift'
+
+# =============================================================================
+# Training Specifics
+# =============================================================================
+trainable_modules: null
+use_classifier_free_guidance: true
+condition_drop_rate: 0.05
+drop_type: 'drop_as_a_whole'
+camera_embedding_lr_mult: 1.
+scale_input_latents: true
+
+# Pipeline parameters
+pipe_kwargs:
+  num_views: ${n_views}
+validation_guidance_scales: [1., 3.]
+validation_grid_nrow: ${n_views}
+pipe_validation_kwargs:
+  eta: 1.0
+
+# =============================================================================
+# UNet Configuration
+# =============================================================================
+unet_from_pretrained_kwargs:
+  unclip: true
+  num_views: ${n_views}
+  sample_size: 64
+  zero_init_conv_in: true
+  init_mvattn_with_selfattn: false
+  cd_attention_last: false
+  cd_attention_mid: false
+  multiview_attention: true
+  sparse_mv_attention: true
+  selfattn_block: custom
+  addition_downsample: false
+
+# =============================================================================
+# Weights & Biases
+# =============================================================================
+wandb_exp_name: "mvdiff_realistic_prompt"
+wandb_group: "mvdiffusion"
+wandb_job_type: "prompt_comparison"
