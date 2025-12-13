@@ -155,26 +155,38 @@ check_disk() {
     echo -e "│ Mount                      │ Size     │ Avail    │ Use%  │ Status │"
     echo -e "├────────────────────────────┼──────────┼──────────┼───────┼────────┤"
 
-    df -h | grep -E '^/dev|^tmpfs' | grep -v 'loop\|snap' | while read -r line; do
-        fs=$(echo "$line" | awk '{print $1}')
-        size=$(echo "$line" | awk '{print $2}')
-        avail=$(echo "$line" | awk '{print $4}')
-        use_pct=$(echo "$line" | awk '{print $5}' | tr -d '%')
-        mount=$(echo "$line" | awk '{print $6}' | cut -c1-26)
+    # Get disk info, sort by size descending (using 1K blocks for accurate sorting)
+    df --block-size=1K | grep -E '^/dev|^tmpfs' | grep -v 'loop\|snap' | \
+    sort -k2 -nr | while read -r fs size_k used_k avail_k use_pct mount; do
+        # Convert to human-readable
+        if [ "$size_k" -ge 1073741824 ]; then
+            size=$(echo "scale=1; $size_k / 1073741824" | bc)T
+        elif [ "$size_k" -ge 1048576 ]; then
+            size=$(echo "scale=1; $size_k / 1048576" | bc)G
+        elif [ "$size_k" -ge 1024 ]; then
+            size=$(echo "scale=1; $size_k / 1024" | bc)M
+        else
+            size="${size_k}K"
+        fi
 
-        status=$(check_status "$use_pct" "$DISK_WARN_PERCENT")
-        printf "│ %-26s │ %8s │ %8s │ %4s%% │   %s  │\n" "$mount" "$size" "$avail" "$use_pct" "$status"
+        if [ "$avail_k" -ge 1073741824 ]; then
+            avail=$(echo "scale=1; $avail_k / 1073741824" | bc)T
+        elif [ "$avail_k" -ge 1048576 ]; then
+            avail=$(echo "scale=1; $avail_k / 1048576" | bc)G
+        elif [ "$avail_k" -ge 1024 ]; then
+            avail=$(echo "scale=1; $avail_k / 1024" | bc)M
+        else
+            avail="${avail_k}K"
+        fi
+
+        use_num=$(echo "$use_pct" | tr -d '%')
+        mount_short=$(echo "$mount" | cut -c1-26)
+
+        status=$(check_status "$use_num" "$DISK_WARN_PERCENT")
+        printf "│ %-26s │ %8s │ %8s │ %4s%% │   %s  │\n" "$mount_short" "$size" "$avail" "$use_num" "$status"
     done
 
     echo -e "└────────────────────────────┴──────────┴──────────┴───────┴────────┘"
-
-    # Project directory size
-    if [ -d "/home/joon/FaceLift" ]; then
-        echo -e "\n  Project Sizes:"
-        du -sh /home/joon/FaceLift/checkpoints 2>/dev/null | awk '{printf "    checkpoints/: %s\n", $1}'
-        du -sh /home/joon/FaceLift/data_mouse 2>/dev/null | awk '{printf "    data_mouse/:  %s\n", $1}'
-        du -sh /home/joon/FaceLift/outputs 2>/dev/null | awk '{printf "    outputs/:     %s\n", $1}'
-    fi
 }
 
 # =============================================================================
@@ -209,13 +221,6 @@ check_training() {
     # Total training memory
     total_mem=$(ps aux | grep -E "train_diffusion|train_gslrm|train_mouse" | grep -v grep | awk '{sum+=$6} END {printf "%.2f", sum/1024/1024}')
     printf "  Total Training Memory: %s GB\n" "$total_mem"
-
-    # Latest log
-    log_file="/home/joon/FaceLift/logs/train_mvdiff_6x_gpu1.log"
-    if [ -f "$log_file" ]; then
-        echo -e "\n  Latest MVDiffusion Progress:"
-        tail -50 "$log_file" 2>/dev/null | grep -oP 'Steps:.*\d+/\d+.*' | tail -1 | sed 's/^/    /'
-    fi
 }
 
 # =============================================================================
