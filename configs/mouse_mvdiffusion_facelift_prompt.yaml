@@ -7,7 +7,7 @@
 # Basic model configuration
 n_views: 6
 img_wh: 512
-reference_view_idx: "random"  # 6x augmentation
+reference_view_idx: 0  # Fixed front view (FaceLift original)
 dataset_type: 'mouse'
 
 # Model paths
