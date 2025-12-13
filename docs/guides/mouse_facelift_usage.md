@@ -1,14 +1,210 @@
 # Mouse-FaceLift Usage Guide
 
 ---
-date: 2025-12-12
+date: 2025-12-13
 context_name: "2_Research"
 tags: [ai-assisted, mouse-reconstruction, multi-view, 3d-reconstruction, mvdiffusion, gslrm]
 project: FaceLift
 status: active
 generator: ai-assisted
 generator_tool: claude-code
-last_updated: 2025-12-12
+last_updated: 2025-12-13
+---
+
+## Quick Start - 2단계 학습 파이프라인
+
+> **핵심**: MVDiffusion → 합성 데이터 → GS-LRM 순차 학습으로 도메인 정렬
+
+### 현재 상태 (2025-12-13)
+
+| 단계 | 모델 | 상태 | Config | Checkpoint |
+|------|------|:----:|--------|------------|
+| **Phase 1** | MVDiffusion | 🔄 학습중 | `mouse_mvdiffusion_6x_aug.yaml` | `mouse_embeds_6x_aug/` |
+| **Phase 2** | 합성 데이터 | ⏳ 대기 | - | `data_mouse_synthetic/` |
+| **Phase 3** | GS-LRM | ⏳ 대기 | `mouse_gslrm_synthetic.yaml` | `mouse_synthetic/` |
+
+**WandB**: https://wandb.ai → project: `mouse_facelift`
+
+---
+
+### Phase 1: MVDiffusion Fine-tune (1뷰 → 6뷰)
+
+```bash
+# gpu05 접속
+ssh gpu05
+cd /home/joon/FaceLift
+source ~/anaconda3/etc/profile.d/conda.sh
+conda activate mouse_facelift
+
+# 학습 시작 (GPU 1만 사용!)
+nohup bash -c 'CUDA_VISIBLE_DEVICES=1 accelerate launch train_diffusion.py \
+    --config configs/mouse_mvdiffusion_6x_aug.yaml' \
+    > logs/train_mvdiff_6x_gpu1.log 2>&1 &
+
+# 모니터링
+tail -f logs/train_mvdiff_6x_gpu1.log
+nvidia-smi
+```
+
+| 설정 | 값 |
+|------|-----|
+| Config | `configs/mouse_mvdiffusion_6x_aug.yaml` |
+| Checkpoint | `checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/` |
+| Prompt Embeds | `mvdiffusion/data/mouse_prompt_embeds_6view/clr_embeds.pt` |
+| Steps | 20,000 |
+| 예상 시간 | ~61시간 (~11초/step) |
+
+---
+
+### Phase 2: 합성 데이터 생성
+
+```bash
+# Phase 1 완료 후 실행 (checkpoint-10000 이상 권장)
+python scripts/generate_gslrm_training_data.py \
+    --mvdiff_checkpoint checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/checkpoint-20000 \
+    --input_data data_mouse/data_mouse_train.txt \
+    --output_dir data_mouse_synthetic \
+    --prompt_embeds mvdiffusion/data/mouse_prompt_embeds_6view/clr_embeds.pt \
+    --camera_json data_mouse/sample_000000/opencv_cameras.json \
+    --augment_all_views
+
+# 결과 확인
+ls data_mouse_synthetic/
+# data_train.txt, data_val.txt, sample_000000/, ...
+```
+
+| 설정 | 값 |
+|------|-----|
+| Script | `scripts/generate_gslrm_training_data.py` |
+| 입력 | 1,799 train 샘플 × 6뷰 = 10,794 합성 샘플 |
+| 출력 | `data_mouse_synthetic/` |
+| 예상 시간 | ~2-4시간 |
+
+---
+
+### Phase 3: GS-LRM Fine-tune (합성 6뷰 → 3D)
+
+```bash
+# Phase 2 완료 후 실행
+nohup bash -c 'CUDA_VISIBLE_DEVICES=1 torchrun --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse_gslrm_synthetic.yaml' \
+    > logs/train_gslrm_synthetic.log 2>&1 &
+
+# 모니터링
+tail -f logs/train_gslrm_synthetic.log
+```
+
+| 설정 | 값 |
+|------|-----|
+| Config | `configs/mouse_gslrm_synthetic.yaml` |
+| Dataset | `data_mouse_synthetic/data_train.txt` |
+| Start From | `checkpoints/gslrm/ckpt_0000000000021125.pt` (human pretrained) |
+| Checkpoint | `checkpoints/gslrm/mouse_synthetic/` |
+| Steps | 30,000 |
+
+---
+
+### Phase 4: 최종 추론
+
+```bash
+# 전체 파이프라인 테스트
+python test_full_pipeline.py \
+    --input_image data_mouse/sample_000000/images/cam_000.png \
+    --mvdiff_unet checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/checkpoint-20000/unet \
+    --prompt_embeds mvdiffusion/data/mouse_prompt_embeds_6view/clr_embeds.pt \
+    --gslrm_checkpoint checkpoints/gslrm/mouse_synthetic \
+    --output_dir outputs/pipeline_test
+```
+
+---
+
+## 데이터셋 구성
+
+### 원본 데이터
+
+| 항목 | 값 | 설명 |
+|------|-----|------|
+| 소스 | 6개 동기화 카메라 비디오 | MAMMAL 스타일 촬영 |
+| 샘플링 | 2,000 프레임 | 비디오에서 균등 추출 |
+| 각 샘플 | 6개 뷰 | 동시 촬영된 카메라 뷰 |
+| 총 이미지 | **12,000장** | 2,000 × 6 뷰 |
+| 이미지 크기 | 512 × 512 | RGBA (배경 제거됨) |
+
+### Train/Val Split
+
+| 구분 | 샘플 수 | 비율 |
+|------|---------|------|
+| Train | 1,799 | 90% |
+| Val | 199 | 10% |
+| **합계** | 1,998 | 100% |
+
+- Split 방식: `np.random.permutation` + `seed(42)` (재현 가능)
+- 중복 없음 검증 완료
+
+### 데이터 충분성 분석
+
+| 비교 대상 | 샘플 수 | 이미지 수 |
+|----------|---------|-----------|
+| **Mouse 데이터** | 2,000 | 12,000 |
+| FaceLift Human | ~50,000 | ~300,000 |
+| Zero123++ | ~800,000 | ~800,000 |
+| MVDream | ~10,000 | ~40,000 |
+
+**결론**:
+- 2,000 샘플은 fine-tuning에 충분 (pretrained 모델 활용)
+- 6x 증강 (`reference_view_idx: "random"`)으로 effective ~12,000 샘플
+- 추가 데이터 확보 시 성능 향상 가능
+
+---
+
+## 주요 파일 경로
+
+### Configs
+
+| Config | 용도 | 경로 |
+|--------|------|------|
+| MVDiffusion 6x | Phase 1 학습 | `configs/mouse_mvdiffusion_6x_aug.yaml` |
+| GS-LRM Synthetic | Phase 3 학습 | `configs/mouse_gslrm_synthetic.yaml` |
+| Mouse Prompt Embeds | 경사 6뷰 임베딩 | `mvdiffusion/data/mouse_prompt_embeds_6view/` |
+
+### Scripts
+
+| Script | 용도 |
+|--------|------|
+| `scripts/process_mouse_data.py` | 비디오 → FaceLift 포맷 변환 |
+| `scripts/generate_mouse_prompt_embeds_simple.py` | Mouse prompt embeds 생성 |
+| `scripts/generate_gslrm_training_data.py` | Phase 2 합성 데이터 생성 |
+
+### Checkpoints
+
+| Checkpoint | 경로 |
+|------------|------|
+| Human Pretrained GS-LRM | `checkpoints/gslrm/ckpt_0000000000021125.pt` |
+| MVDiffusion Pretrained | `checkpoints/mvdiffusion/pipeckpts/` |
+| MVDiffusion Mouse (학습중) | `checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/` |
+| GS-LRM Synthetic (예정) | `checkpoints/gslrm/mouse_synthetic/` |
+
+---
+
+## 모니터링 명령어
+
+```bash
+# GPU 상태
+ssh gpu05 "nvidia-smi"
+
+# 프로세스 확인
+ssh gpu05 "ps aux | grep train | grep -v grep"
+
+# 로그 확인
+ssh gpu05 "tail -f /home/joon/FaceLift/logs/train_mvdiff_6x_gpu1.log"
+
+# 체크포인트 확인
+ssh gpu05 "ls -la /home/joon/FaceLift/checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/"
+
+# 학습 중단
+ssh gpu05 "pkill -f train_diffusion"
+```
+
 ---
 
 ## Overview
@@ -16,112 +212,25 @@ last_updated: 2025-12-12
 Mouse-FaceLift adapts the FaceLift 3D reconstruction pipeline for mouse multi-view data.
 This guide covers environment setup, data preprocessing, training, and inference.
 
-### 현재 상태 (2025-12-12)
+### 2단계 학습 전략 (2025-12-13)
 
-| 모델 | 상태 | 체크포인트 |
-|------|:----:|-----------|
-| **GSLRM** | ✅ Fine-tuned | `checkpoints/gslrm/mouse_finetune/ckpt_*20000.pt` |
-| **MVDiffusion** | 🔄 학습중 | `checkpoints/mvdiffusion/mouse/` |
-
-**Wandb**: Project `mouse_facelift`, Groups: `mvdiffusion`, `gslrm`
-
-## Quick Start - 전체 파이프라인 (gpu05)
-
-### Step 0: 환경 설정
-```bash
-ssh gpu05
-cd /home/joon/FaceLift
-conda activate mouse_facelift
 ```
-
-### Step 1: 데이터 전처리 (Video → FaceLift Format)
-```bash
-# 입력: /home/joon/data/markerless_mouse_1_nerf/
-# 출력: data_mouse/
-python scripts/process_mouse_data.py \
-    --video_dir /home/joon/data/markerless_mouse_1_nerf/videos_undist \
-    --meta_dir /home/joon/data/markerless_mouse_1_nerf \
-    --output_dir data_mouse \
-    --num_samples 2000
-
-# 결과 확인
-ls data_mouse/
-# data_mouse_train.txt, data_mouse_val.txt, sample_000000/, ...
+┌─────────────────────────────────────────────────────────────────┐
+│  문제: 카메라/Prompt 불일치                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  MVDiffusion: FaceLift prompt_embeds (수평 뷰)로 학습됨          │
+│  GS-LRM: Mouse 카메라 (경사 뷰 ~20°)로 학습됨                    │
+│  → MVDiffusion 출력 ≠ GS-LRM 기대 입력 → 3D 복원 실패           │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  해결: 2단계 순차 학습                                           │
+├─────────────────────────────────────────────────────────────────┤
+│  Phase 1: MVDiffusion + Mouse prompt_embeds (경사 뷰) 학습      │
+│  Phase 2: 학습된 MVDiffusion으로 합성 데이터 생성                │
+│  Phase 3: GS-LRM을 합성 데이터로 학습 (도메인 정렬)              │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-### Step 2: Stage 1 - MVDiffusion Fine-tune (Single View → 6 Views)
-```bash
-# Config: configs/mouse_mvdiffusion.yaml
-# 출력: checkpoints/mvdiffusion/mouse/
-
-# Single GPU
-python train_diffusion.py --config configs/mouse_mvdiffusion.yaml
-
-# Multi GPU (권장)
-accelerate launch --num_processes 4 \
-    train_diffusion.py --config configs/mouse_mvdiffusion.yaml
-```
-
-### Step 3: Stage 2 - GSLRM Fine-tune (6 Views → 3D Gaussian)
-```bash
-# Config: configs/mouse_config_finetune.yaml
-# 출력: checkpoints/gslrm/mouse_finetune/
-
-# Overfitting 테스트 (선택)
-python train_mouse.py --config configs/mouse_config_finetune.yaml --overfit 10
-
-# Full training (Multi GPU)
-torchrun --nproc_per_node 4 --nnodes 1 \
-    --rdzv_id ${RANDOM} --rdzv_backend c10d --rdzv_endpoint localhost:29500 \
-    train_mouse.py --config configs/mouse_config_finetune.yaml
-```
-
-### Step 4: 추론 - Single Image → Multi-View 생성
-
-```bash
-# 옵션 A: Zero123++ (pretrained, 빠른 테스트용)
-python inference_mouse.py \
-    --input_image examples/mouse.png \
-    --use_zero123pp \
-    --checkpoint checkpoints/gslrm/mouse_finetune/ckpt_0000000000020000.pt \
-    --output_dir outputs/
-
-# 옵션 B: MVDiffusion (fine-tuned, 권장) - MVDiffusion 학습 완료 후
-python inference_mouse.py \
-    --input_image examples/mouse.png \
-    --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse/checkpoint-XXXXX \
-    --checkpoint checkpoints/gslrm/mouse_finetune/ckpt_0000000000020000.pt \
-    --output_dir outputs/
-
-# 옵션 C: 6-view 데이터 직접 입력 (도메인 갭 주의)
-python inference_mouse.py \
-    --sample_dir data_mouse/sample_000000 \
-    --checkpoint checkpoints/gslrm/mouse_finetune/ckpt_0000000000020000.pt \
-    --output_dir outputs/
-```
-
-> **도메인 갭 주의**: 실제 이미지를 직접 GSLRM에 입력하면 품질이 저하될 수 있음.
-> End-to-End 파이프라인 (MVDiffusion → GSLRM) 사용 권장.
-> 자세한 내용: [251212 연구노트](../reports/251212_research_mouse_facelift_daily.md)
-
-### Step 5: 최종 출력물 확인
-```bash
-ls outputs/{sample_name}/
-# gaussians.ply        ← 3D Gaussian Splat (Blender/MeshLab)
-# mesh.obj             ← 3D Mesh (Poisson reconstruction)
-# turntable.mp4        ← 360° 회전 비디오
-# render_grid.png      ← 6개 뷰 렌더링 그리드
-# generated_views/     ← 생성된 Multi-view 이미지
-```
-
-### 전체 파이프라인 요약
-
-| Step | 입력 | 출력 | 명령어 |
-|------|------|------|--------|
-| 1. 전처리 | Video (6 views) | `data_mouse/` | `process_mouse_data.py` |
-| 2. MVDiffusion | 1 view → 6 views | `pipeckpts/` | `train_diffusion.py` |
-| 3. GSLRM | 6 views → 3D | `mouse_finetune/` | `train_mouse.py` |
-| 4. 추론 | Single image | PLY/OBJ/MP4 | `inference_mouse.py` |
 
 ---
 
@@ -138,6 +247,7 @@ conda env list | grep mouse_facelift
 ```bash
 ssh gpu05
 cd /home/joon/FaceLift
+source ~/anaconda3/etc/profile.d/conda.sh
 conda activate mouse_facelift   # CUDA/GCC 환경변수 자동 설정됨!
 ```
 
@@ -178,7 +288,7 @@ python -c "import torch; print(torch.cuda.is_available())"  # True
 ### 전처리 실행
 ```bash
 # gpu05에서 환경 활성화 후:
-source activate_gpu05.sh
+conda activate mouse_facelift
 
 # 데이터 전처리 (약 2000개 샘플 추출)
 python scripts/process_mouse_data.py \
@@ -197,8 +307,8 @@ ls data_mouse/
 ### 출력 구조
 ```
 data_mouse/
-├── data_mouse_train.txt    # 학습 샘플 경로 목록
-├── data_mouse_val.txt      # 검증 샘플 경로 목록
+├── data_mouse_train.txt    # 학습 샘플 경로 목록 (1,799)
+├── data_mouse_val.txt      # 검증 샘플 경로 목록 (199)
 ├── sample_000000/
 │   ├── images/
 │   │   ├── cam_000.png     # 512x512 RGBA
@@ -211,251 +321,6 @@ data_mouse/
 ├── sample_000001/
 │   └── ...
 └── ...
-```
-
----
-
-## 파이프라인 개요
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Mouse-FaceLift 전체 파이프라인                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Single Image ──┬──► MVDiffusion (fine-tuned) ──► 6 Views ──► GSLRM ──► PLY │
-│                 │                                  ↑                        │
-│                 └──► Zero123++ (pretrained) ───────┘                        │
-│                                                                             │
-│  두 모델은 별도 학습 가능 (Stage 1: MVDiffusion, Stage 2: GSLRM)               │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 학습
-
-### Stage 1: MVDiffusion Fine-tune (Single View → 6 Views)
-
-```bash
-# MVDiffusion 학습 (single GPU)
-python train_diffusion.py --config configs/mouse_mvdiffusion.yaml
-
-# MVDiffusion 학습 (multi GPU)
-accelerate launch --num_processes 4 \
-    train_diffusion.py --config configs/mouse_mvdiffusion.yaml
-```
-
-**Config**: `configs/mouse_mvdiffusion.yaml`
-- `max_train_steps`: 30,000
-- `learning_rate`: 5e-5
-- `train_batch_size`: 4
-- `gradient_accumulation_steps`: 4 (effective batch = 16)
-
-### Stage 2: GSLRM Fine-tune (6 Views → 3D Gaussian)
-
-#### Step 1: Overfitting 테스트 (필수 권장)
-```bash
-# 10개 샘플로 코드 정상 동작 확인
-python train_mouse.py --config configs/mouse_config.yaml --overfit 10
-```
-
-**기대 결과**:
-- Loss가 0에 가깝게 감소
-- 입력 이미지가 완벽하게 복원됨
-- 이것이 성공해야 전체 학습 진행
-
-#### Step 2: 전체 학습
-
-```bash
-# 단일 GPU
-python train_mouse.py --config configs/mouse_config.yaml
-
-# 멀티 GPU (권장)
-torchrun --nproc_per_node 4 --nnodes 1 \
-    --rdzv_id ${RANDOM} --rdzv_backend c10d --rdzv_endpoint localhost:29500 \
-    train_mouse.py --config configs/mouse_config.yaml
-```
-
-#### Step 3: 체크포인트에서 재개
-```bash
-python train_mouse.py --config configs/mouse_config.yaml \
-    --load checkpoints/gslrm/mouse/
-```
-
----
-
-## 추론
-
-### 옵션 1: Zero123++ (pretrained) + GSLRM
-
-```bash
-# Single image → Zero123++ → GSLRM → PLY/OBJ/Video
-python inference_mouse.py \
-    --input_image path/to/mouse.png \
-    --use_zero123pp \
-    --checkpoint checkpoints/gslrm/mouse/ \
-    --output_dir outputs/
-```
-
-**특징**:
-- Zero123++는 pretrained 모델 사용 (HuggingFace에서 자동 다운로드)
-- 빠르게 테스트 가능
-
-### 옵션 2: MVDiffusion (fine-tuned) + GSLRM
-
-```bash
-# Single image → MVDiffusion → GSLRM → PLY/OBJ/Video
-python inference_mouse.py \
-    --input_image path/to/mouse.png \
-    --mvdiffusion_checkpoint checkpoints/experiments/train/mouse_mvdiffusion/pipeckpts \
-    --checkpoint checkpoints/gslrm/mouse/ \
-    --output_dir outputs/
-```
-
-**특징**:
-- Mouse 데이터로 fine-tuned MVDiffusion 사용
-- 더 정확한 multi-view 생성 기대
-
-### 옵션 3: 6-view 샘플에서 직접 추론
-
-```bash
-# 이미 6개 뷰가 있는 경우
-python inference_mouse.py \
-    --sample_dir data_mouse/sample_000000 \
-    --checkpoint checkpoints/gslrm/mouse/ \
-    --output_dir outputs/
-```
-
-### 추론 파라미터
-
-| 파라미터 | Zero123++ | MVDiffusion | 설명 |
-|---------|-----------|-------------|------|
-| `--*_steps` | 75 | 50 | Diffusion steps |
-| `--*_guidance` | 4.0 | 3.0 | CFG guidance scale |
-| `--seed` | 42 | 42 | Random seed |
-
-### 출력 파일
-
-```
-outputs/{sample_name}/
-├── gaussians.ply           # 3D Gaussian splat (Blender/MeshLab 호환)
-├── mesh.obj                # Mesh (Poisson reconstruction)
-├── turntable.mp4           # 360° 회전 비디오
-├── render_view_*.png       # 각 뷰 렌더링
-├── render_grid.png         # 6개 뷰 그리드
-└── generated_views/        # MVDiffusion/Zero123++ 생성 이미지
-    ├── view_00.png ~ view_05.png
-```
-
----
-
-## 설정 파일 (Config)
-
-### Config 파일 비교표
-
-| Config 파일 | 용도 | max_steps | warmup | LR | batch_size |
-|-------------|------|-----------|--------|-----|------------|
-| `mouse_config.yaml` | 기본 학습 (scratch) | **100,000** | 200 | 5e-5 | 2 |
-| `mouse_config_finetune.yaml` | FaceLift pretrained fine-tune | **20,000** | 100 | 2e-5 | 2 |
-| `mouse_config_debug.yaml` | 빠른 테스트 (~10-30분) | **1,000** | 50 | 1e-4 | 4 |
-
-### 공통 모델 설정
-
-```yaml
-model:
-  image_tokenizer:
-    image_size: 512            # 입력 이미지 크기
-    patch_size: 8              # ViT 패치 크기
-    in_channels: 9             # 3 RGB + 3 direction + 3 Reference
-
-  transformer:
-    d: 1024                    # 히든 차원
-    d_head: 64                 # 어텐션 헤드 차원
-    n_layer: 24                # 트랜스포머 레이어 수
-
-  gaussians:
-    n_gaussians: 2             # 12288 (실제)
-    sh_degree: 0
-```
-
-### 데이터 설정
-
-```yaml
-training:
-  dataset:
-    dataset_path: "data_mouse/data_mouse_train.txt"
-    num_views: 6               # 총 6개 뷰
-    num_input_views: 1         # 입력: 단일 뷰
-    target_has_input: true     # 타겟에 입력 포함
-    background_color: "white"
-```
-
-### Loss 가중치
-
-```yaml
-losses:
-  l2_loss_weight: 1.0          # MSE 손실
-  lpips_loss_weight: 0.5       # LPIPS 지각 손실
-  perceptual_loss_weight: 0.5  # VGG 지각 손실
-  ssim_loss_weight: 0.2        # 구조적 유사도 손실
-  pixelalign_loss_weight: 0.0  # 비활성화
-  pointsdist_loss_weight: 0.0  # 비활성화
-```
-
-### 체크포인트 설정
-
-| Config | resume_ckpt | checkpoint_dir |
-|--------|-------------|----------------|
-| 기본 | `checkpoints/gslrm` | `checkpoints/gslrm/mouse` |
-| fine-tune | `ckpt_0000000000021125.pt` (FaceLift pretrained) | `checkpoints/gslrm/mouse_finetune` |
-| debug | `checkpoints/gslrm/stage_2` | `checkpoints/gslrm/mouse_debug` |
-
-### Validation 설정
-
-```yaml
-validation:
-  enabled: true                # 기본/fine-tune: true, debug: false
-  val_every: 500               # 500 steps 마다 검증
-  dataset_path: "data_mouse/data_mouse_val.txt"
-```
-
-### Inference 설정
-
-```yaml
-inference:
-  enabled: false               # 현재 모든 config에서 비활성화
-  output_dir: "experiments/inference/mouse"
-```
-
-### Mouse 특화 설정
-
-```yaml
-mouse:
-  camera:
-    num_views: 6
-    camera_distance: 2.7
-
-  augmentation:
-    enabled: true              # debug에서는 false
-    horizontal_flip: true
-    brightness_range: [0.9, 1.1]
-    contrast_range: [0.9, 1.1]
-```
-
-### 권장 사용 시나리오
-
-| 시나리오 | Config 파일 | 설명 |
-|----------|-------------|------|
-| 빠른 테스트 | `mouse_config_debug.yaml` | 1000 steps, ~10-30분, wandb offline |
-| Fine-tune | `mouse_config_finetune.yaml` | FaceLift pretrained → 20k steps |
-| Full 학습 | `mouse_config.yaml` | scratch → 100k steps |
-
-```bash
-# 예시: Fine-tune 실행
-python train_mouse.py --config configs/mouse_config_finetune.yaml
-
-# 예시: Debug 모드 실행
-python train_mouse.py --config configs/mouse_config_debug.yaml
 ```
 
 ---
@@ -475,8 +340,6 @@ cd checkpoints/mvdiffusion/pipeckpts/tokenizer
 wget https://huggingface.co/openai/clip-vit-large-patch14/resolve/main/merges.txt
 ```
 
-자세한 내용: [docs/troubleshooting/clip_tokenizer_merges_error.md](../troubleshooting/clip_tokenizer_merges_error.md)
-
 ### CUDA Out of Memory
 ```yaml
 # batch_size 줄이기
@@ -485,20 +348,22 @@ training:
     batch_size_per_gpu: 1
 ```
 
-### CUDA 버전 불일치 에러
-```bash
-# 반드시 activate_gpu05.sh로 환경 활성화
-source activate_gpu05.sh
-
-# 확인
-echo $CUDA_HOME  # /usr/local/cuda-11.8 이어야 함
+### OmegaConf ValidationError (reference_view_idx)
+```
+Value 'random' of type 'str' could not be converted to Integer
 ```
 
-### 학습이 수렴하지 않음
-1. Overfitting 테스트 먼저 실행
-2. `checkpoints/*/data_examples/` 에서 데이터 시각화 확인
-3. 카메라 파라미터 검증
-4. 학습률 낮추기
+**해결**: Python 캐시 삭제 후 재시도
+```bash
+find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null
+find . -name '*.pyc' -delete 2>/dev/null
+```
+
+### GPU 사용 제한 (공용 서버)
+```bash
+# GPU 0 사용 금지! GPU 1만 사용
+CUDA_VISIBLE_DEVICES=1 accelerate launch ...
+```
 
 ---
 
@@ -517,19 +382,7 @@ git push
 ssh gpu05
 cd /home/joon/FaceLift
 git pull
-source activate_gpu05.sh
-```
-
-### gpu05에서 학습 후
-```bash
-# 체크포인트 커밋 (선택)
-git add checkpoints/ outputs/
-git commit -m "chore: add training checkpoints"
-git push
-
-# 로컬에서 pull
-cd /home/joon/dev/FaceLift
-git pull
+conda activate mouse_facelift
 ```
 
 ---
@@ -540,37 +393,51 @@ git pull
 
 | 파일 | 용도 |
 |------|------|
-| `train_mouse.py` | GSLRM 학습 스크립트 |
-| `inference_mouse.py` | 통합 추론 스크립트 (Zero123++/MVDiffusion + GSLRM) |
+| `train_gslrm.py` | GSLRM 학습 스크립트 |
+| `inference_mouse.py` | 통합 추론 스크립트 |
 | `gslrm/data/mouse_dataset.py` | GSLRM용 PyTorch Dataset |
-| `configs/mouse_config.yaml` | GSLRM 기본 학습 (100k steps) |
-| `configs/mouse_config_finetune.yaml` | GSLRM Fine-tune (20k steps) |
-| `configs/mouse_config_debug.yaml` | GSLRM 디버그 (1k steps) |
+| `configs/mouse_gslrm_synthetic.yaml` | 합성 데이터 학습 (Phase 3) |
 
 ### MVDiffusion (Stage 1: Single View → 6 Views)
 
 | 파일 | 용도 |
 |------|------|
 | `train_diffusion.py` | MVDiffusion 학습 스크립트 |
-| `configs/mouse_mvdiffusion.yaml` | MVDiffusion fine-tune 설정 (30k steps) |
-| `mvdiffusion/data/mouse_dataset.py` | MVDiffusion용 PyTorch Dataset |
-| `mvdiffusion/pipelines/pipeline_mvdiffusion_unclip.py` | MVDiffusion 추론 파이프라인 |
-| `mvdiffusion/pipelines/zero123pp_pipeline.py` | Zero123++ 추론 파이프라인 |
+| `configs/mouse_mvdiffusion_6x_aug.yaml` | 6x 증강 학습 (Phase 1) |
+| `mvdiffusion/data/mouse_dataset.py` | MVDiffusion용 Dataset (random ref view 지원) |
+| `mvdiffusion/data/mouse_prompt_embeds_6view/` | Mouse 경사 뷰 prompt embeddings |
 
 ### 환경 및 유틸리티
 
 | 파일 | 용도 |
 |------|------|
-| `setup_mouse_env.sh` | Conda 환경 설정 (1회) |
 | `scripts/process_mouse_data.py` | 비디오 → FaceLift 포맷 변환 |
-| `scripts/download_weights.py` | Pretrained 가중치 다운로드 |
+| `scripts/generate_mouse_prompt_embeds_simple.py` | Prompt embeddings 생성 |
+| `scripts/generate_gslrm_training_data.py` | Phase 2 합성 데이터 생성 |
 
 ---
 
 ## 체크리스트
 
-- [ ] `source activate_gpu05.sh` 실행 확인
-- [ ] 데이터 전처리 완료 (`data_mouse/` 생성)
-- [ ] Overfitting 테스트 통과
-- [ ] 전체 학습 실행
-- [ ] 결과 평가
+### Phase 1 시작 전
+- [x] `mouse_prompt_embeds_6view/clr_embeds.pt` 존재 확인
+- [x] GPU 1 사용 가능 확인
+- [x] Python 캐시 정리
+
+### Phase 2 시작 전
+- [ ] MVDiffusion 학습 완료 확인 (WandB)
+- [ ] 체크포인트 존재 확인 (checkpoint-XXXXX)
+- [ ] 디스크 공간 확인 (~50GB)
+
+### Phase 3 시작 전
+- [ ] 합성 데이터 생성 완료
+- [ ] `data_mouse_synthetic/data_train.txt` 존재 확인
+- [ ] Human pretrained 체크포인트 준비
+
+---
+
+## 관련 문서
+
+- [2단계 학습 전략 연구노트](../reports/251213_research_two_phase_training_strategy.md)
+- [MVDiffusion 체크포인트 이슈](../reports/251212_research_mvdiffusion_training_checkpoint_issue.md)
+- [CLIP Tokenizer 문제 해결](../troubleshooting/clip_tokenizer_merges_error.md)
