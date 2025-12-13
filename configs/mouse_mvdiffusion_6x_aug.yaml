@@ -76,9 +76,9 @@ logging_dir: logs
 mixed_precision: 'fp16'
 report_to: 'wandb'
 local_rank: -1
-checkpointing_steps: 500
+checkpointing_steps: 200
 checkpoints_total_limit: 5
-resume_from_checkpoint: null  # Fresh start with mouse embeds
+resume_from_checkpoint: "latest"  # Auto-resume from latest checkpoint
 enable_xformers_memory_efficient_attention: true
 validation_steps: 100
 validation_sanity_check: true
