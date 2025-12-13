@@ -90,33 +90,25 @@ CUDA_VISIBLE_DEVICES=1 nohup accelerate launch train_diffusion.py \
 
 ---
 
-### Case C: 수렴 실패 (전혀 다른 이미지 생성) ❌
+### Case C: 수렴 실패 (View 방향 불일치) ❌
 
-**원인 추정**: 도메인 불일치 (rendering vs real video)
-**해결책**: 현실적 프롬프트 사용
+**원인 분석**:
+- `top-front` ≠ `front` (Pretrained 모델이 인식 못함)
+- `from above at an angle` 추가로 뷰 간 차별화 감소
+- ~~도메인 불일치~~ (실제 원인 아님)
+
+**해결책**: FaceLift 원본 프롬프트 사용 (Case B와 동일)
 
 ```bash
-# gpu05에서 실행
-
-# 1. 현재 학습 종료
-pkill -TERM -f "train_diffusion.py"
-
-# 2. 현실적 프롬프트 임베딩 생성
-cd /home/joon/FaceLift
-source ~/anaconda3/etc/profile.d/conda.sh
-conda activate mouse_facelift
-
-python scripts/generate_mouse_prompt_embeds_realistic.py --style realistic
-
-# 3. 새 실험 시작
+# Case B 명령어 참조 - FaceLift 프롬프트로 전환
 CUDA_VISIBLE_DEVICES=1 nohup accelerate launch train_diffusion.py \
-    --config configs/mouse_mvdiffusion_realistic_prompt.yaml \
-    > logs/train_mvdiff_realistic_prompt.log 2>&1 &
+    --config configs/mouse_mvdiffusion_facelift_prompt.yaml \
+    > logs/train_mvdiff_facelift_prompt.log 2>&1 &
 ```
 
-**Config 차이점**:
-- `prompt_embed_path`: `mouse_prompt_embeds_realistic/clr_embeds.pt`
-- 프롬프트: `"a photograph of a mouse, {view} view, from above at an angle."`
+**참고**: Realistic 프롬프트 (`"a photograph of..."`)는 권장하지 않음
+- Pretrained 모델이 `rendering` 도메인으로 학습됨
+- `photograph` 도메인은 학습된 적 없어 더 느린 수렴 예상
 
 ---
 

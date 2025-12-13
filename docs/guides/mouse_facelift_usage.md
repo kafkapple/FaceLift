@@ -32,8 +32,9 @@ last_updated: 2025-12-13
 | 결과 | 다음 단계 | Config |
 |------|----------|--------|
 | ✅ 수렴 성공 | Phase 2 진행 | - |
-| ⚠️ 수렴 느림 | FaceLift 프롬프트 실험 | `mouse_mvdiffusion_facelift_prompt.yaml` |
-| ❌ 수렴 실패 | Realistic 프롬프트 실험 | `mouse_mvdiffusion_realistic_prompt.yaml` |
+| ⚠️ 수렴 느림/실패 | FaceLift 프롬프트 실험 | `mouse_mvdiffusion_facelift_prompt.yaml` |
+
+> **Note**: Realistic 프롬프트는 권장하지 않음 (Pretrained가 `rendering` 도메인 학습)
 
 **프롬프트 대안 생성**:
 ```bash
