@@ -26,7 +26,7 @@ import os
 import shutil
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -145,7 +145,7 @@ class TrainingConfig:
 
     # Mouse-specific dataset options (optional, with defaults)
     dataset_type: Optional[str] = None  # 'mouse' or None for default
-    reference_view_idx: Union[int, str] = 0  # Which view to use as input (int or "random")
+    reference_view_idx: Any = 0  # Which view to use as input (int, "random", or list)
     prompt_embed_path: Optional[str] = None  # Path to prompt embeddings
 
 
