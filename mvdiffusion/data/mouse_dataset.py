@@ -54,7 +54,17 @@ class MouseMVDiffusionDataset(Dataset):
 
         # Reference view configuration (which view to use as input)
         # For mouse, we might want to experiment with different reference views
-        self.reference_view_idx = config.get("reference_view_idx", 0)
+        # Supports: int (fixed), "random" (random each sample), or list [0,1,2,...] (random from list)
+        ref_view_config = config.get("reference_view_idx", 0)
+        if ref_view_config == "random":
+            self.reference_view_idx = "random"
+            self.reference_view_choices = list(range(self.n_views))
+        elif isinstance(ref_view_config, list):
+            self.reference_view_idx = "random"
+            self.reference_view_choices = ref_view_config
+        else:
+            self.reference_view_idx = int(ref_view_config)
+            self.reference_view_choices = None
 
         # Load data paths
         if self.split == "train":
@@ -110,7 +120,10 @@ class MouseMVDiffusionDataset(Dataset):
             self.aug_hflip = config.train_dataset.get("aug_hflip", False)
 
         print(f"[MouseMVDiffusionDataset] Loaded {len(self.all_data_paths)} samples for {split}")
-        print(f"  Reference view: {self.reference_view_idx}")
+        if self.reference_view_idx == "random":
+            print(f"  Reference view: random from {self.reference_view_choices} (6x data augmentation)")
+        else:
+            print(f"  Reference view: {self.reference_view_idx}")
         print(f"  Augmentation: {self.use_augmentation}")
 
     def __len__(self) -> int:
@@ -220,8 +233,14 @@ class MouseMVDiffusionDataset(Dataset):
         if not os.path.exists(images_dir):
             images_dir = data_path
 
+        # Determine reference view index (supports random selection for data augmentation)
+        if self.reference_view_idx == "random":
+            current_ref_idx = random.choice(self.reference_view_choices)
+        else:
+            current_ref_idx = self.reference_view_idx
+
         # Load reference (input) image
-        ref_image_path = os.path.join(images_dir, f"cam_{self.reference_view_idx:03d}.png")
+        ref_image_path = os.path.join(images_dir, f"cam_{current_ref_idx:03d}.png")
         ref_image = self.load_image(ref_image_path, bg_color)
 
         # Load all target images
