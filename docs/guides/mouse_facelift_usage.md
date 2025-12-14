@@ -11,40 +11,30 @@ generator_tool: claude-code
 last_updated: 2025-12-13
 ---
 
-## Quick Start - 2단계 학습 파이프라인
+## Quick Start - 3단계 학습 파이프라인
 
 > **핵심**: MVDiffusion → 합성 데이터 → GS-LRM 순차 학습으로 도메인 정렬
 
-### 현재 상태 (2025-12-13)
+### 현재 상태 (2025-12-14)
 
 | 단계 | 모델 | 상태 | Config | Checkpoint |
 |------|------|:----:|--------|------------|
-| **Phase 1** | MVDiffusion | 🔄 학습중 | `mouse_mvdiffusion_6x_aug.yaml` | `mouse_embeds_6x_aug/` |
-| **Phase 2** | 합성 데이터 | ⏳ 대기 | - | `data_mouse_synthetic/` |
+| **Phase 1** | MVDiffusion | ✅ 완료 | `mouse_mvdiffusion_facelift_prompt.yaml` | `facelift_prompt_6x/checkpoint-1200` |
+| **Phase 2** | 합성 데이터 | 🔄 진행 | - | `data_mouse_synthetic/` |
 | **Phase 3** | GS-LRM | ⏳ 대기 | `mouse_gslrm_synthetic.yaml` | `mouse_synthetic/` |
 
 **WandB**: https://wandb.ai → project: `mouse_facelift`
 
-### 실험 결과에 따른 다음 단계
+### 체크포인트 저장 설정
 
-> **상세 가이드**: [mouse_experiment_options.md](./mouse_experiment_options.md)
-
-| 결과 | 다음 단계 | Config |
-|------|----------|--------|
-| ✅ 수렴 성공 | Phase 2 진행 | - |
-| ⚠️ 수렴 느림/실패 | FaceLift 프롬프트 실험 | `mouse_mvdiffusion_facelift_prompt.yaml` |
-
-> **Note**: Realistic 프롬프트는 권장하지 않음 (Pretrained가 `rendering` 도메인 학습)
-
-**프롬프트 대안 생성**:
-```bash
-python scripts/generate_mouse_prompt_embeds_realistic.py --list-styles
-python scripts/generate_mouse_prompt_embeds_realistic.py --style [facelift|realistic|hybrid]
-```
+| 모델 | 저장 주기 | 유지 개수 | 자동 재개 |
+|------|----------|----------|----------|
+| MVDiffusion | 200 steps | 최근 5개 | `resume: "latest"` |
+| GS-LRM | 2000 steps | - | 수동 설정 |
 
 ---
 
-### Phase 1: MVDiffusion Fine-tune (1뷰 → 6뷰)
+### Phase 1: MVDiffusion Fine-tune (1뷰 → 6뷰) ✅
 
 ```bash
 # gpu05 접속
@@ -53,48 +43,55 @@ cd /home/joon/FaceLift
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate mouse_facelift
 
-# 학습 시작 (GPU 1만 사용!)
-nohup bash -c 'CUDA_VISIBLE_DEVICES=1 accelerate launch train_diffusion.py \
-    --config configs/mouse_mvdiffusion_6x_aug.yaml' \
-    > logs/train_mvdiff_6x_gpu1.log 2>&1 &
+# 학습 시작 (GPU 1만 사용!) - FaceLift 원본 설정 사용
+CUDA_VISIBLE_DEVICES=1 nohup accelerate launch train_diffusion.py \
+    --config configs/mouse_mvdiffusion_facelift_prompt.yaml \
+    > logs/train_mvdiff_facelift.log 2>&1 &
 
 # 모니터링
-tail -f logs/train_mvdiff_6x_gpu1.log
-nvidia-smi
+tail -f logs/train_mvdiff_facelift.log
+
+# 학습 중단
+pkill -f train_diffusion
 ```
 
 | 설정 | 값 |
 |------|-----|
-| Config | `configs/mouse_mvdiffusion_6x_aug.yaml` |
-| Checkpoint | `checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/` |
-| Prompt Embeds | `mvdiffusion/data/mouse_prompt_embeds_6view/clr_embeds.pt` |
-| Steps | 20,000 |
-| 예상 시간 | ~61시간 (~11초/step) |
+| Config | `configs/mouse_mvdiffusion_facelift_prompt.yaml` |
+| Checkpoint | `checkpoints/mvdiffusion/mouse/facelift_prompt_6x/` |
+| Prompt Embeds | `mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt` (FaceLift 원본) |
+| reference_view_idx | **0 (고정)** - FaceLift 원본 방식 |
+| 수렴 시점 | ~1000-1500 steps |
 
 ---
 
-### Phase 2: 합성 데이터 생성
+### Phase 2: 합성 데이터 생성 🔄
 
 ```bash
-# Phase 1 완료 후 실행 (checkpoint-10000 이상 권장)
-python scripts/generate_gslrm_training_data.py \
-    --mvdiff_checkpoint checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/checkpoint-20000 \
+# gpu05에서 실행
+cd /home/joon/FaceLift
+source ~/anaconda3/etc/profile.d/conda.sh
+conda activate mouse_facelift
+
+# Phase 1 체크포인트로 합성 데이터 생성
+CUDA_VISIBLE_DEVICES=1 python scripts/generate_gslrm_training_data.py \
+    --mvdiff_checkpoint checkpoints/mvdiffusion/mouse/facelift_prompt_6x/checkpoint-1200 \
     --input_data data_mouse/data_mouse_train.txt \
     --output_dir data_mouse_synthetic \
-    --prompt_embeds mvdiffusion/data/mouse_prompt_embeds_6view/clr_embeds.pt \
-    --camera_json data_mouse/sample_000000/opencv_cameras.json \
-    --augment_all_views
+    --prompt_embeds mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt
 
 # 결과 확인
 ls data_mouse_synthetic/
-# data_train.txt, data_val.txt, sample_000000/, ...
+# sample_000000/, sample_000001/, ..., data_train.txt, data_val.txt
 ```
 
 | 설정 | 값 |
 |------|-----|
 | Script | `scripts/generate_gslrm_training_data.py` |
-| 입력 | 1,799 train 샘플 × 6뷰 = 10,794 합성 샘플 |
-| 출력 | `data_mouse_synthetic/` |
+| MVDiff Checkpoint | `facelift_prompt_6x/checkpoint-1200` |
+| Prompt Embeds | `fixed_prompt_embeds_6view/clr_embeds.pt` (FaceLift 원본) |
+| 입력 | 1,799 train 샘플 |
+| 출력 | `data_mouse_synthetic/` (6뷰 합성 이미지) |
 | 예상 시간 | ~2-4시간 |
 
 ---
@@ -102,13 +99,21 @@ ls data_mouse_synthetic/
 ### Phase 3: GS-LRM Fine-tune (합성 6뷰 → 3D)
 
 ```bash
-# Phase 2 완료 후 실행
-nohup bash -c 'CUDA_VISIBLE_DEVICES=1 torchrun --nproc_per_node=1 \
-    train_gslrm.py --config configs/mouse_gslrm_synthetic.yaml' \
+# gpu05에서 실행 - Phase 2 완료 후
+cd /home/joon/FaceLift
+source ~/anaconda3/etc/profile.d/conda.sh
+conda activate mouse_facelift
+
+# GS-LRM 학습 시작
+CUDA_VISIBLE_DEVICES=1 nohup torchrun --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse_gslrm_synthetic.yaml \
     > logs/train_gslrm_synthetic.log 2>&1 &
 
 # 모니터링
 tail -f logs/train_gslrm_synthetic.log
+
+# 학습 중단
+pkill -f train_gslrm
 ```
 
 | 설정 | 값 |
@@ -117,7 +122,7 @@ tail -f logs/train_gslrm_synthetic.log
 | Dataset | `data_mouse_synthetic/data_train.txt` |
 | Start From | `checkpoints/gslrm/ckpt_0000000000021125.pt` (human pretrained) |
 | Checkpoint | `checkpoints/gslrm/mouse_synthetic/` |
-| Steps | 30,000 |
+| 저장 주기 | 2000 steps |
 
 ---
 
