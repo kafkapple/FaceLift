@@ -197,10 +197,77 @@ class GSLRMTrainer:
         module, class_name = self.config.model.class_name.rsplit(".", 1)
         GSLRM = importlib.import_module(module).__dict__[class_name]
         self.model = GSLRM(self.config).to(self.device)
-        
+
+        # Apply layer-wise freezing if configured
+        self._apply_layer_freeze()
+
         # Wrap with DDP
         self.model = DDP(self.model, device_ids=[self.ddp_local_rank])
-        
+
+    def _apply_layer_freeze(self):
+        """Apply layer-wise freezing to prevent catastrophic forgetting.
+
+        Freezes early transformer layers and patch embedder to preserve
+        pretrained knowledge while allowing task-specific adaptation in
+        later layers and output heads.
+        """
+        freeze_config = self.config.training.get("freeze_layers", {})
+        if not freeze_config.get("enabled", False):
+            return
+
+        freeze_until = freeze_config.get("freeze_transformer_until", 20)
+        freeze_patch = freeze_config.get("freeze_patch_embedder", True)
+        freeze_pos_embed = freeze_config.get("freeze_positional_embeddings", False)
+
+        frozen_params = 0
+        total_params = 0
+        frozen_names = []
+
+        for name, param in self.model.named_parameters():
+            total_params += param.numel()
+            should_freeze = False
+
+            # Freeze patch embedder
+            if freeze_patch and "patch_embedder" in name:
+                should_freeze = True
+
+            # Freeze early transformer layers
+            if "transformer_layers" in name:
+                # Extract layer number: transformer_layers.0.xxx -> 0
+                parts = name.split(".")
+                for i, part in enumerate(parts):
+                    if part == "transformer_layers" and i + 1 < len(parts):
+                        try:
+                            layer_num = int(parts[i + 1])
+                            if layer_num < freeze_until:
+                                should_freeze = True
+                        except ValueError:
+                            pass
+                        break
+
+            # Freeze positional embeddings (optional)
+            if freeze_pos_embed and "position_embeddings" in name:
+                should_freeze = True
+
+            # Freeze input layer norm (part of early processing)
+            if freeze_patch and "input_layer_norm" in name:
+                should_freeze = True
+
+            if should_freeze:
+                param.requires_grad = False
+                frozen_params += param.numel()
+                frozen_names.append(name)
+
+        freeze_ratio = frozen_params / total_params * 100
+        print_rank0(f"\n{'='*60}")
+        print_rank0(f"Layer-wise Freeze Applied:")
+        print_rank0(f"  - Freeze transformer layers 0-{freeze_until-1}: Yes")
+        print_rank0(f"  - Freeze patch_embedder: {freeze_patch}")
+        print_rank0(f"  - Freeze positional embeddings: {freeze_pos_embed}")
+        print_rank0(f"  - Frozen: {frozen_params:,} / {total_params:,} params ({freeze_ratio:.1f}%)")
+        print_rank0(f"  - Trainable: {total_params - frozen_params:,} params ({100-freeze_ratio:.1f}%)")
+        print_rank0(f"{'='*60}\n")
+
     def setup_optimization(self):
         """Setup optimizer, scheduler, and gradient scaler."""
         # Get job overview for scheduling
@@ -619,17 +686,59 @@ class GSLRMTrainer:
         """Save visual outputs if needed."""
         if not create_visual or self.ddp_rank != 0:
             return
-            
+
         self.model.eval()
         vis_dir = os.path.join(
-            self.config.training.checkpointing.checkpoint_dir, 
+            self.config.training.checkpointing.checkpoint_dir,
             f"iter_{self.fwdbwd_pass_step:08d}"
         )
         os.makedirs(vis_dir, exist_ok=True)
-        
+
         self.model.module.save_visuals(vis_dir, result, batch)
+
+        # Log images to WandB
+        self._log_visuals_to_wandb(vis_dir, prefix="train")
+
         torch.cuda.empty_cache()
         self.model.train()
+
+    def _log_visuals_to_wandb(self, vis_dir: str, prefix: str = "train"):
+        """Log saved visualization images to WandB."""
+        import glob
+        from PIL import Image as PILImage
+
+        wandb_images = {}
+
+        # Find and log supervision images
+        supervision_files = glob.glob(os.path.join(vis_dir, "supervision_*.jpg"))
+        for i, f in enumerate(supervision_files[:2]):  # Limit to 2 images
+            try:
+                img = PILImage.open(f)
+                wandb_images[f"{prefix}/supervision_{i}"] = wandb.Image(img, caption=f"Step {self.fwdbwd_pass_step}")
+            except Exception as e:
+                print(f"Warning: Could not load image {f}: {e}")
+
+        # Find and log input images
+        input_files = glob.glob(os.path.join(vis_dir, "input_*.jpg"))
+        for i, f in enumerate(input_files[:1]):  # Limit to 1 image
+            try:
+                img = PILImage.open(f)
+                wandb_images[f"{prefix}/input_{i}"] = wandb.Image(img, caption=f"Step {self.fwdbwd_pass_step}")
+            except Exception as e:
+                print(f"Warning: Could not load image {f}: {e}")
+
+        # Find gt_vs_pred images in subdirectories
+        gt_pred_files = glob.glob(os.path.join(vis_dir, "**/gt_vs_pred.png"), recursive=True)
+        for i, f in enumerate(gt_pred_files[:2]):  # Limit to 2 images
+            try:
+                img = PILImage.open(f)
+                wandb_images[f"{prefix}/gt_vs_pred_{i}"] = wandb.Image(img, caption=f"Step {self.fwdbwd_pass_step}")
+            except Exception as e:
+                print(f"Warning: Could not load image {f}: {e}")
+
+        if wandb_images:
+            wandb.log(wandb_images, step=self.fwdbwd_pass_step)
+            print(f"Logged {len(wandb_images)} images to WandB at step {self.fwdbwd_pass_step}")
         
     def run_validation(self):
         """Run validation loop."""
@@ -675,7 +784,11 @@ class GSLRMTrainer:
                     "val/lpips": sum(log_val_metrics["lpips"]) / len(log_val_metrics["lpips"]),
                 }
                 wandb.log(wandb_log_val_metrics, step=self.fwdbwd_pass_step)
-                
+
+                # Log validation images to WandB
+                val_vis_dir = os.path.join(self.config.validation.output_dir, f"iter_{self.fwdbwd_pass_step:08d}")
+                self._log_visuals_to_wandb(val_vis_dir, prefix="val")
+
             torch.cuda.empty_cache()
             
         torch.distributed.barrier()

@@ -788,16 +788,41 @@ def main():
             print("Using MVDiffusion for single-image to multi-view generation")
             try:
                 from mvdiffusion.pipelines.pipeline_mvdiffusion_unclip import StableUnCLIPImg2ImgPipeline
+                from mvdiffusion.models.unet_mv2d_condition import UNetMV2DConditionModel
                 from diffusers import DDIMScheduler
                 from PIL import Image
                 import torchvision.transforms.functional as TF
 
                 # Load MVDiffusion pipeline
-                print(f"Loading MVDiffusion from {args.mvdiffusion_checkpoint}...")
-                mvdiff_pipe = StableUnCLIPImg2ImgPipeline.from_pretrained(
-                    args.mvdiffusion_checkpoint,
-                    torch_dtype=torch.float16
-                )
+                # Check if checkpoint is a training checkpoint (contains unet subfolder) or full pipeline
+                checkpoint_path = Path(args.mvdiffusion_checkpoint)
+                unet_path = checkpoint_path / "unet"
+
+                if unet_path.exists():
+                    # Training checkpoint: load base pipeline + replace UNet
+                    base_pipeline = "checkpoints/mvdiffusion/pipeckpts"
+                    print(f"Loading base MVDiffusion pipeline from {base_pipeline}...")
+                    mvdiff_pipe = StableUnCLIPImg2ImgPipeline.from_pretrained(
+                        base_pipeline,
+                        torch_dtype=torch.float16
+                    )
+
+                    # Load trained UNet using MVDiffusion's custom UNet class
+                    print(f"Loading trained UNet from {unet_path}...")
+                    trained_unet = UNetMV2DConditionModel.from_pretrained(
+                        str(unet_path),
+                        torch_dtype=torch.float16
+                    )
+                    mvdiff_pipe.unet = trained_unet
+                    print("  Replaced UNet with trained weights")
+                else:
+                    # Full pipeline checkpoint
+                    print(f"Loading MVDiffusion from {args.mvdiffusion_checkpoint}...")
+                    mvdiff_pipe = StableUnCLIPImg2ImgPipeline.from_pretrained(
+                        args.mvdiffusion_checkpoint,
+                        torch_dtype=torch.float16
+                    )
+
                 mvdiff_pipe.to(args.device)
 
                 # Enable memory optimizations

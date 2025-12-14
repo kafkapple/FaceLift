@@ -15,13 +15,16 @@ last_updated: 2025-12-13
 
 > **핵심**: MVDiffusion → 합성 데이터 → GS-LRM 순차 학습으로 도메인 정렬
 
-### 현재 상태 (2025-12-14)
+### 현재 상태 (2025-12-15)
 
 | 단계 | 모델 | 상태 | Config | Checkpoint |
 |------|------|:----:|--------|------------|
-| **Phase 1** | MVDiffusion | ✅ 완료 | `mouse_mvdiffusion_facelift_prompt.yaml` | `facelift_prompt_6x/checkpoint-1200` |
+| **Phase 1** | MVDiffusion | ✅ 완료 | `mouse_mvdiffusion_6x_aug.yaml` | `facelift_prompt_6x/checkpoint-2000` |
 | **Phase 2** | 합성 데이터 | 🔄 진행 | - | `data_mouse_synthetic/` |
-| **Phase 3** | GS-LRM | ⏳ 대기 | `mouse_gslrm_synthetic.yaml` | `mouse_synthetic/` |
+| **Phase 3** | GS-LRM | ⚠️ 도전 | `mouse_gslrm_conservative.yaml` | 학습 중 |
+| **Alt** | LGM Pipeline | ✅ 테스트 | - | `LGM/pretrained/model_fp16.safetensors` |
+
+> **참고**: GS-LRM은 Human Face prior가 강해 fine-tuning이 어려움. LGM 파이프라인이 대안으로 사용 가능.
 
 **WandB**: https://wandb.ai → project: `mouse_facelift`
 
@@ -140,6 +143,48 @@ python test_full_pipeline.py \
 
 ---
 
+### Alternative: LGM Pipeline (GS-LRM 대안)
+
+> **특징**: LGM은 Objaverse에서 학습된 별도 모델로, Human Face prior가 없어 mouse에도 잘 작동
+
+```bash
+# gpu05에서 실행
+cd /home/joon/FaceLift
+source ~/anaconda3/etc/profile.d/conda.sh
+conda activate mouse_facelift
+
+# Step 1: MVDiffusion으로 6-view 생성 → 4-view 변환
+CUDA_VISIBLE_DEVICES=1 python scripts/inference_with_lgm.py \
+    --input_image data_mouse/sample_000000/images/cam_000.png \
+    --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse/facelift_prompt_6x/checkpoint-2000 \
+    --skip_lgm \
+    --output_dir outputs/lgm_test
+
+# Step 2: LGM으로 3D Gaussian 생성
+cd LGM
+CUDA_VISIBLE_DEVICES=1 python infer.py big \
+    --resume pretrained/model_fp16.safetensors \
+    --test_path ../outputs/lgm_test/cam_000/lgm_4views \
+    --workspace logs
+
+# 결과물: logs/view_XX.ply (3D Gaussian), logs/view_XX.mp4 (360° 비디오)
+```
+
+| 항목 | 경로 |
+|------|------|
+| LGM pretrained | `LGM/pretrained/model_fp16.safetensors` |
+| MVDiffusion→LGM 스크립트 | `scripts/inference_with_lgm.py` |
+| 출력 (PLY) | `LGM/logs/view_XX.ply` |
+| 출력 (MP4) | `LGM/logs/view_XX.mp4` |
+
+**View 매핑** (MVDiffusion 6-view → LGM 4-view):
+- LGM 0° ← MVDiffusion view 0 (0°)
+- LGM 90° ← MVDiffusion view 1 (60°) *근사*
+- LGM 180° ← MVDiffusion view 3 (180°)
+- LGM 270° ← MVDiffusion view 5 (300°) *근사*
+
+---
+
 ## 데이터셋 구성
 
 ### 원본 데이터
@@ -187,6 +232,8 @@ python test_full_pipeline.py \
 |--------|------|------|
 | MVDiffusion 6x | Phase 1 학습 | `configs/mouse_mvdiffusion_6x_aug.yaml` |
 | GS-LRM Synthetic | Phase 3 학습 | `configs/mouse_gslrm_synthetic.yaml` |
+| GS-LRM Layerwise | 74% freeze | `configs/mouse_gslrm_layerwise.yaml` |
+| GS-LRM Conservative | 82% freeze | `configs/mouse_gslrm_conservative.yaml` |
 | Mouse Prompt Embeds | 경사 6뷰 임베딩 | `mvdiffusion/data/mouse_prompt_embeds_6view/` |
 
 ### Scripts
@@ -197,6 +244,8 @@ python test_full_pipeline.py \
 | `scripts/generate_mouse_prompt_embeds_simple.py` | Mouse prompt embeds 생성 |
 | `scripts/generate_mouse_prompt_embeds_realistic.py` | 다양한 스타일 prompt embeds 생성 |
 | `scripts/generate_gslrm_training_data.py` | Phase 2 합성 데이터 생성 |
+| `scripts/inference_with_lgm.py` | MVDiffusion→LGM 파이프라인 |
+| `scripts/setup_lgm.sh` | LGM 설치 스크립트 |
 | `scripts/check_server_resources.sh` | 서버 리소스 모니터링 |
 
 ### Checkpoints
@@ -205,8 +254,9 @@ python test_full_pipeline.py \
 |------------|------|
 | Human Pretrained GS-LRM | `checkpoints/gslrm/ckpt_0000000000021125.pt` |
 | MVDiffusion Pretrained | `checkpoints/mvdiffusion/pipeckpts/` |
-| MVDiffusion Mouse (학습중) | `checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/` |
-| GS-LRM Synthetic (예정) | `checkpoints/gslrm/mouse_synthetic/` |
+| MVDiffusion Mouse (완료) | `checkpoints/mvdiffusion/mouse/facelift_prompt_6x/checkpoint-2000` |
+| GS-LRM Conservative | `checkpoints/gslrm/mouse_conservative/` |
+| LGM Pretrained | `LGM/pretrained/model_fp16.safetensors` |
 
 ---
 
