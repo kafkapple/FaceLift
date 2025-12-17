@@ -47,6 +47,87 @@ def pil_to_np(pil_image):
     return image
 
 
+def normalize_cameras_to_y_up(c2w_matrices: np.ndarray, up_direction: np.ndarray = None) -> np.ndarray:
+    """
+    Normalize camera poses so that the up direction aligns with Y-axis.
+
+    This is crucial for GS-LRM training because the pretrained model assumes Y-up coordinates.
+    Mouse capture data may have arbitrary up directions due to camera calibration.
+
+    Args:
+        c2w_matrices: Camera-to-world matrices [N, 4, 4]
+        up_direction: Actual "up" direction in world coordinates. If None, estimate from cameras.
+                      For orbit cameras, this should be the orbit axis (plane normal).
+
+    Returns:
+        Normalized c2w matrices [N, 4, 4] with Y-up alignment
+    """
+    if up_direction is None:
+        # Estimate up direction from camera positions (orbit axis = plane normal)
+        # This is more robust than using camera orientations for orbit cameras
+        positions = np.array([c2w[:3, 3] for c2w in c2w_matrices])
+        center = np.mean(positions, axis=0)
+        centered = positions - center
+
+        if len(c2w_matrices) >= 3:
+            # Use PCA to find orbit plane normal
+            cov = centered.T @ centered
+            eigenvalues, eigenvectors = np.linalg.eig(cov)
+            min_idx = np.argmin(eigenvalues.real)
+            up_direction = eigenvectors[:, min_idx].real
+        else:
+            # Fallback to camera up vectors average
+            avg_cam_up = np.mean([-c2w[:3, 1] for c2w in c2w_matrices], axis=0)
+            up_direction = avg_cam_up / np.linalg.norm(avg_cam_up)
+
+        # Ensure up direction points "up" (positive Y component or align with cam ups)
+        avg_cam_up = np.mean([-c2w[:3, 1] for c2w in c2w_matrices], axis=0)
+        if np.dot(up_direction, avg_cam_up) < 0:
+            up_direction = -up_direction
+
+    up_direction = up_direction / np.linalg.norm(up_direction)
+    target_up = np.array([0.0, 1.0, 0.0])  # Y-up
+
+    # Compute rotation from current up to Y-up
+    rotation_axis = np.cross(up_direction, target_up)
+    axis_norm = np.linalg.norm(rotation_axis)
+
+    if axis_norm < 1e-6:
+        # Already aligned (or opposite)
+        if np.dot(up_direction, target_up) < 0:
+            # 180 degree rotation around X
+            R_align = np.array([
+                [1, 0, 0],
+                [0, -1, 0],
+                [0, 0, -1]
+            ], dtype=np.float32)
+        else:
+            R_align = np.eye(3, dtype=np.float32)
+    else:
+        rotation_axis = rotation_axis / axis_norm
+        cos_angle = np.clip(np.dot(up_direction, target_up), -1.0, 1.0)
+        angle = np.arccos(cos_angle)
+
+        # Rodrigues' rotation formula
+        K = np.array([
+            [0, -rotation_axis[2], rotation_axis[1]],
+            [rotation_axis[2], 0, -rotation_axis[0]],
+            [-rotation_axis[1], rotation_axis[0], 0]
+        ])
+        R_align = np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * (K @ K)
+        R_align = R_align.astype(np.float32)
+
+    # Apply rotation to all cameras
+    normalized_c2ws = []
+    for c2w in c2w_matrices:
+        c2w_new = np.eye(4, dtype=np.float32)
+        c2w_new[:3, :3] = R_align @ c2w[:3, :3]
+        c2w_new[:3, 3] = R_align @ c2w[:3, 3]
+        normalized_c2ws.append(c2w_new)
+
+    return np.stack(normalized_c2ws, axis=0)
+
+
 def get_bg_color(bg_color_config):
     """Generate background color based on configuration."""
     COLORS = {
@@ -357,6 +438,23 @@ class MouseViewDataset(Dataset):
             input_fxfycxcy = np.array(input_fxfycxcy)
             input_c2ws = np.array(input_c2ws)
 
+            # Normalize cameras to Y-up coordinate system
+            # This is crucial because GS-LRM pretrained model assumes Y-up
+            if self.config.get("mouse", {}).get("normalize_cameras", True):
+                # Try to load up_direction from data directory
+                up_direction = None
+                vertical_lines_path = os.path.join(data_path, "..", "vertical_lines.npz")
+                if os.path.exists(vertical_lines_path):
+                    try:
+                        vl_data = np.load(vertical_lines_path)
+                        up_direction = vl_data.get("up_direction", None)
+                        if up_direction is not None:
+                            up_direction = np.array(up_direction)
+                    except Exception:
+                        pass
+
+                input_c2ws = normalize_cameras_to_y_up(input_c2ws, up_direction)
+
         except Exception as e:
             traceback.print_exc()
             print(f"Error loading data from {self.all_data_paths[idx]}: {str(e)}")
@@ -492,6 +590,11 @@ class MouseSingleViewDataset(Dataset):
         ])
 
         c2w = np.linalg.inv(np.array(camera["w2c"]))
+
+        # Normalize camera to Y-up (single camera case)
+        c2w_array = np.array([c2w])
+        c2w_normalized = normalize_cameras_to_y_up(c2w_array, up_direction=None)
+        c2w = c2w_normalized[0]
 
         # Convert to tensors
         image_np = pil_to_np(image).astype(np.float32) / 255.0
