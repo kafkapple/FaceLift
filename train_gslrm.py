@@ -108,16 +108,26 @@ class GSLRMTrainer:
         
     def load_datasets(self):
         """Load training and validation datasets."""
-        from gslrm.data.dataset import RandomViewDataset
-        
-        # Create training dataset
-        self.dataset = RandomViewDataset(self.config, split="train")
-        
-        # Create validation dataset if enabled
-        if self.config.validation.enabled:
-            self.val_dataset = RandomViewDataset(self.config, split="val")
+        # Use MouseViewDataset for mouse data (has camera normalization)
+        # Use RandomViewDataset for original FaceLift data
+        use_mouse_dataset = self.config.get("mouse", {}).get("normalize_cameras", False)
+
+        if use_mouse_dataset:
+            from gslrm.data.mouse_dataset import MouseViewDataset
+            print("Using MouseViewDataset with camera normalization")
+            self.dataset = MouseViewDataset(self.config, split="train")
+            if self.config.validation.enabled:
+                self.val_dataset = MouseViewDataset(self.config, split="val")
+            else:
+                self.val_dataset = None
         else:
-            self.val_dataset = None
+            from gslrm.data.dataset import RandomViewDataset
+            print("Using RandomViewDataset (original FaceLift)")
+            self.dataset = RandomViewDataset(self.config, split="train")
+            if self.config.validation.enabled:
+                self.val_dataset = RandomViewDataset(self.config, split="val")
+            else:
+                self.val_dataset = None
             
         self._log_dataset_examples()
         self._setup_dataloaders()

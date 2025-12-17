@@ -1,0 +1,122 @@
+# =============================================================================
+# Mouse MVDiffusion - Random Reference View (6x Data Augmentation)
+# Uses random reference view with proper target rotation for augmented training
+# =============================================================================
+
+# Basic model configuration
+n_views: 6
+img_wh: 512
+reference_view_idx: "random"  # Random reference view → 6x data augmentation
+dataset_type: 'mouse'
+
+# Model paths - Start from checkpoint-2000
+pretrained_model_name_or_path: 'checkpoints/mvdiffusion/pipeckpts'
+pretrained_unet_path: 'checkpoints/mvdiffusion/mouse/facelift_prompt_6x/checkpoint-2000/unet'
+revision: null
+
+# Use FaceLift prompt embeddings
+prompt_embed_path: "mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt"
+
+# =============================================================================
+# Dataset Configuration
+# =============================================================================
+train_dataset:
+  path: data_mouse/data_mouse_train.txt
+  bg_color: 'three_choices'
+  augmentation: true
+  aug_brightness: [0.9, 1.1]
+  aug_contrast: [0.9, 1.1]
+  aug_hflip: false
+
+validation_dataset:
+  path: data_mouse/data_mouse_val.txt
+  bg_color: 'white'
+
+# =============================================================================
+# Output Directories - Separate directory for random ref training
+# =============================================================================
+checkpoint_prefix: ''
+output_dir: 'checkpoints/mvdiffusion/mouse/facelift_random_ref'
+val_out_dir: 'outputs/mouse_mvdiff_random_ref/val/'
+
+# =============================================================================
+# Training Parameters
+# =============================================================================
+seed: 42
+train_batch_size: 4
+validation_batch_size: 2
+max_train_steps: 20000
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+learning_rate: 5.0e-05
+scale_lr: false
+lr_scheduler: piecewise_constant
+step_rules: "1:100000,0.5"
+lr_warmup_steps: 100
+snr_gamma: 5.0
+use_8bit_adam: false
+allow_tf32: true
+use_ema: true
+dataloader_num_workers: 8
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 0.01
+adam_epsilon: 1.0e-08
+max_grad_norm: 1.0
+prediction_type: null
+
+# =============================================================================
+# Logging & Checkpointing
+# =============================================================================
+logging_dir: logs
+vis_dir: vis
+mixed_precision: fp16
+report_to: wandb
+local_rank: -1
+checkpointing_steps: 500
+checkpoints_total_limit: 3
+resume_from_checkpoint: null
+enable_xformers_memory_efficient_attention: true
+validation_steps: 200
+validation_sanity_check: true
+
+# =============================================================================
+# WandB Configuration
+# =============================================================================
+tracker_project_name: mouse_facelift
+wandb_exp_name: mvdiff_facelift_random_ref_6x_aug
+wandb_group: mvdiffusion
+wandb_job_type: finetune_random_ref
+
+# =============================================================================
+# Model Architecture
+# =============================================================================
+trainable_modules: null
+use_classifier_free_guidance: true
+condition_drop_rate: 0.05
+scale_input_latents: true
+
+pipe_kwargs:
+  num_views: ${n_views}
+pipe_validation_kwargs:
+  eta: 1.0
+
+unet_from_pretrained_kwargs:
+  unclip: true
+  num_views: ${n_views}
+  sample_size: 64
+  zero_init_conv_in: true
+  init_mvattn_with_selfattn: false
+  cd_attention_last: false
+  cd_attention_mid: false
+  multiview_attention: true
+  sparse_mv_attention: true
+  selfattn_block: custom
+  addition_downsample: false
+
+validation_guidance_scales:
+  - 1.0
+  - 3.0
+validation_grid_nrow: ${n_views}
+camera_embedding_lr_mult: 1.0
+drop_type: drop_as_a_whole

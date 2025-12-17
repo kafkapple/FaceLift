@@ -243,9 +243,17 @@ class MouseMVDiffusionDataset(Dataset):
         ref_image_path = os.path.join(images_dir, f"cam_{current_ref_idx:03d}.png")
         ref_image = self.load_image(ref_image_path, bg_color)
 
-        # Load all target images
+        # Compute rotated target view indices when using random reference view
+        # This ensures the model always sees: "input view -> [input, input+1, ..., input+5] output"
+        # Example: if current_ref_idx=3 with 6 views, rotated_indices = [3, 4, 5, 0, 1, 2]
+        if self.reference_view_idx == "random":
+            rotated_target_indices = [(current_ref_idx + i) % self.n_views for i in range(self.n_views)]
+        else:
+            rotated_target_indices = self.target_view_indices
+
+        # Load all target images in rotated order
         target_images = []
-        for view_idx in self.target_view_indices:
+        for view_idx in rotated_target_indices:
             target_image_path = os.path.join(images_dir, f"cam_{view_idx:03d}.png")
             target_image = self.load_image(target_image_path, bg_color)
             target_images.append(target_image)
@@ -264,10 +272,17 @@ class MouseMVDiffusionDataset(Dataset):
         # Replicate reference image for all views (as conditioning)
         input_images = ref_image.unsqueeze(0).repeat(self.n_views, 1, 1, 1)  # [n_views, 3, H, W]
 
+        # Rotate prompt embeddings to match rotated target views
+        if self.reference_view_idx == "random":
+            # Rotate prompt embeddings: [n_views, seq_len, embed_dim] -> rotated order
+            rotated_prompt_embedding = self.color_prompt_embedding[rotated_target_indices]
+        else:
+            rotated_prompt_embedding = self.color_prompt_embedding
+
         return {
             'imgs_in': input_images.float(),
             'imgs_out': target_images.float(),
-            'color_prompt_embeddings': self.color_prompt_embedding,
+            'color_prompt_embeddings': rotated_prompt_embedding,
         }
 
 
