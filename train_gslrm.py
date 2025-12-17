@@ -703,18 +703,34 @@ class GSLRMTrainer:
         self.model.train()
 
     def _log_visuals_to_wandb(self, vis_dir: str, prefix: str = "train"):
-        """Log saved visualization images to WandB."""
+        """Log saved visualization images to WandB with detailed view/camera info."""
         import glob
         from PIL import Image as PILImage
 
         wandb_images = {}
 
-        # Find and log supervision images
+        # Get camera normalization status
+        normalize_cameras = self.config.get("mouse", {}).get("normalize_cameras", False)
+        norm_status = "Y-up normalized" if normalize_cameras else "Original coords"
+
+        # Get view configuration
+        num_views = self.config.training.dataset.get("num_views", 6)
+        num_input_views = self.config.training.dataset.get("num_input_views", 1)
+
+        # Find and log supervision images (GT vs Pred comparison)
         supervision_files = glob.glob(os.path.join(vis_dir, "supervision_*.jpg"))
         for i, f in enumerate(supervision_files[:2]):  # Limit to 2 images
             try:
                 img = PILImage.open(f)
-                wandb_images[f"{prefix}/supervision_{i}"] = wandb.Image(img, caption=f"Step {self.fwdbwd_pass_step}")
+                # Extract UIDs from filename
+                filename = os.path.basename(f)
+                uid_info = filename.replace("supervision_", "").replace(".jpg", "")
+                caption = (
+                    f"Step {self.fwdbwd_pass_step} | UIDs: {uid_info}\n"
+                    f"Top: GT ({num_views} views) | Bottom: Pred\n"
+                    f"Camera: {norm_status}"
+                )
+                wandb_images[f"{prefix}/supervision_{i}"] = wandb.Image(img, caption=caption)
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
 
@@ -723,7 +739,28 @@ class GSLRMTrainer:
         for i, f in enumerate(input_files[:1]):  # Limit to 1 image
             try:
                 img = PILImage.open(f)
-                wandb_images[f"{prefix}/input_{i}"] = wandb.Image(img, caption=f"Step {self.fwdbwd_pass_step}")
+                filename = os.path.basename(f)
+                uid_info = filename.replace("input_", "").replace(".jpg", "")
+                caption = (
+                    f"Step {self.fwdbwd_pass_step} | UIDs: {uid_info}\n"
+                    f"Input: {num_input_views} view(s) | Camera: {norm_status}"
+                )
+                wandb_images[f"{prefix}/input_{i}"] = wandb.Image(img, caption=caption)
+            except Exception as e:
+                print(f"Warning: Could not load image {f}: {e}")
+
+        # Find turntable images (360° rotation visualization)
+        turntable_files = glob.glob(os.path.join(vis_dir, "turntable_*.jpg"))
+        for i, f in enumerate(turntable_files[:1]):  # Limit to 1 image
+            try:
+                img = PILImage.open(f)
+                filename = os.path.basename(f)
+                uid_info = filename.replace("turntable_", "").replace(".jpg", "")
+                caption = (
+                    f"Step {self.fwdbwd_pass_step} | UID: {uid_info}\n"
+                    f"360° turntable render | Camera: {norm_status}"
+                )
+                wandb_images[f"{prefix}/turntable_{i}"] = wandb.Image(img, caption=caption)
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
 
@@ -732,7 +769,29 @@ class GSLRMTrainer:
         for i, f in enumerate(gt_pred_files[:2]):  # Limit to 2 images
             try:
                 img = PILImage.open(f)
-                wandb_images[f"{prefix}/gt_vs_pred_{i}"] = wandb.Image(img, caption=f"Step {self.fwdbwd_pass_step}")
+                # Extract UID from directory name
+                uid_dir = os.path.basename(os.path.dirname(f))
+                caption = (
+                    f"Step {self.fwdbwd_pass_step} | UID: {uid_dir}\n"
+                    f"Top: GT | Bottom: Pred | Views: {num_views}\n"
+                    f"Camera: {norm_status}"
+                )
+                wandb_images[f"{prefix}/gt_vs_pred_{i}"] = wandb.Image(img, caption=caption)
+            except Exception as e:
+                print(f"Warning: Could not load image {f}: {e}")
+
+        # Find aligned_gs (Gaussian opacity/depth) images
+        gs_files = glob.glob(os.path.join(vis_dir, "aligned_gs_*.jpg"))
+        for i, f in enumerate(gs_files[:1]):  # Limit to 1 image
+            try:
+                img = PILImage.open(f)
+                filename = os.path.basename(f)
+                uid_info = filename.replace("aligned_gs_opacity_depth_", "").replace(".jpg", "")
+                caption = (
+                    f"Step {self.fwdbwd_pass_step} | UID: {uid_info}\n"
+                    f"Gaussian opacity & depth | Camera: {norm_status}"
+                )
+                wandb_images[f"{prefix}/gaussian_vis_{i}"] = wandb.Image(img, caption=caption)
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
 
