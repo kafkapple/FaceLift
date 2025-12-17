@@ -87,7 +87,7 @@ training:
   checkpointing:
     checkpoint_dir: "checkpoints/gslrm/mouse_normalized"
     checkpoint_every: 1000
-    resume_ckpt: "checkpoints/gslrm_pretrain/facelift_pretrained.pt"
+    resume_ckpt: "checkpoints/gslrm/ckpt_0000000000021125.pt"
     # auto_resume: true  # Uncomment to resume from latest
 
   logging:
