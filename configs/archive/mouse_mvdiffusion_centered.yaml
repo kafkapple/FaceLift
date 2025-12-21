@@ -1,24 +1,25 @@
 # =============================================================================
-# Mouse MVDiffusion - Resume from checkpoint-2000
-# Continue training from step 2000 to improve quality
+# Mouse MVDiffusion Configuration - Centered Data
+# Multi-view diffusion for mouse 1-view to 6-view generation
+# Using center-aligned data for better GS-LRM integration
 # =============================================================================
 
 # Basic model configuration
 n_views: 6
 img_wh: 512
-reference_view_idx: 0
-dataset_type: 'mouse'
+reference_view_idx: 0  # Which view to use as input (cam_000)
+dataset_type: 'mouse'  # Use MouseMVDiffusionDataset
 
 # Model paths
 pretrained_model_name_or_path: 'checkpoints/mvdiffusion/pipeckpts'
 pretrained_unet_path: null
 revision: null
 
-# Prompt embeddings
+# Prompt embeddings path
 prompt_embed_path: "mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt"
 
 # =============================================================================
-# Dataset - use centered data for MVDiffusion
+# Dataset Configuration - Using CENTER-ALIGNED data
 # =============================================================================
 train_dataset:
   path: data_mouse_centered/data_mouse_train.txt
@@ -36,28 +37,28 @@ validation_dataset:
 # Output Directories
 # =============================================================================
 checkpoint_prefix: ''
-output_dir: 'checkpoints/mvdiffusion/mouse_pixel_based'
-val_out_dir: 'checkpoints/mvdiffusion/mouse_pixel_based/val/'
+output_dir: 'checkpoints/mvdiffusion/mouse_centered'
+val_out_dir: 'checkpoints/mvdiffusion/mouse_centered/val/'
 
 # =============================================================================
 # Training Parameters
 # =============================================================================
 seed: 42
-train_batch_size: 2  # Reduced for memory sharing with synthetic data generation
+train_batch_size: 4
 validation_batch_size: 2
-max_train_steps: 5000  # Train to step 5000 (from 2000)
-gradient_accumulation_steps: 4  # Effective batch = 8
+max_train_steps: 20000  # Reduced for faster iteration
+gradient_accumulation_steps: 4
 gradient_checkpointing: true
-learning_rate: 2e-5  # Lower LR for continued training
+learning_rate: 5e-5
 step_rules: "1:100000,0.5"
 scale_lr: false
 lr_scheduler: "piecewise_constant"
-lr_warmup_steps: 50
+lr_warmup_steps: 100
 snr_gamma: 5.0
 use_8bit_adam: false
 allow_tf32: true
 use_ema: true
-dataloader_num_workers: 4  # Reduced for memory
+dataloader_num_workers: 8
 
 # Optimizer
 adam_beta1: 0.9
@@ -75,12 +76,12 @@ logging_dir: logs
 mixed_precision: 'fp16'
 report_to: 'wandb'
 local_rank: -1
-checkpointing_steps: 500
-checkpoints_total_limit: 5
-resume_from_checkpoint: 'checkpoint-2000'  # Resume from step 2000
+checkpointing_steps: 1000
+checkpoints_total_limit: 3
+resume_from_checkpoint: null
 enable_xformers_memory_efficient_attention: true
-validation_steps: 100
-validation_sanity_check: false  # Skip sanity check on resume
+validation_steps: 500
+validation_sanity_check: true
 tracker_project_name: 'mouse_facelift'
 
 # =============================================================================
@@ -120,7 +121,6 @@ unet_from_pretrained_kwargs:
 # =============================================================================
 # Weights & Biases
 # =============================================================================
-wandb_exp_name: "mvdiff_resume_2000"
+wandb_exp_name: "mvdiff_centered"
 wandb_group: "mvdiffusion"
-wandb_job_type: "finetune_resume"
-wandb_run_id: "tl22xyuh"  # Resume existing wandb run
+wandb_job_type: "finetune_centered"

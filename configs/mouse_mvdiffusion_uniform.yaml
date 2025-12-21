@@ -1,6 +1,10 @@
 # =============================================================================
-# Mouse MVDiffusion - Resume from checkpoint-2000
-# Continue training from step 2000 to improve quality
+# Mouse MVDiffusion - Uniform Scale Data Training
+# Train from scratch with camera-distance-normalized data
+# =============================================================================
+# Key improvement: Object size is uniform across all views
+# - Images scaled based on camera distance
+# - All views show object at same apparent size (as if at distance 2.7)
 # =============================================================================
 
 # Basic model configuration
@@ -18,10 +22,10 @@ revision: null
 prompt_embed_path: "mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt"
 
 # =============================================================================
-# Dataset - use centered data for MVDiffusion
+# Dataset - use uniform-scaled data
 # =============================================================================
 train_dataset:
-  path: data_mouse_centered/data_mouse_train.txt
+  path: data_mouse_uniform/data_mouse_train.txt
   bg_color: 'three_choices'
   augmentation: true
   aug_brightness: [0.9, 1.1]
@@ -29,35 +33,35 @@ train_dataset:
   aug_hflip: false
 
 validation_dataset:
-  path: data_mouse_centered/data_mouse_val.txt
+  path: data_mouse_uniform/data_mouse_val.txt
   bg_color: 'white'
 
 # =============================================================================
 # Output Directories
 # =============================================================================
 checkpoint_prefix: ''
-output_dir: 'checkpoints/mvdiffusion/mouse_pixel_based'
-val_out_dir: 'checkpoints/mvdiffusion/mouse_pixel_based/val/'
+output_dir: 'checkpoints/mvdiffusion/mouse_uniform'
+val_out_dir: 'checkpoints/mvdiffusion/mouse_uniform/val/'
 
 # =============================================================================
 # Training Parameters
 # =============================================================================
 seed: 42
-train_batch_size: 2  # Reduced for memory sharing with synthetic data generation
+train_batch_size: 2
 validation_batch_size: 2
-max_train_steps: 5000  # Train to step 5000 (from 2000)
+max_train_steps: 5000
 gradient_accumulation_steps: 4  # Effective batch = 8
 gradient_checkpointing: true
-learning_rate: 2e-5  # Lower LR for continued training
+learning_rate: 4e-5
 step_rules: "1:100000,0.5"
 scale_lr: false
 lr_scheduler: "piecewise_constant"
-lr_warmup_steps: 50
+lr_warmup_steps: 100
 snr_gamma: 5.0
 use_8bit_adam: false
 allow_tf32: true
 use_ema: true
-dataloader_num_workers: 4  # Reduced for memory
+dataloader_num_workers: 4
 
 # Optimizer
 adam_beta1: 0.9
@@ -77,10 +81,10 @@ report_to: 'wandb'
 local_rank: -1
 checkpointing_steps: 500
 checkpoints_total_limit: 5
-resume_from_checkpoint: 'checkpoint-2000'  # Resume from step 2000
+resume_from_checkpoint: null  # Start from scratch
 enable_xformers_memory_efficient_attention: true
 validation_steps: 100
-validation_sanity_check: false  # Skip sanity check on resume
+validation_sanity_check: true
 tracker_project_name: 'mouse_facelift'
 
 # =============================================================================
@@ -120,7 +124,6 @@ unet_from_pretrained_kwargs:
 # =============================================================================
 # Weights & Biases
 # =============================================================================
-wandb_exp_name: "mvdiff_resume_2000"
+wandb_exp_name: "mvdiff_uniform"
 wandb_group: "mvdiffusion"
-wandb_job_type: "finetune_resume"
-wandb_run_id: "tl22xyuh"  # Resume existing wandb run
+wandb_job_type: "finetune_uniform"

@@ -28,7 +28,7 @@ from mpl_toolkits.mplot3d import Axes3D
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from gslrm.data.mouse_dataset import normalize_cameras_to_y_up
+from gslrm.data.mouse_dataset import normalize_cameras_to_y_up, normalize_cameras_to_z_up, normalize_camera_distance
 
 
 def load_cameras(json_path: str):
@@ -160,9 +160,15 @@ def create_comparison_figure(sample_dir: str, output_dir: str):
     # Get c2w matrices
     c2w_original = np.array([cam["c2w"] for cam in cameras])
 
-    # Estimate and normalize
+    # Estimate and normalize (both Y-up and Z-up)
     up_direction = estimate_up_direction(c2w_original)
-    c2w_normalized = normalize_cameras_to_y_up(c2w_original, up_direction)
+    c2w_yup = normalize_cameras_to_y_up(c2w_original.copy(), up_direction)
+    c2w_zup = normalize_cameras_to_z_up(c2w_original.copy(), up_direction)
+
+    # Also apply distance normalization
+    c2w_yup = normalize_camera_distance(c2w_yup, target_distance=2.7)
+    c2w_zup = normalize_camera_distance(c2w_zup, target_distance=2.7)
+    c2w_normalized = c2w_zup  # Use Z-up as default (matches human data)
 
     # Extract camera info
     pos_orig, fwd_orig, up_orig = extract_camera_info(c2w_original)

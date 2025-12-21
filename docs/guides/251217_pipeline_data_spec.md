@@ -358,6 +358,26 @@ for c2w in cameras:
 
 ---
 
+## 카메라 거리 정규화
+
+### 문제
+- 생쥐 데이터 카메라 거리: 2.0 ~ 3.4 (불균일)
+- FaceLift pretrained 모델 학습 시 카메라 거리: **2.7** (고정)
+
+### 해결
+```python
+def normalize_camera_distance(c2w_matrices, target_distance=2.7):
+    """모든 카메라를 원점에서 동일 거리에 배치"""
+    for c2w in c2w_matrices:
+        cam_pos = c2w[:3, 3]
+        current_dist = np.linalg.norm(cam_pos)
+        scale = target_distance / current_dist
+        c2w[:3, 3] = cam_pos * scale
+    return c2w_matrices
+```
+
+---
+
 ## 학습 설정 요약
 
 ### MVDiffusion (Stage 1)
@@ -370,17 +390,44 @@ for c2w in cameras:
 | Timesteps | 1000 |
 | Views | 6 |
 
-### GS-LRM (Stage 2)
+### GS-LRM (Stage 2) - v2 설정
 
 | 항목 | 값 | 비고 |
 |------|-----|------|
 | Batch size | 2 | GPU 메모리 제한 |
-| Learning rate | **1e-6** | Gradient explosion 방지 |
+| Learning rate | **5e-6** | Mode collapse 방지 (1e-6은 너무 낮음) |
 | Image size | 512×512 | |
 | Input views | 1 | 단일 뷰 입력 |
 | Target views | 6 | 모든 뷰 supervision |
-| Grad clip | 0.5 | 안정화 |
+| Grad clip | 1.0 | |
+| allowed_gradnorm_factor | 100 | skip threshold = 100 |
 | Warmup | 500 steps | |
+| l2_warmup_steps | 0 | L2 warmup 비활성화 |
+| lpips_loss_weight | 1.0 | 선명도 유지 (기존 0.5) |
+| perceptual_loss_weight | 1.0 | 선명도 유지 (기존 0.5) |
+| ssim_loss_weight | 0.5 | 구조 보존 (기존 0.2) |
+
+### 카메라 정규화 설정
+
+| 항목 | 값 |
+|------|-----|
+| normalize_cameras | true |
+| target_camera_distance | 2.7 |
+
+---
+
+## WandB 시각화 구조
+
+### train/supervision_0 이미지 레이아웃
+```
+총 24개 이미지 = batch_size(2) × num_views(6) × 2(GT|Pred)
+
+Row 1 (위 12개): Sample 0의 6개 뷰
+  [GT0|Pred0] [GT1|Pred1] [GT2|Pred2] [GT3|Pred3] [GT4|Pred4] [GT5|Pred5]
+
+Row 2 (아래 12개): Sample 1의 6개 뷰
+  [GT0|Pred0] [GT1|Pred1] [GT2|Pred2] [GT3|Pred3] [GT4|Pred4] [GT5|Pred5]
+```
 
 ---
 
@@ -390,5 +437,6 @@ for c2w in cameras:
 |------|------|
 | `gslrm/data/mouse_dataset.py` | MouseViewDataset (카메라 정규화 포함) |
 | `train_gslrm.py` | GS-LRM 학습 스크립트 |
+| `configs/mouse_gslrm_v2.yaml` | 생쥐용 v2 학습 설정 (권장) |
 | `configs/mouse_gslrm_lowlr.yaml` | 생쥐용 Low-LR 학습 설정 |
 | `scripts/visualize_camera_normalization.py` | 카메라 정규화 시각화 |

@@ -1,6 +1,14 @@
 # =============================================================================
-# Mouse MVDiffusion - Resume from checkpoint-2000
-# Continue training from step 2000 to improve quality
+# Mouse MVDiffusion Configuration - Low Memory (RTX 3060 12GB)
+# Optimized for consumer GPUs with limited VRAM
+# =============================================================================
+# Memory Optimizations:
+#   - train_batch_size: 4 → 1 (saves ~60% VRAM)
+#   - gradient_accumulation_steps: 4 → 16 (maintains effective batch)
+#   - gradient_checkpointing: true (already enabled)
+#   - mixed_precision: fp16 (already enabled)
+#   - validation_batch_size: 2 → 1
+#   - dataloader_num_workers: 8 → 2
 # =============================================================================
 
 # Basic model configuration
@@ -14,11 +22,11 @@ pretrained_model_name_or_path: 'checkpoints/mvdiffusion/pipeckpts'
 pretrained_unet_path: null
 revision: null
 
-# Prompt embeddings
-prompt_embed_path: "mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt"
+# Prompt embeddings path
+prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_real/clr_embeds.pt"
 
 # =============================================================================
-# Dataset - use centered data for MVDiffusion
+# Dataset Configuration
 # =============================================================================
 train_dataset:
   path: data_mouse_centered/data_mouse_train.txt
@@ -36,28 +44,28 @@ validation_dataset:
 # Output Directories
 # =============================================================================
 checkpoint_prefix: ''
-output_dir: 'checkpoints/mvdiffusion/mouse_pixel_based'
-val_out_dir: 'checkpoints/mvdiffusion/mouse_pixel_based/val/'
+output_dir: 'checkpoints/mvdiffusion/mouse_lowmem'
+val_out_dir: 'checkpoints/mvdiffusion/mouse_lowmem/val/'
 
 # =============================================================================
-# Training Parameters
+# Training Parameters - MEMORY OPTIMIZED
 # =============================================================================
 seed: 42
-train_batch_size: 2  # Reduced for memory sharing with synthetic data generation
-validation_batch_size: 2
-max_train_steps: 5000  # Train to step 5000 (from 2000)
-gradient_accumulation_steps: 4  # Effective batch = 8
-gradient_checkpointing: true
-learning_rate: 2e-5  # Lower LR for continued training
+train_batch_size: 1                   # Reduced: 4 → 1 (key memory saving)
+validation_batch_size: 1              # Reduced: 2 → 1
+max_train_steps: 20000
+gradient_accumulation_steps: 16       # Increased: 4 → 16 (effective batch=16)
+gradient_checkpointing: true          # Critical for memory
+learning_rate: 5e-5
 step_rules: "1:100000,0.5"
 scale_lr: false
 lr_scheduler: "piecewise_constant"
-lr_warmup_steps: 50
+lr_warmup_steps: 100
 snr_gamma: 5.0
-use_8bit_adam: false
-allow_tf32: true
-use_ema: true
-dataloader_num_workers: 4  # Reduced for memory
+use_8bit_adam: true                   # Changed: false → true (saves optimizer memory)
+allow_tf32: false                     # Disable TF32 (not available on RTX 3060)
+use_ema: false                        # Changed: true → false (saves ~1.5GB)
+dataloader_num_workers: 2             # Reduced: 8 → 2
 
 # Optimizer
 adam_beta1: 0.9
@@ -75,12 +83,12 @@ logging_dir: logs
 mixed_precision: 'fp16'
 report_to: 'wandb'
 local_rank: -1
-checkpointing_steps: 500
-checkpoints_total_limit: 5
-resume_from_checkpoint: 'checkpoint-2000'  # Resume from step 2000
-enable_xformers_memory_efficient_attention: true
-validation_steps: 100
-validation_sanity_check: false  # Skip sanity check on resume
+checkpointing_steps: 1000             # Less frequent (disk space)
+checkpoints_total_limit: 3            # Reduced: 5 → 3
+resume_from_checkpoint: null
+enable_xformers_memory_efficient_attention: true  # Critical for memory
+validation_steps: 500                 # Less frequent validation
+validation_sanity_check: true
 tracker_project_name: 'mouse_facelift'
 
 # =============================================================================
@@ -95,9 +103,9 @@ scale_input_latents: true
 
 # Pipeline parameters
 pipe_kwargs:
-  num_views: ${n_views}
+  num_views: 6
 validation_guidance_scales: [1., 3.]
-validation_grid_nrow: ${n_views}
+validation_grid_nrow: 6
 pipe_validation_kwargs:
   eta: 1.0
 
@@ -106,7 +114,7 @@ pipe_validation_kwargs:
 # =============================================================================
 unet_from_pretrained_kwargs:
   unclip: true
-  num_views: ${n_views}
+  num_views: 6
   sample_size: 64
   zero_init_conv_in: true
   init_mvattn_with_selfattn: false
@@ -120,7 +128,6 @@ unet_from_pretrained_kwargs:
 # =============================================================================
 # Weights & Biases
 # =============================================================================
-wandb_exp_name: "mvdiff_resume_2000"
+wandb_exp_name: "mvdiff_mouse_lowmem"
 wandb_group: "mvdiffusion"
-wandb_job_type: "finetune_resume"
-wandb_run_id: "tl22xyuh"  # Resume existing wandb run
+wandb_job_type: "finetune_lowmem"

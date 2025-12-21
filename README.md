@@ -144,6 +144,96 @@ Codes are licensed under [Apache-2.0 License](http://www.apache.org/licenses/LIC
 
 Model weights are licensed from Adobe Inc. under the [Adobe Research License](Adobe%20Research%20License%20v1.2.txt).
 
+## 🐭 Mouse Domain Adaptation (Quick Start)
+
+FaceLift can be adapted to other domains like mouse/animal reconstruction. This section covers the mouse dataset pipeline.
+
+### Phase 1: Data Preparation
+
+**1. Convert Raw Data to FaceLift Format**
+
+```bash
+# Input: markerless_mouse_1_nerf (6-camera videos + masks)
+# Output: FaceLift format (512x512 images per frame)
+python scripts/convert_markerless_to_facelift.py \
+    --input_dir /path/to/markerless_mouse_1_nerf \
+    --output_dir data_mouse \
+    --frame_interval 5 \
+    --target_size 512 \
+    --target_ratio 0.6
+```
+
+**2. Center-Align All Views**
+
+```bash
+# Apply consistent centering across all views
+python scripts/preprocess_center_align_all_views.py \
+    --input_dir data_mouse \
+    --output_dir data_mouse_centered \
+    --target_ratio 0.6
+```
+
+### Phase 2: MVDiffusion Training
+
+**Standard Training (24GB+ VRAM)**
+
+```bash
+torchrun --nproc_per_node=1 train_diffusion.py \
+    --config configs/mouse_mvdiffusion_centered_real.yaml
+```
+
+**Low Memory Training (RTX 3060 12GB)**
+
+```bash
+torchrun --nproc_per_node=1 train_diffusion.py \
+    --config configs/mouse_mvdiffusion_lowmem.yaml
+```
+
+### Phase 3: GS-LRM Fine-tuning
+
+**Standard Training (24GB+ VRAM)**
+
+```bash
+torchrun --nproc_per_node=1 train_gslrm.py \
+    --config configs/mouse_gslrm_synthetic.yaml
+```
+
+**Low Memory Training (RTX 3060 12GB)**
+
+```bash
+torchrun --nproc_per_node=1 train_gslrm.py \
+    --config configs/mouse_gslrm_lowmem.yaml
+```
+
+### Memory Requirements
+
+| Config | GPU VRAM | Effective Batch | Notes |
+|--------|----------|-----------------|-------|
+| `*_centered_real.yaml` | 24GB+ | 16 | Full quality |
+| `*_lowmem.yaml` | 12GB | 16 | RTX 3060 compatible |
+
+**Low Memory Optimizations:**
+- `batch_size: 4 → 1` with `gradient_accumulation: 4 → 16`
+- `use_ema: false` (saves ~1.5GB)
+- `use_8bit_adam: true`
+- `amp_dtype: fp16` (better on consumer GPUs)
+
+### Data Structure
+
+```
+data_mouse_centered/
+├── sample_000000/
+│   ├── images/
+│   │   ├── cam_000.png    # Reference view (512x512)
+│   │   ├── cam_001.png    # Multi-view images
+│   │   └── ...
+│   └── opencv_cameras.json
+├── sample_000001/
+└── ...
+├── data_mouse_train.txt   # Training sample paths
+└── data_mouse_val.txt     # Validation sample paths
+```
+
 ## 🙏 Acknowledgements
 
 This work is built upon [Era3D](https://penghtyx.github.io/Era3D/) and [GS-LRM](https://sai-bi.github.io/project/gs-lrm/). We thank the authors for their excellent work.
