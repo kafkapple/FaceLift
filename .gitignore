@@ -4,9 +4,18 @@ __pycache__/
 *$py.class
 
 checkpoints/
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+
 data_mouse/
+data_mouse_*/
+data/
 outputs/
 wandb_logs/
+wandb/
+experiments/
 # C extensions
 *.so
 
