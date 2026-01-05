@@ -176,10 +176,15 @@ pip install videoio ffmpeg-python
 echo ""
 echo "Installing diff-gaussian-rasterization..."
 
-export CUDA_HOME="${CUDA_PATH}"
+export CUDA_HOME="$CONDA_PREFIX"
 export PATH="${CUDA_HOME}/bin:${PATH}"
 export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
 
+# Install CUDA toolkit via conda-forge (matches PyTorch cu124)
+conda install -c conda-forge cuda-nvcc=12.4 cuda-cudart-dev=12.4 -y
+
+# Build diff-gaussian-rasterization
+export CUDA_HOME="$CONDA_PREFIX"
 pip install git+https://github.com/graphdeco-inria/diff-gaussian-rasterization --no-build-isolation
 
 # =============================================================================
