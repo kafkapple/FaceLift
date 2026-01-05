@@ -332,11 +332,18 @@ class MouseViewDataset(Dataset):
         # Z-up vs Y-up: Human data uses Z-up, so default to Z-up for compatibility
         self.normalize_to_z_up = mouse_config.get("normalize_to_z_up", True)
 
+        # Auto mask generation: Create alpha channel from white background
+        # This is critical for mouse images that don't have alpha channel
+        # Without mask, L2 loss is dominated by background pixels (95%)
+        self.auto_generate_mask = mouse_config.get("auto_generate_mask", True)
+        self.mask_threshold = mouse_config.get("mask_threshold", 250)  # Pixels > threshold are background
+
         print(f"[MouseViewDataset] Split: {split}, Samples: {len(self.all_data_paths)}")
         print(f"[MouseViewDataset] Views: {self.num_views}, Input views: {self.num_input_views}")
         print(f"[MouseViewDataset] Augmentation: {self.use_augmentation}")
         up_mode = "Z-up" if self.normalize_to_z_up else "Y-up"
         print(f"[MouseViewDataset] Camera normalization: {up_mode}={self.normalize_cameras}, distance={self.target_camera_distance}")
+        print(f"[MouseViewDataset] Auto mask generation: {self.auto_generate_mask}, threshold={self.mask_threshold}")
 
     def __len__(self):
         """Return the number of samples in the dataset."""
@@ -387,6 +394,17 @@ class MouseViewDataset(Dataset):
             rgb = enhancer.enhance(contrast)
 
         if a is not None:
+            # Restore background pixels to white after augmentation
+            # Contrast/brightness can turn white background to gray
+            import numpy as np
+            rgb_np = np.array(rgb, dtype=np.float32)
+            a_np = np.array(a, dtype=np.float32) / 255.0
+
+            # Where alpha is 0 (background), set RGB to white (255)
+            bg_mask = a_np < 0.5
+            rgb_np[bg_mask] = 255.0
+
+            rgb = Image.fromarray(rgb_np.astype(np.uint8))
             r, g, b = rgb.split()
             image = Image.merge("RGBA", (r, g, b, a))
         else:
@@ -548,8 +566,19 @@ class MouseViewDataset(Dataset):
                 c2w = np.linalg.inv(np.array(camera["w2c"]))
 
                 # Convert image to tensor
-                image_tensor = pil_to_np(image).astype(np.float32) / 255.0
-                image_tensor = torch.from_numpy(image_tensor).permute(2, 0, 1)
+                image_np = pil_to_np(image).astype(np.float32) / 255.0
+
+                # Auto-generate mask from white background if needed
+                # This is critical for mouse images without alpha channel
+                if self.auto_generate_mask and image_np.shape[2] == 3:
+                    # Threshold-based mask: pixels with all RGB > threshold are background
+                    threshold = self.mask_threshold / 255.0
+                    is_background = np.all(image_np > threshold, axis=2)
+                    alpha = (~is_background).astype(np.float32)
+                    # Add alpha channel to image
+                    image_np = np.concatenate([image_np, alpha[:, :, None]], axis=2)
+
+                image_tensor = torch.from_numpy(image_np).permute(2, 0, 1)
 
                 # Collect processed data
                 input_images.append(image_tensor)

@@ -306,12 +306,17 @@ class LossComputer(nn.Module):
         b, v, _, h, w = rendering.size()
         rendering_flat = rendering.reshape(b * v, -1, h, w)
         target_flat = target.reshape(b * v, -1, h, w)
-        
+
+        # Optionally clamp rendering to [0, 1] range
+        # Gaussian splatting can produce out-of-range values due to SH evaluation
+        if self.config.training.losses.get("clamp_rendering", True):
+            rendering_flat = rendering_flat.clamp(0.0, 1.0)
+
         # Handle alpha channel if present
         mask = None
         if target_flat.size(1) == 4:
             target_flat, mask = target_flat.split([3, 1], dim=1)
-        
+
         # Compute individual losses
         losses = self._compute_all_losses(
             rendering_flat, target_flat, img_aligned_xyz, input, mask, b, v, h, w
@@ -319,46 +324,151 @@ class LossComputer(nn.Module):
         
         # Compute total weighted loss
         total_loss = self._compute_total_loss(losses)
-        
-        # Create visualization if requested
-        visual = self._create_visual(rendering_flat, target_flat, v) if create_visual else None
-        
+
+        # Create visualization if requested (include mask if available)
+        visual = self._create_visual(rendering_flat, target_flat, v, mask) if create_visual else None
+
         # Compile loss metrics
         return self._compile_loss_metrics(losses, total_loss, visual)
     
     def _compute_all_losses(self, rendering, target, img_aligned_xyz, input, mask, b, v, h, w):
         """Compute all individual loss components."""
         losses = {}
-        
-        # L2 (MSE) loss
-        losses['l2'] = self._compute_l2_loss(rendering, target)
-        losses['psnr'] = -10.0 * torch.log10(losses['l2'])
-        
+
+        # L2 (MSE) loss - optionally masked
+        losses['l2'] = self._compute_l2_loss(rendering, target, mask)
+        losses['psnr'] = -10.0 * torch.log10(losses['l2'].clamp(min=1e-8))
+
         # LPIPS loss
         losses['lpips'] = self._compute_lpips_loss(rendering, target)
-        
+
         # Perceptual loss
         losses['perceptual'] = self._compute_perceptual_loss(rendering, target)
-        
-        # SSIM loss
-        losses['ssim'] = self._compute_ssim_loss(rendering, target)
-        
+
+        # SSIM loss - optionally masked
+        losses['ssim'] = self._compute_ssim_loss(rendering, target, mask)
+
         # Pixel alignment loss
         losses['pixelalign'] = self._compute_pixelalign_loss(
             img_aligned_xyz, input, mask, b, v, h, w
         )
-        
+
         # Point distance loss
         losses['pointsdist'] = self._compute_pointsdist_loss(
             img_aligned_xyz, input, b, v, h, w
         )
-        
+
+        # Background loss (optional - not in original paper)
+        losses['background'] = self._compute_background_loss(rendering, mask)
+
+        # Scale range statistics for logging
+        losses['gt_min'] = target.min()
+        losses['gt_max'] = target.max()
+        losses['gt_mean'] = target.mean()
+        losses['pred_min'] = rendering.min()
+        losses['pred_max'] = rendering.max()
+        losses['pred_mean'] = rendering.mean()
+
+        # Mask IoU computation (GT mask vs Predicted mask from rendering)
+        losses['mask_iou'] = self._compute_mask_iou(rendering, target, mask)
+
         return losses
-    
-    def _compute_l2_loss(self, rendering, target):
-        """Compute L2 (MSE) loss."""
+
+    def _compute_mask_iou(self, rendering, target, gt_mask):
+        """
+        Compute IoU between GT mask and predicted mask derived from rendering.
+
+        The predicted mask is computed by thresholding the rendered image:
+        - Pixels where rendering is close to background (white) are background
+        - Pixels with significant color deviation are foreground
+
+        Args:
+            rendering: Rendered images [B*V, 3, H, W] in [0, 1]
+            target: Target images [B*V, 3, H, W] in [0, 1]
+            gt_mask: Ground truth mask [B*V, 1, H, W] or None
+
+        Returns:
+            IoU score as scalar tensor
+        """
+        if gt_mask is None:
+            return torch.tensor(0.0, device=rendering.device)
+
+        # Get background color from config (default: white)
+        bg_color = self.config.training.losses.get(
+            "background_color_target", [1.0, 1.0, 1.0]
+        )
+        bg_threshold = self.config.training.losses.get("mask_iou_threshold", 0.1)
+
+        # Compute predicted mask: distance from background color
+        bg_tensor = torch.tensor(bg_color, device=rendering.device, dtype=rendering.dtype)
+        bg_tensor = bg_tensor.view(1, 3, 1, 1)
+
+        # Pixels far from background are foreground
+        color_distance = (rendering - bg_tensor).abs().mean(dim=1, keepdim=True)
+        pred_mask = (color_distance > bg_threshold).float()
+
+        # GT mask binary
+        gt_mask_binary = (gt_mask > 0.5).float()
+
+        # Compute IoU
+        intersection = (pred_mask * gt_mask_binary).sum()
+        union = ((pred_mask + gt_mask_binary) > 0.5).float().sum()
+
+        iou = intersection / union.clamp(min=1.0)
+
+        return iou
+
+    def _compute_background_loss(self, rendering, mask):
+        """
+        Compute background color supervision loss.
+
+        Forces the rendering to produce a specific background color (e.g., white)
+        in regions where mask indicates background (mask < 0.5).
+
+        This is NOT in the original FaceLift paper, but can help with
+        the issue of dark backgrounds appearing during finetuning.
+        """
+        bg_weight = self.config.training.losses.get("background_loss_weight", 0.0)
+        if bg_weight > 0.0 and mask is not None:
+            # Get target background color from config (default: white)
+            bg_target = self.config.training.losses.get(
+                "background_color_target", [1.0, 1.0, 1.0]
+            )
+            bg_target = torch.tensor(bg_target, device=rendering.device, dtype=rendering.dtype)
+            bg_target = bg_target.view(1, 3, 1, 1)
+
+            # Background mask: where mask < 0.5
+            bg_mask = (mask < 0.5).float()
+            num_bg_pixels = bg_mask.sum().clamp(min=1.0)
+
+            # MSE between rendering and target background color in background regions
+            bg_error = (rendering - bg_target) ** 2
+            masked_bg_error = bg_error * bg_mask
+            return masked_bg_error.sum() / (num_bg_pixels * 3)  # 3 for RGB
+
+        return torch.tensor(0.0, device=rendering.device)
+
+    def _compute_l2_loss(self, rendering, target, mask=None):
+        """
+        Compute L2 (MSE) loss with optional masking.
+
+        If masked_l2_loss is enabled in config and mask is provided,
+        loss is computed only on foreground pixels (mask > 0.5).
+        """
         if self.config.training.losses.l2_loss_weight > 0.0:
-            return F.mse_loss(rendering, target)
+            use_mask = self.config.training.losses.get("masked_l2_loss", False)
+            if use_mask and mask is not None:
+                # Mask shape: [b*v, 1, h, w], values in [0, 1]
+                # Apply mask: only compute loss where mask > 0.5
+                mask_binary = (mask > 0.5).float()
+                num_valid = mask_binary.sum().clamp(min=1.0)
+
+                # Masked MSE: sum of squared errors on masked pixels / num_valid
+                squared_error = (rendering - target) ** 2
+                masked_error = squared_error * mask_binary
+                return masked_error.sum() / (num_valid * 3)  # 3 for RGB channels
+            else:
+                return F.mse_loss(rendering, target)
         return torch.tensor(1e-8, device=rendering.device)
     
     def _compute_lpips_loss(self, rendering, target):
@@ -376,10 +486,26 @@ class LossComputer(nn.Module):
             return self.perceptual_loss_module(rendering, target)
         return torch.tensor(0.0, device=rendering.device)
     
-    def _compute_ssim_loss(self, rendering, target):
-        """Compute SSIM loss."""
+    def _compute_ssim_loss(self, rendering, target, mask=None):
+        """
+        Compute SSIM loss with optional masking.
+
+        If masked_ssim_loss is enabled in config and mask is provided,
+        renders and targets are masked before SSIM computation.
+        Note: SSIM is computed on masked regions by setting background to same value.
+        """
         if self.config.training.losses.ssim_loss_weight > 0.0:
-            return self.ssim_loss_module(rendering, target)
+            use_mask = self.config.training.losses.get("masked_ssim_loss", False)
+            if use_mask and mask is not None:
+                # Apply mask to both rendering and target
+                # Set background pixels to same neutral value to ignore them
+                mask_binary = (mask > 0.5).float()
+                neutral_value = 0.5  # Neutral gray for SSIM
+                masked_rendering = rendering * mask_binary + neutral_value * (1 - mask_binary)
+                masked_target = target * mask_binary + neutral_value * (1 - mask_binary)
+                return self.ssim_loss_module(masked_rendering, masked_target)
+            else:
+                return self.ssim_loss_module(rendering, target)
         return torch.tensor(0.0, device=rendering.device)
     
     def _compute_pixelalign_loss(self, img_aligned_xyz, input, mask, b, v, h, w):
@@ -427,6 +553,7 @@ class LossComputer(nn.Module):
     def _compute_total_loss(self, losses):
         """Compute weighted sum of all losses."""
         weights = self.config.training.losses
+        bg_weight = weights.get("background_loss_weight", 0.0)
         return (
             weights.l2_loss_weight * losses['l2']
             + weights.lpips_loss_weight * losses['lpips']
@@ -434,18 +561,243 @@ class LossComputer(nn.Module):
             + weights.ssim_loss_weight * losses['ssim']
             + weights.pixelalign_loss_weight * losses['pixelalign']
             + weights.pointsdist_loss_weight * losses['pointsdist']
+            + bg_weight * losses['background']
         )
     
-    def _create_visual(self, rendering, target, v):
-        """Create visualization by concatenating target and rendering."""
-        visual = torch.cat((target, rendering), dim=3).detach().cpu()  # [b*v, c, h, w*2]
-        visual = rearrange(visual, "(b v) c h (m w) -> (b h) (v m w) c", v=v, m=2)
-        return (visual.numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
+    def _create_visual(self, rendering, target, v, mask=None):
+        """
+        Create visualization with GT, Rendered, Mask, and Error in separate rows.
+
+        Output format (rows):
+        - Row 1: GT images (all views)
+        - Row 2: Rendered images (all views)
+        - Row 3: GT + Mask overlay (green=foreground, red=background)
+        - Row 4: Rendered + Mask overlay (verify mask applied to pred)
+        - Row 5: Error map (|GT - Rendered|, blue=low, red=high) with scale range annotation
+                 If mask provided, only shows error in foreground region
+        """
+        b = target.size(0) // v  # batch size
+        h = target.size(2)
+
+        # Reshape to [b, v, c, h, w]
+        target_bv = rearrange(target, "(b v) c h w -> b v c h w", v=v)
+        rendering_bv = rearrange(rendering, "(b v) c h w -> b v c h w", v=v)
+
+        # Compute error statistics for annotation
+        error_raw = (target_bv - rendering_bv).abs().mean(dim=2, keepdim=True)  # [b, v, 1, h, w]
+        error_stats = {
+            'min': error_raw.min().item(),
+            'max': error_raw.max().item(),
+            'mean': error_raw.mean().item()
+        }
+
+        if mask is not None:
+            mask_bv = rearrange(mask, "(b v) c h w -> b v c h w", v=v)
+
+            # Create mask overlay visualization
+            # Green tint on foreground (mask=1), Red tint on background (mask=0)
+            mask_rgb = mask_bv.expand(-1, -1, 3, -1, -1)  # [b, v, 3, h, w]
+            fg_color = torch.tensor([0.2, 0.8, 0.2], device=mask.device).view(1, 1, 3, 1, 1)
+            bg_color = torch.tensor([0.8, 0.2, 0.2], device=mask.device).view(1, 1, 3, 1, 1)
+
+            mask_overlay = mask_rgb * fg_color + (1 - mask_rgb) * bg_color
+
+            # Blend GT with mask overlay: 70% image + 30% mask color
+            masked_target = target_bv * 0.7 + mask_overlay * 0.3
+
+            # Blend Rendered with mask overlay: 70% image + 30% mask color
+            masked_rendering = rendering_bv * 0.7 + mask_overlay * 0.3
+
+            # Create error map (L1 difference)
+            error = error_raw
+
+            # Apply mask to error (only show foreground errors)
+            mask_binary = (mask_bv > 0.5).float()
+            masked_error = error * mask_binary
+
+            # Foreground error stats
+            fg_mask_flat = mask_binary.view(-1)
+            error_flat = error.view(-1)
+            fg_errors = error_flat[fg_mask_flat > 0.5]
+            if fg_errors.numel() > 0:
+                error_stats['fg_min'] = fg_errors.min().item()
+                error_stats['fg_max'] = fg_errors.max().item()
+                error_stats['fg_mean'] = fg_errors.mean().item()
+            else:
+                error_stats['fg_min'] = 0.0
+                error_stats['fg_max'] = 0.0
+                error_stats['fg_mean'] = 0.0
+
+            # Normalize error to [0, 1] for visualization (clamp max at 0.3 for better contrast)
+            error_normalized = (masked_error / 0.3).clamp(0, 1)
+
+            # Convert to heatmap: Blue (low) -> Green -> Yellow -> Red (high)
+            # Using simple RGB interpolation
+            error_r = error_normalized.clamp(0, 1)
+            error_g = (1 - error_normalized.abs() * 2).clamp(0, 1)
+            error_b = (1 - error_normalized).clamp(0, 1)
+            error_heatmap = torch.cat([error_r, error_g, error_b], dim=2)  # [b, v, 3, h, w]
+
+            # Where mask=0 (background), show gray
+            gray = torch.tensor([0.3, 0.3, 0.3], device=mask.device).view(1, 1, 3, 1, 1)
+            error_heatmap = error_heatmap * mask_binary + gray * (1 - mask_binary)
+
+            # Stack rows: GT, Rendered, GT+Mask, Rendered+Mask, Error
+            visual = torch.stack([
+                target_bv,
+                rendering_bv,
+                masked_target,
+                masked_rendering,
+                error_heatmap
+            ], dim=1)
+            num_rows = 5
+
+            # Rearrange to image: (batch * num_rows * h) x (views * w) x c
+            visual = rearrange(visual, "b rows v c h w -> (b rows h) (v w) c")
+        else:
+            # No mask: show GT, Rendered, and full error map
+            error = error_raw
+            error_stats['fg_min'] = error_stats['min']
+            error_stats['fg_max'] = error_stats['max']
+            error_stats['fg_mean'] = error_stats['mean']
+
+            error_normalized = (error / 0.3).clamp(0, 1)
+            error_r = error_normalized.clamp(0, 1)
+            error_g = (1 - error_normalized.abs() * 2).clamp(0, 1)
+            error_b = (1 - error_normalized).clamp(0, 1)
+            error_heatmap = torch.cat([error_r, error_g, error_b], dim=2)
+
+            visual = torch.stack([target_bv, rendering_bv, error_heatmap], dim=1)
+            num_rows = 3
+            visual = rearrange(visual, "b rows v c h w -> (b rows h) (v w) c")
+
+        # Convert to numpy and add scale range annotation
+        visual_np = (visual.detach().cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
+
+        # Add error scale range text to the 5th row (or 3rd row if no mask)
+        visual_np = self._add_error_scale_annotation(
+            visual_np, error_stats, h, num_rows
+        )
+
+        return visual_np
+
+    def _add_error_scale_annotation(self, visual_np, error_stats, row_height, num_rows):
+        """
+        Add error scale range annotation with vertical colorbar to the visualization image.
+
+        Adds:
+        - Vertical colorbar on the right side of error row
+        - Range labels at top (0.3/red) and bottom (0.0/blue)
+        - Error statistics text
+        """
+        # Error row is the last row
+        error_row_start = (num_rows - 1) * row_height
+        img_height, img_width = visual_np.shape[:2]
+
+        # Create annotation text
+        fg_min = error_stats.get('fg_min', error_stats['min'])
+        fg_max = error_stats.get('fg_max', error_stats['max'])
+        fg_mean = error_stats.get('fg_mean', error_stats['mean'])
+
+        # --- Add Vertical Colorbar ---
+        colorbar_width = 20
+        colorbar_height = row_height - 40  # Leave margin for labels
+        colorbar_x = img_width - colorbar_width - 50  # Right side with margin for labels
+        colorbar_y = error_row_start + 20  # Top margin
+
+        # Create gradient colorbar (top=red/high, bottom=blue/low)
+        for i in range(colorbar_height):
+            # Normalized value: 0 at bottom, 1 at top
+            t = 1.0 - (i / colorbar_height)  # Invert: top=1, bottom=0
+
+            # Same color mapping as error heatmap
+            r = int(np.clip(t, 0, 1) * 255)
+            g = int(np.clip(1 - abs(t) * 2, 0, 1) * 255)
+            b = int(np.clip(1 - t, 0, 1) * 255)
+
+            y_pos = colorbar_y + i
+            visual_np[y_pos, colorbar_x:colorbar_x + colorbar_width] = [r, g, b]
+
+        # Add colorbar border
+        cv2.rectangle(
+            visual_np,
+            (colorbar_x - 1, colorbar_y - 1),
+            (colorbar_x + colorbar_width, colorbar_y + colorbar_height),
+            (255, 255, 255), 1
+        )
+
+        # --- Add Range Labels ---
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.4
+        font_color = (255, 255, 255)
+        thickness = 1
+
+        # Top label (0.3 = max error, red)
+        top_label = "0.3"
+        cv2.putText(
+            visual_np, top_label,
+            (colorbar_x + colorbar_width + 5, colorbar_y + 12),
+            font, font_scale, font_color, thickness, cv2.LINE_AA
+        )
+
+        # Bottom label (0.0 = min error, blue)
+        bottom_label = "0.0"
+        cv2.putText(
+            visual_np, bottom_label,
+            (colorbar_x + colorbar_width + 5, colorbar_y + colorbar_height - 2),
+            font, font_scale, font_color, thickness, cv2.LINE_AA
+        )
+
+        # Middle label (mean indicator line)
+        if fg_mean > 0 and fg_mean < 0.3:
+            mean_normalized = fg_mean / 0.3
+            mean_y = colorbar_y + int((1 - mean_normalized) * colorbar_height)
+            # Draw horizontal line at mean position
+            cv2.line(
+                visual_np,
+                (colorbar_x - 5, mean_y),
+                (colorbar_x + colorbar_width + 2, mean_y),
+                (255, 255, 0), 1  # Yellow line for mean
+            )
+            mean_label = f"{fg_mean:.3f}"
+            cv2.putText(
+                visual_np, mean_label,
+                (colorbar_x - 45, mean_y + 4),
+                font, font_scale, (255, 255, 0), thickness, cv2.LINE_AA
+            )
+
+        # --- Add Statistics Text (bottom-left) ---
+        text_lines = [
+            f"Error: [{fg_min:.4f}, {fg_max:.4f}]",
+            f"Mean: {fg_mean:.4f}",
+        ]
+
+        bg_color = (0, 0, 0)
+        line_height = 16
+        x_start = 5
+        y_start = error_row_start + 20
+
+        for i, text in enumerate(text_lines):
+            y = y_start + i * line_height
+            (text_w, text_h), _ = cv2.getTextSize(text, font, font_scale, thickness)
+            cv2.rectangle(
+                visual_np,
+                (x_start - 2, y - text_h - 2),
+                (x_start + text_w + 2, y + 4),
+                bg_color, -1
+            )
+            cv2.putText(
+                visual_np, text, (x_start, y),
+                font, font_scale, font_color, thickness, cv2.LINE_AA
+            )
+
+        return visual_np
     
     def _compile_loss_metrics(self, losses, total_loss, visual):
         """Compile all loss metrics into a dictionary."""
         l2_loss = losses['l2']
-        
+        l2_safe = l2_loss.clamp(min=1e-8)  # Avoid division by zero
+
         return edict(
             loss=total_loss,
             l2_loss=l2_loss,
@@ -455,13 +807,23 @@ class LossComputer(nn.Module):
             ssim_loss=losses['ssim'],
             pixelalign_loss=losses['pixelalign'],
             pointsdist_loss=losses['pointsdist'],
+            background_loss=losses['background'],
+            mask_iou=losses['mask_iou'],
             visual=visual,
             # Normalized losses for logging
-            norm_perceptual_loss=losses['perceptual'] / l2_loss,
-            norm_lpips_loss=losses['lpips'] / l2_loss,
-            norm_ssim_loss=losses['ssim'] / l2_loss,
-            norm_pixelalign_loss=losses['pixelalign'] / l2_loss,
-            norm_pointsdist_loss=losses['pointsdist'] / l2_loss,
+            norm_perceptual_loss=losses['perceptual'] / l2_safe,
+            norm_lpips_loss=losses['lpips'] / l2_safe,
+            norm_ssim_loss=losses['ssim'] / l2_safe,
+            norm_pixelalign_loss=losses['pixelalign'] / l2_safe,
+            norm_pointsdist_loss=losses['pointsdist'] / l2_safe,
+            norm_background_loss=losses['background'] / l2_safe,
+            # Scale range statistics (GT and Pred pixel value distributions)
+            gt_min=losses['gt_min'],
+            gt_max=losses['gt_max'],
+            gt_mean=losses['gt_mean'],
+            pred_min=losses['pred_min'],
+            pred_max=losses['pred_max'],
+            pred_mean=losses['pred_mean'],
         )
 
 
@@ -1316,8 +1678,28 @@ class GSLRM(nn.Module):
             input_image = (input_image.cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
             Image.fromarray(input_image[..., :3]).save(os.path.join(item_output_dir, "input.png"))
 
-            # Save ground truth vs prediction comparison
-            comparison_image = torch.stack((target_data.image[batch_idx], model_results.render[batch_idx]), dim=0)
+            # Save ground truth vs prediction comparison with mask overlay
+            gt_images = target_data.image[batch_idx]  # [V, C, H, W]
+            rendered_images = model_results.render[batch_idx]  # [V, 3, H, W]
+
+            # Extract mask from GT if available (4 channels = RGBA)
+            if gt_images.size(1) == 4:
+                gt_rgb = gt_images[:, :3, :, :]  # [V, 3, H, W]
+                gt_mask = gt_images[:, 3:4, :, :]  # [V, 1, H, W]
+
+                # Create mask overlay on GT (green=foreground, red=background)
+                mask_rgb = gt_mask.expand(-1, 3, -1, -1)
+                fg_color = torch.tensor([0.2, 0.8, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
+                bg_color = torch.tensor([0.8, 0.2, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
+                mask_overlay = mask_rgb * fg_color + (1 - mask_rgb) * bg_color
+                gt_with_mask = gt_rgb * 0.7 + mask_overlay * 0.3
+
+                # Stack: GT | Rendered | GT+Mask
+                comparison_image = torch.stack((gt_rgb, rendered_images, gt_with_mask), dim=0)
+            else:
+                gt_rgb = gt_images[:, :3, :, :]
+                comparison_image = torch.stack((gt_rgb, rendered_images), dim=0)
+
             num_views = comparison_image.size(1)
             if num_views > 10:
                 comparison_image = comparison_image[:, ::num_views // 10, :, :, :]
@@ -1430,7 +1812,7 @@ class GSLRM(nn.Module):
 
         os.makedirs(output_directory, exist_ok=True)
         input_data, target_data = model_results.input, model_results.target
-        validation_metrics = {"psnr": [], "lpips": [], "ssim": []}
+        validation_metrics = {"psnr": [], "lpips": [], "ssim": [], "mask_iou": []}
 
         for batch_idx in range(input_data.image.size(0)):
             item_uid = input_data.index[batch_idx, 0, -1].item()
@@ -1445,10 +1827,29 @@ class GSLRM(nn.Module):
             avg_psnr = per_view_psnr.mean().item()
             avg_lpips = per_view_lpips.mean().item()
             avg_ssim = per_view_ssim.mean().item()
-            
+
+            # Compute mask IoU if target has alpha channel
+            full_target = target_data.image[batch_idx]
+            if full_target.size(1) == 4:
+                gt_mask = full_target[:, 3:4, :, :]
+                rendered = model_results.render[batch_idx]
+
+                # Compute predicted mask from rendered images
+                bg_threshold = 0.1
+                color_distance = (rendered - 1.0).abs().mean(dim=1, keepdim=True)
+                pred_mask = (color_distance > bg_threshold).float()
+                gt_mask_binary = (gt_mask > 0.5).float()
+
+                intersection = (pred_mask * gt_mask_binary).sum()
+                union = ((pred_mask + gt_mask_binary) > 0.5).float().sum()
+                mask_iou = (intersection / union.clamp(min=1.0)).item()
+            else:
+                mask_iou = 0.0
+
             validation_metrics["psnr"].append(avg_psnr)
             validation_metrics["lpips"].append(avg_lpips)
             validation_metrics["ssim"].append(avg_ssim)
+            validation_metrics["mask_iou"].append(mask_iou)
             
             # Save visualizations only for first item if requested
             if should_save_visuals:
@@ -1462,8 +1863,83 @@ class GSLRM(nn.Module):
                 input_image = (input_image.cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
                 Image.fromarray(input_image).save(os.path.join(item_output_dir, "input.png"))
                 
-                # Save ground truth vs prediction comparison
-                comparison_image = torch.stack((target_image, model_results.render[batch_idx]), dim=0)
+                # Save ground truth vs prediction comparison (with mask overlay and error heatmap)
+                full_target = target_data.image[batch_idx]  # May have 4 channels (RGBA)
+                rendered = model_results.render[batch_idx]
+                h = full_target.size(2)
+
+                # Compute error and statistics
+                if full_target.size(1) == 4:
+                    gt_rgb = full_target[:, :3, :, :]
+                else:
+                    gt_rgb = full_target
+
+                error_raw = (gt_rgb - rendered).abs().mean(dim=1, keepdim=True)  # [V, 1, H, W]
+                error_stats = {
+                    'min': error_raw.min().item(),
+                    'max': error_raw.max().item(),
+                    'mean': error_raw.mean().item()
+                }
+
+                if full_target.size(1) == 4:
+                    # Has mask - create GT + Rendered + GT with mask overlay + Error heatmap
+                    gt_mask = full_target[:, 3:4, :, :]
+
+                    # Create mask overlay (green=foreground, red=background)
+                    fg_color = torch.tensor([0.2, 0.8, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
+                    bg_color = torch.tensor([0.8, 0.2, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
+                    mask_rgb = gt_mask.expand(-1, 3, -1, -1)
+                    mask_overlay = mask_rgb * fg_color + (1 - mask_rgb) * bg_color
+                    gt_with_mask = gt_rgb * 0.7 + mask_overlay * 0.3
+
+                    # Compute foreground error stats
+                    mask_binary = (gt_mask > 0.5).float()
+                    fg_mask_flat = mask_binary.view(-1)
+                    error_flat = error_raw.view(-1)
+                    fg_errors = error_flat[fg_mask_flat > 0.5]
+                    if fg_errors.numel() > 0:
+                        error_stats['fg_min'] = fg_errors.min().item()
+                        error_stats['fg_max'] = fg_errors.max().item()
+                        error_stats['fg_mean'] = fg_errors.mean().item()
+                    else:
+                        error_stats['fg_min'] = 0.0
+                        error_stats['fg_max'] = 0.0
+                        error_stats['fg_mean'] = 0.0
+
+                    # Masked error
+                    masked_error = error_raw * mask_binary
+
+                    # Normalize error to [0, 1] (clamp max at 0.3)
+                    error_normalized = (masked_error / 0.3).clamp(0, 1)
+
+                    # Create heatmap
+                    error_r = error_normalized.clamp(0, 1)
+                    error_g = (1 - error_normalized.abs() * 2).clamp(0, 1)
+                    error_b = (1 - error_normalized).clamp(0, 1)
+                    error_heatmap = torch.cat([error_r, error_g, error_b], dim=1)
+
+                    # Gray background for mask=0
+                    gray = torch.tensor([0.3, 0.3, 0.3], device=gt_mask.device).view(1, 3, 1, 1)
+                    error_heatmap = error_heatmap * mask_binary + gray * (1 - mask_binary)
+
+                    # Stack: GT | Rendered | GT+Mask | Error
+                    comparison_image = torch.stack((gt_rgb, rendered, gt_with_mask, error_heatmap), dim=0)
+                    num_rows = 4
+                else:
+                    # No mask - GT | Rendered | Error
+                    error_stats['fg_min'] = error_stats['min']
+                    error_stats['fg_max'] = error_stats['max']
+                    error_stats['fg_mean'] = error_stats['mean']
+
+                    error_normalized = (error_raw / 0.3).clamp(0, 1)
+                    error_r = error_normalized.clamp(0, 1)
+                    error_g = (1 - error_normalized.abs() * 2).clamp(0, 1)
+                    error_b = (1 - error_normalized).clamp(0, 1)
+                    error_heatmap = torch.cat([error_r, error_g, error_b], dim=1)
+
+                    comparison_image = torch.stack((gt_rgb, rendered, error_heatmap), dim=0)
+                    num_rows = 3
+
                 num_views = comparison_image.size(1)
                 if num_views > 10:
                     comparison_image = comparison_image[:, ::num_views // 10, :, :, :]
@@ -1471,6 +1947,12 @@ class GSLRM(nn.Module):
                     comparison_image, "comparison_type views channels height width -> (comparison_type height) (views width) channels"
                 )
                 comparison_image = (comparison_image.cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
+
+                # Add error scale annotation to the last row
+                comparison_image = self.loss_calculator._add_error_scale_annotation(
+                    comparison_image, error_stats, h, num_rows
+                )
+
                 Image.fromarray(comparison_image).save(os.path.join(item_output_dir, "gt_vs_pred.png"))
                 
                 # Save per-view metrics
@@ -1538,6 +2020,7 @@ class GSLRM(nn.Module):
             "psnr": torch.tensor(validation_metrics["psnr"]).mean().item(),
             "lpips": torch.tensor(validation_metrics["lpips"]).mean().item(),
             "ssim": torch.tensor(validation_metrics["ssim"]).mean().item(),
+            "mask_iou": torch.tensor(validation_metrics["mask_iou"]).mean().item(),
         }
     
     @torch.no_grad()

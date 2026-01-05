@@ -80,18 +80,32 @@ class GSLRMTrainer:
         self.val_dataloader = None
         
     def setup_distributed(self):
-        """Initialize distributed training."""
-        init_process_group(backend="nccl", timeout=datetime.timedelta(seconds=3600))
-        self.ddp_rank = int(os.environ["RANK"])
-        self.ddp_local_rank = int(os.environ["LOCAL_RANK"])
-        self.ddp_local_world_size = int(os.environ["LOCAL_WORLD_SIZE"])
-        self.ddp_world_size = int(os.environ["WORLD_SIZE"])
-        self.ddp_node_rank = int(os.environ["GROUP_RANK"])
-        
-        print_rank0(
-            f"Process {self.ddp_rank}/{self.ddp_world_size} is using device "
-            f"{self.ddp_local_rank}/{self.ddp_local_world_size} on node {self.ddp_node_rank}"
-        )
+        """Initialize distributed training or single-GPU mode."""
+        # Check if distributed environment is set up
+        if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
+            # Distributed mode via torchrun
+            init_process_group(backend="nccl", timeout=datetime.timedelta(seconds=3600))
+            self.ddp_rank = int(os.environ["RANK"])
+            self.ddp_local_rank = int(os.environ["LOCAL_RANK"])
+            self.ddp_local_world_size = int(os.environ["LOCAL_WORLD_SIZE"])
+            self.ddp_world_size = int(os.environ["WORLD_SIZE"])
+            self.ddp_node_rank = int(os.environ.get("GROUP_RANK", 0))
+            self.single_gpu_mode = False
+
+            print_rank0(
+                f"Process {self.ddp_rank}/{self.ddp_world_size} is using device "
+                f"{self.ddp_local_rank}/{self.ddp_local_world_size} on node {self.ddp_node_rank}"
+            )
+        else:
+            # Single GPU mode - no distributed
+            self.ddp_rank = 0
+            self.ddp_local_rank = 0
+            self.ddp_local_world_size = 1
+            self.ddp_world_size = 1
+            self.ddp_node_rank = 0
+            self.single_gpu_mode = True
+
+            print("[Single GPU Mode] Running without distributed training")
         
     def setup_cuda(self):
         """Setup CUDA device and optimization settings."""
@@ -99,18 +113,51 @@ class GSLRMTrainer:
         torch.cuda.set_device(self.device)
         torch.cuda.empty_cache()
         torch.manual_seed(777 + self.ddp_rank)
-        
+
         # TF32 optimization
         torch.backends.cuda.matmul.allow_tf32 = self.config.training.runtime.use_tf32
         torch.backends.cudnn.allow_tf32 = self.config.training.runtime.use_tf32
-        
-        torch.distributed.barrier()
-        
+
+        self._barrier()
+
+    def _barrier(self):
+        """Synchronization barrier - only in distributed mode."""
+        if not self.single_gpu_mode:
+            torch.distributed.barrier()
+
+    @property
+    def model_module(self):
+        """Get underlying model (handles both DDP and single GPU modes)."""
+        if self.single_gpu_mode:
+            return self.model
+        else:
+            return self.model.module
+
+    def _set_epoch(self, dataloader, epoch):
+        """Set epoch for sampler (only for DistributedSampler)."""
+        if not self.single_gpu_mode and hasattr(dataloader.sampler, 'set_epoch'):
+            dataloader.sampler.set_epoch(epoch)
+
+    def _no_sync(self):
+        """Context manager for gradient sync control (DDP only)."""
+        if self.single_gpu_mode:
+            # Return a no-op context manager
+            from contextlib import nullcontext
+            return nullcontext()
+        else:
+            return self.model.no_sync()
+
     def load_datasets(self):
         """Load training and validation datasets."""
-        # Use MouseViewDataset for mouse data (has camera normalization)
-        # Use RandomViewDataset for original FaceLift data
-        use_mouse_dataset = self.config.get("mouse", {}).get("normalize_cameras", False)
+        # Dataset selection:
+        # - MouseViewDataset: Fixed view order [0,1,2,3,4,5], camera normalization
+        #   → Required for mouse data (inconsistent camera angles)
+        # - RandomViewDataset: Random view sampling each step
+        #   → Original FaceLift for human data (uniform 60° spacing)
+        #
+        # IMPORTANT: Random view order causes Plücker coordinate inconsistency
+        # → Model cannot learn consistent spatial relationships → blurry output
+        use_mouse_dataset = self.config.get("mouse", {}).get("use_mouse_dataset", False)
 
         if use_mouse_dataset:
             from gslrm.data.mouse_dataset import MouseViewDataset
@@ -164,11 +211,17 @@ class GSLRMTrainer:
     def _setup_dataloaders(self):
         """Setup data loaders for training and validation."""
         # Training dataloader
-        datasampler = DistributedSampler(self.dataset)
+        if self.single_gpu_mode:
+            datasampler = None
+            train_shuffle = True
+        else:
+            datasampler = DistributedSampler(self.dataset)
+            train_shuffle = False
+
         self.dataloader = DataLoader(
             self.dataset,
             batch_size=self.config.training.dataloader.batch_size_per_gpu,
-            shuffle=False,
+            shuffle=train_shuffle,
             num_workers=self.config.training.dataloader.num_workers,
             persistent_workers=True,
             pin_memory=False,
@@ -177,14 +230,20 @@ class GSLRMTrainer:
             sampler=datasampler,
         )
         self.dataloader_iter = iter(self.dataloader)
-        
+
         # Validation dataloader
         if self.val_dataset is not None:
-            val_datasampler = DistributedSampler(self.val_dataset)
+            if self.single_gpu_mode:
+                val_datasampler = None
+                val_shuffle = False
+            else:
+                val_datasampler = DistributedSampler(self.val_dataset)
+                val_shuffle = False
+
             self.val_dataloader = DataLoader(
                 self.val_dataset,
                 batch_size=self.config.training.dataloader.batch_size_per_gpu,
-                shuffle=False,
+                shuffle=val_shuffle,
                 num_workers=self.config.training.dataloader.num_workers,
                 persistent_workers=True,
                 pin_memory=False,
@@ -201,8 +260,8 @@ class GSLRMTrainer:
             import lpips
             lpips_fn = lpips.LPIPS(net="vgg")
             del lpips_fn
-        torch.distributed.barrier()
-        
+        self._barrier()
+
         # Dynamic model import
         module, class_name = self.config.model.class_name.rsplit(".", 1)
         GSLRM = importlib.import_module(module).__dict__[class_name]
@@ -211,8 +270,9 @@ class GSLRMTrainer:
         # Apply layer-wise freezing if configured
         self._apply_layer_freeze()
 
-        # Wrap with DDP
-        self.model = DDP(self.model, device_ids=[self.ddp_local_rank])
+        # Wrap with DDP (only in distributed mode)
+        if not self.single_gpu_mode:
+            self.model = DDP(self.model, device_ids=[self.ddp_local_rank])
 
     def _apply_layer_freeze(self):
         """Apply layer-wise freezing to prevent catastrophic forgetting.
@@ -383,7 +443,7 @@ class GSLRMTrainer:
         # Prepare config for logging
         config_copy = copy.deepcopy(self.config)
         config_copy["job_overview"] = self.job_overview
-        config_copy["model_overview"] = self.model.module.get_overview()
+        config_copy["model_overview"] = self.model_module.get_overview()
         
         # Create wandb directory
         wandb_dir = "wandb_logs"
@@ -413,7 +473,7 @@ class GSLRMTrainer:
         config_files = [
             ("config.yaml", self.config),
             ("job_overview.yaml", self.job_overview),
-            ("model_overview.yaml", self.model.module.get_overview()),
+            ("model_overview.yaml", self.model_module.get_overview()),
         ]
         
         for filename, data in config_files:
@@ -430,11 +490,11 @@ class GSLRMTrainer:
             print("Downloading LPIPS model (rank 0 only)")
             import lpips
             
-        torch.distributed.barrier()
-        self.dataloader.sampler.set_epoch(0)
+        self._barrier()
+        self._set_epoch(self.dataloader, 0)
         
         self.model.eval()
-        with (self.model.no_sync(), torch.no_grad(), 
+        with (self._no_sync(), torch.no_grad(), 
               torch.autocast(
                   enabled=self.config.training.runtime.use_amp,
                   device_type="cuda",
@@ -443,12 +503,12 @@ class GSLRMTrainer:
             for batch in self.dataloader:
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 result = self.model(batch, create_visual=True)
-                self.model.module.save_visuals(
+                self.model_module.save_visuals(
                     self.config.inference.output_dir, result, batch, save_all=True
                 )
             torch.cuda.empty_cache()
             
-        torch.distributed.barrier()
+        self._barrier()
         
     def run_evaluation(self):
         """Run evaluation mode."""
@@ -458,11 +518,11 @@ class GSLRMTrainer:
             print("Downloading LPIPS model (rank 0 only)")
             import lpips
             
-        torch.distributed.barrier()
-        self.dataloader.sampler.set_epoch(0)
+        self._barrier()
+        self._set_epoch(self.dataloader, 0)
         
         self.model.eval()
-        with (self.model.no_sync(), torch.no_grad(),
+        with (self._no_sync(), torch.no_grad(),
               torch.autocast(
                   enabled=self.config.training.runtime.use_amp,
                   device_type="cuda", 
@@ -471,12 +531,12 @@ class GSLRMTrainer:
             for batch in self.dataloader:
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 result = self.model(batch, create_visual=False)
-                self.model.module.save_evaluations(
+                self.model_module.save_evaluations(
                     self.config.evaluation_out_dir, result, batch, self.dataset
                 )
             torch.cuda.empty_cache()
             
-        torch.distributed.barrier()
+        self._barrier()
         
         if self.ddp_rank == 0:
             self._summarize_evaluation_results(self.config.evaluation_out_dir)
@@ -546,9 +606,9 @@ class GSLRMTrainer:
         
         # Forward pass with gradient accumulation context
         ctx = (
-            nullcontext() 
+            nullcontext()
             if (self.fwdbwd_pass_step + 1) % self.config.training.runtime.grad_accum_steps == 0
-            else self.model.no_sync()
+            else self._no_sync()
         )
         
         with ctx, torch.autocast(
@@ -558,7 +618,7 @@ class GSLRMTrainer:
         ):
             # Set current step for the model
             try:
-                self.model.module.set_current_step(
+                self.model_module.set_current_step(
                     self.fwdbwd_pass_step, 
                     self.start_fwdbwd_pass_step, 
                     self.job_overview.num_fwdbwd_passes
@@ -623,8 +683,11 @@ class GSLRMTrainer:
             # Update parameters
             if not skip_optimizer_step:
                 self.scaler.step(self.optimizer)
-                self.scaler.update()
                 self.param_update_step += 1
+
+            # Always update scaler (even if optimizer step was skipped)
+            # This resets the scaler state for the next iteration
+            self.scaler.update()
                 
             # Update learning rate and reset gradients
             self.lr_scheduler.step()
@@ -659,16 +722,18 @@ class GSLRMTrainer:
         # Wandb logging
         if (self.fwdbwd_pass_step % self.config.training.logging.wandb.log_every == 0 or
             self.fwdbwd_pass_step < 100 + self.start_fwdbwd_pass_step):
-            
+
+            # Metrics are logged under "metrics/" prefix for clear separation from images
             log_dict = {
-                "iter": self.fwdbwd_pass_step,
-                "fwdbwd_pass_step": self.fwdbwd_pass_step,
-                "param_update_step": self.param_update_step,
-                "lr": self.optimizer.param_groups[0]["lr"],
-                "iter_time": iter_time,
-                "grad_norm": total_grad_norm,
-                "epoch": self.fwdbwd_pass_step // self.job_overview.num_fwdbwd_passes_per_epoch,
+                "metrics/iter": self.fwdbwd_pass_step,
+                "metrics/fwdbwd_pass_step": self.fwdbwd_pass_step,
+                "metrics/param_update_step": self.param_update_step,
+                "metrics/lr": self.optimizer.param_groups[0]["lr"],
+                "metrics/iter_time": iter_time,
+                "metrics/grad_norm": total_grad_norm,
+                "metrics/epoch": self.fwdbwd_pass_step // self.job_overview.num_fwdbwd_passes_per_epoch,
             }
+            # Loss metrics under "train/" for backward compatibility
             log_dict.update({"train/" + k: v for k, v in loss_name2value})
             wandb.log(log_dict, step=self.fwdbwd_pass_step)
             
@@ -704,7 +769,7 @@ class GSLRMTrainer:
         )
         os.makedirs(vis_dir, exist_ok=True)
 
-        self.model.module.save_visuals(vis_dir, result, batch)
+        self.model_module.save_visuals(vis_dir, result, batch)
 
         # Log images to WandB
         self._log_visuals_to_wandb(vis_dir, prefix="train")
@@ -713,7 +778,16 @@ class GSLRMTrainer:
         self.model.train()
 
     def _log_visuals_to_wandb(self, vis_dir: str, prefix: str = "train"):
-        """Log saved visualization images to WandB with detailed view/camera info."""
+        """
+        Log saved visualization images to WandB with detailed view/camera info.
+
+        Images are logged under "images/" prefix to separate them from metrics.
+        This creates distinct sections in wandb UI:
+        - "images/train/..." for training visualizations
+        - "images/val/..." for validation visualizations
+        - "train/..." for training loss metrics (separate section)
+        - "val/..." for validation metrics (separate section)
+        """
         import glob
         from PIL import Image as PILImage
 
@@ -721,12 +795,14 @@ class GSLRMTrainer:
 
         # Get camera normalization status
         normalize_cameras = self.config.get("mouse", {}).get("normalize_cameras", False)
-        normalize_to_z_up = self.config.get("mouse", {}).get("normalize_to_z_up", True)
-        norm_status = ("Z-up" if normalize_to_z_up else "Y-up") + " normalized" if normalize_cameras else "Original coords"
+        norm_status = "Z-up normalized" if normalize_cameras else "Original coords"
 
         # Get view configuration
         num_views = self.config.training.dataset.get("num_views", 6)
         num_input_views = self.config.training.dataset.get("num_input_views", 1)
+
+        # Image key prefix: "images/{train or val}/..."
+        img_prefix = f"images/{prefix}"
 
         # Find and log supervision images (GT vs Pred comparison)
         supervision_files = glob.glob(os.path.join(vis_dir, "supervision_*.jpg"))
@@ -741,7 +817,7 @@ class GSLRMTrainer:
                     f"Top: GT ({num_views} views) | Bottom: Pred\n"
                     f"Camera: {norm_status}"
                 )
-                wandb_images[f"{prefix}/supervision_{i}"] = wandb.Image(img, caption=caption)
+                wandb_images[f"{img_prefix}/supervision_{i}"] = wandb.Image(img, caption=caption)
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
 
@@ -756,7 +832,7 @@ class GSLRMTrainer:
                     f"Step {self.fwdbwd_pass_step} | UIDs: {uid_info}\n"
                     f"Input: {num_input_views} view(s) | Camera: {norm_status}"
                 )
-                wandb_images[f"{prefix}/input_{i}"] = wandb.Image(img, caption=caption)
+                wandb_images[f"{img_prefix}/input_{i}"] = wandb.Image(img, caption=caption)
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
 
@@ -771,7 +847,7 @@ class GSLRMTrainer:
                     f"Step {self.fwdbwd_pass_step} | UID: {uid_info}\n"
                     f"360° turntable render | Camera: {norm_status}"
                 )
-                wandb_images[f"{prefix}/turntable_{i}"] = wandb.Image(img, caption=caption)
+                wandb_images[f"{img_prefix}/turntable_{i}"] = wandb.Image(img, caption=caption)
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
 
@@ -784,10 +860,10 @@ class GSLRMTrainer:
                 uid_dir = os.path.basename(os.path.dirname(f))
                 caption = (
                     f"Step {self.fwdbwd_pass_step} | UID: {uid_dir}\n"
-                    f"Per pair: Left=GT, Right=Pred | Rows=Samples | Views: {num_views}\n"
+                    f"Top: GT | Bottom: Pred | Views: {num_views}\n"
                     f"Camera: {norm_status}"
                 )
-                wandb_images[f"{prefix}/gt_vs_pred_{i}"] = wandb.Image(img, caption=caption)
+                wandb_images[f"{img_prefix}/gt_vs_pred_{i}"] = wandb.Image(img, caption=caption)
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
 
@@ -802,7 +878,7 @@ class GSLRMTrainer:
                     f"Step {self.fwdbwd_pass_step} | UID: {uid_info}\n"
                     f"Gaussian opacity & depth | Camera: {norm_status}"
                 )
-                wandb_images[f"{prefix}/gaussian_vis_{i}"] = wandb.Image(img, caption=caption)
+                wandb_images[f"{img_prefix}/gaussian_vis_{i}"] = wandb.Image(img, caption=caption)
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
 
@@ -814,26 +890,26 @@ class GSLRMTrainer:
         """Run validation loop."""
         print(f"Running validation at step {self.fwdbwd_pass_step}; "
               f"save results to: {self.config.validation.output_dir}")
-        torch.distributed.barrier()
+        self._barrier()
         
-        self.val_dataloader.sampler.set_epoch(0)
+        self._set_epoch(self.val_dataloader, 0)
         self.model.eval()
         
-        with (self.model.no_sync(), torch.no_grad(),
+        with (self._no_sync(), torch.no_grad(),
               torch.autocast(
                   enabled=self.config.training.runtime.use_amp,
                   device_type="cuda",
                   dtype=self.amp_dtype_mapping[self.config.training.runtime.amp_dtype],
               )):
             
-            log_val_metrics = {"psnr": [], "ssim": [], "lpips": []}
-            
+            log_val_metrics = {"psnr": [], "ssim": [], "lpips": [], "mask_iou": []}
+
             for idx, batch in enumerate(self.val_dataloader):
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 result = self.model(batch, create_visual=False)
-                
+
                 try:
-                    val_metrics = self.model.module.save_validations(
+                    val_metrics = self.model_module.save_validations(
                         os.path.join(self.config.validation.output_dir, f"iter_{self.fwdbwd_pass_step:08d}"),
                         result,
                         batch,
@@ -843,15 +919,17 @@ class GSLRMTrainer:
                     log_val_metrics["psnr"].append(val_metrics["psnr"])
                     log_val_metrics["ssim"].append(val_metrics["ssim"])
                     log_val_metrics["lpips"].append(val_metrics["lpips"])
+                    log_val_metrics["mask_iou"].append(val_metrics.get("mask_iou", 0.0))
                 except Exception as e:
                     print(f"Error in saving validation results for batch {idx}: {e}")
-                    
+
             # Log validation metrics to wandb
             if self.ddp_rank == 0:
                 wandb_log_val_metrics = {
-                    "val/psnr": sum(log_val_metrics["psnr"]) / len(log_val_metrics["psnr"]),
-                    "val/ssim": sum(log_val_metrics["ssim"]) / len(log_val_metrics["ssim"]),
-                    "val/lpips": sum(log_val_metrics["lpips"]) / len(log_val_metrics["lpips"]),
+                    "val/psnr": sum(log_val_metrics["psnr"]) / max(len(log_val_metrics["psnr"]), 1),
+                    "val/ssim": sum(log_val_metrics["ssim"]) / max(len(log_val_metrics["ssim"]), 1),
+                    "val/lpips": sum(log_val_metrics["lpips"]) / max(len(log_val_metrics["lpips"]), 1),
+                    "val/mask_iou": sum(log_val_metrics["mask_iou"]) / max(len(log_val_metrics["mask_iou"]), 1),
                 }
                 wandb.log(wandb_log_val_metrics, step=self.fwdbwd_pass_step)
 
@@ -861,13 +939,13 @@ class GSLRMTrainer:
 
             torch.cuda.empty_cache()
             
-        torch.distributed.barrier()
+        self._barrier()
         
         # Summarize validation results
         if self.ddp_rank == 0:
             self._summarize_evaluation_results(self.config.validation.output_dir)
             
-        torch.distributed.barrier()
+        self._barrier()
         self.model.train()
         
     def should_stop_training(self) -> bool:
@@ -889,7 +967,7 @@ class GSLRMTrainer:
     def train(self):
         """Main training loop."""
         print(f"ddp_rank={self.ddp_rank}, Starting training loop")
-        torch.distributed.barrier()
+        self._barrier()
         
         self.model.train()
         
@@ -900,7 +978,7 @@ class GSLRMTrainer:
             # Reset dataloader for new epoch
             if self.fwdbwd_pass_step % self.job_overview.num_fwdbwd_passes_per_epoch == 0:
                 print(f"ddp_rank={self.ddp_rank}, Resetting dataloader epoch to {cur_epoch}")
-                self.dataloader.sampler.set_epoch(cur_epoch)
+                self._set_epoch(self.dataloader, cur_epoch)
                 self.dataloader_iter = iter(self.dataloader)
                 
             # Get next batch
@@ -925,7 +1003,7 @@ class GSLRMTrainer:
             
             # Synchronize after visual creation
             if create_visual:
-                torch.distributed.barrier()
+                self._barrier()
                 
             # Validation
             if create_val:
@@ -941,8 +1019,9 @@ class GSLRMTrainer:
             
     def cleanup(self):
         """Clean up distributed training."""
-        torch.distributed.barrier()
-        destroy_process_group()
+        if not self.single_gpu_mode:
+            self._barrier()
+            destroy_process_group()
 
 
 def parse_arguments() -> argparse.Namespace:
