@@ -5,10 +5,8 @@
 #
 # Target: gpu03 server
 #   - Ubuntu 24.04 LTS
-#   - 4x RTX PRO 6000 Blackwell (98GB each)
-#   - 4x RTX A6000 (49GB each)
+#   - RTX A6000 (49GB) - devices 4-7
 #   - CUDA 13.0 / Driver 580.65
-#   - gcc 13.3.0
 #
 # Usage:
 #   bash setup_gpu03.sh [ENV_NAME]
@@ -29,15 +27,31 @@ echo "Mouse-FaceLift gpu03 Setup"
 echo "============================================="
 echo "Environment name: ${ENV_NAME}"
 echo "Python version: ${PYTHON_VERSION}"
-echo "CUDA path: ${CUDA_PATH}"
 echo ""
 
 # =============================================================================
-# Step 1: Install Miniconda (if not present)
+# Step 1: Find or Install Conda
 # =============================================================================
 
-if ! command -v conda &> /dev/null; then
-    echo "Installing Miniconda..."
+CONDA_EXE=""
+
+# Priority 1: Check anaconda3 in home
+if [ -f "${HOME}/anaconda3/bin/conda" ]; then
+    CONDA_EXE="${HOME}/anaconda3/bin/conda"
+    echo "Found anaconda3: ${CONDA_EXE}"
+# Priority 2: Check miniconda3 in home
+elif [ -f "${HOME}/miniconda3/bin/conda" ]; then
+    CONDA_EXE="${HOME}/miniconda3/bin/conda"
+    echo "Found miniconda3: ${CONDA_EXE}"
+# Priority 3: Check if conda is in PATH
+elif command -v conda &> /dev/null; then
+    CONDA_EXE=$(which conda)
+    echo "Found conda in PATH: ${CONDA_EXE}"
+fi
+
+# If no conda found, install miniconda
+if [ -z "${CONDA_EXE}" ]; then
+    echo "No conda found. Installing Miniconda..."
     
     MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
     MINICONDA_INSTALLER="/tmp/miniconda_installer.sh"
@@ -46,8 +60,8 @@ if ! command -v conda &> /dev/null; then
     bash "${MINICONDA_INSTALLER}" -b -p "${HOME}/miniconda3"
     rm "${MINICONDA_INSTALLER}"
     
-    # Initialize conda
-    "${HOME}/miniconda3/bin/conda" init bash
+    CONDA_EXE="${HOME}/miniconda3/bin/conda"
+    "${CONDA_EXE}" init bash
     
     echo ""
     echo "Miniconda installed. Please run:"
@@ -56,10 +70,11 @@ if ! command -v conda &> /dev/null; then
     exit 0
 fi
 
-echo "conda found: $(conda --version)"
+echo "conda version: $(${CONDA_EXE} --version)"
 
-# Initialize conda
-eval "$(conda shell.bash hook)"
+# Initialize conda for this shell
+CONDA_BASE=$(dirname $(dirname ${CONDA_EXE}))
+source "${CONDA_BASE}/etc/profile.d/conda.sh"
 
 # =============================================================================
 # Step 2: System Checks
@@ -69,20 +84,16 @@ echo ""
 echo "Checking system requirements..."
 
 # Check GPU
-GPU_INFO=$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader)
-echo "GPUs:"
-echo "${GPU_INFO}" | while read line; do echo "  $line"; done
+echo "GPUs (using A6000 devices 4-7):"
+nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader | grep -E "^[4-7],"
 
 # Check CUDA
 if [ -f "${CUDA_PATH}/bin/nvcc" ]; then
-    CUDA_VERSION=$(${CUDA_PATH}/bin/nvcc --version | grep release | awk '{print $6}' | cut -d',' -f1)
-    echo "CUDA: ${CUDA_VERSION}"
+    echo "CUDA: $(${CUDA_PATH}/bin/nvcc --version | grep release | sed 's/.*release //' | sed 's/,.*//')"
 else
-    echo "Error: CUDA not found at ${CUDA_PATH}"
-    exit 1
+    echo "Warning: CUDA not found at ${CUDA_PATH}"
 fi
 
-# Check gcc
 echo "gcc: $(gcc --version | head -1)"
 
 # =============================================================================
@@ -109,7 +120,7 @@ conda activate "${ENV_NAME}"
 echo "Activated: ${CONDA_DEFAULT_ENV}"
 
 # =============================================================================
-# Step 4: Install PyTorch (CUDA 12.4 - best compatibility)
+# Step 4: Install PyTorch
 # =============================================================================
 
 echo ""
@@ -118,13 +129,11 @@ python -m pip install --upgrade pip
 
 echo ""
 echo "Installing PyTorch with CUDA 12.4..."
-# Note: CUDA 13.0 driver is backward compatible with CUDA 12.4 toolkit
 pip install torch torchvision torchaudio \
     --index-url https://download.pytorch.org/whl/cu124
 
 # Verify
 echo ""
-echo "Verifying PyTorch..."
 python -c "
 import torch
 print(f'PyTorch: {torch.__version__}')
@@ -132,39 +141,30 @@ print(f'CUDA available: {torch.cuda.is_available()}')
 if torch.cuda.is_available():
     print(f'CUDA version: {torch.version.cuda}')
     print(f'GPU count: {torch.cuda.device_count()}')
-    for i in range(torch.cuda.device_count()):
-        print(f'  GPU {i}: {torch.cuda.get_device_name(i)}')
 "
 
 # =============================================================================
-# Step 5: Install Core Dependencies
+# Step 5: Install Dependencies
 # =============================================================================
 
 echo ""
-echo "Installing core dependencies..."
+echo "Installing dependencies..."
 
 pip install packaging typing-extensions
 
-# AI/ML libraries
-echo "Installing AI/ML libraries..."
+# AI/ML
 pip install transformers diffusers[torch] huggingface-hub accelerate
-
-# xformers (memory efficient attention)
-echo "Installing xformers..."
 pip install xformers
 
 # Computer vision
-echo "Installing computer vision libraries..."
 pip install Pillow opencv-python scikit-image lpips
 pip install facenet-pytorch --no-deps
 pip install rembg
 
-# Scientific computing
-echo "Installing scientific computing..."
+# Scientific
 pip install numpy matplotlib scikit-learn einops jaxtyping pytorch-msssim scipy
 
 # Utilities
-echo "Installing utilities..."
 pip install easydict pyyaml termcolor plyfile tqdm gradio pandas rich
 pip install wandb --only-binary=:all:
 pip install videoio ffmpeg-python
@@ -175,14 +175,11 @@ pip install videoio ffmpeg-python
 
 echo ""
 echo "Installing diff-gaussian-rasterization..."
-echo "This requires CUDA toolkit and may take a few minutes..."
 
-# Set CUDA environment
 export CUDA_HOME="${CUDA_PATH}"
 export PATH="${CUDA_HOME}/bin:${PATH}"
 export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
 
-# Build and install
 pip install git+https://github.com/graphdeco-inria/diff-gaussian-rasterization --no-build-isolation
 
 # =============================================================================
@@ -192,7 +189,7 @@ pip install git+https://github.com/graphdeco-inria/diff-gaussian-rasterization -
 echo ""
 echo "Setting up environment variables..."
 
-CONDA_ENV_PATH="$(conda info --base)/envs/${ENV_NAME}"
+CONDA_ENV_PATH="${CONDA_BASE}/envs/${ENV_NAME}"
 if [[ -d "$CONDA_ENV_PATH" ]]; then
     ACTIVATE_DIR="$CONDA_ENV_PATH/etc/conda/activate.d"
     DEACTIVATE_DIR="$CONDA_ENV_PATH/etc/conda/deactivate.d"
@@ -208,9 +205,8 @@ export CUDA_HOME=/usr/local/cuda-13.0
 export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
 
-# Multi-GPU optimizations
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-export NCCL_DEBUG=INFO
+# Use RTX A6000 only (devices 4-7)
+export CUDA_VISIBLE_DEVICES=4
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 ACTIVATE_EOF
 
@@ -220,7 +216,7 @@ export CUDA_HOME=$_OLD_CUDA_HOME
 export PATH=$_OLD_PATH
 export LD_LIBRARY_PATH=$_OLD_LD_LIBRARY_PATH
 unset _OLD_CUDA_HOME _OLD_PATH _OLD_LD_LIBRARY_PATH
-unset NCCL_DEBUG PYTORCH_CUDA_ALLOC_CONF
+unset PYTORCH_CUDA_ALLOC_CONF
 DEACTIVATE_EOF
 
     chmod +x "$ACTIVATE_DIR/env_vars.sh" "$DEACTIVATE_DIR/env_vars.sh"
@@ -238,53 +234,30 @@ echo "============================================="
 
 python << 'VERIFY_EOF'
 import sys
-print(f"Python: {sys.version}")
+print(f"Python: {sys.version.split()[0]}")
 
 import torch
-print(f"\nPyTorch: {torch.__version__}")
+print(f"PyTorch: {torch.__version__}")
 print(f"CUDA available: {torch.cuda.is_available()}")
 if torch.cuda.is_available():
     print(f"CUDA version: {torch.version.cuda}")
-    print(f"GPU count: {torch.cuda.device_count()}")
-    for i in range(min(torch.cuda.device_count(), 4)):
-        props = torch.cuda.get_device_properties(i)
-        print(f"  GPU {i}: {props.name} ({props.total_memory / 1024**3:.0f}GB)")
+    print(f"GPU: {torch.cuda.get_device_name(0)}")
 
-packages = ['transformers', 'diffusers', 'xformers', 'accelerate', 'lpips', 'wandb']
-print("\nPackage verification:")
+packages = ['transformers', 'diffusers', 'xformers', 'lpips', 'wandb']
+print("\nPackages:")
 for pkg in packages:
     try:
         mod = __import__(pkg)
-        ver = getattr(mod, '__version__', 'OK')
-        print(f"  {pkg}: {ver}")
-    except ImportError as e:
-        print(f"  {pkg}: FAILED ({e})")
+        print(f"  {pkg}: OK")
+    except:
+        print(f"  {pkg}: FAILED")
 
 try:
     from diff_gaussian_rasterization import GaussianRasterizationSettings
     print("  diff-gaussian-rasterization: OK")
-except ImportError as e:
-    print(f"  diff-gaussian-rasterization: FAILED ({e})")
-
-print("\nAll checks passed!")
+except:
+    print("  diff-gaussian-rasterization: FAILED")
 VERIFY_EOF
-
-# =============================================================================
-# Step 9: Save Info
-# =============================================================================
-
-echo ""
-echo "Saving environment info..."
-{
-    echo "Environment: ${ENV_NAME}"
-    echo "Created: $(date)"
-    echo "Host: $(hostname)"
-    echo "Python: ${PYTHON_VERSION}"
-    echo "CUDA: ${CUDA_PATH}"
-    echo ""
-    echo "Installed packages:"
-    pip list
-} > conda_env_gpu03_info.txt
 
 # =============================================================================
 # Complete
@@ -298,9 +271,6 @@ echo ""
 echo "To activate:"
 echo "  conda activate ${ENV_NAME}"
 echo ""
-echo "Multi-GPU training:"
-echo "  torchrun --nproc_per_node 4 train_gslrm.py --config configs/mouse_gslrm_pixel_based_v2.yaml"
-echo ""
-echo "Single GPU training:"
+echo "Training:"
 echo "  python train_gslrm.py --config configs/mouse_gslrm_pixel_based_v2.yaml"
 echo ""
