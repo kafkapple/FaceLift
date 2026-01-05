@@ -364,12 +364,16 @@ class SsimLoss(nn.Module):
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """
         Compute SSIM loss between two image tensors.
-        
+
         Args:
             x: Image tensor of shape (N, C, H, W)
             y: Image tensor of shape (N, C, H, W)
-            
+
         Returns:
-            SSIM loss (1 - SSIM similarity)
+            SSIM loss (1 - SSIM similarity), clamped to [0, 2]
         """
-        return 1.0 - self.ssim_module(x, y)
+        ssim_value = self.ssim_module(x, y)
+        # Clamp SSIM to [0, 1] to avoid negative loss
+        # (can exceed 1.0 with masked images due to numerical precision)
+        ssim_value = torch.clamp(ssim_value, 0.0, 1.0)
+        return 1.0 - ssim_value

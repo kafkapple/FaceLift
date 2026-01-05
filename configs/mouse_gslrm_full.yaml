@@ -1,14 +1,15 @@
 # =============================================================================
-# Mouse GS-LRM - Low Memory Config (RTX 3060 12GB)
-# Optimized for consumer GPUs with limited VRAM
+# Mouse GS-LRM - Full Config (gpu05 A6000 48GB)
+# Original FaceLift paper settings with mouse data
 # =============================================================================
-# Memory Optimizations vs Full Config:
-#   - image_size: 512 → 384 (key memory saving for rendering)
-#   - batch_size: 2 → 1 (saves ~40% VRAM)
-#   - grad_accum_steps: 2 → 4 (maintains effective batch size)
-#   - amp_dtype: bf16 → fp16 (better on consumer GPUs, bf16 requires Ampere+)
-#   - validation: disabled (causes OOM during Gaussian rendering)
-#   - num_workers/prefetch reduced for memory
+# This is the recommended config for high-VRAM GPUs (A6000, A100, etc.)
+# Requires: ~20GB VRAM
+#
+# Key differences from lowmem:
+#   - batch_size: 2 (vs 1)
+#   - grad_accum_steps: 2 (vs 4)
+#   - amp_dtype: bf16 (vs fp16)
+#   - num_workers: 4, prefetch_factor: 8 (higher throughput)
 #
 # Loss Settings: Same as original FaceLift paper
 #   - l2_loss: 1.0, perceptual_loss: 0.5
@@ -20,7 +21,7 @@ model:
   class_name: gslrm.model.gslrm.GSLRM
 
   image_tokenizer:
-    image_size: 384             # Reduced: 512 → 384 (saves ~44% VRAM)
+    image_size: 512
     patch_size: 8
     in_channels: 9
 
@@ -42,13 +43,13 @@ model:
 
 training:
   runtime:
-    use_tf32: false           # Disable TF32 (not available on RTX 3060)
+    use_tf32: true              # Enable TF32 (Ampere+ GPUs)
     use_amp: true
-    amp_dtype: "fp16"         # fp16 better than bf16 on consumer GPUs
+    amp_dtype: "bf16"           # bf16 for A6000/A100
     torch_compile: false
-    grad_accum_steps: 4       # Increased: 1→4 (maintains batch=4 effective)
+    grad_accum_steps: 2         # Original paper setting
     grad_clip_norm: 1.0
-    grad_checkpoint_every: 1  # Every layer (maximum memory saving)
+    grad_checkpoint_every: 1
 
   dataset:
     # Using normalized synthetic data (camera distance = 2.7)
@@ -66,15 +67,14 @@ training:
     background_color: "white"
 
   dataloader:
-    batch_size_per_gpu: 1     # Reduced: 2→1 (key memory saving)
-    num_workers: 2            # Reduced: 4→2 (less CPU memory)
-    num_threads: 8            # Reduced: 16→8
-    prefetch_factor: 4        # Reduced: 16→4
+    batch_size_per_gpu: 2       # Original paper setting
+    num_workers: 4
+    num_threads: 16
+    prefetch_factor: 8
 
   losses:
     l2_loss_weight: 1.0
     # Perceptual loss (VGG19-based) - original paper setting
-    # NOTE: If gradient explosion occurs on mouse domain, reduce to 0.1 or 0.0
     lpips_loss_weight: 0.0
     perceptual_loss_weight: 0.5    # Original paper: 0.5
     # SSIM loss (purely image-based, no learned features)
@@ -100,35 +100,35 @@ training:
     weight_decay: 0.05
     reset_lr: true
     reset_weight_decay: false
-    reset_training_state: false
+    reset_training_state: true   # Reset step counter to start from 0
 
   schedule:
     num_epochs: 50000
     early_stop_after_epochs: 50000
-    max_fwdbwd_passes: 30000
-    warmup: 100
-    l2_warmup_steps: 100
+    max_fwdbwd_passes: 10000     # Longer training for 2000 samples
+    warmup: 50
+    l2_warmup_steps: 50
 
   checkpointing:
-    checkpoint_dir: "checkpoints/gslrm/mouse_lowmem"
-    checkpoint_every: 2000
+    checkpoint_dir: "checkpoints/gslrm/mouse_full"
+    checkpoint_every: 500
     resume_ckpt: "checkpoints/gslrm/ckpt_0000000000021125.pt"
 
   logging:
     print_every: 10
-    vis_every: 200            # Less frequent vis (memory during eval)
+    vis_every: 100
     wandb:
       project: "mouse_facelift"
       group: "gslrm"
-      job_type: "finetune_lowmem"
-      exp_name: "mouse_gslrm_lowmem"
-      log_every: 20
+      job_type: "finetune_full"
+      exp_name: "mouse_gslrm_full"
+      log_every: 10
       offline: false
 
 mouse:
   # CRITICAL: Must be true for mouse data!
   # - Enables MouseViewDataset with fixed view order [0,1,2,3,4,5]
-  # - Random view order causes Plücker coordinate inconsistency → blurry output
+  # - Random view order causes Plucker coordinate inconsistency -> blurry output
   use_mouse_dataset: true
 
   # Camera normalization (applied by MouseViewDataset)
@@ -143,11 +143,11 @@ mouse:
     hflip: false
 
 validation:
-  enabled: false                # Disabled: validation causes OOM on RTX 3060
+  enabled: true
   dataset_path: "data_mouse_synthetic_normalized/data_val.txt"
-  output_dir: "experiments/validation/mouse_gslrm_lowmem"
-  val_every: 1000               # Less frequent if enabled
+  output_dir: "experiments/validation/mouse_gslrm_full"
+  val_every: 200
 
 inference:
   enabled: false
-  output_dir: "experiments/inference/mouse_gslrm_lowmem"
+  output_dir: "experiments/inference/mouse_gslrm_full"

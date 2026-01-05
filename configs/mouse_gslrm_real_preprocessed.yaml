@@ -1,0 +1,149 @@
+# =============================================================================
+# Mouse GS-LRM - Real Data (Preprocessed) Finetuning
+# Uses REAL mouse video data with centering + uniform scaling preprocessing
+# =============================================================================
+# Purpose: Finetune GS-LRM on preprocessed real 6-view mouse data
+# Input: Preprocessed multi-view images from data_mouse_uniform
+#        (processed from data_mouse_local_rgba with center align + uniform scale)
+# Output: 3D Gaussian reconstruction model for mouse
+#
+# Preprocessing applied:
+# 1. Center align (preprocess_center_align_all_views.py): Objects centered, scaled to 70%
+# 2. Uniform scale (preprocess_uniform_scale.py): Each view scaled to 60% object ratio
+#
+# Key differences from synthetic data:
+# - Real data has more variety in lighting, textures, and poses
+# - Uses RGBA (alpha channel) for proper mask generation
+# =============================================================================
+profile: false
+debug: false
+
+model:
+  class_name: gslrm.model.gslrm.GSLRM
+
+  image_tokenizer:
+    image_size: 512
+    patch_size: 8
+    in_channels: 9
+
+  transformer:
+    d: 1024
+    d_head: 64
+    n_layer: 24
+
+  gaussians:
+    n_gaussians: 2
+    sh_degree: 0
+    upsampler:
+      upsample_factor: 1
+
+  add_refsrc_marker: false
+  hard_pixelalign: true
+  use_custom_plucker: true
+  clip_xyz: true
+
+training:
+  runtime:
+    use_tf32: true
+    use_amp: true
+    amp_dtype: "bf16"
+    torch_compile: false
+    grad_accum_steps: 2
+    grad_clip_norm: 1.0
+    grad_checkpoint_every: 1
+
+  dataset:
+    # Preprocessed real data (centered + uniform scaled)
+    dataset_path: "data_mouse_uniform/data_mouse_train.txt"
+    maximize_view_overlap: false
+    num_views: 6
+    # CRITICAL: Use 5 input views to predict 1 (not 1→5)
+    num_input_views: 5
+    target_has_input: true
+    # Camera normalization will be applied by MouseViewDataset
+    normalize_distance_to: 0.0
+    remove_alpha: false  # Real data uses RGBA for proper masking
+    background_color: "white"
+
+  dataloader:
+    batch_size_per_gpu: 2
+    num_workers: 4
+    num_threads: 16
+    prefetch_factor: 8
+
+  losses:
+    l2_loss_weight: 1.0
+    # Perceptual loss - start with 0.0 for safety, increase if stable
+    lpips_loss_weight: 0.0
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0
+    pixelalign_loss_weight: 0.0
+    masked_pixelalign_loss: true
+    pointsdist_loss_weight: 0.0
+    warmup_pointsdist: false
+    distill_loss_weight: 0.0
+
+    # Mask options
+    masked_l2_loss: false
+    masked_ssim_loss: false
+
+    # Background supervision
+    background_loss_weight: 0.0
+    background_color_target: [1.0, 1.0, 1.0]
+
+  optimizer:
+    lr: 0.00002
+    beta1: 0.9
+    beta2: 0.95
+    weight_decay: 0.05
+    reset_lr: true
+    reset_weight_decay: false
+    reset_training_state: true
+
+  schedule:
+    num_epochs: 50000
+    early_stop_after_epochs: 50000
+    max_fwdbwd_passes: 20000     # Longer training for real data
+    warmup: 100
+    l2_warmup_steps: 100
+
+  checkpointing:
+    checkpoint_dir: "checkpoints/gslrm/mouse_real_preprocessed"
+    checkpoint_every: 500
+    resume_ckpt: "checkpoints/gslrm/ckpt_0000000000021125.pt"
+
+  logging:
+    print_every: 10
+    vis_every: 100
+    wandb:
+      project: "mouse_facelift"
+      group: "gslrm"
+      job_type: "finetune_real_preprocessed"
+      exp_name: "mouse_gslrm_real_preprocessed"
+      log_every: 10
+      offline: false
+
+mouse:
+  # CRITICAL: Must be true for mouse data!
+  use_mouse_dataset: true
+
+  # Camera normalization (applied by MouseViewDataset)
+  normalize_cameras: true
+  target_camera_distance: 2.7
+  normalize_to_z_up: true
+
+  augmentation:
+    enabled: true
+    brightness_range: [0.9, 1.1]
+    contrast_range: [0.9, 1.1]
+    hflip: false
+
+validation:
+  enabled: true
+  dataset_path: "data_mouse_uniform/data_mouse_val.txt"
+  output_dir: "experiments/validation/mouse_gslrm_real_preprocessed"
+  val_every: 200
+
+inference:
+  enabled: false
+  output_dir: "experiments/inference/mouse_gslrm_real_preprocessed"

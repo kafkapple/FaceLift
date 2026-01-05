@@ -1,16 +1,15 @@
 # =============================================================================
-# Mouse GS-LRM - Normalized Synthetic Data Finetuning
-# Uses synthetic data generated from NORMALIZED camera data (distance 2.7)
+# Mouse GS-LRM - Real Data Config (No MVDiffusion)
+# Direct finetuning on real 6-view mouse data
 # =============================================================================
-# Purpose: Finetune GS-LRM on camera-normalized synthetic 6-view mouse data
-# Input: Synthetic multi-view images from data_mouse_synthetic_normalized
-#        (generated from data_mouse_normalized with camera distance = 2.7)
+# Purpose: Finetune GS-LRM directly on real mouse video frames
+# Input: Real multi-view images from data_mouse_local/
 # Output: 3D Gaussian reconstruction model for mouse
 #
-# Key fixes from previous version:
-# - num_input_views: 5 (not 1) - matches pretrained model's difficulty level
-# - lpips/perceptual loss: 0.0 - prevents gradient explosion on mouse domain
-# - Data from normalized cameras (distance 2.7) - ensures camera-image consistency
+# Key settings:
+# - num_input_views: 5 (5 views input → predict 1 view)
+# - normalize_distance_to: 2.7 (normalize camera distance on-the-fly)
+# - remove_alpha: false (real data has RGBA with alpha channel)
 # =============================================================================
 profile: false
 debug: false
@@ -41,27 +40,26 @@ model:
 
 training:
   runtime:
-    use_tf32: true
+    use_tf32: true              # Enable TF32 (Ampere+ GPUs)
     use_amp: true
-    amp_dtype: "bf16"
+    amp_dtype: "bf16"           # bf16 for A6000/A100
     torch_compile: false
     grad_accum_steps: 2
     grad_clip_norm: 1.0
     grad_checkpoint_every: 1
 
   dataset:
-    # Using normalized synthetic data (camera distance = 2.7)
-    dataset_path: "data_mouse_synthetic_normalized/data_train.txt"
+    # Real mouse data (not synthetic)
+    dataset_path: "data_mouse_local/data_mouse_train.txt"
     maximize_view_overlap: false
     num_views: 6
-    # CRITICAL: Use 5 input views to predict 1 (not 1→5)
-    # Pretrained model: 6 input → 2 predict
-    # Our setting: 5 input → 1 predict (similar difficulty)
+    # 5 input views → predict 1 view (similar to pretrained difficulty)
     num_input_views: 5
     target_has_input: true
-    # Already normalized to 2.7, no additional normalization needed
-    normalize_distance_to: 0.0
-    remove_alpha: true  # Synthetic data is RGB (not RGBA)
+    # CRITICAL: Normalize camera distance on-the-fly (real data not pre-normalized)
+    normalize_distance_to: 2.7
+    # Real data has RGBA (alpha channel for mask)
+    remove_alpha: false
     background_color: "white"
 
   dataloader:
@@ -72,11 +70,9 @@ training:
 
   losses:
     l2_loss_weight: 1.0
-    # Perceptual loss (VGG19-based) - restored to original paper setting
-    # NOTE: If gradient explosion occurs on mouse domain, reduce to 0.1 or 0.0
+    # Perceptual loss (VGG19-based) - original paper setting
     lpips_loss_weight: 0.0
     perceptual_loss_weight: 0.5    # Original paper: 0.5
-    # SSIM loss (purely image-based, no learned features)
     ssim_loss_weight: 0.0          # Original paper: 0.0
     pixelalign_loss_weight: 0.0
     masked_pixelalign_loss: true
@@ -84,13 +80,13 @@ training:
     warmup_pointsdist: false
     distill_loss_weight: 0.0
 
-    # Mask options (original paper uses false for all)
-    masked_l2_loss: false          # If true, L2 loss only on foreground
-    masked_ssim_loss: false        # If true, SSIM loss only on foreground
+    # Mask options
+    masked_l2_loss: false
+    masked_ssim_loss: false
 
-    # Background supervision (optional, not in original paper)
-    background_loss_weight: 0.0    # If > 0, adds explicit background color loss
-    background_color_target: [1.0, 1.0, 1.0]  # Target background color (white)
+    # Background supervision
+    background_loss_weight: 0.0
+    background_color_target: [1.0, 1.0, 1.0]
 
   optimizer:
     lr: 0.00002
@@ -99,17 +95,17 @@ training:
     weight_decay: 0.05
     reset_lr: true
     reset_weight_decay: false
-    reset_training_state: true   # Reset step counter to start from 0
+    reset_training_state: true
 
   schedule:
     num_epochs: 50000
     early_stop_after_epochs: 50000
-    max_fwdbwd_passes: 10000     # Longer training for 2000 samples
+    max_fwdbwd_passes: 10000
     warmup: 50
     l2_warmup_steps: 50
 
   checkpointing:
-    checkpoint_dir: "checkpoints/gslrm/mouse_normalized_synthetic"
+    checkpoint_dir: "checkpoints/gslrm/mouse_real"
     checkpoint_every: 500
     resume_ckpt: "checkpoints/gslrm/ckpt_0000000000021125.pt"
 
@@ -119,15 +115,13 @@ training:
     wandb:
       project: "mouse_facelift"
       group: "gslrm"
-      job_type: "finetune_normalized_synthetic"
-      exp_name: "mouse_gslrm_normalized_synthetic"
+      job_type: "finetune_real"
+      exp_name: "mouse_gslrm_real"
       log_every: 10
       offline: false
 
 mouse:
   # CRITICAL: Must be true for mouse data!
-  # - Enables MouseViewDataset with fixed view order [0,1,2,3,4,5]
-  # - Random view order causes Plücker coordinate inconsistency → blurry output
   use_mouse_dataset: true
 
   # Camera normalization (applied by MouseViewDataset)
@@ -143,10 +137,10 @@ mouse:
 
 validation:
   enabled: true
-  dataset_path: "data_mouse_synthetic_normalized/data_val.txt"
-  output_dir: "experiments/validation/mouse_gslrm_normalized_synthetic"
+  dataset_path: "data_mouse_local/data_mouse_val.txt"
+  output_dir: "experiments/validation/mouse_gslrm_real"
   val_every: 200
 
 inference:
   enabled: false
-  output_dir: "experiments/inference/mouse_gslrm_normalized_synthetic"
+  output_dir: "experiments/inference/mouse_gslrm_real"

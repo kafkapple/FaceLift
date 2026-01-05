@@ -1,12 +1,16 @@
 # =============================================================================
-# Mouse MVDiffusion Configuration
+# Mouse MVDiffusion Configuration - FULL (gpu05 A6000 48GB)
 # Multi-view diffusion for mouse 1-view to 6-view generation
+# =============================================================================
+# Original paper settings with mouse data
+# Requires: ~24GB VRAM (A6000, A100, etc.)
 # =============================================================================
 
 # Basic model configuration
 n_views: 6
 img_wh: 512
-reference_view_idx: 0  # Which view to use as input (cam_000)
+# Reference view: "random" enables 6x data augmentation by rotating views
+reference_view_idx: "random"  # Random view as input → 6x augmentation effect
 dataset_type: 'mouse'  # Use MouseMVDiffusionDataset
 
 # Model paths
@@ -16,14 +20,15 @@ pretrained_model_name_or_path: 'checkpoints/mvdiffusion/pipeckpts'  # FaceLift p
 pretrained_unet_path: null  # UNet already in pipeckpts
 revision: null
 
-# Prompt embeddings path (direction-based, can reuse from FaceLift)
+# Prompt embeddings path (use FaceLift original - 1024 dim required)
+# NOTE: mouse_prompt_embeds is 768 dim (incompatible with FaceLift model)
 prompt_embed_path: "mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt"
 
 # =============================================================================
 # Dataset Configuration
 # =============================================================================
 train_dataset:
-  path: data_mouse/data_mouse_train.txt
+  path: data_mouse_local/data_mouse_train.txt
   bg_color: 'three_choices'
   augmentation: true
   aug_brightness: [0.9, 1.1]
@@ -31,15 +36,15 @@ train_dataset:
   aug_hflip: false  # Disabled - would require camera pose adjustment
 
 validation_dataset:
-  path: data_mouse/data_mouse_val.txt
+  path: data_mouse_local/data_mouse_val.txt
   bg_color: 'white'
 
 # =============================================================================
 # Output Directories
 # =============================================================================
 checkpoint_prefix: ''
-output_dir: 'checkpoints/mvdiffusion/mouse'
-val_out_dir: 'checkpoints/mvdiffusion/mouse/val/'
+output_dir: 'checkpoints/mvdiffusion/mouse_local'
+val_out_dir: 'checkpoints/mvdiffusion/mouse_local/val/'
 
 # =============================================================================
 # Training Parameters
