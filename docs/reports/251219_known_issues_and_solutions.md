@@ -12,6 +12,8 @@ generator_tool: claude-code
 
 > **Living Document**: 프로젝트 진행 중 발생한 모든 이슈와 해결책을 기록합니다.
 > 새로운 이슈 발생 시 반드시 이 문서에 추가하세요.
+>
+> 📌 **전체 연구 흐름**: [[000_MoC_Mouse_FaceLift]] 참조
 
 ---
 
@@ -21,10 +23,13 @@ generator_tool: claude-code
 |---------|------|------|--------|
 | 🔴 P0 | 카메라 거리 불일치 (2.0~3.4 vs 2.7 고정) | ✅ 해결됨 | Critical |
 | 🔴 P0 | 이미지-카메라 정보 불일치 (합성 데이터) | ✅ 해결됨 | Critical |
+| 🔴 P0 | 뷰 순서 랜덤화 → 흐릿한 출력 | ✅ 해결됨 | Critical |
 | 🟠 P1 | num_input_views 설정 오류 | ✅ 해결됨 | High |
 | 🟠 P1 | Perceptual Loss 도메인 불일치 | ✅ 해결됨 | High |
+| 🟠 P1 | Masked SSIM 음수 loss | ✅ 해결됨 | High |
 | 🟡 P2 | 이미지 중앙 정렬 누락 | ✅ 해결됨 | Medium |
 | 🟡 P2 | Z-up vs Y-up 좌표계 혼동 | ⚠️ 모니터링 | Medium |
+| 🟡 P2 | 이미지 Clipping (CoM 무시) | ✅ 분석완료 | Medium |
 | 🟢 P3 | 데이터 수 부족 (51개 → 2000개) | ✅ 해결 중 | Low |
 
 ---
