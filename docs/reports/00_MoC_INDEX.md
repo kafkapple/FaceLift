@@ -142,3 +142,30 @@ tail -f train_log.txt
 ---
 
 *🤖 Generated with Claude Code*
+
+---
+
+## 📅 2026-01-05 추가 보고서
+
+| 파일 | 내용 |
+|------|------|
+| [260105_view_order_and_mask_features.md](./260105_view_order_and_mask_features.md) | ⭐ **핵심** - 뷰 순서 문제, Mask Loss 분석 |
+| [260105_modularization_analysis.md](./260105_modularization_analysis.md) | 코드 모듈화 분석 및 개선 제안 |
+
+### 핵심 발견: use_mouse_dataset의 의미
+
+```yaml
+mouse:
+  use_mouse_dataset: true   # MouseViewDataset 사용 (고정 뷰 순서)
+  use_mouse_dataset: false  # RandomViewDataset 사용 (랜덤 뷰 샘플링)
+```
+
+**RandomViewDataset (FaceLift 원본)**:
+- 매 step 뷰 순서 랜덤 샘플링
+- Human 데이터: 균등 배치라서 영향 적음
+- **Mouse 데이터: 불균등 배치라서 흐릿한 출력 발생!**
+
+**MouseViewDataset (Mouse 전용)**:
+- 고정된 뷰 순서 [0,1,2,3,4,5]
+- 카메라 정규화 포함
+- **Mouse 데이터에 필수!**
