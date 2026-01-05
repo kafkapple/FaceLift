@@ -815,7 +815,7 @@ def render_opencv_cam(
     shs = pc.get_features
 
     # Rasterize visible Gaussians to image, obtain their radii (on screen).
-    rendered_image, radii = rasterizer(
+    result = rasterizer(
         means3D=means3D,
         means2D=means2D,
         shs=shs,
@@ -825,6 +825,11 @@ def render_opencv_cam(
         rotations=rotations,
         cov3D_precomp=None,
     )
+    # Handle different rasterizer versions (2 or 3 return values)
+    if len(result) == 2:
+        rendered_image, radii = result
+    else:
+        rendered_image, radii = result[0], result[1]
 
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.

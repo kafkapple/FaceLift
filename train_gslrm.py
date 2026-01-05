@@ -108,16 +108,26 @@ class GSLRMTrainer:
         
     def load_datasets(self):
         """Load training and validation datasets."""
-        from gslrm.data.dataset import RandomViewDataset
-        
-        # Create training dataset
-        self.dataset = RandomViewDataset(self.config, split="train")
-        
-        # Create validation dataset if enabled
-        if self.config.validation.enabled:
-            self.val_dataset = RandomViewDataset(self.config, split="val")
+        # Use MouseViewDataset for mouse data (has camera normalization)
+        # Use RandomViewDataset for original FaceLift data
+        use_mouse_dataset = self.config.get("mouse", {}).get("normalize_cameras", False)
+
+        if use_mouse_dataset:
+            from gslrm.data.mouse_dataset import MouseViewDataset
+            print("Using MouseViewDataset with camera normalization")
+            self.dataset = MouseViewDataset(self.config, split="train")
+            if self.config.validation.enabled:
+                self.val_dataset = MouseViewDataset(self.config, split="val")
+            else:
+                self.val_dataset = None
         else:
-            self.val_dataset = None
+            from gslrm.data.dataset import RandomViewDataset
+            print("Using RandomViewDataset (original FaceLift)")
+            self.dataset = RandomViewDataset(self.config, split="train")
+            if self.config.validation.enabled:
+                self.val_dataset = RandomViewDataset(self.config, split="val")
+            else:
+                self.val_dataset = None
             
         self._log_dataset_examples()
         self._setup_dataloaders()
@@ -711,7 +721,8 @@ class GSLRMTrainer:
 
         # Get camera normalization status
         normalize_cameras = self.config.get("mouse", {}).get("normalize_cameras", False)
-        norm_status = "Y-up normalized" if normalize_cameras else "Original coords"
+        normalize_to_z_up = self.config.get("mouse", {}).get("normalize_to_z_up", True)
+        norm_status = ("Z-up" if normalize_to_z_up else "Y-up") + " normalized" if normalize_cameras else "Original coords"
 
         # Get view configuration
         num_views = self.config.training.dataset.get("num_views", 6)
@@ -773,7 +784,7 @@ class GSLRMTrainer:
                 uid_dir = os.path.basename(os.path.dirname(f))
                 caption = (
                     f"Step {self.fwdbwd_pass_step} | UID: {uid_dir}\n"
-                    f"Top: GT | Bottom: Pred | Views: {num_views}\n"
+                    f"Per pair: Left=GT, Right=Pred | Rows=Samples | Views: {num_views}\n"
                     f"Camera: {norm_status}"
                 )
                 wandb_images[f"{prefix}/gt_vs_pred_{i}"] = wandb.Image(img, caption=caption)

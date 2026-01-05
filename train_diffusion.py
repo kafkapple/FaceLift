@@ -142,6 +142,7 @@ class TrainingConfig:
     wandb_exp_name: str
     wandb_group: str
     wandb_job_type: str
+    wandb_run_id: Optional[str] = None  # For resuming wandb run
 
     # Mouse-specific dataset options (optional, with defaults)
     dataset_type: Optional[str] = None  # 'mouse' or None for default
@@ -963,14 +964,22 @@ def main(cfg: TrainingConfig):
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
     num_train_epochs = math.ceil(cfg.max_train_steps / num_update_steps_per_epoch)
 
-    # Initialize trackers
+    # Initialize trackers with resume support
     if accelerator.is_main_process:
         tracker_config = {}
-        accelerator.init_trackers(project_name=cfg.tracker_project_name, config=tracker_config, \
-            init_kwargs={"wandb": {
-                "name": cfg.wandb_exp_name, 
-                "job_type": cfg.wandb_job_type,
-                "group": cfg.wandb_group}})
+        wandb_init_kwargs = {
+            "name": cfg.wandb_exp_name, 
+            "job_type": cfg.wandb_job_type,
+            "group": cfg.wandb_group
+        }
+        # Add resume support if wandb_run_id is specified
+        if cfg.wandb_run_id:
+            wandb_init_kwargs["id"] = cfg.wandb_run_id
+            wandb_init_kwargs["resume"] = "must"
+            logger.info(f"Resuming wandb run: {cfg.wandb_run_id}")
+        accelerator.init_trackers(project_name=cfg.tracker_project_name, config=tracker_config,
+            init_kwargs={"wandb": wandb_init_kwargs})
+
 
     # Set up training
     total_batch_size = cfg.train_batch_size * accelerator.num_processes * cfg.gradient_accumulation_steps

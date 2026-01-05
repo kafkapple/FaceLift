@@ -47,6 +47,39 @@ def pil_to_np(pil_image):
     return image
 
 
+def normalize_camera_distance(c2w_matrices: np.ndarray, target_distance: float = 2.7) -> np.ndarray:
+    """
+    Normalize camera distances to a fixed radius from origin.
+
+    This ensures all cameras are at the same distance as FaceLift pretrained model expects.
+    The pretrained GS-LRM was trained with cameras at radius=2.7.
+
+    Args:
+        c2w_matrices: Camera-to-world matrices [N, 4, 4]
+        target_distance: Target distance from origin (FaceLift default: 2.7)
+
+    Returns:
+        Normalized c2w matrices [N, 4, 4] with uniform camera distance
+    """
+    normalized_c2ws = []
+
+    for c2w in c2w_matrices:
+        c2w_new = c2w.copy()
+
+        # Get current camera position
+        cam_pos = c2w[:3, 3]
+        current_distance = np.linalg.norm(cam_pos)
+
+        if current_distance > 1e-6:
+            # Scale position to target distance
+            scale = target_distance / current_distance
+            c2w_new[:3, 3] = cam_pos * scale
+
+        normalized_c2ws.append(c2w_new)
+
+    return np.stack(normalized_c2ws, axis=0)
+
+
 def normalize_cameras_to_y_up(c2w_matrices: np.ndarray, up_direction: np.ndarray = None) -> np.ndarray:
     """
     Normalize camera poses so that the up direction aligns with Y-axis.
@@ -86,9 +119,93 @@ def normalize_cameras_to_y_up(c2w_matrices: np.ndarray, up_direction: np.ndarray
             up_direction = -up_direction
 
     up_direction = up_direction / np.linalg.norm(up_direction)
-    target_up = np.array([0.0, 1.0, 0.0])  # Y-up
+    target_up = np.array([0.0, 1.0, 0.0])  # Y-up (kept for backward compatibility)
 
     # Compute rotation from current up to Y-up
+    rotation_axis = np.cross(up_direction, target_up)
+    axis_norm = np.linalg.norm(rotation_axis)
+
+    if axis_norm < 1e-6:
+        # Already aligned (or opposite)
+        if np.dot(up_direction, target_up) < 0:
+            # 180 degree rotation around X
+            R_align = np.array([
+                [1, 0, 0],
+                [0, -1, 0],
+                [0, 0, -1]
+            ], dtype=np.float32)
+        else:
+            R_align = np.eye(3, dtype=np.float32)
+    else:
+        rotation_axis = rotation_axis / axis_norm
+        cos_angle = np.clip(np.dot(up_direction, target_up), -1.0, 1.0)
+        angle = np.arccos(cos_angle)
+
+        # Rodrigues' rotation formula
+        K = np.array([
+            [0, -rotation_axis[2], rotation_axis[1]],
+            [rotation_axis[2], 0, -rotation_axis[0]],
+            [-rotation_axis[1], rotation_axis[0], 0]
+        ])
+        R_align = np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * (K @ K)
+        R_align = R_align.astype(np.float32)
+
+    # Apply rotation to all cameras
+    normalized_c2ws = []
+    for c2w in c2w_matrices:
+        c2w_new = np.eye(4, dtype=np.float32)
+        c2w_new[:3, :3] = R_align @ c2w[:3, :3]
+        c2w_new[:3, 3] = R_align @ c2w[:3, 3]
+        normalized_c2ws.append(c2w_new)
+
+    return np.stack(normalized_c2ws, axis=0)
+
+
+def normalize_cameras_to_z_up(c2w_matrices: np.ndarray, up_direction: np.ndarray = None) -> np.ndarray:
+    """
+    Normalize camera poses so that the up direction aligns with Z-axis.
+
+    IMPORTANT: Analysis of human data samples (data_sample/gslrm/sample_000) shows that
+    GS-LRM pretrained model uses Z-up coordinate system, NOT Y-up!
+    - Human data Up Vector: [0, 0, 1] (Z-up)
+    - Orbit plane normal: [0, 0, 1] (XY plane orbit)
+
+    This function should be used instead of normalize_cameras_to_y_up() for
+    compatibility with the pretrained GS-LRM model.
+
+    Args:
+        c2w_matrices: Camera-to-world matrices [N, 4, 4]
+        up_direction: Actual "up" direction in world coordinates. If None, estimate from cameras.
+
+    Returns:
+        Normalized c2w matrices [N, 4, 4] with Z-up alignment
+    """
+    if up_direction is None:
+        # Estimate up direction from camera positions (orbit axis = plane normal)
+        positions = np.array([c2w[:3, 3] for c2w in c2w_matrices])
+        center = np.mean(positions, axis=0)
+        centered = positions - center
+
+        if len(c2w_matrices) >= 3:
+            # Use PCA to find orbit plane normal
+            cov = centered.T @ centered
+            eigenvalues, eigenvectors = np.linalg.eig(cov)
+            min_idx = np.argmin(eigenvalues.real)
+            up_direction = eigenvectors[:, min_idx].real
+        else:
+            # Fallback to camera up vectors average
+            avg_cam_up = np.mean([-c2w[:3, 1] for c2w in c2w_matrices], axis=0)
+            up_direction = avg_cam_up / np.linalg.norm(avg_cam_up)
+
+        # Ensure up direction points "up" (positive Z component for Z-up)
+        avg_cam_up = np.mean([-c2w[:3, 1] for c2w in c2w_matrices], axis=0)
+        if np.dot(up_direction, avg_cam_up) < 0:
+            up_direction = -up_direction
+
+    up_direction = up_direction / np.linalg.norm(up_direction)
+    target_up = np.array([0.0, 0.0, 1.0])  # Z-up (matches human data!)
+
+    # Compute rotation from current up to Z-up
     rotation_axis = np.cross(up_direction, target_up)
     axis_norm = np.linalg.norm(rotation_axis)
 
@@ -209,9 +326,17 @@ class MouseViewDataset(Dataset):
         self.brightness_range = aug_config.get("brightness_range", [1.0, 1.0])
         self.contrast_range = aug_config.get("contrast_range", [1.0, 1.0])
 
+        # Camera normalization settings
+        self.normalize_cameras = mouse_config.get("normalize_cameras", True)
+        self.target_camera_distance = mouse_config.get("target_camera_distance", 2.7)
+        # Z-up vs Y-up: Human data uses Z-up, so default to Z-up for compatibility
+        self.normalize_to_z_up = mouse_config.get("normalize_to_z_up", True)
+
         print(f"[MouseViewDataset] Split: {split}, Samples: {len(self.all_data_paths)}")
         print(f"[MouseViewDataset] Views: {self.num_views}, Input views: {self.num_input_views}")
         print(f"[MouseViewDataset] Augmentation: {self.use_augmentation}")
+        up_mode = "Z-up" if self.normalize_to_z_up else "Y-up"
+        print(f"[MouseViewDataset] Camera normalization: {up_mode}={self.normalize_cameras}, distance={self.target_camera_distance}")
 
     def __len__(self):
         """Return the number of samples in the dataset."""
@@ -312,12 +437,10 @@ class MouseViewDataset(Dataset):
         """
         all_indices = list(range(min(total_views, self.num_views)))
 
-        if self.split == "train":
-            # Random input view for training diversity
-            input_indices = random.sample(all_indices, self.num_input_views)
-        else:
-            # Fixed input view for reproducible validation
-            input_indices = list(range(self.num_input_views))
+        # Fixed view ordering for both training and validation
+        # This ensures consistent camera-to-index mapping
+        # Randomness comes from different samples, not view shuffling
+        input_indices = list(range(self.num_input_views))
 
         if self.target_has_input:
             target_indices = all_indices
@@ -438,9 +561,10 @@ class MouseViewDataset(Dataset):
             input_fxfycxcy = np.array(input_fxfycxcy)
             input_c2ws = np.array(input_c2ws)
 
-            # Normalize cameras to Y-up coordinate system
-            # This is crucial because GS-LRM pretrained model assumes Y-up
-            if self.config.get("mouse", {}).get("normalize_cameras", True):
+            # Normalize cameras to Z-up or Y-up coordinate system
+            # IMPORTANT: Analysis shows GS-LRM pretrained model uses Z-up (not Y-up!)
+            # Human data: Up Vector = [0, 0, 1], Orbit plane = XY plane
+            if self.normalize_cameras:
                 # Try to load up_direction from data directory
                 up_direction = None
                 vertical_lines_path = os.path.join(data_path, "..", "vertical_lines.npz")
@@ -453,7 +577,16 @@ class MouseViewDataset(Dataset):
                     except Exception:
                         pass
 
-                input_c2ws = normalize_cameras_to_y_up(input_c2ws, up_direction)
+                # Use Z-up (default) or Y-up based on config
+                if self.normalize_to_z_up:
+                    input_c2ws = normalize_cameras_to_z_up(input_c2ws, up_direction)
+                else:
+                    input_c2ws = normalize_cameras_to_y_up(input_c2ws, up_direction)
+
+            # Normalize camera distances to fixed radius
+            # FaceLift pretrained model expects cameras at distance ~2.7
+            if self.target_camera_distance > 0:
+                input_c2ws = normalize_camera_distance(input_c2ws, self.target_camera_distance)
 
         except Exception as e:
             traceback.print_exc()
@@ -591,9 +724,9 @@ class MouseSingleViewDataset(Dataset):
 
         c2w = np.linalg.inv(np.array(camera["w2c"]))
 
-        # Normalize camera to Y-up (single camera case)
+        # Normalize camera to Z-up (matches human data / GS-LRM pretrained)
         c2w_array = np.array([c2w])
-        c2w_normalized = normalize_cameras_to_y_up(c2w_array, up_direction=None)
+        c2w_normalized = normalize_cameras_to_z_up(c2w_array, up_direction=None)
         c2w = c2w_normalized[0]
 
         # Convert to tensors
