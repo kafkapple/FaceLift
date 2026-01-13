@@ -1,17 +1,19 @@
-# Mouse GS-LRM v23: V11 PP-Centered Dataset
+# ============================================================================
+# Mouse GS-LRM: Recommended Configuration
 #
-# v21 기반 + V11 PP-Centered 데이터셋 사용
-# 핵심 변경: cx=cy=256 정확+일관 (기하학적으로 올바른 PP centering)
+# 기반: v23 (V11 PP-Centered Dataset)
+# 특징: cx=cy=256 정확+일관, Ray direction 기하학적으로 정확
 #
-# V11 특징:
-# - Principal Point centered (object는 중앙 아님)
-# - cx=cy=256 정확히 일관됨
-# - Ray direction 기하학적으로 정확
-#
-# 예상 샘플: ~2250개 (interval 8)
+# 사용법:
+#   python train_gslrm.py --config configs/mouse/gslrm_recommended.yaml
+# ============================================================================
 
 profile: false
 debug: false
+
+# ============================================================================
+# Model (원본 FaceLift와 동일)
+# ============================================================================
 model:
   class_name: gslrm.model.gslrm.GSLRM
   image_tokenizer:
@@ -32,6 +34,9 @@ model:
   use_custom_plucker: true
   clip_xyz: true
 
+# ============================================================================
+# Training
+# ============================================================================
 training:
   runtime:
     use_tf32: true
@@ -41,8 +46,10 @@ training:
     grad_accum_steps: 2
     grad_clip_norm: 50.0
     grad_checkpoint_every: 1
+
+  # Dataset: 경로를 실제 데이터 위치로 수정하세요
   dataset:
-    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_v11_full/data_mouse_train.txt
+    dataset_path: data_mouse_train.txt  # TODO: 실제 경로로 수정
     maximize_view_overlap: false
     num_views: 6
     num_input_views: 5
@@ -50,11 +57,13 @@ training:
     normalize_distance_to: 0.0
     remove_alpha: false
     background_color: white
+
   dataloader:
     batch_size_per_gpu: 2
     num_workers: 8
     num_threads: 16
     prefetch_factor: 8
+
   losses:
     l2_loss_weight: 1.0
     lpips_loss_weight: 0.0
@@ -69,6 +78,7 @@ training:
     warmup_pointsdist: false
     distill_loss_weight: 0.0
     clamp_rendering: true
+
   optimizer:
     lr: 1.0e-06
     beta1: 0.9
@@ -77,30 +87,34 @@ training:
     reset_lr: true
     reset_weight_decay: false
     reset_training_state: true
+
   schedule:
     num_epochs: 50000
     early_stop_after_epochs: 50000
     max_fwdbwd_passes: 10000
     warmup: 500
     l2_warmup_steps: 500
+
   checkpointing:
-    checkpoint_dir: checkpoints/gslrm/mouse_v23_v11_pp_centered
+    checkpoint_dir: checkpoints/mouse_gslrm
     checkpoint_every: 100
     resume_ckpt: checkpoints/gslrm/ckpt_0000000000021125.pt
+
   logging:
     print_every: 10
     vis_every: 100
     wandb:
       project: mouse_facelift
       group: gslrm
-      job_type: finetune_v23
-      exp_name: mouse_gslrm_v23_v11_pp_centered
+      job_type: finetune
+      exp_name: mouse_gslrm_recommended
       log_every: 10
       offline: false
 
+# ============================================================================
+# Mouse-Specific Settings
+# ============================================================================
 mouse:
-  augmentation:
-    enabled: false
   use_mouse_dataset: true
   random_view_selection: true
   normalize_cameras: false
@@ -108,13 +122,21 @@ mouse:
   normalize_to_z_up: true
   auto_generate_mask: false
   mask_threshold: 250
+  augmentation:
+    enabled: false
 
+# ============================================================================
+# Validation
+# ============================================================================
 validation:
   enabled: true
-  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_v11_full/data_mouse_val.txt
-  output_dir: experiments/validation/mouse_gslrm_v23_v11_pp_centered
+  dataset_path: data_mouse_val.txt  # TODO: 실제 경로로 수정
+  output_dir: experiments/validation/mouse_gslrm
   val_every: 200
 
+# ============================================================================
+# Inference
+# ============================================================================
 inference:
   enabled: false
-  output_dir: experiments/inference/mouse_gslrm_v23_v11_pp_centered
+  output_dir: experiments/inference/mouse_gslrm
