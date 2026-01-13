@@ -343,7 +343,7 @@ class LossComputer(nn.Module):
         losses['lpips'] = self._compute_lpips_loss(rendering, target)
 
         # Perceptual loss
-        losses['perceptual'] = self._compute_perceptual_loss(rendering, target)
+        losses['perceptual'] = self._compute_perceptual_loss(rendering, target, mask)
 
         # SSIM loss - optionally masked
         losses['ssim'] = self._compute_ssim_loss(rendering, target, mask)
@@ -371,6 +371,12 @@ class LossComputer(nn.Module):
 
         # Mask IoU computation (GT mask vs Predicted mask from rendering)
         losses['mask_iou'] = self._compute_mask_iou(rendering, target, mask)
+        # Mask coverage: percentage of foreground pixels
+        if mask is not None:
+            mask_binary = (mask > 0.5).float()
+            losses['mask_coverage'] = mask_binary.mean()
+        else:
+            losses['mask_coverage'] = torch.tensor(1.0, device=rendering.device)
 
         return losses
 
@@ -480,9 +486,22 @@ class LossComputer(nn.Module):
             ).mean()
         return torch.tensor(0.0, device=rendering.device)
     
-    def _compute_perceptual_loss(self, rendering, target):
-        """Compute custom perceptual loss."""
+    def _compute_perceptual_loss(self, rendering, target, mask=None):
+        """
+        Compute perceptual loss with optional masking.
+        
+        If masked_perceptual_loss is enabled and mask is provided,
+        background pixels are set to neutral gray (0.5) before VGG feature extraction.
+        This reduces the influence of background on perceptual similarity.
+        """
         if self.config.training.losses.perceptual_loss_weight > 0.0:
+            use_mask = self.config.training.losses.get("masked_perceptual_loss", False)
+            if use_mask and mask is not None:
+                # Apply mask: set background to neutral gray (0.5)
+                mask_binary = (mask > 0.5).float()
+                neutral_value = 0.5
+                rendering = rendering * mask_binary + neutral_value * (1 - mask_binary)
+                target = target * mask_binary + neutral_value * (1 - mask_binary)
             return self.perceptual_loss_module(rendering, target)
         return torch.tensor(0.0, device=rendering.device)
     
@@ -594,26 +613,38 @@ class LossComputer(nn.Module):
         if mask is not None:
             mask_bv = rearrange(mask, "(b v) c h w -> b v c h w", v=v)
 
-            # Create mask overlay visualization
+            # Create GT mask overlay visualization
             # Green tint on foreground (mask=1), Red tint on background (mask=0)
-            mask_rgb = mask_bv.expand(-1, -1, 3, -1, -1)  # [b, v, 3, h, w]
+            gt_mask_rgb = mask_bv.expand(-1, -1, 3, -1, -1)  # [b, v, 3, h, w]
             fg_color = torch.tensor([0.2, 0.8, 0.2], device=mask.device).view(1, 1, 3, 1, 1)
             bg_color = torch.tensor([0.8, 0.2, 0.2], device=mask.device).view(1, 1, 3, 1, 1)
 
-            mask_overlay = mask_rgb * fg_color + (1 - mask_rgb) * bg_color
+            gt_mask_overlay = gt_mask_rgb * fg_color + (1 - gt_mask_rgb) * bg_color
 
-            # Blend GT with mask overlay: 70% image + 30% mask color
-            masked_target = target_bv * 0.7 + mask_overlay * 0.3
+            # Blend GT with GT mask overlay: 70% image + 30% mask color
+            masked_target = target_bv * 0.7 + gt_mask_overlay * 0.3
 
-            # Blend Rendered with mask overlay: 70% image + 30% mask color
-            masked_rendering = rendering_bv * 0.7 + mask_overlay * 0.3
+            # Compute pred mask from rendered image (removebg style)
+            color_distance = (rendering_bv - 1.0).abs().mean(dim=2, keepdim=True)  # [b, v, 1, h, w]
+            pred_mask = (color_distance > 0.1).float()
+            pred_mask_rgb = pred_mask.expand(-1, -1, 3, -1, -1)
+            pred_mask_overlay = pred_mask_rgb * fg_color + (1 - pred_mask_rgb) * bg_color
+
+            # Blend Rendered with pred mask overlay: 70% image + 30% mask color
+            masked_rendering = rendering_bv * 0.7 + pred_mask_overlay * 0.3
 
             # Create error map (L1 difference)
             error = error_raw
 
-            # Apply mask to error (only show foreground errors)
-            mask_binary = (mask_bv > 0.5).float()
-            masked_error = error * mask_binary
+            # Apply union mask to error (show errors in GT OR Pred foreground)
+            gt_mask_binary = (mask_bv > 0.5).float()
+            # Compute pred mask from rendered (removebg style)
+            pred_color_dist = (rendering_bv - 1.0).abs().mean(dim=2, keepdim=True)
+            pred_mask_binary = (pred_color_dist > 0.1).float()
+            # Union: show error where GT OR Pred has foreground
+            union_mask = ((gt_mask_binary + pred_mask_binary) > 0.5).float()
+            masked_error = error * union_mask
+            mask_binary = union_mask  # for gray background
 
             # Foreground error stats
             fg_mask_flat = mask_binary.view(-1)
@@ -809,6 +840,7 @@ class LossComputer(nn.Module):
             pointsdist_loss=losses['pointsdist'],
             background_loss=losses['background'],
             mask_iou=losses['mask_iou'],
+            mask_coverage=losses['mask_coverage'],
             visual=visual,
             # Normalized losses for logging
             norm_perceptual_loss=losses['perceptual'] / l2_safe,
@@ -1687,15 +1719,22 @@ class GSLRM(nn.Module):
                 gt_rgb = gt_images[:, :3, :, :]  # [V, 3, H, W]
                 gt_mask = gt_images[:, 3:4, :, :]  # [V, 1, H, W]
 
-                # Create mask overlay on GT (green=foreground, red=background)
-                mask_rgb = gt_mask.expand(-1, 3, -1, -1)
+                # Create GT mask overlay (green=foreground, red=background)
+                gt_mask_rgb = gt_mask.expand(-1, 3, -1, -1)
                 fg_color = torch.tensor([0.2, 0.8, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
                 bg_color = torch.tensor([0.8, 0.2, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
-                mask_overlay = mask_rgb * fg_color + (1 - mask_rgb) * bg_color
-                gt_with_mask = gt_rgb * 0.7 + mask_overlay * 0.3
+                gt_mask_overlay = gt_mask_rgb * fg_color + (1 - gt_mask_rgb) * bg_color
+                gt_with_mask = gt_rgb * 0.7 + gt_mask_overlay * 0.3
+                
+                # Compute pred mask from rendered (removebg style)
+                color_distance = (rendered_images - 1.0).abs().mean(dim=1, keepdim=True)
+                pred_mask = (color_distance > 0.1).float()
+                pred_mask_rgb = pred_mask.expand(-1, 3, -1, -1)
+                pred_mask_overlay = pred_mask_rgb * fg_color + (1 - pred_mask_rgb) * bg_color
+                rendered_with_mask = rendered_images * 0.7 + pred_mask_overlay * 0.3
 
                 # Stack: GT | Rendered | GT+Mask
-                comparison_image = torch.stack((gt_rgb, rendered_images, gt_with_mask), dim=0)
+                comparison_image = torch.stack((gt_rgb, rendered_images, gt_with_mask, rendered_with_mask), dim=0)
             else:
                 gt_rgb = gt_images[:, :3, :, :]
                 comparison_image = torch.stack((gt_rgb, rendered_images), dim=0)
@@ -1818,31 +1857,32 @@ class GSLRM(nn.Module):
             item_uid = input_data.index[batch_idx, 0, -1].item()
             should_save_visuals = (batch_idx == 0) and save_visualizations
             
-            # Compute metrics (RGB only)
-            target_image = target_data.image[batch_idx][:, :3, ...]
-            per_view_psnr = compute_psnr(target_image, model_results.render[batch_idx])
-            per_view_lpips = compute_lpips(target_image, model_results.render[batch_idx])
-            per_view_ssim = compute_ssim(target_image, model_results.render[batch_idx])
+            # Extract RGB and mask from target
+            full_target = target_data.image[batch_idx]
+            target_image = full_target[:, :3, ...]
+            rendered = model_results.render[batch_idx]
+            
+            # Get mask if available (RGBA format)
+            if full_target.size(1) == 4:
+                gt_mask = full_target[:, 3:4, :, :]
+            else:
+                gt_mask = None
+            
+            # Compute metrics with mask for consistency with training
+            # All metrics are computed on foreground pixels only when mask is available
+            per_view_psnr = compute_psnr(target_image, rendered, mask=gt_mask)
+            per_view_lpips = compute_lpips(target_image, rendered, mask=gt_mask)
+            per_view_ssim = compute_ssim(target_image, rendered, mask=gt_mask)
             
             avg_psnr = per_view_psnr.mean().item()
             avg_lpips = per_view_lpips.mean().item()
             avg_ssim = per_view_ssim.mean().item()
 
-            # Compute mask IoU if target has alpha channel
-            full_target = target_data.image[batch_idx]
-            if full_target.size(1) == 4:
-                gt_mask = full_target[:, 3:4, :, :]
-                rendered = model_results.render[batch_idx]
-
-                # Compute predicted mask from rendered images
-                bg_threshold = 0.1
-                color_distance = (rendered - 1.0).abs().mean(dim=1, keepdim=True)
-                pred_mask = (color_distance > bg_threshold).float()
-                gt_mask_binary = (gt_mask > 0.5).float()
-
-                intersection = (pred_mask * gt_mask_binary).sum()
-                union = ((pred_mask + gt_mask_binary) > 0.5).float().sum()
-                mask_iou = (intersection / union.clamp(min=1.0)).item()
+            # Compute mask IoU
+            if gt_mask is not None:
+                from .utils_metrics import compute_mask_iou
+                per_view_iou = compute_mask_iou(rendered, gt_mask, bg_threshold=0.1)
+                mask_iou = per_view_iou.mean().item()
             else:
                 mask_iou = 0.0
 
@@ -1850,6 +1890,12 @@ class GSLRM(nn.Module):
             validation_metrics["lpips"].append(avg_lpips)
             validation_metrics["ssim"].append(avg_ssim)
             validation_metrics["mask_iou"].append(mask_iou)
+            
+            # Collect per-view metrics for first batch (for wandb logging)
+            if batch_idx == 0:
+                validation_metrics["per_view_psnr"] = per_view_psnr.cpu().tolist()
+                validation_metrics["per_view_lpips"] = per_view_lpips.cpu().tolist()
+                validation_metrics["per_view_ssim"] = per_view_ssim.cpu().tolist()
             
             # Save visualizations only for first item if requested
             if should_save_visuals:
@@ -1885,18 +1931,32 @@ class GSLRM(nn.Module):
                     # Has mask - create GT + Rendered + GT with mask overlay + Error heatmap
                     gt_mask = full_target[:, 3:4, :, :]
 
-                    # Create mask overlay (green=foreground, red=background)
+                    # Create GT mask overlay (green=foreground, red=background)
                     fg_color = torch.tensor([0.2, 0.8, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
                     bg_color = torch.tensor([0.8, 0.2, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
-                    mask_rgb = gt_mask.expand(-1, 3, -1, -1)
-                    mask_overlay = mask_rgb * fg_color + (1 - mask_rgb) * bg_color
-                    gt_with_mask = gt_rgb * 0.7 + mask_overlay * 0.3
+                    gt_mask_rgb = gt_mask.expand(-1, 3, -1, -1)
+                    gt_mask_overlay = gt_mask_rgb * fg_color + (1 - gt_mask_rgb) * bg_color
+                    gt_with_mask = gt_rgb * 0.7 + gt_mask_overlay * 0.3
+                    
+                    # Compute pred mask from rendered image (removebg style)
+                    # Pixels far from white (1.0) are foreground
+                    color_distance = (rendered - 1.0).abs().mean(dim=1, keepdim=True)
+                    pred_mask = (color_distance > 0.1).float()  # threshold 0.1
+                    pred_mask_rgb = pred_mask.expand(-1, 3, -1, -1)
+                    pred_mask_overlay = pred_mask_rgb * fg_color + (1 - pred_mask_rgb) * bg_color
+                    rendered_with_mask = rendered * 0.7 + pred_mask_overlay * 0.3
 
-                    # Compute foreground error stats
-                    mask_binary = (gt_mask > 0.5).float()
-                    fg_mask_flat = mask_binary.view(-1)
+                    # Compute union mask (GT OR Pred foreground)
+                    gt_mask_binary = (gt_mask > 0.5).float()
+                    pred_color_dist = (rendered - 1.0).abs().mean(dim=1, keepdim=True)
+                    pred_mask_binary = (pred_color_dist > 0.1).float()
+                    union_mask = ((gt_mask_binary + pred_mask_binary) > 0.5).float()
+                    mask_binary = union_mask  # for error heatmap
+                    
+                    # Compute foreground error stats (using GT mask for consistency)
+                    gt_mask_binary_flat = gt_mask_binary.view(-1)
                     error_flat = error_raw.view(-1)
-                    fg_errors = error_flat[fg_mask_flat > 0.5]
+                    fg_errors = error_flat[gt_mask_binary_flat > 0.5]
                     if fg_errors.numel() > 0:
                         error_stats['fg_min'] = fg_errors.min().item()
                         error_stats['fg_max'] = fg_errors.max().item()
@@ -1922,9 +1982,9 @@ class GSLRM(nn.Module):
                     gray = torch.tensor([0.3, 0.3, 0.3], device=gt_mask.device).view(1, 3, 1, 1)
                     error_heatmap = error_heatmap * mask_binary + gray * (1 - mask_binary)
 
-                    # Stack: GT | Rendered | GT+Mask | Error
-                    comparison_image = torch.stack((gt_rgb, rendered, gt_with_mask, error_heatmap), dim=0)
-                    num_rows = 4
+                    # Stack: GT | Rendered | GT+Mask | Rendered+Mask | Error
+                    comparison_image = torch.stack((gt_rgb, rendered, gt_with_mask, rendered_with_mask, error_heatmap), dim=0)
+                    num_rows = 5
                 else:
                     # No mask - GT | Rendered | Error
                     error_stats['fg_min'] = error_stats['min']
@@ -2015,13 +2075,21 @@ class GSLRM(nn.Module):
                 
                 imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=30)
         
-        # Return averaged metrics
-        return {
+        # Return averaged metrics with per-view breakdown
+        result = {
             "psnr": torch.tensor(validation_metrics["psnr"]).mean().item(),
             "lpips": torch.tensor(validation_metrics["lpips"]).mean().item(),
             "ssim": torch.tensor(validation_metrics["ssim"]).mean().item(),
             "mask_iou": torch.tensor(validation_metrics["mask_iou"]).mean().item(),
         }
+        
+        # Add per-view metrics for wandb logging
+        if "per_view_psnr" in validation_metrics and validation_metrics["per_view_psnr"]:
+            result["per_view_psnr"] = validation_metrics["per_view_psnr"]
+            result["per_view_lpips"] = validation_metrics["per_view_lpips"]
+            result["per_view_ssim"] = validation_metrics["per_view_ssim"]
+        
+        return result
     
     @torch.no_grad()
     def save_validations(

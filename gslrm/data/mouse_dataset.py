@@ -80,6 +80,60 @@ def normalize_camera_distance(c2w_matrices: np.ndarray, target_distance: float =
     return np.stack(normalized_c2ws, axis=0)
 
 
+def normalize_camera_distance_with_intrinsics(
+    c2w_matrices: np.ndarray, 
+    fxfycxcy: np.ndarray,
+    target_distance: float = 2.7
+) -> tuple:
+    """
+    Normalize camera distances AND adjust intrinsics accordingly.
+    
+    When camera distance changes, fx/fy must also change proportionally
+    to maintain the same projected image size. This is crucial for 
+    consistent Plucker ray embeddings in GS-LRM.
+    
+    Mathematical basis:
+    - Perspective projection: pixel_x = fx * (X/Z) + cx
+    - If distance doubles, object appears half size in image
+    - To compensate: fx, fy must also double
+    - Formula: new_fx = old_fx * (new_distance / old_distance)
+    
+    Args:
+        c2w_matrices: Camera-to-world matrices [N, 4, 4]
+        fxfycxcy: Intrinsic parameters [N, 4] as [fx, fy, cx, cy]
+        target_distance: Target distance from origin (FaceLift default: 2.7)
+    
+    Returns:
+        Tuple of (normalized_c2ws, adjusted_intrinsics)
+    """
+    normalized_c2ws = []
+    adjusted_intrinsics = []
+    
+    for i, c2w in enumerate(c2w_matrices):
+        c2w_new = c2w.copy()
+        intrinsics_new = fxfycxcy[i].copy()
+        
+        # Get current camera position
+        cam_pos = c2w[:3, 3]
+        current_distance = np.linalg.norm(cam_pos)
+        
+        if current_distance > 1e-6:
+            # Scale factor
+            scale = target_distance / current_distance
+            
+            # Scale camera position
+            c2w_new[:3, 3] = cam_pos * scale
+            
+            # Scale fx, fy proportionally (cx, cy unchanged)
+            intrinsics_new[0] *= scale  # fx
+            intrinsics_new[1] *= scale  # fy
+        
+        normalized_c2ws.append(c2w_new)
+        adjusted_intrinsics.append(intrinsics_new)
+    
+    return np.stack(normalized_c2ws, axis=0), np.stack(adjusted_intrinsics, axis=0)
+
+
 def normalize_cameras_to_y_up(c2w_matrices: np.ndarray, up_direction: np.ndarray = None) -> np.ndarray:
     """
     Normalize camera poses so that the up direction aligns with Y-axis.
@@ -316,6 +370,7 @@ class MouseViewDataset(Dataset):
         self.num_views = dataset_config.get("num_views", 6)
         self.num_input_views = dataset_config.get("num_input_views", 1)
         self.target_has_input = dataset_config.get("target_has_input", True)
+        self.random_view_selection = dataset_config.get("random_view_selection", False)
 
         # Mouse-specific settings
         mouse_config = self.config.get("mouse", {})
@@ -458,7 +513,10 @@ class MouseViewDataset(Dataset):
         # Fixed view ordering for both training and validation
         # This ensures consistent camera-to-index mapping
         # Randomness comes from different samples, not view shuffling
-        input_indices = list(range(self.num_input_views))
+        if getattr(self, 'random_view_selection', False) and getattr(self, 'split', 'train') == "train":
+            input_indices = sorted(random.sample(all_indices, self.num_input_views))
+        else:
+            input_indices = list(range(self.num_input_views))
 
         if self.target_has_input:
             target_indices = all_indices
@@ -615,7 +673,11 @@ class MouseViewDataset(Dataset):
             # Normalize camera distances to fixed radius
             # FaceLift pretrained model expects cameras at distance ~2.7
             if self.target_camera_distance > 0:
-                input_c2ws = normalize_camera_distance(input_c2ws, self.target_camera_distance)
+                # Use the new function that also adjusts fx/fy proportionally
+                # This fixes the "ghost mouse" issue caused by distance/intrinsics mismatch
+                input_c2ws, input_fxfycxcy = normalize_camera_distance_with_intrinsics(
+                    input_c2ws, input_fxfycxcy, self.target_camera_distance
+                )
 
         except Exception as e:
             traceback.print_exc()
@@ -769,3 +831,5 @@ class MouseSingleViewDataset(Dataset):
             "bg_color": get_bg_color(self.bg_color),
             "image_path": image_path
         }
+
+

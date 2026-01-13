@@ -723,18 +723,33 @@ class GSLRMTrainer:
         if (self.fwdbwd_pass_step % self.config.training.logging.wandb.log_every == 0 or
             self.fwdbwd_pass_step < 100 + self.start_fwdbwd_pass_step):
 
-            # Metrics are logged under "metrics/" prefix for clear separation from images
+            # Metrics logged with clear section separation
             log_dict = {
-                "metrics/iter": self.fwdbwd_pass_step,
-                "metrics/fwdbwd_pass_step": self.fwdbwd_pass_step,
-                "metrics/param_update_step": self.param_update_step,
-                "metrics/lr": self.optimizer.param_groups[0]["lr"],
-                "metrics/iter_time": iter_time,
-                "metrics/grad_norm": total_grad_norm,
-                "metrics/epoch": self.fwdbwd_pass_step // self.job_overview.num_fwdbwd_passes_per_epoch,
+                "train_meta/step": self.fwdbwd_pass_step,
+                "train_meta/param_step": self.param_update_step,
+                "train_meta/lr": self.optimizer.param_groups[0]["lr"],
+                "train_meta/iter_time": iter_time,
+                "train_meta/grad_norm": total_grad_norm,
+                "train_meta/epoch": self.fwdbwd_pass_step // self.job_overview.num_fwdbwd_passes_per_epoch,
             }
-            # Loss metrics under "train/" for backward compatibility
-            log_dict.update({"train/" + k: v for k, v in loss_name2value})
+            
+            # Primary metrics: main losses for optimization (always log)
+            primary_losses = ["loss", "l2_loss", "psnr", "mask_iou"]
+            # Secondary losses: may be 0 during warmup, log only when non-zero
+            secondary_losses = ["perceptual_loss", "ssim_loss", "lpips_loss", "background_loss"]
+            # Auxiliary metrics: debugging (skip constants like gt_min=0, gt_max=1)
+            auxiliary_metrics = ["gt_mean", "pred_mean", "mask_coverage", "gaussians_usage"]
+            # Skip these constants: gt_min (always 0), gt_max (always 1), pred_max (always ~1)
+            
+            for k, v in loss_name2value:
+                if k in primary_losses:
+                    log_dict["train/" + k] = v
+                elif k in secondary_losses and v != 0:
+                    log_dict["train/" + k] = v
+                elif k in auxiliary_metrics:
+                    log_dict["train_aux/" + k] = v
+                # Skip: norm_*, gt_min, gt_max, pred_min, pred_max, pixelalign_loss, pointsdist_loss
+            
             wandb.log(log_dict, step=self.fwdbwd_pass_step)
             
     def save_checkpoint_if_needed(self):
@@ -920,17 +935,43 @@ class GSLRMTrainer:
                     log_val_metrics["ssim"].append(val_metrics["ssim"])
                     log_val_metrics["lpips"].append(val_metrics["lpips"])
                     log_val_metrics["mask_iou"].append(val_metrics.get("mask_iou", 0.0))
+                    
+                    # Collect per-view metrics from first validation sample
+                    if idx == 0 and "per_view_psnr" in val_metrics:
+                        log_val_metrics["per_view_psnr"] = val_metrics["per_view_psnr"]
+                        log_val_metrics["per_view_lpips"] = val_metrics["per_view_lpips"]
+                        log_val_metrics["per_view_ssim"] = val_metrics["per_view_ssim"]
                 except Exception as e:
                     print(f"Error in saving validation results for batch {idx}: {e}")
 
             # Log validation metrics to wandb
             if self.ddp_rank == 0:
+                # Primary validation metrics
+                avg_psnr = sum(log_val_metrics["psnr"]) / max(len(log_val_metrics["psnr"]), 1)
+                avg_ssim = sum(log_val_metrics["ssim"]) / max(len(log_val_metrics["ssim"]), 1)
+                avg_lpips = sum(log_val_metrics["lpips"]) / max(len(log_val_metrics["lpips"]), 1)
+                avg_mask_iou = sum(log_val_metrics["mask_iou"]) / max(len(log_val_metrics["mask_iou"]), 1)
+                
                 wandb_log_val_metrics = {
-                    "val/psnr": sum(log_val_metrics["psnr"]) / max(len(log_val_metrics["psnr"]), 1),
-                    "val/ssim": sum(log_val_metrics["ssim"]) / max(len(log_val_metrics["ssim"]), 1),
-                    "val/lpips": sum(log_val_metrics["lpips"]) / max(len(log_val_metrics["lpips"]), 1),
-                    "val/mask_iou": sum(log_val_metrics["mask_iou"]) / max(len(log_val_metrics["mask_iou"]), 1),
+                    # Primary metrics (most important)
+                    "val/psnr": avg_psnr,
+                    "val/ssim": avg_ssim,
+                    "val/ssim_loss": 1.0 - avg_ssim,
+                    "val/lpips": avg_lpips,
+                    "val/mask_iou": avg_mask_iou,
                 }
+                
+                # Add per-view metrics if available (from first validation sample)
+                if log_val_metrics.get("per_view_psnr"):
+                    for view_idx, (psnr, lpips, ssim) in enumerate(zip(
+                        log_val_metrics["per_view_psnr"],
+                        log_val_metrics["per_view_lpips"],
+                        log_val_metrics["per_view_ssim"]
+                    )):
+                        wandb_log_val_metrics[f"val/view{view_idx}_psnr"] = psnr
+                        wandb_log_val_metrics[f"val/view{view_idx}_lpips"] = lpips
+                        wandb_log_val_metrics[f"val/view{view_idx}_ssim"] = ssim
+                
                 wandb.log(wandb_log_val_metrics, step=self.fwdbwd_pass_step)
 
                 # Log validation images to WandB

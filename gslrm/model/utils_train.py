@@ -73,14 +73,14 @@ def configure_lr_scheduler(optimizer, total_train_steps, warm_up_steps, schedule
     return schedulers[scheduler_type]()
 
 
-def checkpoint_job(out_dir, model, optimizer, lr_scheduler, fwdbwd_pass_step, param_update_step):
-    """Save model and optimizer states."""
+def checkpoint_job(out_dir, model, optimizer, lr_scheduler, fwdbwd_pass_step, param_update_step, keep_last_n=3):
+    """Save model and optimizer states, keeping only the last N checkpoints."""
     if isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
         model = model.module
-    
+
     os.makedirs(out_dir, exist_ok=True)
     ckpt_path = os.path.join(out_dir, f"ckpt_{fwdbwd_pass_step:016}.pt")
-    
+
     torch.save({
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict(),
@@ -88,8 +88,20 @@ def checkpoint_job(out_dir, model, optimizer, lr_scheduler, fwdbwd_pass_step, pa
         "fwdbwd_pass_step": fwdbwd_pass_step,
         "param_update_step": param_update_step,
     }, ckpt_path)
-    
+
     print(f"Saved checkpoint to {os.path.abspath(ckpt_path)}")
+
+    # Cleanup old checkpoints, keeping only the last N
+    if keep_last_n > 0:
+        existing_ckpts = find_checkpoints(out_dir)
+        if len(existing_ckpts) > keep_last_n:
+            ckpts_to_delete = existing_ckpts[:-keep_last_n]
+            for old_ckpt in ckpts_to_delete:
+                try:
+                    os.remove(old_ckpt)
+                    print(f"Deleted old checkpoint: {old_ckpt}")
+                except OSError as e:
+                    print(f"Failed to delete {old_ckpt}: {e}")
 
 
 def find_checkpoints(out_dir):
