@@ -26,7 +26,7 @@ training:
     amp_dtype: bf16
     torch_compile: false
     grad_accum_steps: 2
-    grad_clip_norm: 100.0
+    grad_clip_norm: 50.0
     grad_checkpoint_every: 1
   dataset:
     dataset_path: data_mouse_pixel_based/data_mouse_train.txt
@@ -39,19 +39,19 @@ training:
     background_color: white
   dataloader:
     batch_size_per_gpu: 2
-    num_workers: 4
+    num_workers: 8
     num_threads: 16
     prefetch_factor: 8
   losses:
     l2_loss_weight: 1.0
     lpips_loss_weight: 0.0
-    perceptual_loss_weight: 0.0
-    ssim_loss_weight: 0.5
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0
     pixelalign_loss_weight: 0.0
     masked_pixelalign_loss: true
     masked_l2_loss: true
     masked_ssim_loss: true
-    background_loss_weight: 0.1
+    background_loss_weight: 0.0
     pointsdist_loss_weight: 0.0
     warmup_pointsdist: false
     distill_loss_weight: 0.0
@@ -68,8 +68,8 @@ training:
     num_epochs: 50000
     early_stop_after_epochs: 50000
     max_fwdbwd_passes: 10000
-    warmup: 200
-    l2_warmup_steps: 200
+    warmup: 500
+    l2_warmup_steps: 500
   checkpointing:
     checkpoint_dir: checkpoints/gslrm/mouse_pixel_based_v2
     checkpoint_every: 200
@@ -86,7 +86,7 @@ training:
       offline: false
 mouse:
   augmentation:
-    enabled: true
+    enabled: false
     brightness_range:
     - 0.9
     - 1.1

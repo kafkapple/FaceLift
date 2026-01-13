@@ -164,3 +164,37 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# ===========================================
+# FaceLift Project-specific ignores
+# ===========================================
+
+# Data symlinks and directories
+data_mouse*/
+
+# Generated outputs
+analysis_output/
+experiments/
+logs/
+preprocessing_test_results/
+examples_mouse/
+examples/test/
+
+# Temporary files
+nohup.out
+*.bak
+.agent/
+
+# WandB
+wandb/
+wandb_logs/
+
+# Backup directories
+*_backup/
+
+# Reports with images
+reports/*.jpg
+
+# Archive folders
+*/_archive/
+_archive/
