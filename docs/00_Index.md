@@ -8,7 +8,8 @@
 2. **이론 (Theory)**
    - [Camera_Projection](./theory/Camera_Projection.md) - 카메라 투영 모델과 intrinsics
    - [Preprocessing_Pipeline](./theory/Preprocessing_Pipeline.md) - 전처리 파이프라인 이론
-3. **튜토리얼 (Tutorials)**
+3. **튜토리얼 (Tutorials)** - 순서대로 따라하기
+   - [Step0_Branch_Setup](./tutorials/Step0_Branch_Setup.md) - **⭐ 새 브랜치 생성 (원본 main 기반)**
    - [Step1_Fork_and_Setup](./tutorials/Step1_Fork_and_Setup.md) - Fork 및 환경 설정
    - [Step2_Mouse_Dataset](./tutorials/Step2_Mouse_Dataset.md) - MouseViewDataset 구현
    - [Step3_Preprocessing](./tutorials/Step3_Preprocessing.md) - 카메라 정규화 전처리
