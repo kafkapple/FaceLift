@@ -121,6 +121,45 @@ torchrun --nproc_per_node 8 --nnodes 1 \
     train_gslrm.py --config configs/gslrm.yaml
 ```
 
+---
+
+## 🐭 Mouse Data Adaptation
+
+This fork includes extensions for adapting FaceLift to **mouse multi-view data** (6 views instead of 32).
+
+### Quick Start
+
+```bash
+# Use mouse config with MouseViewDataset
+python train_gslrm.py --config configs/mouse/gslrm_recommended.yaml
+```
+
+### Key Differences
+
+| Component | Original (Human) | Mouse Adaptation |
+|-----------|------------------|------------------|
+| Dataset | `RandomViewDataset` (32 views) | `MouseViewDataset` (6 views) |
+| Config flag | - | `mouse.use_mouse_dataset: true` |
+| Camera distance | 2.7 (uniform) | Normalized to 2.7 |
+| Intrinsics | fx=fy=549 | Normalized via preprocessing |
+
+### Documentation
+
+See [`docs/00_Index.md`](docs/00_Index.md) for comprehensive step-by-step tutorials:
+
+- **Step 0**: Branch setup from original main
+- **Step 1-5**: MouseViewDataset, Preprocessing, Config, Training
+- **Theory**: Camera projection and coordinate systems
+- **Reference**: All config options explained
+
+### Mouse Config Files
+
+```
+configs/mouse/
+├── gslrm_recommended.yaml     # Recommended config (v23 PP-centered)
+└── gslrm_deterministic.yaml   # Fixed view selection (reproducibility)
+```
+
 ## 📝 Citation
 
 If you find our work useful for your research, please consider citing our paper:
