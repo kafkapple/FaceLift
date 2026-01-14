@@ -43,7 +43,7 @@ training:
     grad_clip_norm: 50.0
     grad_checkpoint_every: 1
   dataset:
-    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_uniform_v2/data_mouse_train.txt
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_correct/data_mouse_train.txt
     maximize_view_overlap: false
     num_views: 6
     num_input_views: 5  # v15 설정
@@ -115,7 +115,7 @@ mouse:
 
 validation:
   enabled: true
-  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_uniform_v2/data_mouse_val.txt
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_correct/data_mouse_val.txt
   output_dir: experiments/validation/mouse_gslrm_v40
   val_every: 100
 
