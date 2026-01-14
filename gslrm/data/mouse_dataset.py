@@ -35,6 +35,28 @@ import os
 
 from torch.utils.data import Dataset
 
+# Import preprocessing utilities from mouse_extensions
+try:
+    from gslrm.mouse_extensions.preprocessing import (
+        pil_to_np,
+        normalize_camera_distance,
+        normalize_camera_distance_with_intrinsics,
+        normalize_cameras_to_y_up,
+        normalize_cameras_to_z_up,
+        get_bg_color,
+        preprocess_cameras,
+        PreprocessingConfig,
+    )
+    PREPROCESSING_MODULE_AVAILABLE = True
+except ImportError:
+    PREPROCESSING_MODULE_AVAILABLE = False
+    # Fallback: define functions locally (see below)
+
+
+# ============================================================================
+# Preprocessing functions (fallback if module not available)
+# These are kept for backward compatibility but prefer using mouse_extensions
+# ============================================================================
 
 def pil_to_np(pil_image):
     """Convert PIL image to numpy array, preserving RGBA alpha channel."""
@@ -324,6 +346,12 @@ def get_bg_color(bg_color_config):
         raise ValueError(f"Unsupported background color type: {type(bg_color_config)}")
 
     return torch.from_numpy(bg_color)
+
+
+# ============================================================================
+# End of fallback preprocessing functions
+# When PREPROCESSING_MODULE_AVAILABLE is True, these are shadowed by imports
+# ============================================================================
 
 
 class MouseViewDataset(Dataset):
