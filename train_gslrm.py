@@ -39,6 +39,13 @@ from typing import Dict, Any, Tuple, Optional
 import torch
 import torch.nn as nn
 import wandb
+
+# Mouse extensions (optional)
+try:
+    from gslrm.mouse_extensions.logging_utils import get_experiment_info
+    MOUSE_LOGGING_AVAILABLE = True
+except ImportError:
+    MOUSE_LOGGING_AVAILABLE = False
 import yaml
 from easydict import EasyDict as edict
 from torch.distributed import destroy_process_group, init_process_group
@@ -445,36 +452,16 @@ class GSLRMTrainer:
         config_copy["job_overview"] = self.job_overview
         config_copy["model_overview"] = self.model_module.get_overview()
         
-        # Add experiment tracking info (NEW)
-        def extract_version(path):
-            import re
-            match = re.search(r"v(\d+)", path)
-            return f"v{match.group(1)}" if match else "unknown"
-        
-        config_copy["experiment"] = {
-            # Dataset info
-            "dataset_version": extract_version(self.config.training.dataset.dataset_path),
-            "dataset_path": self.config.training.dataset.dataset_path.split("/")[-2] if "/" in self.config.training.dataset.dataset_path else "unknown",
-            # View configuration
-            "num_input_views": self.config.training.dataset.num_input_views,
-            "total_views": self.config.training.dataset.num_views,
-            "input_ratio": self.config.training.dataset.num_input_views / self.config.training.dataset.num_views,
-            "random_view_selection": self.config.mouse.get("random_view_selection", False) if hasattr(self.config, "mouse") else False,
-            # Mask configuration
-            "use_masked_loss": self.config.training.losses.masked_l2_loss,
-            "use_predicted_mask": self.config.training.losses.get("use_predicted_mask", False),
-            "use_alpha_mask": self.config.training.losses.get("use_rendered_alpha_mask", False),
-            "mask_source": "alpha" if self.config.training.losses.get("use_rendered_alpha_mask", False) else ("rgb_pred" if self.config.training.losses.get("use_predicted_mask", False) else "gt"),
-            # Preprocessing settings (NEW)
-            "normalize_cameras": self.config.mouse.get("normalize_cameras", False) if hasattr(self.config, "mouse") else False,
-            "target_camera_distance": self.config.mouse.get("target_camera_distance", 0.0) if hasattr(self.config, "mouse") else 0.0,
-            "normalize_to_z_up": self.config.mouse.get("normalize_to_z_up", True) if hasattr(self.config, "mouse") else True,
-            "background_color": self.config.training.dataset.get("background_color", "white"),
-            # Training info
-            "max_steps": self.config.training.schedule.max_fwdbwd_passes,
-            "batch_size": self.config.training.dataloader.batch_size_per_gpu,
-            "lr": self.config.training.optimizer.lr,
-        }
+        # Add experiment tracking info
+        if MOUSE_LOGGING_AVAILABLE:
+            config_copy["experiment"] = get_experiment_info(self.config)
+        else:
+            # Fallback: minimal experiment info
+            config_copy["experiment"] = {
+                "num_input_views": self.config.training.dataset.num_input_views,
+                "total_views": self.config.training.dataset.num_views,
+                "max_steps": self.config.training.schedule.max_fwdbwd_passes,
+            }
         
         # Create wandb directory
         wandb_dir = "wandb_logs"

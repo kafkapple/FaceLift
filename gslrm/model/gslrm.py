@@ -45,6 +45,17 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 from PIL import Image
 
+# Mouse extensions (optional)
+try:
+    from gslrm.mouse_extensions import (
+        compute_mask_from_config,
+        create_threshold_comparison,
+        MaskType,
+    )
+    MOUSE_EXTENSIONS_AVAILABLE = True
+except ImportError:
+    MOUSE_EXTENSIONS_AVAILABLE = False
+
 # Local imports
 from .utils_losses import PerceptualLoss, SsimLoss
 from .gaussians_renderer import (
@@ -354,21 +365,21 @@ class LossComputer(nn.Module):
         """
         losses = {}
         
-        # Option to use predicted mask instead of GT mask
-        use_pred_mask = self.config.training.losses.get("use_predicted_mask", False)
-        pred_mask_threshold = self.config.training.losses.get("pred_mask_threshold", 0.1)
-        
-        if use_pred_mask:
-            # Compute predicted mask from rendered RGB (distance from white background)
-            # This is the same logic used in mask_iou computation
-            bg_color = 1.0  # white background
-            color_distance = (rendering - bg_color).abs().mean(dim=1, keepdim=True)  # [b*v, 1, h, w]
-            mask = (color_distance > pred_mask_threshold).float()
-        elif rendered_alpha is not None:
-            use_rendered_alpha = self.config.training.losses.get("use_rendered_alpha_mask", False)
-            if use_rendered_alpha:
-                # Use rendered alpha as mask (threshold at 0.5)
-                mask = (rendered_alpha > 0.5).float()
+        # Mask computation using mouse_extensions (if available)
+        if MOUSE_EXTENSIONS_AVAILABLE:
+            mask, _ = compute_mask_from_config(self.config, rendering, mask, rendered_alpha)
+        else:
+            # Fallback: inline mask logic
+            use_pred_mask = self.config.training.losses.get("use_predicted_mask", False)
+            pred_mask_threshold = self.config.training.losses.get("pred_mask_threshold", 0.1)
+            if use_pred_mask:
+                bg_color = 1.0
+                color_distance = (rendering - bg_color).abs().mean(dim=1, keepdim=True)
+                mask = (color_distance > pred_mask_threshold).float()
+            elif rendered_alpha is not None:
+                use_rendered_alpha = self.config.training.losses.get("use_rendered_alpha_mask", False)
+                if use_rendered_alpha:
+                    mask = (rendered_alpha > 0.5).float()
 
         # L2 (MSE) loss - optionally masked
         losses['l2'] = self._compute_l2_loss(rendering, target, mask)
@@ -749,11 +760,17 @@ class LossComputer(nn.Module):
         # Add alpha and RGB threshold comparison rows if alpha is available
         if rendered_alpha is not None:
             try:
-                alpha_comparison = self._create_threshold_comparison(
-                    rendering, rendered_alpha, mask, v, h
-                )
+                if MOUSE_EXTENSIONS_AVAILABLE:
+                    # Use module function
+                    alpha_comparison = create_threshold_comparison(
+                        rendering, rendered_alpha, mask, v, target.shape[2]
+                    )
+                else:
+                    # Fallback to internal method
+                    alpha_comparison = self._create_threshold_comparison(
+                        rendering, rendered_alpha, mask, v, target.shape[2]
+                    )
                 if alpha_comparison is not None:
-                    # Stack vertically
                     visual_np = np.vstack([visual_np, alpha_comparison])
             except Exception as e:
                 print(f"Warning: Could not create threshold comparison: {e}")
