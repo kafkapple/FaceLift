@@ -974,8 +974,13 @@ class GSLRMTrainer:
                 avg_lpips = sum(log_val_metrics["lpips"]) / max(len(log_val_metrics["lpips"]), 1)
                 avg_mask_iou = sum(log_val_metrics["mask_iou"]) / max(len(log_val_metrics["mask_iou"]), 1)
                 
+                # Derive L2 loss from PSNR: PSNR = -10*log10(MSE) -> MSE = 10^(-PSNR/10)
+                val_l2_loss = 10 ** (-avg_psnr / 10) if avg_psnr > 0 else 1.0
+                
                 wandb_log_val_metrics = {
                     # Primary metrics
+                    "val/loss": val_l2_loss,  # Derived from PSNR
+                    "val/l2_loss": val_l2_loss,
                     "val/psnr": avg_psnr,
                     "val/ssim": avg_ssim,
                     "val/ssim_loss": 1.0 - avg_ssim,
