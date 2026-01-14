@@ -96,6 +96,12 @@ def get_experiment_info(config) -> Dict[str, Any]:
         "target_camera_distance": mouse_config.get("target_camera_distance", 0.0),
         "normalize_to_z_up": mouse_config.get("normalize_to_z_up", True),
         "background_color": dataset.get("background_color", "white"),
+        # Loss weights
+        "l2_loss_weight": losses.get("l2_loss_weight", 1.0),
+        "lpips_loss_weight": losses.get("lpips_loss_weight", 0.0),
+        "perceptual_loss_weight": losses.get("perceptual_loss_weight", 0.0),
+        "ssim_loss_weight": losses.get("ssim_loss_weight", 0.0),
+        "background_loss_weight": losses.get("background_loss_weight", 0.0),
     }
 
 
