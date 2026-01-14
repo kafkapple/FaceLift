@@ -1,0 +1,30 @@
+# Preprocessing Config v12: FaceLift Compatible
+# 생성일: 2025-01-14
+# 용도: FaceLift pretrained 모델과 호환되는 표준 전처리
+
+name: v12_facelift_compat
+description: "FaceLift 호환 (fx=fy=549, 정사각 픽셀)"
+
+preprocessing:
+  script_version: v11          # convert_markerless_unified.py --version
+  
+camera:
+  target_fx: 549
+  target_fy: 549               # fx=fy 강제 (정사각 픽셀)
+  target_distance: 2.7
+  cx_cy: center                # 256, 256 (이미지 중심)
+
+sampling:
+  frame_interval: 5            # 50ms 간격 @ 100fps
+  total_samples: 3597
+  
+image:
+  format: RGBA                 # Alpha 채널 포함
+  size: 512
+  background: white
+
+split:
+  method: temporal_stratified
+  val_ratio: 0.1
+  num_strata: 10
+  seed: 42
