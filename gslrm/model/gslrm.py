@@ -47,7 +47,7 @@ from PIL import Image
 
 # Mouse extensions (optional)
 try:
-    from gslrm.mouse_extensions import (
+    from mouse_extensions.model import (
         compute_mask_from_config,
         create_threshold_comparison,
         MaskType,

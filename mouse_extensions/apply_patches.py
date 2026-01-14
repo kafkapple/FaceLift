@@ -6,7 +6,7 @@ with the original FaceLift repository.
 
 Usage:
     cd /path/to/FaceLift
-    python -m gslrm.mouse_extensions.apply_patches [--dry-run]
+    python -m mouse_extensions.apply_patches [--dry-run]
 """
 
 import os
@@ -49,7 +49,7 @@ except ImportError:
 
 # Mouse extensions (optional)
 try:
-    from gslrm.mouse_extensions import (
+    from mouse_extensions import (
         compute_mask_from_config,
         compute_ghost_metrics,
         create_threshold_comparison,
@@ -72,7 +72,7 @@ except ImportError:
 
 # Mouse extensions (optional)
 try:
-    from gslrm.mouse_extensions.logging_utils import (
+    from mouse_extensions.logging_utils import (
         get_experiment_info,
         get_wandb_log_dict,
         get_validation_log_dict,
@@ -133,7 +133,7 @@ def main():
     # Check we're in FaceLift directory
     if not os.path.exists("gslrm"):
         print("Error: Must run from FaceLift root directory")
-        print("Usage: cd /path/to/FaceLift && python -m gslrm.mouse_extensions.apply_patches")
+        print("Usage: cd /path/to/FaceLift && python -m mouse_extensions.apply_patches")
         sys.exit(1)
 
     success_count = 0
@@ -152,7 +152,7 @@ def main():
     if not dry_run:
         print("\nNext steps:")
         print("1. Install diff_gauss: pip install git+https://github.com/slothfulxtx/diff-gaussian-rasterization.git")
-        print("2. Copy mouse_extensions/ to gslrm/mouse_extensions/")
+        print("2. Copy mouse_extensions/ to mouse_extensions/")
         print("3. Run training with mouse config")
 
 

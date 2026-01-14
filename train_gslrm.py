@@ -42,7 +42,7 @@ import wandb
 
 # Mouse extensions (optional)
 try:
-    from gslrm.mouse_extensions.logging_utils import get_experiment_info
+    from mouse_extensions.utils import get_experiment_info
     MOUSE_LOGGING_AVAILABLE = True
 except ImportError:
     MOUSE_LOGGING_AVAILABLE = False

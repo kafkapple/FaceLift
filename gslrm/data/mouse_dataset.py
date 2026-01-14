@@ -37,7 +37,7 @@ from torch.utils.data import Dataset
 
 # Import preprocessing utilities from mouse_extensions
 try:
-    from gslrm.mouse_extensions.preprocessing import (
+    from mouse_extensions.data import (
         pil_to_np,
         normalize_camera_distance,
         normalize_camera_distance_with_intrinsics,
