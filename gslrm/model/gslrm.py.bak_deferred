@@ -95,7 +95,7 @@ class Renderer(nn.Module):
         C2W: torch.Tensor,          # [b, v, 4, 4]
         fxfycxcy: torch.Tensor,     # [b, v, 4]
         deferred: bool = True,
-    ) -> tuple:              # (renders: [b, v, 3, h, w], alphas: [b, v, 1, h, w])
+    ) -> torch.Tensor:              # [b, v, 3, height, width]
         """
         Render Gaussian splats to images.
         
@@ -1637,8 +1637,8 @@ class GSLRM(nn.Module):
         if target_data is not None:
             target_height, target_width = target_data.image.size(3), target_data.image.size(4)
             
-            # Render images using Gaussian splatting (now returns tuple with alpha)
-            rendered_images, rendered_alpha = self.gaussian_renderer(
+            # Render images using Gaussian splatting
+            rendered_images = self.gaussian_renderer(
                 xyz, features, scaling, rotation, opacity,
                 target_height, target_width,
                 C2W=target_data.c2w,
@@ -1647,7 +1647,16 @@ class GSLRM(nn.Module):
             
             # Compute losses if rendered and target have matching dimensions
             if rendered_images.shape[1] == target_data.image.shape[1]:
-                # rendered_alpha is now directly available from deferred render
+                # Get alpha for visualization (only when create_visual=True)
+                rendered_alpha = None
+                if create_visual:
+                    # Additional non-deferred render to get alpha
+                    _, rendered_alpha = self.gaussian_renderer._render_sequential(
+                        xyz, features, scaling, rotation, opacity,
+                        target_height, target_width,
+                        C2W=target_data.c2w,
+                        fxfycxcy=target_data.fxfycxcy,
+                    )
                 
                 loss_metrics = self.loss_calculator(
                     rendered_images,
@@ -1670,18 +1679,6 @@ class GSLRM(nn.Module):
             loss_metrics.gaussians_usage = torch.tensor(
                 np.mean(np.array(usage_statistics))
             ).float()
-            
-            # Add ghosting metrics (NEW - for monitoring ghost artifacts)
-            if rendered_alpha is not None:
-                # Alpha foreground coverage (ghost = low coverage or scattered)
-                loss_metrics.ghost_fg_coverage = (rendered_alpha > 0.5).float().mean()
-                # Alpha variance (ghost = high variance in alpha)
-                loss_metrics.ghost_alpha_std = rendered_alpha.std()
-            
-            # Opacity statistics from Gaussian parameters
-            if opacity is not None:
-                loss_metrics.ghost_opacity_std = opacity.std()
-                loss_metrics.ghost_opacity_mean = opacity.mean()
 
         # Compile final results
         return edict(

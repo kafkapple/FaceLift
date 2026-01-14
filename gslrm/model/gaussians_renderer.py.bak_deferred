@@ -873,9 +873,7 @@ class DeferredGaussianRender(torch.autograd.Function):
         C2W: [b, v, 4, 4]
         fxfycxcy: [b, v, 4]
 
-        output: (renders, alphas)
-            renders: [b, v, 3, height, width]
-            alphas: [b, v, 1, height, width]
+        output: [b, v, 3, height, width]
         """
         ctx.scaling_modifier = scaling_modifier
 
@@ -888,22 +886,20 @@ class DeferredGaussianRender(torch.autograd.Function):
         with torch.no_grad():
             b, v = C2W.size(0), C2W.size(1)
             renders = []
-            alphas = []  # NEW: collect alpha
             for i in range(b):
                 pc = gaussians_model.set_data(
                     xyz[i], features[i], scaling[i], rotation[i], opacity[i]
                 )
                 for j in range(v):
-                    result = render_opencv_cam(pc, height, width, C2W[i, j], fxfycxcy[i, j])
-                    renders.append(result["render"])
-                    alphas.append(result["alpha"])  # NEW: extract alpha
+                    renders.append(
+                        render_opencv_cam(pc, height, width, C2W[i, j], fxfycxcy[i, j])[
+                            "render"
+                        ]
+                    )
             renders = torch.stack(renders, dim=0)
             renders = renders.reshape(b, v, 3, height, width)
-            alphas = torch.stack(alphas, dim=0)  # NEW
-            alphas = alphas.reshape(b, v, 1, height, width)  # NEW
 
         renders = renders.requires_grad_()
-        alphas = alphas.requires_grad_()  # NEW
 
         # Save_for_backward only supports tensors
         ctx.save_for_backward(xyz, features, scaling, rotation, opacity, C2W, fxfycxcy)
@@ -913,10 +909,10 @@ class DeferredGaussianRender(torch.autograd.Function):
         # Release the temp class; do not save it.
         del gaussians_model
 
-        return renders, alphas  # MODIFIED: return tuple
+        return renders
 
     @staticmethod
-    def backward(ctx, grad_renders, grad_alphas):  # MODIFIED: two gradients
+    def backward(ctx, grad_output):
         # Restore params
         xyz, features, scaling, rotation, opacity, C2W, fxfycxcy = ctx.saved_tensors
         height, width = ctx.rendering_size
@@ -947,19 +943,12 @@ class DeferredGaussianRender(torch.autograd.Function):
                     )
 
                     # Forward
-                    result = render_opencv_cam(
+                    render = render_opencv_cam(
                         pc, height, width, C2W[i, j], fxfycxcy[i, j]
-                    )
-                    render = result["render"]
-                    alpha = result["alpha"]  # NEW
+                    )["render"]
 
-                    # Backward for renders
-                    if grad_renders is not None:
-                        render.backward(grad_renders[i, j], retain_graph=(grad_alphas is not None))
-                    
-                    # Backward for alphas (NEW)
-                    if grad_alphas is not None:
-                        alpha.backward(grad_alphas[i, j])
+                    # Backward, suppose that only values in input_dict will get gradients.
+                    render.backward(grad_output[i, j])
 
         del gaussians_model
 

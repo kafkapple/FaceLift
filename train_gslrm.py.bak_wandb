@@ -445,37 +445,6 @@ class GSLRMTrainer:
         config_copy["job_overview"] = self.job_overview
         config_copy["model_overview"] = self.model_module.get_overview()
         
-        # Add experiment tracking info (NEW)
-        def extract_version(path):
-            import re
-            match = re.search(r"v(\d+)", path)
-            return f"v{match.group(1)}" if match else "unknown"
-        
-        config_copy["experiment"] = {
-            # Dataset info
-            "dataset_version": extract_version(self.config.training.dataset.dataset_path),
-            "dataset_path": self.config.training.dataset.dataset_path.split("/")[-2] if "/" in self.config.training.dataset.dataset_path else "unknown",
-            # View configuration
-            "num_input_views": self.config.training.dataset.num_input_views,
-            "total_views": self.config.training.dataset.num_views,
-            "input_ratio": self.config.training.dataset.num_input_views / self.config.training.dataset.num_views,
-            "random_view_selection": self.config.mouse.get("random_view_selection", False) if hasattr(self.config, "mouse") else False,
-            # Mask configuration
-            "use_masked_loss": self.config.training.losses.masked_l2_loss,
-            "use_predicted_mask": self.config.training.losses.get("use_predicted_mask", False),
-            "use_alpha_mask": self.config.training.losses.get("use_rendered_alpha_mask", False),
-            "mask_source": "alpha" if self.config.training.losses.get("use_rendered_alpha_mask", False) else ("rgb_pred" if self.config.training.losses.get("use_predicted_mask", False) else "gt"),
-            # Preprocessing settings (NEW)
-            "normalize_cameras": self.config.mouse.get("normalize_cameras", False) if hasattr(self.config, "mouse") else False,
-            "target_camera_distance": self.config.mouse.get("target_camera_distance", 0.0) if hasattr(self.config, "mouse") else 0.0,
-            "normalize_to_z_up": self.config.mouse.get("normalize_to_z_up", True) if hasattr(self.config, "mouse") else True,
-            "background_color": self.config.training.dataset.get("background_color", "white"),
-            # Training info
-            "max_steps": self.config.training.schedule.max_fwdbwd_passes,
-            "batch_size": self.config.training.dataloader.batch_size_per_gpu,
-            "lr": self.config.training.optimizer.lr,
-        }
-        
         # Create wandb directory
         wandb_dir = "wandb_logs"
         os.makedirs(wandb_dir, exist_ok=True)
@@ -770,8 +739,6 @@ class GSLRMTrainer:
             secondary_losses = ["perceptual_loss", "ssim_loss", "lpips_loss", "background_loss"]
             # Auxiliary metrics: debugging (skip constants like gt_min=0, gt_max=1)
             auxiliary_metrics = ["gt_mean", "pred_mean", "mask_coverage", "gaussians_usage"]
-            # Ghosting metrics (NEW)
-            ghost_metrics = ["ghost_fg_coverage", "ghost_alpha_std", "ghost_opacity_std", "ghost_opacity_mean"]
             # Skip these constants: gt_min (always 0), gt_max (always 1), pred_max (always ~1)
             
             for k, v in loss_name2value:
@@ -781,8 +748,6 @@ class GSLRMTrainer:
                     log_dict["train/" + k] = v
                 elif k in auxiliary_metrics:
                     log_dict["train_aux/" + k] = v
-                elif k in ghost_metrics:
-                    log_dict["ghost/" + k.replace("ghost_", "")] = v
                 # Skip: norm_*, gt_min, gt_max, pred_min, pred_max, pixelalign_loss, pointsdist_loss
             
             wandb.log(log_dict, step=self.fwdbwd_pass_step)
@@ -988,28 +953,24 @@ class GSLRMTrainer:
                 avg_mask_iou = sum(log_val_metrics["mask_iou"]) / max(len(log_val_metrics["mask_iou"]), 1)
                 
                 wandb_log_val_metrics = {
-                    # Primary metrics
+                    # Primary metrics (most important)
                     "val/psnr": avg_psnr,
                     "val/ssim": avg_ssim,
                     "val/ssim_loss": 1.0 - avg_ssim,
                     "val/lpips": avg_lpips,
                     "val/mask_iou": avg_mask_iou,
-                    # Meta info (NEW - for experiment tracking)
-                    "meta/current_step": self.fwdbwd_pass_step,
-                    "meta/total_steps": self.config.training.schedule.max_fwdbwd_passes,
-                    "meta/progress": self.fwdbwd_pass_step / self.config.training.schedule.max_fwdbwd_passes,
                 }
                 
-                # Add per-view metrics with separate section (val_view/)
+                # Add per-view metrics if available (from first validation sample)
                 if log_val_metrics.get("per_view_psnr"):
                     for view_idx, (psnr, lpips, ssim) in enumerate(zip(
                         log_val_metrics["per_view_psnr"],
                         log_val_metrics["per_view_lpips"],
                         log_val_metrics["per_view_ssim"]
                     )):
-                        wandb_log_val_metrics[f"val_view/view{view_idx}_psnr"] = psnr
-                        wandb_log_val_metrics[f"val_view/view{view_idx}_lpips"] = lpips
-                        wandb_log_val_metrics[f"val_view/view{view_idx}_ssim"] = ssim
+                        wandb_log_val_metrics[f"val/view{view_idx}_psnr"] = psnr
+                        wandb_log_val_metrics[f"val/view{view_idx}_lpips"] = lpips
+                        wandb_log_val_metrics[f"val/view{view_idx}_ssim"] = ssim
                 
                 wandb.log(wandb_log_val_metrics, step=self.fwdbwd_pass_step)
 
