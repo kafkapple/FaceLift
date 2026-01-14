@@ -351,7 +351,9 @@ class LossComputer(nn.Module):
         rendered_alpha_flat = None
         if rendered_alpha is not None:
             rendered_alpha_flat = rendered_alpha.reshape(b * v, 1, rendering_flat.shape[2], rendering_flat.shape[3])
-        visual = self._create_visual(rendering_flat, target_flat, v, mask, rendered_alpha_flat) if create_visual else None
+        # Use rendered_alpha as mask fallback for visualization if GT mask not available
+        visual_mask = mask if mask is not None else (rendered_alpha_flat > 0.5).float() if rendered_alpha_flat is not None else None
+        visual = self._create_visual(rendering_flat, target_flat, v, visual_mask, rendered_alpha_flat) if create_visual else None
 
         # Compile loss metrics
         return self._compile_loss_metrics(losses, total_loss, visual)
