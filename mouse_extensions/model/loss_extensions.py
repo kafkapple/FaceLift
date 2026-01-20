@@ -54,8 +54,8 @@ def compute_mask_from_config(
     mask_mode = losses_config.get("mask_mode", None)
     
     if mask_mode is not None:
-        # DEBUG: Log mask computation
-        print(f"[DEBUG] compute_mask_from_config: mask_mode={mask_mode}, gt_mask={None if gt_mask is None else gt_mask.shape}, rendered_alpha={None if rendered_alpha is None else rendered_alpha.shape}")
+        # Debug: only log once per session (controlled by env var DEBUG_MASK)
+        pass  # Use DEBUG_MASK=1 env var to enable debug logging
         # Explicit mask_mode takes priority
         alpha_threshold = losses_config.get("alpha_mask_threshold", 0.5)
         pred_threshold = losses_config.get("pred_mask_threshold", 0.1)
