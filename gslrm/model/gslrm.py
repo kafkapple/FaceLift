@@ -639,6 +639,25 @@ class LossComputer(nn.Module):
     
     def _create_visual(self, rendering, target, v, mask=None, rendered_alpha=None):
         """
+        Create visualization - delegates to mouse_extensions for consistency.
+        """
+        if MOUSE_EXTENSIONS_AVAILABLE:
+            # Reconstruct 4-channel target if mask was extracted
+            if mask is not None:
+                target_with_alpha = torch.cat([target, mask], dim=1)
+            else:
+                target_with_alpha = target
+            
+            vis_config = VisualizationConfig.from_training_config(self.config)
+            visual_np, _ = create_training_visual(
+                target_with_alpha, rendering, vis_config,
+                gt_mask=mask, rendered_alpha=rendered_alpha, num_views=v
+            )
+            return visual_np
+        return self._create_visual_inline(rendering, target, v, mask, rendered_alpha)
+    
+    def _create_visual_inline(self, rendering, target, v, mask=None, rendered_alpha=None):
+        """
         Create visualization with GT, Rendered, Mask, and Error in separate rows.
 
         Output format (rows):
@@ -833,7 +852,7 @@ class LossComputer(nn.Module):
                 alpha_mask = (alpha_sample[0:1] > thresh).float()  # [1, 1, h, w]
                 mask_rgb = alpha_mask.expand(-1, 3, -1, -1)
                 overlay = render_sample[0:1] * 0.5 + mask_rgb * fg_color + (1 - mask_rgb) * bg_color * 0.5
-                overlay = overlay.squeeze(0).permute(1, 2, 0).cpu().numpy()  # [h, w, 3]
+                overlay = overlay.squeeze(0).permute(1, 2, 0).detach().cpu().numpy()  # [h, w, 3]
                 alpha_row.append(overlay)
             alpha_row = np.hstack(alpha_row)  # [h, 4*w, 3]
             rows.append(alpha_row)
@@ -846,7 +865,7 @@ class LossComputer(nn.Module):
             rgb_mask = (color_dist > thresh).float()
             mask_rgb = rgb_mask.expand(-1, 3, -1, -1)
             overlay = render_sample[0:1] * 0.5 + mask_rgb * fg_color + (1 - mask_rgb) * bg_color * 0.5
-            overlay = overlay.squeeze(0).permute(1, 2, 0).cpu().numpy()
+            overlay = overlay.squeeze(0).permute(1, 2, 0).detach().cpu().numpy()
             rgb_row.append(overlay)
         rgb_row = np.hstack(rgb_row)
         rows.append(rgb_row)
@@ -858,17 +877,17 @@ class LossComputer(nn.Module):
             # GT mask
             gt_binary = (gt_mask_sample[0:1] > 0.5).float()
             gt_overlay = render_sample[0:1] * 0.5 + gt_binary.expand(-1, 3, -1, -1) * fg_color + (1 - gt_binary).expand(-1, 3, -1, -1) * bg_color * 0.5
-            comparison_row.append(gt_overlay.squeeze(0).permute(1, 2, 0).cpu().numpy())
+            comparison_row.append(gt_overlay.squeeze(0).permute(1, 2, 0).detach().cpu().numpy())
             
             # Alpha mask (thresh=0.5)
             alpha_binary = (alpha_sample[0:1] > 0.5).float()
             alpha_overlay = render_sample[0:1] * 0.5 + alpha_binary.expand(-1, 3, -1, -1) * fg_color + (1 - alpha_binary).expand(-1, 3, -1, -1) * bg_color * 0.5
-            comparison_row.append(alpha_overlay.squeeze(0).permute(1, 2, 0).cpu().numpy())
+            comparison_row.append(alpha_overlay.squeeze(0).permute(1, 2, 0).detach().cpu().numpy())
             
             # RGB mask (thresh=0.1)
             rgb_binary = (color_dist > 0.1).float()
             rgb_overlay = render_sample[0:1] * 0.5 + rgb_binary.expand(-1, 3, -1, -1) * fg_color + (1 - rgb_binary).expand(-1, 3, -1, -1) * bg_color * 0.5
-            comparison_row.append(rgb_overlay.squeeze(0).permute(1, 2, 0).cpu().numpy())
+            comparison_row.append(rgb_overlay.squeeze(0).permute(1, 2, 0).detach().cpu().numpy())
             
             # Diff: Alpha - GT (blue=alpha only, red=GT only, green=both)
             alpha_only = (alpha_binary > 0.5) & (gt_binary < 0.5)
@@ -879,7 +898,7 @@ class LossComputer(nn.Module):
             diff_img[:, 0:1] = gt_only.float()  # Red = GT only
             diff_img[:, 2:3] = alpha_only.float()  # Blue = Alpha only  
             diff_img[:, 1:2] = both.float() * 0.5  # Green = both
-            comparison_row.append(diff_img.squeeze(0).permute(1, 2, 0).cpu().numpy())
+            comparison_row.append(diff_img.squeeze(0).permute(1, 2, 0).detach().cpu().numpy())
             
             comparison_row = np.hstack(comparison_row)
             rows.append(comparison_row)
@@ -1728,6 +1747,7 @@ class GSLRM(nn.Module):
             img_tokens=image_patch_tokens,
             loss_metrics=loss_metrics,
             render=rendered_images,
+            rendered_alpha=rendered_alpha,
         )
 
     @torch.no_grad()
@@ -1788,9 +1808,16 @@ class GSLRM(nn.Module):
         for batch_idx in range(batch_size):
             item_uid = input_data.index[batch_idx, 0, -1].item()
 
-            # Render turntable visualization
-            turntable_image = render_turntable(model_results.gaussians[batch_idx])
-            Image.fromarray(turntable_image).save(
+            # Render turntable visualization (8x8 = 64 views for comprehensive coverage)
+            turntable_views = 64
+            turntable_image = render_turntable(model_results.gaussians[batch_idx], num_views=turntable_views)
+            # render_turntable returns: h x (views*w) x c
+            # Reshape to 8x8 grid layout
+            h_img = turntable_image.shape[0]
+            w_per_view = turntable_image.shape[1] // turntable_views
+            turntable_grid = turntable_image.reshape(h_img, turntable_views, w_per_view, 3)
+            turntable_grid = rearrange(turntable_grid, "h (rows cols) w c -> (rows h) (cols w) c", rows=8, cols=8)
+            Image.fromarray(turntable_grid).save(
                 os.path.join(output_directory, f"turntable_{item_uid}.jpg")
             )
 
@@ -1913,34 +1940,26 @@ class GSLRM(nn.Module):
             Image.fromarray(input_image[..., :3]).save(os.path.join(item_output_dir, "input.png"))
 
             # Save ground truth vs prediction comparison with mask overlay
+            # Use centralized visualization function for consistency
             gt_images = target_data.image[batch_idx]  # [V, C, H, W]
             rendered_images = model_results.render[batch_idx]  # [V, 3, H, W]
-
-            # Extract mask from GT if available (4 channels = RGBA)
-            # Check mask_mode to determine if mask overlay should be shown
-            mask_mode = self.config.training.losses.get("mask_mode", None)
-            if gt_images.size(1) == 4 and mask_mode != "none":
-                gt_rgb = gt_images[:, :3, :, :]  # [V, 3, H, W]
-                gt_mask = gt_images[:, 3:4, :, :]  # [V, 1, H, W]
-
-                # Create GT mask overlay (green=foreground, red=background)
-                gt_mask_rgb = gt_mask.expand(-1, 3, -1, -1)
-                fg_color = torch.tensor([0.2, 0.8, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
-                bg_color = torch.tensor([0.8, 0.2, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
-                gt_mask_overlay = gt_mask_rgb * fg_color + (1 - gt_mask_rgb) * bg_color
-                gt_with_mask = gt_rgb * 0.7 + gt_mask_overlay * 0.3
-                
-                # Compute pred mask from rendered (removebg style)
-                color_distance = (rendered_images - 1.0).abs().mean(dim=1, keepdim=True)
-                pred_mask = (color_distance > 0.1).float()
-                pred_mask_rgb = pred_mask.expand(-1, 3, -1, -1)
-                pred_mask_overlay = pred_mask_rgb * fg_color + (1 - pred_mask_rgb) * bg_color
-                rendered_with_mask = rendered_images * 0.7 + pred_mask_overlay * 0.3
-
-                # Stack: GT | Rendered | GT+Mask | Rendered+Mask
-                comparison_image = torch.stack((gt_rgb, rendered_images, gt_with_mask, rendered_with_mask), dim=0)
+            
+            # Get rendered_alpha if available
+            batch_rendered_alpha = None
+            if hasattr(model_results, 'rendered_alpha') and model_results.rendered_alpha is not None:
+                batch_rendered_alpha = model_results.rendered_alpha[batch_idx]  # [V, 1, H, W]
+            
+            if MOUSE_EXTENSIONS_AVAILABLE:
+                vis_config = VisualizationConfig.from_training_config(self.config)
+                comparison_np, _ = create_validation_visual(
+                    gt_images, rendered_images, vis_config,
+                    rendered_alpha=batch_rendered_alpha
+                )
+                # Convert back to tensor for downstream code
+                comparison_image = torch.from_numpy(comparison_np).float() / 255.0
+                comparison_image = comparison_image.permute(2, 0, 1).unsqueeze(0)  # [1, 3, H, W]
             else:
-                # No mask or mask_mode=none: GT | Rendered only
+                # Fallback: simple comparison without mask
                 gt_rgb = gt_images[:, :3, :, :] if gt_images.size(1) >= 3 else gt_images
                 comparison_image = torch.stack((gt_rgb, rendered_images), dim=0)
 
@@ -2114,113 +2133,38 @@ class GSLRM(nn.Module):
                 input_image = (input_image.cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
                 Image.fromarray(input_image).save(os.path.join(item_output_dir, "input.png"))
                 
-                # Save ground truth vs prediction comparison (with mask overlay and error heatmap)
-                full_target = target_data.image[batch_idx]  # May have 4 channels (RGBA)
-                rendered = model_results.render[batch_idx]
+                # Save ground truth vs prediction comparison - delegate to mouse_extensions
+                full_target = target_data.image[batch_idx]  # (V, 4, H, W) RGBA or (V, 3, H, W) RGB
+                rendered = model_results.render[batch_idx]  # (V, 3, H, W) RGB
                 h = full_target.size(2)
-
-                # Compute error and statistics
-                if full_target.size(1) == 4:
-                    gt_rgb = full_target[:, :3, :, :]
+                
+                # Get rendered_alpha if available
+                batch_rendered_alpha = None
+                if hasattr(model_results, 'rendered_alpha') and model_results.rendered_alpha is not None:
+                    batch_rendered_alpha = model_results.rendered_alpha[batch_idx]  # (V, 1, H, W)
+                
+                if MOUSE_EXTENSIONS_AVAILABLE:
+                    # Use centralized visualization function
+                    vis_config = VisualizationConfig.from_training_config(self.config)
+                    comparison_np, error_stats = create_validation_visual(
+                        full_target, rendered, vis_config,
+                        rendered_alpha=batch_rendered_alpha
+                    )
+                    # Determine num_rows for annotation
+                    mask_mode = self.config.training.losses.get("mask_mode", None)
+                    num_rows = 5 if (full_target.size(1) == 4 and mask_mode != "none") else 3
+                    # Add error scale annotation
+                    comparison_np = self.loss_calculator._add_error_scale_annotation(
+                        comparison_np, error_stats, h, num_rows
+                    )
+                    Image.fromarray(comparison_np).save(os.path.join(item_output_dir, "gt_vs_pred.png"))
                 else:
-                    gt_rgb = full_target
-
-                error_raw = (gt_rgb - rendered).abs().mean(dim=1, keepdim=True)  # [V, 1, H, W]
-                error_stats = {
-                    'min': error_raw.min().item(),
-                    'max': error_raw.max().item(),
-                    'mean': error_raw.mean().item()
-                }
-
-                # Check mask_mode to determine visualization
-                mask_mode = self.config.training.losses.get("mask_mode", None)
-                if full_target.size(1) == 4 and mask_mode != "none":
-                    # Has mask and mask_mode != none - create GT + Rendered + GT with mask overlay + Error heatmap
-                    gt_mask = full_target[:, 3:4, :, :]
-
-                    # Create GT mask overlay (green=foreground, red=background)
-                    fg_color = torch.tensor([0.2, 0.8, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
-                    bg_color = torch.tensor([0.8, 0.2, 0.2], device=gt_mask.device).view(1, 3, 1, 1)
-                    gt_mask_rgb = gt_mask.expand(-1, 3, -1, -1)
-                    gt_mask_overlay = gt_mask_rgb * fg_color + (1 - gt_mask_rgb) * bg_color
-                    gt_with_mask = gt_rgb * 0.7 + gt_mask_overlay * 0.3
-                    
-                    # Compute pred mask from rendered image (removebg style)
-                    # Pixels far from white (1.0) are foreground
-                    color_distance = (rendered - 1.0).abs().mean(dim=1, keepdim=True)
-                    pred_mask = (color_distance > 0.1).float()  # threshold 0.1
-                    pred_mask_rgb = pred_mask.expand(-1, 3, -1, -1)
-                    pred_mask_overlay = pred_mask_rgb * fg_color + (1 - pred_mask_rgb) * bg_color
-                    rendered_with_mask = rendered * 0.7 + pred_mask_overlay * 0.3
-
-                    # Compute union mask (GT OR Pred foreground)
-                    gt_mask_binary = (gt_mask > 0.5).float()
-                    pred_color_dist = (rendered - 1.0).abs().mean(dim=1, keepdim=True)
-                    pred_mask_binary = (pred_color_dist > 0.1).float()
-                    union_mask = ((gt_mask_binary + pred_mask_binary) > 0.5).float()
-                    mask_binary = union_mask  # for error heatmap
-                    
-                    # Compute foreground error stats (using GT mask for consistency)
-                    gt_mask_binary_flat = gt_mask_binary.view(-1)
-                    error_flat = error_raw.view(-1)
-                    fg_errors = error_flat[gt_mask_binary_flat > 0.5]
-                    if fg_errors.numel() > 0:
-                        error_stats['fg_min'] = fg_errors.min().item()
-                        error_stats['fg_max'] = fg_errors.max().item()
-                        error_stats['fg_mean'] = fg_errors.mean().item()
-                    else:
-                        error_stats['fg_min'] = 0.0
-                        error_stats['fg_max'] = 0.0
-                        error_stats['fg_mean'] = 0.0
-
-                    # Masked error
-                    masked_error = error_raw * mask_binary
-
-                    # Normalize error to [0, 1] (clamp max at 0.3)
-                    error_normalized = (masked_error / 0.3).clamp(0, 1)
-
-                    # Create heatmap
-                    error_r = error_normalized.clamp(0, 1)
-                    error_g = (1 - error_normalized.abs() * 2).clamp(0, 1)
-                    error_b = (1 - error_normalized).clamp(0, 1)
-                    error_heatmap = torch.cat([error_r, error_g, error_b], dim=1)
-
-                    # Gray background for mask=0
-                    gray = torch.tensor([0.3, 0.3, 0.3], device=gt_mask.device).view(1, 3, 1, 1)
-                    error_heatmap = error_heatmap * mask_binary + gray * (1 - mask_binary)
-
-                    # Stack: GT | Rendered | GT+Mask | Rendered+Mask | Error
-                    comparison_image = torch.stack((gt_rgb, rendered, gt_with_mask, rendered_with_mask, error_heatmap), dim=0)
-                    num_rows = 5
-                else:
-                    # No mask - GT | Rendered | Error
-                    error_stats['fg_min'] = error_stats['min']
-                    error_stats['fg_max'] = error_stats['max']
-                    error_stats['fg_mean'] = error_stats['mean']
-
-                    error_normalized = (error_raw / 0.3).clamp(0, 1)
-                    error_r = error_normalized.clamp(0, 1)
-                    error_g = (1 - error_normalized.abs() * 2).clamp(0, 1)
-                    error_b = (1 - error_normalized).clamp(0, 1)
-                    error_heatmap = torch.cat([error_r, error_g, error_b], dim=1)
-
-                    comparison_image = torch.stack((gt_rgb, rendered, error_heatmap), dim=0)
-                    num_rows = 3
-
-                num_views = comparison_image.size(1)
-                if num_views > 10:
-                    comparison_image = comparison_image[:, ::num_views // 10, :, :, :]
-                comparison_image = rearrange(
-                    comparison_image, "comparison_type views channels height width -> (comparison_type height) (views width) channels"
-                )
-                comparison_image = (comparison_image.cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
-
-                # Add error scale annotation to the last row
-                comparison_image = self.loss_calculator._add_error_scale_annotation(
-                    comparison_image, error_stats, h, num_rows
-                )
-
-                Image.fromarray(comparison_image).save(os.path.join(item_output_dir, "gt_vs_pred.png"))
+                    # Fallback: simple GT | Rendered comparison
+                    gt_rgb = full_target[:, :3, :, :] if full_target.size(1) == 4 else full_target
+                    comparison = torch.stack((gt_rgb, rendered), dim=0)
+                    comparison = rearrange(comparison, "t v c h w -> (t h) (v w) c")
+                    comparison_np = (comparison.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                    Image.fromarray(comparison_np).save(os.path.join(item_output_dir, "gt_vs_pred.png"))
                 
                 # Save per-view metrics
                 view_ids = target_data.index[batch_idx, :, 0].cpu().numpy()
@@ -2309,3 +2253,39 @@ class GSLRM(nn.Module):
     ) -> Dict[str, float]:
         """Backward compatibility wrapper for save_validation_results."""
         return self.save_validation_results(out_dir, result, batch, dataset, save_img)
+# =============================================================================
+# Centralized Mask Computation Helper
+# =============================================================================
+
+def compute_pred_mask_for_visualization(
+    rendering: torch.Tensor,
+    rendered_alpha: Optional[torch.Tensor],
+    config,
+    channel_dim: int = 1,
+) -> torch.Tensor:
+    """
+    Compute predicted mask based on mask_mode configuration.
+    
+    Centralizes mask computation logic to avoid code duplication.
+    
+    Args:
+        rendering: Rendered RGB tensor [..., 3, H, W] or [..., H, W, 3]
+        rendered_alpha: Rendered alpha tensor [..., 1, H, W] or None
+        config: Training config with losses.mask_mode
+        channel_dim: Dimension of channel axis (default 1 for [B, 3, H, W])
+    
+    Returns:
+        pred_mask: Binary mask tensor [..., 1, H, W]
+    """
+    mask_mode = config.training.losses.get("mask_mode", None)
+    
+    if rendered_alpha is not None and mask_mode == "alpha":
+        # Use rendered_alpha with threshold
+        alpha_threshold = config.training.losses.get("alpha_mask_threshold", 0.5)
+        return (rendered_alpha > alpha_threshold).float()
+    else:
+        # Fallback: RGB-based detection (removebg style)
+        # Pixels far from white (1.0) are foreground
+        color_distance = (rendering - 1.0).abs().mean(dim=channel_dim, keepdim=True)
+        return (color_distance > 0.1).float()
+
