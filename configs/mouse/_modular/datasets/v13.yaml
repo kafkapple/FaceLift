@@ -1,0 +1,23 @@
+# =============================================================================
+# Dataset: v13 (Legacy - PP=256 forced, Early Whitening Baseline)
+# =============================================================================
+
+_dataset:
+  name: v13
+  description: "Legacy preprocessing with force_center_cxcy=true, causes ray error"
+  path: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_v13_original_ratio
+  split: "90:10 (train:val)"
+  status: DEPRECATED
+  warning: "PP forced to 256 → 5-13 deg ray error → whitening phenomenon"
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_v13_original_ratio/data_mouse_train.txt
+
+validation:
+  enabled: true
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_v13_original_ratio/data_mouse_val.txt
+  val_every: 200
+
+inference:
+  enabled: false

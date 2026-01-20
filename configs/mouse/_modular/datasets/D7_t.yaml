@@ -1,0 +1,21 @@
+# =============================================================================
+# Dataset: D7_t (Temporal Split)
+# =============================================================================
+
+_dataset:
+  name: D7_t
+  description: "D7 with temporal split (1:1:1 train:val:test)"
+  path: /home/joon/data/preprocessed/FaceLift_mouse/D7_t
+  split: "temporal (consecutive frames grouped)"
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D7_t/data_mouse_train.txt
+
+validation:
+  enabled: true
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D7_t/data_mouse_val.txt
+  val_every: 200
+
+inference:
+  enabled: false

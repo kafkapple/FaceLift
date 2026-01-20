@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>D7 Variants Comprehensive Comparison Report</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { font-family: "CMU Serif", Georgia, serif; max-width: 1200px; margin: 0 auto; padding: 40px; line-height: 1.8; background: #fafafa; }
+        h1 { font-size: 28px; border-bottom: 3px solid #333; padding-bottom: 15px; }
+        h2 { font-size: 22px; color: #2c3e50; margin-top: 40px; border-left: 5px solid #3498db; padding-left: 15px; }
+        h3 { font-size: 18px; color: #34495e; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; font-size: 14px; background: white; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: center; }
+        th { background: #f8f9fa; font-weight: bold; }
+        .formula-box { background: white; padding: 20px; margin: 20px 0; border-left: 4px solid #3498db; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .key-point { background: #e8f6f3; padding: 15px; border-left: 4px solid #1abc9c; margin: 15px 0; }
+        .warning { background: #fdf2e9; padding: 15px; border-left: 4px solid #e67e22; }
+        .good { background: #e8f5e9; }
+        .bad { background: #ffebee; }
+        .recommended { background: #e3f2fd; border-left: 4px solid #2196f3; padding: 15px; margin: 15px 0; }
+        code { background: #f5f5f5; padding: 2px 6px; font-family: monospace; border-radius: 3px; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 15px; overflow-x: auto; border-radius: 5px; }
+        .figure { text-align: center; margin: 30px 0; }
+        .figure img { max-width: 100%; border: 1px solid #ddd; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .figure-caption { font-style: italic; color: #666; margin-top: 10px; }
+        .toc { background: white; padding: 20px; margin: 20px 0; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .toc ul { list-style-type: none; padding-left: 0; }
+        .toc li { margin: 8px 0; }
+        .toc a { text-decoration: none; color: #3498db; }
+        .toc a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<h1>D7 Variants Comprehensive Comparison Report</h1>
+<p><strong>Generated:</strong> 2026-01-20 17:33</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#summary">1. Executive Summary</a></li>
+<li><a href="#theory">2. Mathematical Foundation</a></li>
+<li><a href="#analysis">3. Detailed Analysis</a></li>
+<li><a href="#visualization">4. Visualization</a></li>
+<li><a href="#recommendations">5. Recommendations</a></li>
+<li><a href="#commands">6. Preprocessing Commands</a></li>
+</ul>
+</div>
+
+<h2 id="summary">1. Executive Summary</h2>
+
+<table>
+<tr><th>Dataset</th><th>Scale Mode</th><th>fx</th><th>fy</th><th>cx</th><th>cy</th><th>Ray Error</th><th>Status</th></tr>
+<tr class="good"><td><strong>D7</strong></td><td>D7_PP_centered_shift</td><td>549.0</td><td>549.0</td><td>256.0</td><td>256.0</td><td>~0.17°</td><td>✅ Good</td></tr>
+<tr class="good"><td><strong>D7_1_test</strong></td><td>individual</td><td>549.0</td><td>549.0</td><td>256.0</td><td>256.0</td><td>~0.00°</td><td>✅ Good</td></tr>
+<tr class=""><td><strong>D7_2_test</strong></td><td>average</td><td>~547.3</td><td>~550.7</td><td>256.0</td><td>256.0</td><td>~0.00°</td><td>⚠️ Check</td></tr>
+</table>
+
+<h2 id="theory">2. Mathematical Foundation</h2>
+
+<div class="formula-box">
+<h3>2.1 Pinhole Camera Model</h3>
+<p>The projection from 3D world coordinates to 2D pixel coordinates:</p>
+\[
+\begin{bmatrix} u \\ v \\ 1 \end{bmatrix} \sim
+\mathbf{K} \cdot [\mathbf{R} | \mathbf{T}] \cdot
+\begin{bmatrix} X \\ Y \\ Z \\ 1 \end{bmatrix}
+\]
+<p>where \(\mathbf{K}\) is the intrinsic matrix:</p>
+\[
+\mathbf{K} = \begin{bmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix}
+\]
+</div>
+
+<div class="formula-box">
+<h3>2.2 Ray Direction Calculation</h3>
+<p>For novel view synthesis, the ray direction from pixel (u, v) in camera coordinates:</p>
+\[
+\mathbf{d}_c = \begin{bmatrix} (u - c_x) / f_x \\ (v - c_y) / f_y \\ 1 \end{bmatrix}
+\]
+<p><strong>Critical:</strong> Incorrect \(c_x, c_y\) leads to wrong ray directions, causing multi-view inconsistency and ghosting artifacts.</p>
+</div>
+
+<div class="formula-box">
+<h3>2.3 Ray Error Quantification</h3>
+<p>When fy is incorrectly recorded, the ray direction error at image edge (256 pixels from center):</p>
+\[
+\theta_{error} = \arctan\left(\frac{256 \cdot |f_y^{expected} - f_y^{recorded}|}{(f_y)^2}\right)
+\]
+<p>Risk levels: <span style="color:green">LOW (&lt;0.5°)</span>, <span style="color:orange">MEDIUM (0.5-2°)</span>, <span style="color:red">HIGH (&gt;2°)</span></p>
+</div>
+
+<div class="formula-box">
+<h3>2.4 Scale Factor Calculations</h3>
+
+<p><strong>fx_only (D7):</strong> Same scale for both axes, fy forced to target value</p>
+\[
+s = \frac{f_x^{target}}{f_x^{orig}}, \quad f_x' = f_y' = 549
+\]
+
+<p><strong>individual (D7.1):</strong> Different scales for exact focal lengths</p>
+\[
+s_x = \frac{f_x^{target}}{f_x^{orig}}, \quad s_y = \frac{f_y^{target}}{f_y^{orig}}, \quad f_x' = f_y' = 549 \text{ (exact)}
+\]
+
+<p><strong>average (D7.2):</strong> Isotropic scaling with averaged scale factor</p>
+\[
+s = \frac{s_x + s_y}{2}, \quad f_x' = f_x^{orig} \cdot s, \quad f_y' = f_y^{orig} \cdot s
+\]
+</div>
+
+<div class="formula-box">
+<h3>2.5 PP-Centered Shift</h3>
+<p>After scaling, shift image to center Principal Point at (256, 256):</p>
+\[
+\Delta_x = 256 - c_x^{scaled}, \quad \Delta_y = 256 - c_y^{scaled}
+\]
+<p>The complete affine transform:</p>
+\[
+\begin{bmatrix} u' \\ v' \end{bmatrix} =
+\begin{bmatrix} s_x & 0 \\ 0 & s_y \end{bmatrix}
+\begin{bmatrix} u \\ v \end{bmatrix} +
+\begin{bmatrix} \Delta_x \\ \Delta_y \end{bmatrix}
+\]
+</div>
+
+<h2 id="analysis">3. Detailed Analysis</h2>
+<h3>3.1 D7</h3>
+<div class="">
+
+<p><strong>Scale Mode:</strong> <code>D7_PP_centered_shift</code></p>
+<p><strong>Camera Views Analyzed:</strong> 600</p>
+
+<table>
+<tr><th>Parameter</th><th>Mean</th><th>Std</th><th>Min</th><th>Max</th><th>Target</th><th>Status</th></tr>
+<tr>
+    <td>fx</td>
+    <td>549.0000</td>
+    <td>0.0000</td>
+    <td>549.0000</td>
+    <td>549.0000</td>
+    <td>549.0</td>
+    <td>✅</td>
+</tr>
+<tr>
+    <td>fy</td>
+    <td>549.0000</td>
+    <td>0.0000</td>
+    <td>549.0000</td>
+    <td>549.0000</td>
+    <td>549.0</td>
+    <td>✅</td>
+</tr>
+<tr>
+    <td>cx</td>
+    <td>256.0000</td>
+    <td>0.0000</td>
+    <td>-</td>
+    <td>-</td>
+    <td>256.0</td>
+    <td>✅</td>
+</tr>
+<tr>
+    <td>cy</td>
+    <td>256.0000</td>
+    <td>0.0000</td>
+    <td>-</td>
+    <td>-</td>
+    <td>256.0</td>
+    <td>✅</td>
+</tr>
+</table>
+
+<p><strong>Scale Factors:</strong></p>
+<ul>
+<li>scale_x: 0.340362 (std: 0.005895)</li>
+<li>scale_y: 0.340362 (std: 0.005895)</li>
+<li>Anisotropy: 0.000000 (0.000%)</li>
+</ul>
+
+<p><strong>Ray Error Analysis:</strong></p>
+<ul>
+<li>Mean: 0.1700°</li>
+<li>Max: 0.4069°</li>
+<li>Risk Level: <span style="color:green; font-weight:bold">LOW</span></li>
+</ul>
+</div>
+<h3>3.2 D7_1_test</h3>
+<div class="recommended">
+<p><strong>★ RECOMMENDED</strong></p>
+<p><strong>Scale Mode:</strong> <code>individual</code></p>
+<p><strong>Camera Views Analyzed:</strong> 30</p>
+
+<table>
+<tr><th>Parameter</th><th>Mean</th><th>Std</th><th>Min</th><th>Max</th><th>Target</th><th>Status</th></tr>
+<tr>
+    <td>fx</td>
+    <td>549.0000</td>
+    <td>0.0000</td>
+    <td>549.0000</td>
+    <td>549.0000</td>
+    <td>549.0</td>
+    <td>✅</td>
+</tr>
+<tr>
+    <td>fy</td>
+    <td>549.0000</td>
+    <td>0.0000</td>
+    <td>549.0000</td>
+    <td>549.0000</td>
+    <td>549.0</td>
+    <td>✅</td>
+</tr>
+<tr>
+    <td>cx</td>
+    <td>256.0000</td>
+    <td>0.0000</td>
+    <td>-</td>
+    <td>-</td>
+    <td>256.0</td>
+    <td>✅</td>
+</tr>
+<tr>
+    <td>cy</td>
+    <td>256.0000</td>
+    <td>0.0000</td>
+    <td>-</td>
+    <td>-</td>
+    <td>256.0</td>
+    <td>✅</td>
+</tr>
+</table>
+
+<p><strong>Scale Factors:</strong></p>
+<ul>
+<li>scale_x: 0.340362 (std: 0.005895)</li>
+<li>scale_y: 0.338192 (std: 0.004421)</li>
+<li>Anisotropy: 0.002170 (0.638%)</li>
+</ul>
+
+<p><strong>Ray Error Analysis:</strong></p>
+<ul>
+<li>Mean: 0.0000°</li>
+<li>Max: 0.0000°</li>
+<li>Risk Level: <span style="color:green; font-weight:bold">LOW</span></li>
+</ul>
+</div>
+<h3>3.3 D7_2_test</h3>
+<div class="">
+
+<p><strong>Scale Mode:</strong> <code>average</code></p>
+<p><strong>Camera Views Analyzed:</strong> 30</p>
+
+<table>
+<tr><th>Parameter</th><th>Mean</th><th>Std</th><th>Min</th><th>Max</th><th>Target</th><th>Status</th></tr>
+<tr>
+    <td>fx</td>
+    <td>547.2697</td>
+    <td>1.1801</td>
+    <td>544.8825</td>
+    <td>548.5588</td>
+    <td>549.0</td>
+    <td>⚠️</td>
+</tr>
+<tr>
+    <td>fy</td>
+    <td>550.7465</td>
+    <td>1.2008</td>
+    <td>549.4420</td>
+    <td>553.1802</td>
+    <td>549.0</td>
+    <td>⚠️</td>
+</tr>
+<tr>
+    <td>cx</td>
+    <td>256.0000</td>
+    <td>0.0000</td>
+    <td>-</td>
+    <td>-</td>
+    <td>256.0</td>
+    <td>✅</td>
+</tr>
+<tr>
+    <td>cy</td>
+    <td>256.0000</td>
+    <td>0.0000</td>
+    <td>-</td>
+    <td>-</td>
+    <td>256.0</td>
+    <td>✅</td>
+</tr>
+</table>
+
+<p><strong>Scale Factors:</strong></p>
+<ul>
+<li>scale_x: 0.339277 (std: 0.005154)</li>
+<li>scale_y: 0.339277 (std: 0.005154)</li>
+<li>Anisotropy: 0.000000 (0.000%)</li>
+</ul>
+
+<p><strong>Ray Error Analysis:</strong></p>
+<ul>
+<li>Mean: 0.0000°</li>
+<li>Max: 0.0000°</li>
+<li>Risk Level: <span style="color:green; font-weight:bold">LOW</span></li>
+</ul>
+</div>
+<h2 id="visualization">4. Visualization</h2>
+
+<div class="figure">
+<img src="fig_parameter_distribution.png" alt="Parameter Distribution">
+<p class="figure-caption">Figure: Parameter Distribution</p>
+</div>
+
+<div class="figure">
+<img src="fig_scale_comparison.png" alt="Scale Comparison">
+<p class="figure-caption">Figure: Scale Comparison</p>
+</div>
+
+<div class="figure">
+<img src="fig_sample_images.png" alt="Sample Images">
+<p class="figure-caption">Figure: Sample Images</p>
+</div>
+
+<div class="figure">
+<img src="fig_ray_error.png" alt="Ray Error">
+<p class="figure-caption">Figure: Ray Error</p>
+</div>
+
+<h2 id="recommendations">5. Recommendations</h2>
+
+<div class="key-point">
+<h3>For New Experiments</h3>
+<ol>
+<li><strong>D7.1 (individual)</strong> - Recommended for geometric accuracy
+    <ul>
+    <li>Exact fx=fy=549 with different scale factors</li>
+    <li>~0.6% anisotropy (visually negligible)</li>
+    <li>Zero ray direction error</li>
+    </ul>
+</li>
+<li><strong>D7.2 (average)</strong> - Alternative for isotropic scaling
+    <ul>
+    <li>Isotropic scaling preserves aspect ratio</li>
+    <li>fx, fy may vary slightly from 549</li>
+    </ul>
+</li>
+<li><strong>D7 (fx_only)</strong> - Current production
+    <ul>
+    <li>Validated performance</li>
+    <li>Small ray error (~0.4°, LOW risk)</li>
+    </ul>
+</li>
+</ol>
+</div>
+
+<h2 id="commands">6. Preprocessing Commands</h2>
+
+<pre>
+# D7.1 (Recommended) - Individual scale factors
+python -m mouse_extensions.scripts.preprocess_D7_pp_centered \
+    --data-dir /home/joon/data/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \
+    --camera-pkl /home/joon/data/markerless_mouse_1_nerf/new_cam.pkl \
+    --frame-interval 5 \
+    --scale-mode individual
+
+# D7.2 (Alternative) - Average scale factor
+python -m mouse_extensions.scripts.preprocess_D7_pp_centered \
+    --data-dir /home/joon/data/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D7_2 \
+    --camera-pkl /home/joon/data/markerless_mouse_1_nerf/new_cam.pkl \
+    --frame-interval 5 \
+    --scale-mode average
+</pre>
+
+<hr>
+<p style="color:#888; font-size:12px;">
+Report generated by <code>generate_report.py</code> | FaceLift Mouse Extension<br>
+Template version: v2.0 | {now}
+</p>
+</body>
+</html>

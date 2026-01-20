@@ -46,7 +46,19 @@ try:
     MOUSE_LOGGING_AVAILABLE = True
 except ImportError:
     MOUSE_LOGGING_AVAILABLE = False
+
+# Test evaluation extension
+try:
+    from mouse_extensions.scripts.test_evaluation_extension import (
+        create_test_dataloader,
+        run_test_evaluation
+    )
+    TEST_EVALUATION_AVAILABLE = True
+except ImportError:
+    TEST_EVALUATION_AVAILABLE = False
+
 import yaml
+from omegaconf import OmegaConf, DictConfig
 from easydict import EasyDict as edict
 from torch.distributed import destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -85,6 +97,9 @@ class GSLRMTrainer:
         self.scaler = None
         self.dataloader = None
         self.val_dataloader = None
+        # Initialize test dataloader (for temporal split datasets)
+        self.test_dataloader = None
+
         
     def setup_distributed(self):
         """Initialize distributed training or single-GPU mode."""
@@ -170,7 +185,9 @@ class GSLRMTrainer:
             from gslrm.data.mouse_dataset import MouseViewDataset
             print("Using MouseViewDataset with camera normalization")
             self.dataset = MouseViewDataset(self.config, split="train")
-            if self.config.validation.enabled:
+            # Use .get() for safe access to validation config
+            val_config = self.config.get("validation", {})
+            if val_config.get("enabled", False):
                 self.val_dataset = MouseViewDataset(self.config, split="val")
             else:
                 self.val_dataset = None
@@ -178,7 +195,9 @@ class GSLRMTrainer:
             from gslrm.data.dataset import RandomViewDataset
             print("Using RandomViewDataset (original FaceLift)")
             self.dataset = RandomViewDataset(self.config, split="train")
-            if self.config.validation.enabled:
+            # Use .get() for safe access to validation config
+            val_config = self.config.get("validation", {})
+            if val_config.get("enabled", False):
                 self.val_dataset = RandomViewDataset(self.config, split="val")
             else:
                 self.val_dataset = None
@@ -437,7 +456,7 @@ class GSLRMTrainer:
         
     def setup_wandb(self):
         """Setup Weights & Biases logging."""
-        if self.ddp_rank != 0 or self.config.inference.enabled or self.config.get("evaluation", False):
+        if self.ddp_rank != 0 or self.config.get("inference", {}).get("enabled", False) or self.config.get("evaluation", False):
             return
             
         # Setup wandb environment
@@ -502,7 +521,8 @@ class GSLRMTrainer:
         
     def run_inference(self):
         """Run inference mode."""
-        print(f"Running inference; save results to: {self.config.inference.output_dir}")
+        inference_output = self.config.get("inference", {}).get("output_dir", "experiments/inference")
+        print(f"Running inference; save results to: {inference_output}")
         
         if self.ddp_rank == 0:
             print("Downloading LPIPS model (rank 0 only)")
@@ -522,7 +542,7 @@ class GSLRMTrainer:
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 result = self.model(batch, create_visual=True)
                 self.model_module.save_visuals(
-                    self.config.inference.output_dir, result, batch, save_all=True
+                    self.config.get("inference", {}).get("output_dir", "experiments/inference"), result, batch, save_all=True
                 )
             torch.cuda.empty_cache()
             
@@ -616,9 +636,9 @@ class GSLRMTrainer:
         )
         
         create_val = (
-            self.config.validation.enabled and (
+            self.config.get("validation", {}).get("enabled", False) and (
                 self.fwdbwd_pass_step == self.start_fwdbwd_pass_step or
-                self.fwdbwd_pass_step % self.config.validation.val_every == 0
+                self.fwdbwd_pass_step % self.config.get("validation", {}).get("val_every", 200) == 0
             )
         )
         
@@ -653,6 +673,41 @@ class GSLRMTrainer:
         
         return result, create_visual, create_val
         
+    def _apply_lr_decay_if_needed(self):
+        """Apply manual LR decay based on config settings.
+        
+        Config options (in training.schedule):
+            lr_decay_start: Step to start decaying (default: disabled)
+            lr_decay_factor: Multiply LR by this factor (default: 0.1)
+            lr_decay_steps: Apply decay every N steps after start (default: 1000)
+        """
+        schedule = self.config.training.schedule
+        decay_start = schedule.get("lr_decay_start", None)
+        
+        # Skip if not configured
+        if decay_start is None or decay_start <= 0:
+            return
+            
+        decay_factor = schedule.get("lr_decay_factor", 0.1)
+        decay_every = schedule.get("lr_decay_steps", 1000)
+        
+        # Only apply at decay start or every decay_every steps after that
+        current_step = self.param_update_step
+        if current_step < decay_start:
+            return
+            
+        # Check if this is a decay step
+        steps_since_decay_start = current_step - decay_start
+        if steps_since_decay_start == 0 or (decay_every > 0 and steps_since_decay_start % decay_every == 0):
+            # Apply decay to all param groups
+            for param_group in self.optimizer.param_groups:
+                old_lr = param_group['lr']
+                new_lr = old_lr * decay_factor
+                param_group['lr'] = new_lr
+            
+            if self.ddp_rank == 0:
+                print(f"[LR Decay] Step {current_step}: LR {old_lr:.8f} -> {new_lr:.8f} (factor={decay_factor})")
+
     def optimizer_step(self, result: Any) -> float:
         """Execute optimizer step with gradient clipping and error handling."""
         skip_optimizer_step = False
@@ -709,6 +764,10 @@ class GSLRMTrainer:
                 
             # Update learning rate and reset gradients
             self.lr_scheduler.step()
+            
+            # Apply manual LR decay if configured
+            self._apply_lr_decay_if_needed()
+            
             self.optimizer.zero_grad(set_to_none=True)
             
         return total_grad_norm
@@ -874,7 +933,8 @@ class GSLRMTrainer:
                 print(f"Warning: Could not load image {f}: {e}")
 
         # Find turntable images (360° rotation visualization)
-        turntable_files = glob.glob(os.path.join(vis_dir, "turntable_*.jpg"))
+        # Search recursively in subdirectories (iter_XXX/UID/turntable_*.jpg)
+        turntable_files = glob.glob(os.path.join(vis_dir, "**/turntable_*.jpg"), recursive=True)
         for i, f in enumerate(turntable_files[:1]):  # Limit to 1 image
             try:
                 img = PILImage.open(f)
@@ -926,7 +986,7 @@ class GSLRMTrainer:
     def run_validation(self):
         """Run validation loop."""
         print(f"Running validation at step {self.fwdbwd_pass_step}; "
-              f"save results to: {self.config.validation.output_dir}")
+              f"save results to: {self.config.get('validation', {}).get('output_dir', 'experiments/validation')}")
         self._barrier()
         
         self._set_epoch(self.val_dataloader, 0)
@@ -939,7 +999,7 @@ class GSLRMTrainer:
                   dtype=self.amp_dtype_mapping[self.config.training.runtime.amp_dtype],
               )):
             
-            log_val_metrics = {"psnr": [], "ssim": [], "lpips": [], "mask_iou": []}
+            log_val_metrics = {"psnr": [], "ssim": [], "lpips": [], "mask_iou": [], "psnr_train_mask": [], "mask_type": None}
 
             for idx, batch in enumerate(self.val_dataloader):
                 batch = {k: v.to(self.device) for k, v in batch.items()}
@@ -947,7 +1007,7 @@ class GSLRMTrainer:
 
                 try:
                     val_metrics = self.model_module.save_validations(
-                        os.path.join(self.config.validation.output_dir, f"iter_{self.fwdbwd_pass_step:08d}"),
+                        os.path.join(self.config.get("validation", {}).get("output_dir", "experiments/validation"), f"iter_{self.fwdbwd_pass_step:08d}"),
                         result,
                         batch,
                         self.dataset,
@@ -957,6 +1017,9 @@ class GSLRMTrainer:
                     log_val_metrics["ssim"].append(val_metrics["ssim"])
                     log_val_metrics["lpips"].append(val_metrics["lpips"])
                     log_val_metrics["mask_iou"].append(val_metrics.get("mask_iou", 0.0))
+                    log_val_metrics["psnr_train_mask"].append(val_metrics.get("psnr_train_mask", val_metrics["psnr"]))
+                    if val_metrics.get("mask_type"):
+                        log_val_metrics["mask_type"] = val_metrics["mask_type"]
                     
                     # Collect per-view metrics from first validation sample
                     if idx == 0 and "per_view_psnr" in val_metrics:
@@ -973,6 +1036,8 @@ class GSLRMTrainer:
                 avg_ssim = sum(log_val_metrics["ssim"]) / max(len(log_val_metrics["ssim"]), 1)
                 avg_lpips = sum(log_val_metrics["lpips"]) / max(len(log_val_metrics["lpips"]), 1)
                 avg_mask_iou = sum(log_val_metrics["mask_iou"]) / max(len(log_val_metrics["mask_iou"]), 1)
+                avg_psnr_train_mask = sum(log_val_metrics.get("psnr_train_mask", [avg_psnr])) / max(len(log_val_metrics.get("psnr_train_mask", [1])), 1)
+                mask_type = log_val_metrics.get("mask_type", "GT")
                 
                 # Derive losses from metrics
                 # L2 from PSNR: PSNR = -10*log10(MSE) -> MSE = 10^(-PSNR/10)
@@ -998,6 +1063,8 @@ class GSLRMTrainer:
                     "val/ssim_loss": 1.0 - avg_ssim,
                     "val/lpips": avg_lpips,
                     "val/mask_iou": avg_mask_iou,
+                    "val/psnr_train_mask": avg_psnr_train_mask,
+                    "val/mask_type": mask_type,
                     # Meta info (NEW - for experiment tracking)
                     "meta/current_step": self.fwdbwd_pass_step,
                     "meta/total_steps": self.config.training.schedule.max_fwdbwd_passes,
@@ -1018,7 +1085,7 @@ class GSLRMTrainer:
                 wandb.log(wandb_log_val_metrics, step=self.fwdbwd_pass_step)
 
                 # Log validation images to WandB
-                val_vis_dir = os.path.join(self.config.validation.output_dir, f"iter_{self.fwdbwd_pass_step:08d}")
+                val_vis_dir = os.path.join(self.config.get("validation", {}).get("output_dir", "experiments/validation"), f"iter_{self.fwdbwd_pass_step:08d}")
                 self._log_visuals_to_wandb(val_vis_dir, prefix="val")
 
             torch.cuda.empty_cache()
@@ -1027,10 +1094,28 @@ class GSLRMTrainer:
         
         # Summarize validation results
         if self.ddp_rank == 0:
-            self._summarize_evaluation_results(self.config.validation.output_dir)
+            self._summarize_evaluation_results(self.config.get("validation", {}).get("output_dir", "experiments/validation"))
             
         self._barrier()
         self.model.train()
+
+    def run_test(self):
+        """Run final test evaluation (once at end of training)."""
+        if not TEST_EVALUATION_AVAILABLE or self.test_dataloader is None:
+            print("[Test] No test dataloader available, skipping test evaluation")
+            return
+
+        test_output_dir = self.config.get("validation", {}).get(
+            "output_dir", "experiments/validation"
+        ).replace("validation", "test")
+
+        return run_test_evaluation(
+            self,
+            self.test_dataloader,
+            output_dir=test_output_dir,
+            log_to_wandb=True
+        )
+
         
     def should_stop_training(self) -> bool:
         """Check if training should stop based on configured criteria."""
@@ -1100,6 +1185,11 @@ class GSLRMTrainer:
         # Save final checkpoint if needed
         if self.ddp_rank == 0:
             self.save_checkpoint_if_needed()
+
+        # Run final test evaluation (once at end of training)
+        if self.ddp_rank == 0:
+            self.run_test()
+
             
     def cleanup(self):
         """Clean up distributed training."""
@@ -1108,16 +1198,107 @@ class GSLRMTrainer:
             destroy_process_group()
 
 
+
+def load_modular_config(dataset: str, experiment: str, base_dir: str = "configs") -> DictConfig:
+    """Load and merge modular configuration files.
+    
+    Merges configs in order: base <- dataset <- experiment
+    Auto-generates paths for checkpoints and wandb logging.
+    
+    Args:
+        dataset: Dataset name (e.g., "D7_1", "D7_t")
+        experiment: Experiment name (e.g., "E3_2_5v_alpha")
+        base_dir: Base directory for configs (default: "configs")
+        
+    Returns:
+        Merged OmegaConf DictConfig
+    """
+    import os
+    
+    base_path = os.path.join(base_dir, "base", "gslrm_mouse.yaml")
+    dataset_path = os.path.join(base_dir, "datasets", f"{dataset}.yaml")
+    experiment_path = os.path.join(base_dir, "experiments", f"{experiment}.yaml")
+    
+    # Check files exist
+    for path, name in [(base_path, "base"), (dataset_path, "dataset"), (experiment_path, "experiment")]:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{name.title()} config not found: {path}")
+    
+    # Load and merge configs
+    base_cfg = OmegaConf.load(base_path)
+    dataset_cfg = OmegaConf.load(dataset_path)
+    experiment_cfg = OmegaConf.load(experiment_path)
+    
+    # Merge: base <- dataset <- experiment
+    merged = OmegaConf.merge(base_cfg, dataset_cfg, experiment_cfg)
+    
+    # Auto-generate paths
+    run_name = f"{dataset}_{experiment}"
+    
+    # Set checkpoint directory
+    if "checkpointing" not in merged.training:
+        merged.training.checkpointing = {}
+    merged.training.checkpointing.checkpoint_dir = f"checkpoints/gslrm/{run_name}"
+    
+    # Set wandb group and experiment name
+    if "logging" not in merged.training:
+        merged.training.logging = {}
+    if "wandb" not in merged.training.logging:
+        merged.training.logging.wandb = {}
+    merged.training.logging.wandb.group = dataset
+    merged.training.logging.wandb.exp_name = run_name
+    
+    # Remove metadata fields (starting with _)
+    def remove_metadata(cfg):
+        if isinstance(cfg, DictConfig):
+            keys_to_remove = [k for k in cfg.keys() if k.startswith("_")]
+            for k in keys_to_remove:
+                del cfg[k]
+            for v in cfg.values():
+                remove_metadata(v)
+    
+    remove_metadata(merged)
+    
+    print_rank0(f"[Config] Loaded modular config: {run_name}")
+    print_rank0(f"  Base: {base_path}")
+    print_rank0(f"  Dataset: {dataset_path}")
+    print_rank0(f"  Experiment: {experiment_path}")
+    
+    return merged
+
+
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="GSLRM Training Script")
-    parser.add_argument("--config", "-c", type=str, required=True, 
-                       help="Path to YAML configuration file")
+    
+    # Legacy mode: single config file
+    parser.add_argument("--config", "-c", type=str, default="",
+                       help="Path to YAML configuration file (legacy mode)")
+    
+    # Modular mode: dataset + experiment
+    parser.add_argument("--dataset", "-d", type=str, default="",
+                       help="Dataset config name (e.g., D7_1, D7_t)")
+    parser.add_argument("--experiment", "-e", type=str, default="",
+                       help="Experiment config name (e.g., E3_2_5v_alpha)")
+    parser.add_argument("--config-dir", type=str, default="configs",
+                       help="Base directory for modular configs")
+    
+    # Common arguments
     parser.add_argument("--load", type=str, default="", 
                        help="Force load weights from specific path")
     parser.add_argument("--set", "-s", type=str, action="append", nargs=2,
                        metavar=("KEY", "VALUE"), help="Override config values")
-    return parser.parse_args()
+    
+    args = parser.parse_args()
+    
+    # Validate: either config or (dataset + experiment) must be provided
+    if not args.config and not (args.dataset and args.experiment):
+        parser.error("Either --config or (--dataset and --experiment) must be provided")
+    
+    if args.config and (args.dataset or args.experiment):
+        parser.error("Cannot use --config with --dataset/--experiment. Choose one mode.")
+    
+    return args
 
 
 def load_and_process_config(config_path: str, overrides: Optional[list] = None) -> edict:
@@ -1165,9 +1346,41 @@ def load_and_process_config(config_path: str, overrides: Optional[list] = None) 
 
 def main():
     """Main training function."""
-    # Parse arguments and load config
+    # Parse arguments
     args = parse_arguments()
-    config = load_and_process_config(args.config, args.set)
+    
+    # Load config (modular or legacy mode)
+    if args.dataset and args.experiment:
+        # Modular mode
+        merged_cfg = load_modular_config(args.dataset, args.experiment, args.config_dir)
+        config = edict(OmegaConf.to_container(merged_cfg, resolve=True))
+    else:
+        # Legacy mode
+        config = load_and_process_config(args.config, args.set)
+    
+    # Apply overrides if any (for modular mode, overrides already applied in legacy)
+    if args.dataset and args.experiment and args.set:
+        for key_value in args.set:
+            key_parts = key_value[0].split(".")
+            value = key_value[1]
+            def set_nested(data, keys, val):
+                key = keys.pop(0)
+                if keys:
+                    if key not in data:
+                        data[key] = {}
+                    set_nested(data[key], keys, val)
+                else:
+                    try:
+                        if val.lower() == "true": data[key] = True
+                        elif val.lower() == "false": data[key] = False
+                        else:
+                            try: data[key] = int(val)
+                            except: 
+                                try: data[key] = float(val)
+                                except: data[key] = val
+                    except: data[key] = val
+            set_nested(config, key_parts.copy(), value)
+    
     print_rank0(config)
     
     # Create trainer
@@ -1182,11 +1395,11 @@ def main():
         trainer.setup_wandb()
         
         # Setup validation dataloader if needed
-        if config.validation.enabled:
-            os.makedirs(config.validation.output_dir, exist_ok=True)
+        if config.get("validation", {}).get("enabled", False):
+            os.makedirs(config.get("validation", {}).get("output_dir", "experiments/validation"), exist_ok=True)
             
         # Run appropriate mode
-        if config.inference.enabled:
+        if config.get("inference", {}).get("enabled", False):
             trainer.run_inference()
         elif config.get("evaluation", False):
             trainer.run_evaluation()

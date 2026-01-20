@@ -1,0 +1,21 @@
+# =============================================================================
+# Dataset: D7 (PP-Centered, fx/fy forced to 549)
+# =============================================================================
+
+_dataset:
+  name: D7
+  description: "PP-Centered shift, fx=fy=549 (forced)"
+  path: /home/joon/data/preprocessed/FaceLift_mouse/D7
+  split: "90:10 (train:val)"
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D7/data_mouse_train.txt
+
+validation:
+  enabled: true
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D7/data_mouse_val.txt
+  val_every: 200
+
+inference:
+  enabled: false

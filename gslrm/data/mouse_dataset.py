@@ -32,326 +32,31 @@ import pandas as pd
 import torch
 from PIL import Image
 import os
-
 from torch.utils.data import Dataset
 
-# Import preprocessing utilities from mouse_extensions
+# Import preprocessing utilities from mouse_extensions (required)
+from mouse_extensions.data import (
+    pil_to_np,
+    normalize_camera_distance,
+    normalize_camera_distance_with_intrinsics,
+    normalize_cameras_to_y_up,
+    normalize_cameras_to_z_up,
+    get_bg_color,
+    preprocess_cameras,
+    PreprocessingConfig,
+)
+
+
+
+# PP correction for v12/v13 dataset bug (2026-01-17)
 try:
-    from mouse_extensions.data import (
-        pil_to_np,
-        normalize_camera_distance,
-        normalize_camera_distance_with_intrinsics,
-        normalize_cameras_to_y_up,
-        normalize_cameras_to_z_up,
-        get_bg_color,
-        preprocess_cameras,
-        PreprocessingConfig,
+    from mouse_extensions.scripts.solutions.pp_correction_integration import (
+        apply_pp_correction, get_actual_principal_point
     )
-    PREPROCESSING_MODULE_AVAILABLE = True
+    PP_CORRECTION_AVAILABLE = True
 except ImportError:
-    PREPROCESSING_MODULE_AVAILABLE = False
-    # Fallback: define functions locally (see below)
-
-
-# ============================================================================
-# Preprocessing functions (fallback if module not available)
-# These are kept for backward compatibility but prefer using mouse_extensions
-# ============================================================================
-
-def pil_to_np(pil_image):
-    """Convert PIL image to numpy array, preserving RGBA alpha channel."""
-    if pil_image.mode == "RGBA":
-        r, g, b, a = pil_image.split()
-        r, g, b, a = np.asarray(r), np.asarray(g), np.asarray(b), np.asarray(a)
-        image = np.stack([r, g, b, a], axis=2)
-    else:
-        image = np.asarray(pil_image)
-    return image
-
-
-def normalize_camera_distance(c2w_matrices: np.ndarray, target_distance: float = 2.7) -> np.ndarray:
-    """
-    Normalize camera distances to a fixed radius from origin.
-
-    This ensures all cameras are at the same distance as FaceLift pretrained model expects.
-    The pretrained GS-LRM was trained with cameras at radius=2.7.
-
-    Args:
-        c2w_matrices: Camera-to-world matrices [N, 4, 4]
-        target_distance: Target distance from origin (FaceLift default: 2.7)
-
-    Returns:
-        Normalized c2w matrices [N, 4, 4] with uniform camera distance
-    """
-    normalized_c2ws = []
-
-    for c2w in c2w_matrices:
-        c2w_new = c2w.copy()
-
-        # Get current camera position
-        cam_pos = c2w[:3, 3]
-        current_distance = np.linalg.norm(cam_pos)
-
-        if current_distance > 1e-6:
-            # Scale position to target distance
-            scale = target_distance / current_distance
-            c2w_new[:3, 3] = cam_pos * scale
-
-        normalized_c2ws.append(c2w_new)
-
-    return np.stack(normalized_c2ws, axis=0)
-
-
-def normalize_camera_distance_with_intrinsics(
-    c2w_matrices: np.ndarray, 
-    fxfycxcy: np.ndarray,
-    target_distance: float = 2.7
-) -> tuple:
-    """
-    Normalize camera distances AND adjust intrinsics accordingly.
-    
-    When camera distance changes, fx/fy must also change proportionally
-    to maintain the same projected image size. This is crucial for 
-    consistent Plucker ray embeddings in GS-LRM.
-    
-    Mathematical basis:
-    - Perspective projection: pixel_x = fx * (X/Z) + cx
-    - If distance doubles, object appears half size in image
-    - To compensate: fx, fy must also double
-    - Formula: new_fx = old_fx * (new_distance / old_distance)
-    
-    Args:
-        c2w_matrices: Camera-to-world matrices [N, 4, 4]
-        fxfycxcy: Intrinsic parameters [N, 4] as [fx, fy, cx, cy]
-        target_distance: Target distance from origin (FaceLift default: 2.7)
-    
-    Returns:
-        Tuple of (normalized_c2ws, adjusted_intrinsics)
-    """
-    normalized_c2ws = []
-    adjusted_intrinsics = []
-    
-    for i, c2w in enumerate(c2w_matrices):
-        c2w_new = c2w.copy()
-        intrinsics_new = fxfycxcy[i].copy()
-        
-        # Get current camera position
-        cam_pos = c2w[:3, 3]
-        current_distance = np.linalg.norm(cam_pos)
-        
-        if current_distance > 1e-6:
-            # Scale factor
-            scale = target_distance / current_distance
-            
-            # Scale camera position
-            c2w_new[:3, 3] = cam_pos * scale
-            
-            # Scale fx, fy proportionally (cx, cy unchanged)
-            intrinsics_new[0] *= scale  # fx
-            intrinsics_new[1] *= scale  # fy
-        
-        normalized_c2ws.append(c2w_new)
-        adjusted_intrinsics.append(intrinsics_new)
-    
-    return np.stack(normalized_c2ws, axis=0), np.stack(adjusted_intrinsics, axis=0)
-
-
-def normalize_cameras_to_y_up(c2w_matrices: np.ndarray, up_direction: np.ndarray = None) -> np.ndarray:
-    """
-    Normalize camera poses so that the up direction aligns with Y-axis.
-
-    This is crucial for GS-LRM training because the pretrained model assumes Y-up coordinates.
-    Mouse capture data may have arbitrary up directions due to camera calibration.
-
-    Args:
-        c2w_matrices: Camera-to-world matrices [N, 4, 4]
-        up_direction: Actual "up" direction in world coordinates. If None, estimate from cameras.
-                      For orbit cameras, this should be the orbit axis (plane normal).
-
-    Returns:
-        Normalized c2w matrices [N, 4, 4] with Y-up alignment
-    """
-    if up_direction is None:
-        # Estimate up direction from camera positions (orbit axis = plane normal)
-        # This is more robust than using camera orientations for orbit cameras
-        positions = np.array([c2w[:3, 3] for c2w in c2w_matrices])
-        center = np.mean(positions, axis=0)
-        centered = positions - center
-
-        if len(c2w_matrices) >= 3:
-            # Use PCA to find orbit plane normal
-            cov = centered.T @ centered
-            eigenvalues, eigenvectors = np.linalg.eig(cov)
-            min_idx = np.argmin(eigenvalues.real)
-            up_direction = eigenvectors[:, min_idx].real
-        else:
-            # Fallback to camera up vectors average
-            avg_cam_up = np.mean([-c2w[:3, 1] for c2w in c2w_matrices], axis=0)
-            up_direction = avg_cam_up / np.linalg.norm(avg_cam_up)
-
-        # Ensure up direction points "up" (positive Y component or align with cam ups)
-        avg_cam_up = np.mean([-c2w[:3, 1] for c2w in c2w_matrices], axis=0)
-        if np.dot(up_direction, avg_cam_up) < 0:
-            up_direction = -up_direction
-
-    up_direction = up_direction / np.linalg.norm(up_direction)
-    target_up = np.array([0.0, 1.0, 0.0])  # Y-up (kept for backward compatibility)
-
-    # Compute rotation from current up to Y-up
-    rotation_axis = np.cross(up_direction, target_up)
-    axis_norm = np.linalg.norm(rotation_axis)
-
-    if axis_norm < 1e-6:
-        # Already aligned (or opposite)
-        if np.dot(up_direction, target_up) < 0:
-            # 180 degree rotation around X
-            R_align = np.array([
-                [1, 0, 0],
-                [0, -1, 0],
-                [0, 0, -1]
-            ], dtype=np.float32)
-        else:
-            R_align = np.eye(3, dtype=np.float32)
-    else:
-        rotation_axis = rotation_axis / axis_norm
-        cos_angle = np.clip(np.dot(up_direction, target_up), -1.0, 1.0)
-        angle = np.arccos(cos_angle)
-
-        # Rodrigues' rotation formula
-        K = np.array([
-            [0, -rotation_axis[2], rotation_axis[1]],
-            [rotation_axis[2], 0, -rotation_axis[0]],
-            [-rotation_axis[1], rotation_axis[0], 0]
-        ])
-        R_align = np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * (K @ K)
-        R_align = R_align.astype(np.float32)
-
-    # Apply rotation to all cameras
-    normalized_c2ws = []
-    for c2w in c2w_matrices:
-        c2w_new = np.eye(4, dtype=np.float32)
-        c2w_new[:3, :3] = R_align @ c2w[:3, :3]
-        c2w_new[:3, 3] = R_align @ c2w[:3, 3]
-        normalized_c2ws.append(c2w_new)
-
-    return np.stack(normalized_c2ws, axis=0)
-
-
-def normalize_cameras_to_z_up(c2w_matrices: np.ndarray, up_direction: np.ndarray = None) -> np.ndarray:
-    """
-    Normalize camera poses so that the up direction aligns with Z-axis.
-
-    IMPORTANT: Analysis of human data samples (data_sample/gslrm/sample_000) shows that
-    GS-LRM pretrained model uses Z-up coordinate system, NOT Y-up!
-    - Human data Up Vector: [0, 0, 1] (Z-up)
-    - Orbit plane normal: [0, 0, 1] (XY plane orbit)
-
-    This function should be used instead of normalize_cameras_to_y_up() for
-    compatibility with the pretrained GS-LRM model.
-
-    Args:
-        c2w_matrices: Camera-to-world matrices [N, 4, 4]
-        up_direction: Actual "up" direction in world coordinates. If None, estimate from cameras.
-
-    Returns:
-        Normalized c2w matrices [N, 4, 4] with Z-up alignment
-    """
-    if up_direction is None:
-        # Estimate up direction from camera positions (orbit axis = plane normal)
-        positions = np.array([c2w[:3, 3] for c2w in c2w_matrices])
-        center = np.mean(positions, axis=0)
-        centered = positions - center
-
-        if len(c2w_matrices) >= 3:
-            # Use PCA to find orbit plane normal
-            cov = centered.T @ centered
-            eigenvalues, eigenvectors = np.linalg.eig(cov)
-            min_idx = np.argmin(eigenvalues.real)
-            up_direction = eigenvectors[:, min_idx].real
-        else:
-            # Fallback to camera up vectors average
-            avg_cam_up = np.mean([-c2w[:3, 1] for c2w in c2w_matrices], axis=0)
-            up_direction = avg_cam_up / np.linalg.norm(avg_cam_up)
-
-        # Ensure up direction points "up" (positive Z component for Z-up)
-        avg_cam_up = np.mean([-c2w[:3, 1] for c2w in c2w_matrices], axis=0)
-        if np.dot(up_direction, avg_cam_up) < 0:
-            up_direction = -up_direction
-
-    up_direction = up_direction / np.linalg.norm(up_direction)
-    target_up = np.array([0.0, 0.0, 1.0])  # Z-up (matches human data!)
-
-    # Compute rotation from current up to Z-up
-    rotation_axis = np.cross(up_direction, target_up)
-    axis_norm = np.linalg.norm(rotation_axis)
-
-    if axis_norm < 1e-6:
-        # Already aligned (or opposite)
-        if np.dot(up_direction, target_up) < 0:
-            # 180 degree rotation around X
-            R_align = np.array([
-                [1, 0, 0],
-                [0, -1, 0],
-                [0, 0, -1]
-            ], dtype=np.float32)
-        else:
-            R_align = np.eye(3, dtype=np.float32)
-    else:
-        rotation_axis = rotation_axis / axis_norm
-        cos_angle = np.clip(np.dot(up_direction, target_up), -1.0, 1.0)
-        angle = np.arccos(cos_angle)
-
-        # Rodrigues' rotation formula
-        K = np.array([
-            [0, -rotation_axis[2], rotation_axis[1]],
-            [rotation_axis[2], 0, -rotation_axis[0]],
-            [-rotation_axis[1], rotation_axis[0], 0]
-        ])
-        R_align = np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * (K @ K)
-        R_align = R_align.astype(np.float32)
-
-    # Apply rotation to all cameras
-    normalized_c2ws = []
-    for c2w in c2w_matrices:
-        c2w_new = np.eye(4, dtype=np.float32)
-        c2w_new[:3, :3] = R_align @ c2w[:3, :3]
-        c2w_new[:3, 3] = R_align @ c2w[:3, 3]
-        normalized_c2ws.append(c2w_new)
-
-    return np.stack(normalized_c2ws, axis=0)
-
-
-def get_bg_color(bg_color_config):
-    """Generate background color based on configuration."""
-    COLORS = {
-        'white': np.array([1.0, 1.0, 1.0], dtype=np.float32),
-        'black': np.array([0.0, 0.0, 0.0], dtype=np.float32),
-        'gray': np.array([0.5, 0.5, 0.5], dtype=np.float32)
-    }
-
-    if isinstance(bg_color_config, str):
-        if bg_color_config in COLORS:
-            bg_color = COLORS[bg_color_config]
-        elif bg_color_config == 'random':
-            bg_color = np.random.rand(3).astype(np.float32)
-        elif bg_color_config == 'three_choices':
-            bg_color = random.choice(list(COLORS.values()))
-        else:
-            raise ValueError(f"Unsupported background color: '{bg_color_config}'")
-    elif isinstance(bg_color_config, (int, float)):
-        if not 0 <= bg_color_config <= 1:
-            raise ValueError(f"Background color must be in [0, 1], got {bg_color_config}")
-        bg_color = np.array([bg_color_config] * 3, dtype=np.float32)
-    else:
-        raise ValueError(f"Unsupported background color type: {type(bg_color_config)}")
-
-    return torch.from_numpy(bg_color)
-
-
-# ============================================================================
-# End of fallback preprocessing functions
-# When PREPROCESSING_MODULE_AVAILABLE is True, these are shadowed by imports
-# ============================================================================
+    PP_CORRECTION_AVAILABLE = False
+    print("[Warning] PP correction module not found. Using original behavior.")
 
 
 class MouseViewDataset(Dataset):
@@ -378,7 +83,7 @@ class MouseViewDataset(Dataset):
         if self.split == "train":
             dataset_path = self.config.training.dataset.dataset_path
         elif self.split == "val":
-            dataset_path = self.config.validation.dataset_path
+            dataset_path = self.config.get("validation", {}).get("dataset_path", "")
         else:
             raise NotImplementedError(f"Split '{split}' is not supported")
 
@@ -419,7 +124,15 @@ class MouseViewDataset(Dataset):
         # This is critical for mouse images that don't have alpha channel
         # Without mask, L2 loss is dominated by background pixels (95%)
         self.auto_generate_mask = mouse_config.get("auto_generate_mask", True)
-        self.mask_threshold = mouse_config.get("mask_threshold", 250)  # Pixels > threshold are background
+        self.mask_threshold = mouse_config.get("mask_threshold", 250)
+
+        # Principal Point correction (2026-01-17)
+        # Fixes cx,cy bug in v12/v13 datasets that causes ghosting artifacts
+        # Options: "none" (original), "actual_pp" (varying cx,cy), "crop" (recommended)
+        self.pp_correction_method = mouse_config.get("pp_correction", "none")
+        if self.pp_correction_method != "none" and not PP_CORRECTION_AVAILABLE:
+            print(f"[Warning] PP correction '{self.pp_correction_method}' requested but module not available")
+            self.pp_correction_method = "none"  # Pixels > threshold are background
 
         print(f"[MouseViewDataset] Split: {split}, Samples: {len(self.all_data_paths)}")
         print(f"[MouseViewDataset] Views: {self.num_views}, Input views: {self.num_input_views}")
@@ -427,6 +140,8 @@ class MouseViewDataset(Dataset):
         up_mode = "Z-up" if self.normalize_to_z_up else "Y-up"
         print(f"[MouseViewDataset] Camera normalization: {up_mode}={self.normalize_cameras}, distance={self.target_camera_distance}")
         print(f"[MouseViewDataset] Auto mask generation: {self.auto_generate_mask}, threshold={self.mask_threshold}")
+        if self.pp_correction_method != "none":
+            print(f"[MouseViewDataset] PP correction: {self.pp_correction_method} (fixing cx,cy bug)")
 
     def __len__(self):
         """Return the number of samples in the dataset."""
@@ -643,10 +358,21 @@ class MouseViewDataset(Dataset):
                 image = self._process_image_channels(image, bg_color_255)
 
                 # Extract and adjust camera intrinsics
-                intrinsics = np.array([
-                    camera["fx"], camera["fy"], camera["cx"], camera["cy"]
-                ])
-                intrinsics *= resize_ratio
+                # PP correction handles the cx,cy bug in v12/v13 datasets
+                if PP_CORRECTION_AVAILABLE and self.pp_correction_method != "none":
+                    image, intrinsics = apply_pp_correction(
+                        image,
+                        camera,
+                        method=self.pp_correction_method,
+                        resize_ratio=resize_ratio,
+                        target_size=target_size,
+                        bg_color=bg_color_255
+                    )
+                else:
+                    intrinsics = np.array([
+                        camera["fx"], camera["fy"], camera["cx"], camera["cy"]
+                    ])
+                    intrinsics *= resize_ratio
 
                 # Extract camera pose (w2c -> c2w)
                 c2w = np.linalg.inv(np.array(camera["w2c"]))

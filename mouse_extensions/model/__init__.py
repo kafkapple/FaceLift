@@ -7,6 +7,9 @@ and training visualization for mouse data experiments.
 
 # Loss and mask computation
 from .loss_extensions import (
+    AlphaLossComputer,
+    compute_alpha_loss,
+    compute_alpha_metrics,
     compute_mask_from_config,
     compute_ghost_metrics,
     compute_gaussians_usage,
@@ -41,6 +44,9 @@ __all__ = [
     "MaskType",
     "MaskConfig",
     "LossExtensions",
+    "AlphaLossComputer",
+    "compute_alpha_loss",
+    "compute_alpha_metrics",
     # Visualization
     "create_threshold_comparison",
     "add_labels_to_visualization",
@@ -48,4 +54,71 @@ __all__ = [
     "render_opencv_cam_with_alpha",
     "DeferredGaussianRenderWithAlpha",
     "DIFF_GAUSS_AVAILABLE",
+]
+
+# GSLRM Patches (new)
+from .gslrm_patches import (
+    compute_alpha_loss_if_enabled,
+    get_visualization_mask_for_display,
+    create_config_aware_visual,
+    get_mask_config_for_logging,
+)
+
+# Visualization Extensions (new)
+from .visualization_extensions import (
+    VisualizationConfig,
+    MaskType,
+    create_training_visual,
+    create_validation_visual,
+    compute_pred_mask,
+    compute_error_stats,
+    create_error_heatmap,
+    compute_visualization_mask,
+    create_mask_overlay,
+    create_threshold_comparison_grid,
+    get_visualization_config_info,
+    VisualizationMaskType,
+)
+
+# Ghost Gaussian Pruning (new)
+from .gaussian_pruning import (
+    compute_boundary_gaussians,
+    GhostGaussianRegularizer,
+    PruningConfig,
+)
+
+__all__ += [
+    # GSLRM Patches
+    "compute_alpha_loss_if_enabled",
+    "get_visualization_mask_for_display",
+    "create_config_aware_visual",
+    "get_mask_config_for_logging",
+    # Visualization Extensions
+    "compute_visualization_mask",
+    "create_mask_overlay",
+    "create_threshold_comparison_grid",
+    "get_visualization_config_info",
+    "VisualizationMaskType",
+    # Ghost Gaussian
+    "compute_boundary_gaussians",
+    "GhostGaussianRegularizer",
+    "PruningConfig",
+]
+
+# Floater/Ghosting Artifact Mitigation (new)
+from .loss_extensions import (
+    OpacityRegularizer,
+    DepthRegularizer,
+    compute_opacity_regularization,
+    compute_depth_regularization,
+    get_turntable_config,
+)
+
+__all__ += [
+    # Floater Mitigation
+    "OpacityRegularizer",
+    "DepthRegularizer",
+    "compute_opacity_regularization",
+    "compute_depth_regularization",
+    "get_turntable_config",
 ]

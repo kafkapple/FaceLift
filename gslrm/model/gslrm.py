@@ -48,6 +48,10 @@ from PIL import Image
 # Mouse extensions (optional)
 try:
     from mouse_extensions.model import (
+        VisualizationConfig,
+        create_training_visual,
+        create_validation_visual,
+        compute_error_stats,
         compute_mask_from_config,
         create_threshold_comparison,
         MaskType,
@@ -338,19 +342,21 @@ class LossComputer(nn.Module):
         if target_flat.size(1) == 4:
             target_flat, mask = target_flat.split([3, 1], dim=1)
 
-        # Compute individual losses
+        # Flatten rendered_alpha for loss computation AND visualization
+        rendered_alpha_flat = None
+        if rendered_alpha is not None:
+            rendered_alpha_flat = rendered_alpha.reshape(b * v, 1, h, w)
+
+        # Compute individual losses (pass rendered_alpha for mask_mode=alpha)
         losses = self._compute_all_losses(
-            rendering_flat, target_flat, img_aligned_xyz, input, mask, b, v, h, w
+            rendering_flat, target_flat, img_aligned_xyz, input, mask, b, v, h, w,
+            rendered_alpha=rendered_alpha_flat
         )
         
         # Compute total weighted loss
         total_loss = self._compute_total_loss(losses)
 
         # Create visualization if requested (include mask if available)
-        # Flatten rendered_alpha if provided
-        rendered_alpha_flat = None
-        if rendered_alpha is not None:
-            rendered_alpha_flat = rendered_alpha.reshape(b * v, 1, rendering_flat.shape[2], rendering_flat.shape[3])
         # Use rendered_alpha as mask fallback for visualization if GT mask not available
         visual_mask = mask if mask is not None else (rendered_alpha_flat > 0.5).float() if rendered_alpha_flat is not None else None
         visual = self._create_visual(rendering_flat, target_flat, v, visual_mask, rendered_alpha_flat) if create_visual else None
@@ -659,7 +665,9 @@ class LossComputer(nn.Module):
             'mean': error_raw.mean().item()
         }
 
-        if mask is not None:
+        # Visualization: only show mask if mask_mode is not "none"
+        mask_mode_for_vis = self.config.training.losses.get("mask_mode", None)
+        if mask is not None and mask_mode_for_vis != "none":
             mask_bv = rearrange(mask, "(b v) c h w -> b v c h w", v=v)
 
             # Create GT mask overlay visualization
@@ -673,9 +681,18 @@ class LossComputer(nn.Module):
             # Blend GT with GT mask overlay: 70% image + 30% mask color
             masked_target = target_bv * 0.7 + gt_mask_overlay * 0.3
 
-            # Compute pred mask from rendered image (removebg style)
-            color_distance = (rendering_bv - 1.0).abs().mean(dim=2, keepdim=True)  # [b, v, 1, h, w]
-            pred_mask = (color_distance > 0.1).float()
+            # Compute pred mask for visualization
+            # Use rendered_alpha if available (mask_mode=alpha), otherwise fallback to RGB detection
+            if rendered_alpha is not None and mask_mode_for_vis == "alpha":
+                # Use rendered_alpha with threshold for pred mask
+                alpha_threshold = self.config.training.losses.get("alpha_mask_threshold", 0.5)
+                rendered_alpha_bv = rearrange(rendered_alpha, "(b v) c h w -> b v c h w", v=v)
+                pred_mask = (rendered_alpha_bv > alpha_threshold).float()
+            else:
+                # Fallback: RGB-based detection (removebg style)
+                color_distance = (rendering_bv - 1.0).abs().mean(dim=2, keepdim=True)  # [b, v, 1, h, w]
+                pred_mask = (color_distance > 0.1).float()
+            
             pred_mask_rgb = pred_mask.expand(-1, -1, 3, -1, -1)
             pred_mask_overlay = pred_mask_rgb * fg_color + (1 - pred_mask_rgb) * bg_color
 
@@ -1900,7 +1917,9 @@ class GSLRM(nn.Module):
             rendered_images = model_results.render[batch_idx]  # [V, 3, H, W]
 
             # Extract mask from GT if available (4 channels = RGBA)
-            if gt_images.size(1) == 4:
+            # Check mask_mode to determine if mask overlay should be shown
+            mask_mode = self.config.training.losses.get("mask_mode", None)
+            if gt_images.size(1) == 4 and mask_mode != "none":
                 gt_rgb = gt_images[:, :3, :, :]  # [V, 3, H, W]
                 gt_mask = gt_images[:, 3:4, :, :]  # [V, 1, H, W]
 
@@ -1918,10 +1937,11 @@ class GSLRM(nn.Module):
                 pred_mask_overlay = pred_mask_rgb * fg_color + (1 - pred_mask_rgb) * bg_color
                 rendered_with_mask = rendered_images * 0.7 + pred_mask_overlay * 0.3
 
-                # Stack: GT | Rendered | GT+Mask
+                # Stack: GT | Rendered | GT+Mask | Rendered+Mask
                 comparison_image = torch.stack((gt_rgb, rendered_images, gt_with_mask, rendered_with_mask), dim=0)
             else:
-                gt_rgb = gt_images[:, :3, :, :]
+                # No mask or mask_mode=none: GT | Rendered only
+                gt_rgb = gt_images[:, :3, :, :] if gt_images.size(1) >= 3 else gt_images
                 comparison_image = torch.stack((gt_rgb, rendered_images), dim=0)
 
             num_views = comparison_image.size(1)
@@ -2112,8 +2132,10 @@ class GSLRM(nn.Module):
                     'mean': error_raw.mean().item()
                 }
 
-                if full_target.size(1) == 4:
-                    # Has mask - create GT + Rendered + GT with mask overlay + Error heatmap
+                # Check mask_mode to determine visualization
+                mask_mode = self.config.training.losses.get("mask_mode", None)
+                if full_target.size(1) == 4 and mask_mode != "none":
+                    # Has mask and mask_mode != none - create GT + Rendered + GT with mask overlay + Error heatmap
                     gt_mask = full_target[:, 3:4, :, :]
 
                     # Create GT mask overlay (green=foreground, red=background)

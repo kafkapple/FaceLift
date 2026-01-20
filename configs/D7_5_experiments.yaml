@@ -1,0 +1,227 @@
+# D7.5 & D7.5b Experiment Configurations
+# ========================================
+#
+# D7.5 Series: PP=256 with Optimal Coverage
+#
+# | Method | fx        | PP      | Coverage | Object Clipping |
+# |--------|-----------|---------|----------|-----------------|
+# | D7     | 549 fixed | 256     | ~56%     | None            |
+# | D7.5   | 641-706   | 256     | ~72-87%  | None (full img) |
+# | D7.5b  | 852-1184  | 256     | 100%     | None (bbox)     |
+#
+# Key Trade-offs:
+# - D7: FaceLift pretrained fx=549 exact match, but lots of padding
+# - D7.5: Full image preserved, fx varies per view
+# - D7.5b: Maximum object zoom, fx varies more, background may clip
+#
+# Research Question:
+# Does FaceLift's pretrained model require exact fx=549, or can it
+# generalize to varying focal lengths while PP=256 is maintained?
+
+# ==============================================================================
+# D7.5: PP=256 + Full Image Coverage (fx varies: 641-706)
+# ==============================================================================
+
+---
+D7_5_E1_baseline:
+  # Data
+  data_path: /home/joon/data/preprocessed/FaceLift_mouse/D7.5/data_mouse_train.txt
+  val_data_path: /home/joon/data/preprocessed/FaceLift_mouse/D7.5/data_mouse_val.txt
+
+  # Views
+  num_input_views: 4
+  input_view_selection: "front"
+
+  # Loss - NO MASK (baseline)
+  losses:
+    mask_mode: "none"
+    masked_l2_loss: false
+    masked_ssim_loss: false
+    masked_pixelalign_loss: false
+    use_rendered_alpha_mask: false
+    use_predicted_mask: false
+    l2_loss_weight: 1.0
+    ssim_loss_weight: 0.2
+    background_loss_weight: 0.0
+
+  # Training
+  batch_size: 4
+  num_workers: 4
+  max_steps: 10000
+  val_every: 200
+
+  # Optimizer
+  lr: 1.0e-4
+  weight_decay: 0.05
+  grad_clip_norm: 1.0
+
+  # AMP
+  use_amp: true
+  amp_dtype: bf16
+
+  # Visualization
+  visualization:
+    turntable_fps: 15
+    turntable_num_views: 60
+
+  # Logging
+  project_name: "FaceLift_Mouse_D7"
+  exp_name: "D7.5_E1_baseline"
+
+  # Notes
+  _notes:
+    method: "D7.5 - Full image coverage with PP=256"
+    fx_range: "641-706 (varies per view)"
+    coverage: "72-87%"
+    pp: "(256, 256) for all views"
+
+---
+D7_5_E2_gtmask:
+  data_path: /home/joon/data/preprocessed/FaceLift_mouse/D7.5/data_mouse_train.txt
+  val_data_path: /home/joon/data/preprocessed/FaceLift_mouse/D7.5/data_mouse_val.txt
+
+  num_input_views: 4
+  input_view_selection: "front"
+
+  losses:
+    mask_mode: "gt"
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    masked_pixelalign_loss: true
+    use_rendered_alpha_mask: false
+    use_predicted_mask: false
+    l2_loss_weight: 1.0
+    ssim_loss_weight: 0.2
+    background_loss_weight: 1.0
+
+  batch_size: 4
+  num_workers: 4
+  max_steps: 10000
+  val_every: 200
+  lr: 1.0e-4
+  weight_decay: 0.05
+  grad_clip_norm: 1.0
+  use_amp: true
+  amp_dtype: bf16
+
+  visualization:
+    turntable_fps: 15
+    turntable_num_views: 60
+
+  project_name: "FaceLift_Mouse_D7"
+  exp_name: "D7.5_E2_gtmask"
+
+# ==============================================================================
+# D7.5b: PP=256 + Object-Aware Maximum Zoom (fx varies: 852-1184)
+# ==============================================================================
+
+---
+D7_5b_E1_baseline:
+  # Data
+  data_path: /home/joon/data/preprocessed/FaceLift_mouse/D7.5b/data_mouse_train.txt
+  val_data_path: /home/joon/data/preprocessed/FaceLift_mouse/D7.5b/data_mouse_val.txt
+
+  # Views
+  num_input_views: 4
+  input_view_selection: "front"
+
+  # Loss - NO MASK (baseline)
+  losses:
+    mask_mode: "none"
+    masked_l2_loss: false
+    masked_ssim_loss: false
+    masked_pixelalign_loss: false
+    use_rendered_alpha_mask: false
+    use_predicted_mask: false
+    l2_loss_weight: 1.0
+    ssim_loss_weight: 0.2
+    background_loss_weight: 0.0
+
+  # Training
+  batch_size: 4
+  num_workers: 4
+  max_steps: 10000
+  val_every: 200
+
+  # Optimizer
+  lr: 1.0e-4
+  weight_decay: 0.05
+  grad_clip_norm: 1.0
+
+  # AMP
+  use_amp: true
+  amp_dtype: bf16
+
+  # Visualization
+  visualization:
+    turntable_fps: 15
+    turntable_num_views: 60
+
+  # Logging
+  project_name: "FaceLift_Mouse_D7"
+  exp_name: "D7.5b_E1_baseline"
+
+  # Notes
+  _notes:
+    method: "D7.5b - Object-aware maximum zoom with PP=256"
+    fx_range: "852-1184 (varies per view)"
+    coverage: "100% (object bbox fit)"
+    pp: "(256, 256) for all views"
+    safety_margin: "5% around object bbox"
+
+---
+D7_5b_E2_gtmask:
+  data_path: /home/joon/data/preprocessed/FaceLift_mouse/D7.5b/data_mouse_train.txt
+  val_data_path: /home/joon/data/preprocessed/FaceLift_mouse/D7.5b/data_mouse_val.txt
+
+  num_input_views: 4
+  input_view_selection: "front"
+
+  losses:
+    mask_mode: "gt"
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    masked_pixelalign_loss: true
+    use_rendered_alpha_mask: false
+    use_predicted_mask: false
+    l2_loss_weight: 1.0
+    ssim_loss_weight: 0.2
+    background_loss_weight: 1.0
+
+  batch_size: 4
+  num_workers: 4
+  max_steps: 10000
+  val_every: 200
+  lr: 1.0e-4
+  weight_decay: 0.05
+  grad_clip_norm: 1.0
+  use_amp: true
+  amp_dtype: bf16
+
+  visualization:
+    turntable_fps: 15
+    turntable_num_views: 60
+
+  project_name: "FaceLift_Mouse_D7"
+  exp_name: "D7.5b_E2_gtmask"
+
+# ==============================================================================
+# Experiment Plan Summary
+# ==============================================================================
+#
+# Priority 1: Compare preprocessing methods (baseline, no mask)
+#   - D7_E1_baseline    (fx=549, PP=256, 56% coverage)
+#   - D7.5_E1_baseline  (fx=641-706, PP=256, 72-87% coverage)
+#   - D7.5b_E1_baseline (fx=852-1184, PP=256, 100% object coverage)
+#
+# Priority 2: Best preprocessing + GT mask
+#   - Winner_E2_gtmask
+#
+# Research Questions:
+# 1. Does FaceLift need exact fx=549, or just PP=256?
+# 2. Does larger object (D7.5b) help with detail reconstruction?
+# 3. Is there a sweet spot between D7 and D7.5b?
+#
+# Expected Results:
+# - If fx=549 critical: D7 > D7.5 > D7.5b
+# - If PP=256 sufficient: D7.5b ≥ D7.5 ≥ D7 (more detail visible)

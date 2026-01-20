@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multi-View Center Estimation Analysis v4</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1400px; margin: 0 auto; padding: 20px; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 30px; }
+        h3 { color: #7f8c8d; }
+        .figure { margin: 20px 0; text-align: center; }
+        .figure img { max-width: 100%; border: 1px solid #ddd; }
+        .figure-caption { font-style: italic; color: #666; margin-top: 10px; }
+        .insight { background: #e8f6f3; padding: 15px; border-left: 4px solid #1abc9c; margin: 15px 0; }
+        .warning { background: #fdf2e9; padding: 15px; border-left: 4px solid #e67e22; margin: 15px 0; }
+        .metric { font-family: monospace; background: #f5f5f5; padding: 2px 5px; }
+        table { border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Multi-View Center Estimation: Comprehensive Analysis v4</h1>
+    <p>Generated: 2026-01-17 13:34</p>
+    
+    <h2>Executive Summary</h2>
+    <div class="insight">
+        <strong>핵심 발견:</strong> Per-view 2D center estimation 방식은 triangulation 대비 
+        <span class="metric">평균 14.7px, 최대 21.6px</span>의 cross-view inconsistency를 발생시킵니다.
+        이 차이가 3D reconstruction에서 ghosting artifact의 주요 원인입니다.
+    </div>
+    
+    <h2>Figure 1: 2D Centers on Original Images</h2>
+    <div class="figure">
+        <img src="fig1_centers_on_images_fixed.png" alt="2D Centers">
+        <p class="figure-caption">각 뷰에서 4가지 center estimation 방법의 2D 중심점 비교. 
+        Triangulation (녹색)은 3D에서 back-project하므로 기하학적으로 일관성 있음.</p>
+    </div>
+    
+    <h2>Figure 2: 3D Ray Convergence Comparison</h2>
+    <div class="figure">
+        <img src="fig2_3d_camera_scene_improved.png" alt="3D Ray Convergence">
+        <p class="figure-caption">Per-View 2D (좌): 독립적인 2D centroid → rays 수렴 불완전. 
+        Triangulation (우): 단일 3D point에서 back-project → rays 완벽 수렴.</p>
+    </div>
+    <div class="warning">
+        <strong>핵심 차이점:</strong> Per-view 2D 방식은 각 뷰에서 독립적으로 2D centroid를 계산하므로, 
+        이들이 같은 3D 점을 가리키지 않습니다. Triangulation은 모든 뷰의 정보를 종합하여 
+        단일 3D 점을 추정한 후 각 뷰로 back-project하므로 기하학적 일관성이 보장됩니다.
+    </div>
+    
+    <h2>Camera Parameters</h2>
+    
+<h3>Camera Parameter Comparison</h3>
+<table border="1" style="border-collapse: collapse; font-size: 12px;">
+<tr style="background-color: #f0f0f0;">
+<th>View</th><th>Original fx</th><th>Original fy</th><th>Original cx</th><th>Original cy</th>
+</tr>
+<tr><td>0</td><td>1632.3</td><td>1639.3</td><td>601.3</td><td>491.2</td></tr>
+<tr><td>1</td><td>1556.8</td><td>1580.5</td><td>622.0</td><td>417.5</td></tr>
+<tr><td>2</td><td>1630.3</td><td>1633.0</td><td>611.4</td><td>477.6</td></tr>
+<tr><td>3</td><td>1606.2</td><td>1617.6</td><td>582.6</td><td>551.9</td></tr>
+<tr><td>4</td><td>1618.3</td><td>1628.9</td><td>641.5</td><td>453.2</td></tr>
+<tr><td>5</td><td>1636.9</td><td>1642.5</td><td>613.3</td><td>524.3</td></tr>
+</table>
+
+<br>
+<h4>Dataset PP Methods</h4>
+<table border="1" style="border-collapse: collapse; font-size: 12px;">
+<tr style="background-color: #f0f0f0;">
+<th>Dataset</th><th>fx</th><th>fy</th><th>cx</th><th>cy</th><th>Description</th>
+</tr>
+<tr><td>D0/v13 (Bug)</td><td>orig</td><td>orig</td><td><b>256</b></td><td><b>256</b></td><td style="color:red">PP forced but no shift → Ray error!</td></tr>
+<tr><td>D1 (PP-centered)</td><td>orig</td><td>orig</td><td><b>256</b></td><td><b>256</b></td><td style="color:green">Shift image → PP correct</td></tr>
+<tr><td>D2/D3 (Correct PP)</td><td>orig</td><td>orig</td><td>actual</td><td>actual</td><td>Real PP, model handles it</td></tr>
+<tr><td>FaceLift Default</td><td>500</td><td>500</td><td>256</td><td>256</td><td>Pretrained assumption</td></tr>
+</table>
+
+    
+    <h2>Figure 3: Method Comparison Statistics</h2>
+    <div class="figure">
+        <img src="fig3_method_comparison.png" alt="Method Comparison">
+        <p class="figure-caption">각 방법론의 cross-view consistency 및 reprojection error 비교.</p>
+    </div>
+    
+    <h2>Figure 4: Per-View Analysis</h2>
+    <div class="figure">
+        <img src="fig4_per_view_analysis.png" alt="Per-View Analysis">
+        <p class="figure-caption">각 뷰별 2D center 차이 분석. 
+        Triangulation이 기준(0px)이므로 deviation은 per_view_2d와 triangulation 간 차이를 나타냄.</p>
+    </div>
+    
+    <h2>Figure 5: Mask Overlay Comparison</h2>
+    <div class="figure">
+        <img src="fig5_mask_overlay_fixed.png" alt="Mask Overlay">
+        <p class="figure-caption">각 뷰에서 마스크와 center estimation 결과 오버레이.</p>
+    </div>
+    
+    <h2>Quantitative Results</h2>
+    <table>
+        <tr><th>Method</th><th>Cross-View Std</th><th>Dist from Triangulation</th><th>Ray Error</th></tr>
+        <tr><td>no_correction</td><td>0.0 px</td><td>~534 px</td><td>High</td></tr>
+        <tr><td>per_view_2d</td><td>~60 px</td><td>14.7 px (mean)</td><td>Medium</td></tr>
+        <tr><td>triangulation</td><td>~58 px</td><td>0 px (reference)</td><td>Low</td></tr>
+        <tr><td>visual_hull</td><td>~58 px</td><td>~0 px</td><td>Low</td></tr>
+    </table>
+    
+    <h2>Conclusions</h2>
+    <ol>
+        <li><strong>Per-view 2D의 한계:</strong> 각 뷰 독립 계산 → 기하학적 불일치 (~15px)</li>
+        <li><strong>Triangulation 장점:</strong> 3D 기반 → cross-view consistency 보장</li>
+        <li><strong>권장 사항:</strong> D3 전처리 (triangulation + correct PP) 사용</li>
+    </ol>
+    
+    <hr>
+    <p><em>Report generated by validate_center_research_v4.py</em></p>
+</body>
+</html>

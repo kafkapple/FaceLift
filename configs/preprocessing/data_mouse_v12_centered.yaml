@@ -1,0 +1,40 @@
+# Dataset: data_mouse_v12_centered (신규 생성용)
+# 목적: data_mouse_correct 방식 재현
+# 상태: RECOMMENDED
+
+name: data_mouse_v12_centered
+description: "V12 preprocessing - matches data_mouse_correct (RECOMMENDED)"
+
+preprocessing:
+  version: v12
+  apply_centering: true
+  force_center_cxcy: true   # cx=cy=256 강제 ✅
+  preserve_fy_ratio: true   # fy/fx 비율 유지
+
+paths:
+  input_dir: /home/joon/data/raw/markerless_mouse_1_nerf
+  output_dir: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_v12_centered
+
+sampling:
+  frame_interval: 5
+  expected_samples: 3597
+
+target:
+  image_size: 512
+  fx: 549.0
+  distance: 2.7
+
+split:
+  val_ratio: 0.028
+  seed: 42
+
+experiment_defaults:
+  num_views: 6
+  num_input_views: 5
+  lr: 1.0e-6
+  use_rendered_alpha_mask: true
+  background_loss_weight: 1.0
+  masked_l2_loss: true
+  masked_ssim_loss: true
+
+status: recommended

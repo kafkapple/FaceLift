@@ -1,0 +1,37 @@
+# Dataset: data_mouse_v11_full
+# 생성일: v25~v33 실험용
+# 문제: frame_interval=9로 샘플 수 부족, 버그 영향
+
+name: data_mouse_v11_full
+description: "V11 preprocessing with reduced samples (DEPRECATED)"
+
+preprocessing:
+  version: v11
+  apply_centering: false    # 객체 비중앙
+  force_center_cxcy: false  # 실제 cx,cy 사용
+  preserve_fy_ratio: false  # fx=fy 강제
+
+paths:
+  input_dir: /home/joon/data/raw/markerless_mouse_1_nerf
+  output_dir: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_v11_full
+
+sampling:
+  frame_interval: 9         # 적은 샘플
+  expected_samples: 2000
+
+target:
+  image_size: 512
+  fx: 549.0
+  distance: 2.7
+
+split:
+  val_ratio: 0.1
+  seed: 42
+
+experiment_defaults:
+  num_views: 6
+  num_input_views: 5
+  lr: 1.0e-6
+
+# 상태: DEPRECATED - 성능 저하로 사용 비권장
+status: deprecated

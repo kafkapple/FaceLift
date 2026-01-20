@@ -1,0 +1,116 @@
+# D7_1_E1_5v_alpha
+# Generated from: dataset=D7_1, schema=5v_alpha
+# 
+# Dataset: Individual scale_x/scale_y for fx=fy=549 exactly
+# Schema: 5 input views with alpha mask (threshold 0.5)
+#
+# To regenerate: python _modular/generate_config.py --dataset D7_1 --schema 5v_alpha --exp_num 1
+profile: false
+debug: false
+training:
+  runtime:
+    use_tf32: true
+    use_amp: true
+    amp_dtype: bf16
+    torch_compile: false
+    grad_accum_steps: 1
+    grad_clip_norm: 50.0
+    grad_checkpoint_every: 1
+  dataloader:
+    batch_size_per_gpu: 2
+    num_workers: 8
+    num_threads: 16
+    prefetch_factor: 8
+  optimizer:
+    lr: 1.0e-06
+    beta1: 0.9
+    beta2: 0.95
+    weight_decay: 0.05
+    reset_lr: true
+    reset_weight_decay: false
+    reset_training_state: true
+  schedule:
+    num_epochs: 50000
+    early_stop_after_epochs: 50000
+    max_fwdbwd_passes: 15000
+    warmup: 500
+    l2_warmup_steps: 500
+  checkpointing:
+    checkpoint_every: 100
+    resume_ckpt: checkpoints/gslrm/ckpt_0000000000021125.pt
+    checkpoint_dir: checkpoints/gslrm/D7_1_E1_5v_alpha
+  logging:
+    print_every: 10
+    vis_every: 100
+    wandb:
+      project: FaceLift-Mouse
+      log_every: 10
+      offline: false
+      group: D7_1
+      job_type: E1_5v_alpha
+      exp_name: D7_1_E1_5v_alpha
+  dataset:
+    maximize_view_overlap: false
+    random_view_selection: false
+    num_views: 6
+    num_input_views: 5
+    target_has_input: true
+    normalize_distance_to: 0.0
+    remove_alpha: false
+    background_color: white
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_train.txt
+  losses:
+    l2_loss_weight: 1.0
+    lpips_loss_weight: 0.0
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0
+    pixelalign_loss_weight: 0.0
+    masked_pixelalign_loss: true
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    background_loss_weight: 0.0
+    pointsdist_loss_weight: 0.0
+    warmup_pointsdist: false
+    distill_loss_weight: 0.0
+    clamp_rendering: true
+    mask_mode: alpha
+    alpha_mask_threshold: 0.5
+model:
+  class_name: gslrm.model.gslrm.GSLRM
+  image_tokenizer:
+    image_size: 512
+    patch_size: 8
+    in_channels: 9
+  transformer:
+    d: 1024
+    d_head: 64
+    n_layer: 24
+  gaussians:
+    n_gaussians: 2
+    sh_degree: 0
+    upsampler:
+      upsample_factor: 1
+  add_refsrc_marker: false
+  hard_pixelalign: true
+  use_custom_plucker: true
+  clip_xyz: true
+mouse:
+  augmentation:
+    enabled: false
+  use_mouse_dataset: true
+  normalize_cameras: false
+  target_camera_distance: 0.0
+  normalize_to_z_up: true
+  auto_generate_mask: false
+  mask_threshold: 250
+  pp_correction: none
+visualization:
+  turntable_fps: 15
+validation:
+  enabled: true
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_val.txt
+  val_every: 200
+  output_dir: experiments/validation/D7_1_E1_5v_alpha
+inference:
+  enabled: false
+  output_dir: experiments/inference/D7_1_E1_5v_alpha

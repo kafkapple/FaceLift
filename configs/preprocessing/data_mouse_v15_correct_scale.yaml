@@ -1,0 +1,33 @@
+# Dataset: data_mouse_v15_correct_scale
+# 생성일: 2026-01-14
+# 문제: cx,cy가 비중앙 (V10 사용), 성능 저하
+
+name: data_mouse_v15_correct_scale
+description: "V10 preprocessing - cx,cy NOT centered (ISSUE)"
+
+preprocessing:
+  version: v10
+  apply_centering: true
+  force_center_cxcy: false  # ← 문제: cx,cy 비중앙
+  preserve_fy_ratio: true
+
+paths:
+  input_dir: /home/joon/data/raw/markerless_mouse_1_nerf
+  output_dir: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_v15_correct_scale
+
+sampling:
+  frame_interval: 5
+  expected_samples: 3597
+
+target:
+  image_size: 512
+  fx: 549.0
+  distance: 2.7
+
+split:
+  val_ratio: 0.028
+  seed: 42
+
+# 상태: ISSUE - cx,cy 비중앙으로 인한 성능 저하
+status: issue
+issue_description: "cx,cy not centered (380, 160 instead of 256, 256)"

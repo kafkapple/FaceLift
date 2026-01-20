@@ -1,0 +1,86 @@
+{
+  "total_samples_analyzed": 30,
+  "preprocessing_versions": {
+    "D1_pp_centered": 30
+  },
+  "principal_point_analysis": {
+    "mean_max_offset_px": 0.0,
+    "overall_max_offset_px": 0.0,
+    "std_max_offset_px": 0.0,
+    "samples_with_offset_gt_20px": 0,
+    "samples_with_offset_gt_50px": 0
+  },
+  "ray_angle_error_analysis": {
+    "mean_max_error_deg": 0.0,
+    "overall_max_error_deg": 0.0,
+    "std_max_error_deg": 0.0,
+    "samples_with_error_gt_5deg": 0,
+    "samples_with_error_gt_10deg": 0
+  },
+  "critical_issues": {
+    "count": 0,
+    "percentage": 0.0
+  },
+  "sample_details": [
+    {
+      "path": "/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_000000",
+      "max_pp_offset": 0.0,
+      "max_ray_error": 0.0,
+      "warnings": []
+    },
+    {
+      "path": "/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_002338",
+      "max_pp_offset": 0.0,
+      "max_ray_error": 0.0,
+      "warnings": []
+    },
+    {
+      "path": "/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_000940",
+      "max_pp_offset": 0.0,
+      "max_ray_error": 0.0,
+      "warnings": []
+    },
+    {
+      "path": "/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_000215",
+      "max_pp_offset": 0.0,
+      "max_ray_error": 0.0,
+      "warnings": []
+    },
+    {
+      "path": "/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_002821",
+      "max_pp_offset": 0.0,
+      "max_ray_error": 0.0,
+      "warnings": []
+    },
+    {
+      "path": "/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_002302",
+      "max_pp_offset": 0.0,
+      "max_ray_error": 0.0,
+      "warnings": []
+    },
+    {
+      "path": "/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_003473",
+      "max_pp_offset": 0.0,
+      "max_ray_error": 0.0,
+      "warnings": []
+    },
+    {
+      "path": "/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_003202",
+      "max_pp_offset": 0.0,
+      "max_ray_error": 0.0,
+      "warnings": []
+    },
+    {
+      "path": "/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_002289",
+      "max_pp_offset": 0.0,
+      "max_ray_error": 0.0,
+      "warnings": []
+    },
+    {
+      "path": "/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_001116",
+      "max_pp_offset": 0.0,
+      "max_ray_error": 0.0,
+      "warnings": []
+    }
+  ]
+}

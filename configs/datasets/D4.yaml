@@ -1,0 +1,17 @@
+# =============================================================================
+# Dataset: D4
+# =============================================================================
+# Triangulation center + PP forced to 256 (has ~5° ray error)
+# =============================================================================
+
+_name: D4
+_description: "Triangulation center with forced PP=256 (has ray direction error)"
+_split_type: random
+_status: deprecated  # Use D7_1 for geometrically correct preprocessing
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D4/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D4/data_mouse_val.txt

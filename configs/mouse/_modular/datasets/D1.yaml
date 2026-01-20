@@ -1,0 +1,23 @@
+# =============================================================================
+# Dataset: D1 (PP-Centered Crop - DEPRECATED)
+# =============================================================================
+
+_dataset:
+  name: D1
+  description: "PP-centered crop with different offset per view"
+  path: /home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered
+  split: "temporal_stratified (train:val)"
+  status: DEPRECATED
+  warning: "Each view has different crop offset → cross-view inconsistency → severe ghosting"
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/data_mouse_train.txt
+
+validation:
+  enabled: true
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/data_mouse_val.txt
+  val_every: 200
+
+inference:
+  enabled: false

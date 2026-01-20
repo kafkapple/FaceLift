@@ -1,0 +1,141 @@
+# =============================================================================
+# GS-LRM Mouse Base Configuration
+# =============================================================================
+# Common settings shared across all mouse experiments
+# Override with dataset and experiment configs
+# =============================================================================
+
+profile: false
+debug: false
+
+# -----------------------------------------------------------------------------
+# Model Architecture (Fixed)
+# -----------------------------------------------------------------------------
+model:
+  class_name: gslrm.model.gslrm.GSLRM
+  image_tokenizer:
+    image_size: 512
+    patch_size: 8
+    in_channels: 9
+  transformer:
+    d: 1024
+    d_head: 64
+    n_layer: 24
+  gaussians:
+    n_gaussians: 2
+    sh_degree: 0
+    upsampler:
+      upsample_factor: 1
+  add_refsrc_marker: false
+  hard_pixelalign: true
+  use_custom_plucker: true
+  clip_xyz: true
+
+# -----------------------------------------------------------------------------
+# Training Runtime (Fixed)
+# -----------------------------------------------------------------------------
+training:
+  runtime:
+    use_tf32: true
+    use_amp: true
+    amp_dtype: bf16
+    torch_compile: false
+    grad_accum_steps: 1
+    grad_clip_norm: 50.0
+    grad_checkpoint_every: 1
+
+  # Dataloader settings
+  dataloader:
+    batch_size_per_gpu: 2
+    num_workers: 8
+    num_threads: 16
+    prefetch_factor: 8
+
+  # Dataset defaults (overridden by dataset config)
+  dataset:
+    maximize_view_overlap: false
+    target_has_input: true
+    normalize_distance_to: 0.0
+    remove_alpha: false
+    background_color: white
+
+  # Loss defaults (overridden by experiment config)
+  losses:
+    l2_loss_weight: 1.0
+    lpips_loss_weight: 0.0
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0
+    pixelalign_loss_weight: 0.0
+    pointsdist_loss_weight: 0.0
+    warmup_pointsdist: false
+    distill_loss_weight: 0.0
+    clamp_rendering: true
+    background_loss_weight: 0.0
+
+  # Optimizer settings
+  optimizer:
+    lr: 1.0e-06
+    beta1: 0.9
+    beta2: 0.95
+    weight_decay: 0.05
+    reset_lr: true
+    reset_weight_decay: false
+    reset_training_state: true
+
+  # Schedule settings
+  schedule:
+    num_epochs: 50000
+    early_stop_after_epochs: 50000
+    max_fwdbwd_passes: 15000
+    warmup: 500
+    l2_warmup_steps: 500
+
+  # Checkpointing defaults (paths auto-generated)
+  checkpointing:
+    checkpoint_every: 100
+    resume_ckpt: checkpoints/gslrm/ckpt_0000000000021125.pt
+
+  # Logging defaults
+  logging:
+    print_every: 10
+    vis_every: 100
+    wandb:
+      group: mouse
+      job_type: train
+      exp_name: null
+      project: FaceLift-Mouse
+      log_every: 10
+      offline: false
+
+# -----------------------------------------------------------------------------
+# Mouse-specific settings (Fixed)
+# -----------------------------------------------------------------------------
+mouse:
+  augmentation:
+    enabled: false
+  use_mouse_dataset: true
+  normalize_cameras: false
+  target_camera_distance: 0.0
+  normalize_to_z_up: true
+  auto_generate_mask: false
+  mask_threshold: 250
+  pp_correction: none
+
+# -----------------------------------------------------------------------------
+# Visualization (Fixed)
+# -----------------------------------------------------------------------------
+visualization:
+  turntable_fps: 15
+
+# -----------------------------------------------------------------------------
+# Validation defaults (paths auto-generated)
+# -----------------------------------------------------------------------------
+validation:
+  enabled: true
+  val_every: 200
+
+# -----------------------------------------------------------------------------
+# Inference defaults
+# -----------------------------------------------------------------------------
+inference:
+  enabled: false

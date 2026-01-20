@@ -102,7 +102,7 @@ class RandomViewDataset(Dataset):
         if self.split == "train":
             dataset_path = self.config.training.dataset.dataset_path
         elif self.split == "val":
-            dataset_path = self.config.validation.dataset_path
+            dataset_path = self.config.get("validation", {}).get("dataset_path", "")
         else:
             raise NotImplementedError(f"Split '{split}' is not supported")
 

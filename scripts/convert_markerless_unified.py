@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+#!/usr
+    PreprocessVersion.V13: VersionConfig(
+        apply_centering=True,
+        correct_cxcy=False,  # cx=cy=256 forced
+        preserve_fy_ratio=False,  # fx=fy=549 (FaceLift compatible)
+        description="v13: FaceLift compatible (centered + square pixels fx=fy)"
+    ),/bin/env python3
 """
 Unified Markerless Mouse Preprocessing Script
 
@@ -40,6 +46,8 @@ class PreprocessVersion(Enum):
     V5 = "v5"    # Original (deprecated)
     V10 = "v10"  # cx,cy corrected with shift
     V11 = "v11"  # No shift, accurate geometry
+    V12 = "v12"  # Like data_mouse_correct (cx=cy=256 forced)
+    V13 = "v13"  # FaceLift compatible (square pixels, centered)
 
 
 @dataclass
@@ -47,6 +55,7 @@ class VersionConfig:
     """Configuration for each preprocessing version."""
     apply_centering: bool
     correct_cxcy: bool
+    preserve_fy_ratio: bool  # Whether to preserve orig fy/fx ratio
     description: str
 
 
@@ -54,17 +63,26 @@ VERSION_CONFIGS = {
     PreprocessVersion.V5: VersionConfig(
         apply_centering=True,
         correct_cxcy=False,  # cx=cy=256 fixed (incorrect!)
+        preserve_fy_ratio=False,
         description="Original v5: centroid centering, cx=cy=256 fixed (DEPRECATED)"
     ),
     PreprocessVersion.V10: VersionConfig(
         apply_centering=True,
         correct_cxcy=True,  # cx,cy reflect actual position
+        preserve_fy_ratio=True,  # Match data_mouse_correct behavior
         description="v10: centroid centering + cx,cy corrected (RECOMMENDED)"
     ),
     PreprocessVersion.V11: VersionConfig(
         apply_centering=False,
         correct_cxcy=True,  # Original cx,cy preserved
+        preserve_fy_ratio=False,  # Force square pixels
         description="v11: No centering, accurate geometry"
+    ),
+    PreprocessVersion.V12: VersionConfig(
+        apply_centering=True,
+        correct_cxcy=False,  # cx=cy=256 forced (like data_mouse_correct)
+        preserve_fy_ratio=True,  # Preserve fy ratio
+        description="v12: centroid centering + cx=cy=256 forced (matches data_mouse_correct)"
     ),
 }
 
@@ -111,9 +129,12 @@ def compute_camera_transform(
     current_dist_norm = current_dist_mm / UNIT_SCALE
 
     # === 2. Image scale ===
+    # Scale image so that fx becomes TARGET_FX (549)
+    # Distance normalization is handled separately in extrinsics (Step 3)
+    # DO NOT multiply by dist_ratio - this was a bug causing object size inconsistency
+    # Correct formula: total_image_scale = TARGET_FX / orig_fx
     fx_ratio = TARGET_FX / orig_fx
-    dist_ratio = current_dist_norm / TARGET_DISTANCE
-    total_image_scale = fx_ratio * dist_ratio
+    total_image_scale = fx_ratio  # NOT fx_ratio * dist_ratio!
 
     # === 3. Distance normalization ===
     cam_direction = cam_pos / current_dist_mm
@@ -153,7 +174,7 @@ def compute_camera_transform(
         "w": TARGET_SIZE,
         "h": TARGET_SIZE,
         "fx": TARGET_FX,
-        "fy": TARGET_FX,
+        "fy": TARGET_FX * (orig_fy / orig_fx) if version_config.preserve_fy_ratio else TARGET_FX,
         "cx": float(new_cx),
         "cy": float(new_cy),
         "w2c": new_w2c.tolist(),
@@ -274,7 +295,7 @@ def process_frame(
 
 def main():
     parser = argparse.ArgumentParser(description="Unified Mouse Preprocessing")
-    parser.add_argument("--version", type=str, required=True, choices=["v5", "v10", "v11"])
+    parser.add_argument("--version", type=str, required=True, choices=["v5", "v10", "v11", "v12", "v13"])
     parser.add_argument("--input_dir", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--frame_interval", type=int, default=5)
@@ -340,3 +361,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Add after VERSION_CONFIGS definition - V12 for cx=cy=256 forced
+# This patch adds a new version that matches data_mouse_correct behavior

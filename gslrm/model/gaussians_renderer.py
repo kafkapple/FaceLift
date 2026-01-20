@@ -80,7 +80,7 @@ def imageseq2video(images, filename, fps=24):
     if images.dtype == np.uint8:
         images = images.astype(np.float32) / 255.0
 
-    videoio.videosave(filename, images, lossless=True, preset="veryfast", fps=fps)
+    videoio.videosave(filename, images, lossless=False, preset="veryfast", fps=fps)
 
 
 # copied from: utils.general_utils
@@ -971,10 +971,10 @@ deferred_gaussian_render = DeferredGaussianRender.apply
 
 @torch.no_grad()
 @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
-def render_turntable(pc: GaussianModel, rendering_resolution=384, num_views=8):
+def render_turntable(pc: GaussianModel, rendering_resolution=384, num_views=8, elevation=20, radius=2.7):
     w, h, v, fxfycxcy, c2w = get_turntable_cameras(
         h=rendering_resolution, w=rendering_resolution, num_views=num_views,
-        elevation=0,  # For MAX SNEAK
+        elevation=elevation, radius=radius,  # Configurable
     )
 
     device = pc._xyz.device

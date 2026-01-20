@@ -1,0 +1,51 @@
+# =============================================================================
+# Base Runtime Configuration (Fixed - Do Not Modify)
+# =============================================================================
+# Training runtime settings
+
+profile: false
+debug: false
+
+training:
+  runtime:
+    use_tf32: true
+    use_amp: true
+    amp_dtype: bf16
+    torch_compile: false
+    grad_accum_steps: 1
+    grad_clip_norm: 50.0
+    grad_checkpoint_every: 1
+
+  dataloader:
+    batch_size_per_gpu: 2
+    num_workers: 8
+    num_threads: 16
+    prefetch_factor: 8
+
+  optimizer:
+    lr: 1.0e-06
+    beta1: 0.9
+    beta2: 0.95
+    weight_decay: 0.05
+    reset_lr: true
+    reset_weight_decay: false
+    reset_training_state: true
+
+  schedule:
+    num_epochs: 50000
+    early_stop_after_epochs: 50000
+    max_fwdbwd_passes: 15000
+    warmup: 500
+    l2_warmup_steps: 500
+
+  checkpointing:
+    checkpoint_every: 100
+    resume_ckpt: checkpoints/gslrm/ckpt_0000000000021125.pt
+
+  logging:
+    print_every: 10
+    vis_every: 100
+    wandb:
+      project: FaceLift-Mouse
+      log_every: 10
+      offline: false

@@ -1,0 +1,9 @@
+[
+  {
+    "view_idx": 0,
+    "alpha_fg_mean": 0.19990621593839875,
+    "alpha_fg_std": 0.050109052663663625,
+    "alpha_bg_mean": 0.8996046881492008,
+    "alpha_bg_std": 0.04887287300878234,
+    "correlation": -0.9144361302838614,
+    "is_inverted": 

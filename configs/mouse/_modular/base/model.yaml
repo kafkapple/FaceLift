@@ -1,0 +1,38 @@
+# =============================================================================
+# Base Model Configuration (Fixed - Do Not Modify)
+# =============================================================================
+# GS-LRM Pretrained Architecture
+
+model:
+  class_name: gslrm.model.gslrm.GSLRM
+  image_tokenizer:
+    image_size: 512
+    patch_size: 8
+    in_channels: 9
+  transformer:
+    d: 1024
+    d_head: 64
+    n_layer: 24
+  gaussians:
+    n_gaussians: 2
+    sh_degree: 0
+    upsampler:
+      upsample_factor: 1
+  add_refsrc_marker: false
+  hard_pixelalign: true
+  use_custom_plucker: true
+  clip_xyz: true
+
+mouse:
+  augmentation:
+    enabled: false
+  use_mouse_dataset: true
+  normalize_cameras: false
+  target_camera_distance: 0.0
+  normalize_to_z_up: true
+  auto_generate_mask: false
+  mask_threshold: 250
+  pp_correction: none
+
+visualization:
+  turntable_fps: 15

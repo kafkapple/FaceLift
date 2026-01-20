@@ -5,35 +5,10 @@ Extended WandB logging for experiment tracking.
 """
 
 import re
+import os
+import json
 from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
-
-
-@dataclass
-class ExperimentInfo:
-    """Experiment configuration summary."""
-    # Dataset
-    dataset_version: str
-    dataset_path: str
-    # Views
-    num_input_views: int
-    total_views: int
-    input_ratio: float
-    random_view_selection: bool
-    # Mask
-    use_masked_loss: bool
-    mask_source: str  # "none", "gt", "rgb_pred", "alpha"
-    alpha_threshold: float
-    pred_threshold: float
-    # Training
-    max_steps: int
-    batch_size: int
-    lr: float
-    # Preprocessing
-    normalize_cameras: bool
-    target_camera_distance: float
-    normalize_to_z_up: bool
-    background_color: str
+from pathlib import Path
 
 
 def get_experiment_info(config) -> Dict[str, Any]:
@@ -56,8 +31,14 @@ def get_experiment_info(config) -> Dict[str, Any]:
         return "unknown"
 
     # Determine mask source
+    # Priority: mask_mode (explicit) > legacy settings
     losses = config.training.losses
-    if losses.get("use_rendered_alpha_mask", False):
+    mask_mode = losses.get("mask_mode", None)
+    
+    if mask_mode is not None:
+        # New explicit mask_mode takes priority
+        mask_source = mask_mode  # "none", "gt", "alpha", "opacity", "rgb_pred"
+    elif losses.get("use_rendered_alpha_mask", False):
         mask_source = "alpha"
     elif losses.get("use_predicted_mask", False):
         mask_source = "rgb_pred"
@@ -72,6 +53,20 @@ def get_experiment_info(config) -> Dict[str, Any]:
         mouse_config = dict(mouse_config) if hasattr(mouse_config, "__iter__") else {}
 
     dataset = config.training.dataset
+
+    # Load split info if available
+    split_method = "unknown"
+    try:
+        dataset_dir = Path(dataset.dataset_path).parent
+        split_info_path = dataset_dir / "split_info.json"
+        if split_info_path.exists():
+            with open(split_info_path, "r") as f:
+                split_info = json.load(f)
+            split_method = split_info.get("method", "unknown")
+        else:
+            split_method = "no_split_info"
+    except Exception as e:
+        split_method = f"error: {str(e)}"
 
     return {
         # Dataset info
@@ -102,6 +97,8 @@ def get_experiment_info(config) -> Dict[str, Any]:
         "perceptual_loss_weight": losses.get("perceptual_loss_weight", 0.0),
         "ssim_loss_weight": losses.get("ssim_loss_weight", 0.0),
         "background_loss_weight": losses.get("background_loss_weight", 0.0),
+        # Split info
+        "split_method": split_method,
     }
 
 
@@ -138,7 +135,7 @@ def get_wandb_log_dict(
     }
 
     # Primary metrics (always log)
-    primary = ["loss", "l2_loss", "psnr", "mask_iou"]
+    primary = ["loss", "l2_loss", "psnr", "mask_iou", "mask_type"]
 
     # Secondary metrics (log if non-zero)
     secondary = ["perceptual_loss", "ssim_loss", "lpips_loss", "background_loss"]
@@ -153,7 +150,9 @@ def get_wandb_log_dict(
     for name in primary:
         if hasattr(loss_metrics, name):
             val = getattr(loss_metrics, name)
-            if isinstance(val, (int, float)):
+            if isinstance(val, str):
+                log_dict[f"train/{name}"] = val
+            elif isinstance(val, (int, float)):
                 log_dict[f"train/{name}"] = val
             elif hasattr(val, "item"):
                 log_dict[f"train/{name}"] = val.item()

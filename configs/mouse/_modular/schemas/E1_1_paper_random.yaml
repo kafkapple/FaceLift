@@ -1,0 +1,44 @@
+# =============================================================================
+# Schema: E1.1 Paper Baseline (Random View Selection, NO MASK)
+# =============================================================================
+
+_schema:
+  name: E1_1_paper_random
+  description: "TRUE paper baseline - 4 input views, random selection, NO alpha mask"
+
+training:
+  dataset:
+    maximize_view_overlap: false
+    random_view_selection: true   # ★ TRUE PAPER SETTING
+    num_views: 6
+    num_input_views: 4            # 4 input, 2 novel
+    target_has_input: true
+    normalize_distance_to: 0.0
+    remove_alpha: false
+    background_color: white
+
+  losses:
+    l2_loss_weight: 1.0
+    lpips_loss_weight: 0.0
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0
+    pixelalign_loss_weight: 0.0
+    # NO MASK - Paper baseline
+    masked_pixelalign_loss: false
+    masked_l2_loss: false
+    masked_ssim_loss: false
+    mask_mode: none
+    background_loss_weight: 0.0
+    pointsdist_loss_weight: 0.0
+    warmup_pointsdist: false
+    distill_loss_weight: 0.0
+    clamp_rendering: true
+
+checkpoints:
+  save_every: 1000
+  
+training.misc:
+  max_steps: 5000
+  val_every: 200
+  vis_every: 100
+  turntable_every: 500

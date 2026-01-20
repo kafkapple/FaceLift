@@ -1,0 +1,31 @@
+# Dataset: data_mouse_v10_cxcy_corrected
+# 생성일: cx,cy 보정 테스트용
+# 문제: 소량 데이터, 실험적
+
+name: data_mouse_v10_cxcy_corrected
+description: "V10 with corrected cx,cy (experimental)"
+
+preprocessing:
+  version: v10
+  apply_centering: true
+  force_center_cxcy: false  # 실제 cx,cy 사용 (비중앙)
+  preserve_fy_ratio: true
+
+paths:
+  input_dir: /home/joon/data/raw/markerless_mouse_1_nerf
+  output_dir: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_v10_cxcy_corrected
+
+sampling:
+  frame_interval: 200       # 테스트용 소량
+  expected_samples: 89
+
+target:
+  image_size: 512
+  fx: 549.0
+  distance: 2.7
+
+split:
+  val_ratio: 0.1
+  seed: 42
+
+status: experimental

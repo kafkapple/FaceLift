@@ -1,0 +1,35 @@
+# =============================================================================
+# Schema: 6-View Alpha Mask (Maximum views)
+# =============================================================================
+
+_schema:
+  name: 6v_alpha
+  description: "6 input views with alpha mask (threshold 0.5)"
+
+training:
+  dataset:
+    maximize_view_overlap: false
+    random_view_selection: false
+    num_views: 6
+    num_input_views: 6
+    target_has_input: true
+    normalize_distance_to: 0.0
+    remove_alpha: false
+    background_color: white
+
+  losses:
+    l2_loss_weight: 1.0
+    lpips_loss_weight: 0.0
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0
+    pixelalign_loss_weight: 0.0
+    masked_pixelalign_loss: true
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    background_loss_weight: 0.0
+    pointsdist_loss_weight: 0.0
+    warmup_pointsdist: false
+    distill_loss_weight: 0.0
+    clamp_rendering: true
+    mask_mode: alpha
+    alpha_mask_threshold: 0.5

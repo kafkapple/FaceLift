@@ -1,0 +1,43 @@
+# Dataset: data_mouse_correct (v15 성공 버전)
+# 생성일: 원본, PSNR > 30 달성
+# 
+# 이 데이터셋으로 학습된 실험: v15, v40
+
+name: data_mouse_correct
+description: "Original successful preprocessing (PSNR > 30)"
+
+# === 전처리 설정 ===
+preprocessing:
+  version: v12  # V12가 이 방식과 동일
+  apply_centering: true
+  force_center_cxcy: true   # cx=cy=256
+  preserve_fy_ratio: true   # fy/fx 비율 유지
+
+# === 데이터 경로 ===
+paths:
+  input_dir: /home/joon/data/raw/markerless_mouse_1_nerf
+  output_dir: /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_correct
+  
+# === 샘플링 설정 ===
+sampling:
+  frame_interval: 5
+  expected_samples: 3597
+
+# === 타겟 카메라 파라미터 ===
+target:
+  image_size: 512
+  fx: 549.0
+  distance: 2.7
+
+# === Train/Val Split ===
+split:
+  val_ratio: 0.028  # ~100 val samples
+  seed: 42
+
+# === 실험 설정 기본값 ===
+experiment_defaults:
+  num_views: 6
+  num_input_views: 5
+  lr: 1.0e-6
+  use_rendered_alpha_mask: true
+  background_loss_weight: 1.0
