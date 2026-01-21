@@ -32,9 +32,82 @@ from diff_gauss import GaussianRasterizationSettings, GaussianRasterizer
 from einops import rearrange
 from plyfile import PlyData, PlyElement
 from torch import nn
+from typing import Literal
+from scipy.spatial.transform import Rotation, Slerp
 
 from collections import OrderedDict
 import videoio
+
+TrajectoryMode = Literal["turntable", "spiral", "figure8", "arc", "dataset_cameras"]
+
+
+def interpolate_camera_poses(c2w_start: np.ndarray, c2w_end: np.ndarray, t: float) -> np.ndarray:
+    """Interpolate between two camera poses using SLERP for rotation."""
+    R_start, R_end = c2w_start[:3, :3], c2w_end[:3, :3]
+    t_start, t_end = c2w_start[:3, 3], c2w_end[:3, 3]
+    
+    rot_start = Rotation.from_matrix(R_start)
+    rot_end = Rotation.from_matrix(R_end)
+    slerp = Slerp([0, 1], Rotation.concatenate([rot_start, rot_end]))
+    R_interp = slerp(t).as_matrix()
+    t_interp = (1 - t) * t_start + t * t_end
+    
+    c2w = np.eye(4)
+    c2w[:3, :3] = R_interp
+    c2w[:3, 3] = t_interp
+    return c2w
+
+
+def get_dataset_camera_trajectory(
+    dataset_c2ws: np.ndarray,
+    dataset_fxfycxcy: np.ndarray,
+    num_views: int = 150,
+    camera_order: list = None,
+    loop: bool = True,
+):
+    """
+    Generate smooth camera trajectory through dataset cameras.
+    
+    Returns:
+        fxfycxcy: [num_views, 4]
+        c2ws: [num_views, 4, 4]
+        segments: List of (start_frame, end_frame, from_cam, to_cam)
+    """
+    num_cams = dataset_c2ws.shape[0]
+    if camera_order is None:
+        camera_order = list(range(num_cams))
+    if loop:
+        camera_order = camera_order + [camera_order[0]]
+    
+    num_segments = len(camera_order) - 1
+    frames_per_segment = num_views // num_segments
+    
+    c2ws, fxfycxcys, segments = [], [], []
+    frame_idx = 0
+    
+    for seg_idx in range(num_segments):
+        from_cam, to_cam = camera_order[seg_idx], camera_order[seg_idx + 1]
+        seg_frames = num_views - frame_idx if seg_idx == num_segments - 1 else frames_per_segment
+        segments.append((frame_idx, frame_idx + seg_frames, from_cam, to_cam))
+        
+        for i in range(seg_frames):
+            t = i / seg_frames
+            c2ws.append(interpolate_camera_poses(dataset_c2ws[from_cam], dataset_c2ws[to_cam], t))
+            fxfycxcys.append((1 - t) * dataset_fxfycxcy[from_cam] + t * dataset_fxfycxcy[to_cam])
+            frame_idx += 1
+    
+    return np.stack(fxfycxcys), np.stack(c2ws), segments
+
+
+def add_camera_overlay(image: np.ndarray, text: str) -> np.ndarray:
+    """Add camera transition text overlay (e.g., Cam 0 -> Cam 1)."""
+    img = image.copy()
+    font, scale, thick = cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2
+    (tw, th), _ = cv2.getTextSize(text, font, scale, thick)
+    cv2.rectangle(img, (5, 5), (tw + 15, th + 15), (0, 0, 0), -1)
+    cv2.putText(img, text, (10, th + 10), font, scale, (255, 255, 255), thick)
+    return img
+
 
 @torch.no_grad()
 def get_turntable_cameras(
@@ -44,17 +117,54 @@ def get_turntable_cameras(
     h=384,
     radius=2.7,
     elevation=20,
+    elevation_end=None,  # For spiral/arc modes
+    trajectory_mode: TrajectoryMode = "turntable",
     up_vector=np.array([0, 0, 1]),
 ):
+    """
+    Generate camera poses for visualization.
+    
+    Args:
+        trajectory_mode: Camera path type
+            - "turntable": Fixed elevation, 360° rotation (default)
+            - "spiral": Elevation varies while rotating (1.5 rotations)
+            - "figure8": Figure-8 pattern for diverse viewpoints
+            - "arc": Single arc trajectory, varying elevation only
+        elevation_end: End elevation for spiral/arc modes (default: elevation+40 for spiral, 80 for arc)
+    """
     fx = w / (2 * np.tan(np.deg2rad(hfov) / 2.0))
     fy = fx
     cx, cy = w / 2.0, h / 2.0
     fxfycxcy = (
         np.array([fx, fy, cx, cy]).reshape(1, 4).repeat(num_views, axis=0)
     )  # [num_views, 4]
-    # azimuths = np.linspace(0, 360, num_views, endpoint=False)
-    azimuths = np.linspace(270, 630, num_views, endpoint=False)
-    elevations = np.ones_like(azimuths) * elevation
+    
+    # Generate azimuth and elevation based on trajectory mode
+    if trajectory_mode == "turntable":
+        azimuths = np.linspace(270, 630, num_views, endpoint=False)
+        elevations = np.ones(num_views) * elevation
+        
+    elif trajectory_mode == "spiral":
+        azimuths = np.linspace(270, 630 + 360, num_views, endpoint=False)  # 1.5 rotations
+        elev_end = elevation_end if elevation_end is not None else elevation + 40
+        elevations = np.linspace(elevation, elev_end, num_views)
+        
+    elif trajectory_mode == "figure8":
+        t = np.linspace(0, 2 * np.pi, num_views, endpoint=False)
+        azimuths = 270 + 180 * np.sin(t)  # ±180° swing
+        elev_end = elevation_end if elevation_end is not None else elevation + 40
+        elev_amplitude = (elev_end - elevation) / 2
+        elev_center = (elevation + elev_end) / 2
+        elevations = elev_center + elev_amplitude * np.sin(2 * t)
+        
+    elif trajectory_mode == "arc":
+        azimuths = np.ones(num_views) * 270  # Front view fixed
+        elev_end = elevation_end if elevation_end is not None else 80
+        elevations = np.linspace(elevation, elev_end, num_views)
+        
+    else:
+        raise ValueError(f"Unknown trajectory mode: {trajectory_mode}")
+    
     c2ws = []
     for elev, azim in zip(elevations, azimuths):
         elev, azim = np.deg2rad(elev), np.deg2rad(azim)
@@ -971,10 +1081,12 @@ deferred_gaussian_render = DeferredGaussianRender.apply
 
 @torch.no_grad()
 @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
-def render_turntable(pc: GaussianModel, rendering_resolution=384, num_views=8, elevation=20, radius=2.7):
+def render_turntable(pc: GaussianModel, rendering_resolution=384, num_views=8, elevation=20, radius=2.7,
+                     trajectory_mode="turntable", elevation_end=None):
     w, h, v, fxfycxcy, c2w = get_turntable_cameras(
         h=rendering_resolution, w=rendering_resolution, num_views=num_views,
-        elevation=elevation, radius=radius,  # Configurable
+        elevation=elevation, elevation_end=elevation_end, radius=radius,
+        trajectory_mode=trajectory_mode,
     )
 
     device = pc._xyz.device
@@ -1055,3 +1167,136 @@ if __name__ == "__main__":
 
     create_video(out_dir, f"{out_dir}/render.mp4", framerate=30)
     print(f"Saved {out_dir}/render.mp4")
+
+
+def render_dataset_trajectory(
+    pc,  # GaussianModel
+    dataset_c2ws: np.ndarray,  # [num_cams, 4, 4]
+    dataset_fxfycxcy: np.ndarray,  # [num_cams, 4]
+    rendering_resolution: int = 384,
+    num_views: int = 150,
+    camera_order: list = None,
+    loop: bool = True,
+    show_overlay: bool = True,
+):
+    """
+    Render video traversing through dataset camera positions.
+    
+    Args:
+        pc: GaussianModel with loaded gaussians
+        dataset_c2ws: Camera poses from dataset [num_cams, 4, 4]
+        dataset_fxfycxcy: Intrinsics [num_cams, 4]
+        rendering_resolution: Output resolution
+        num_views: Total number of frames
+        camera_order: Order to visit cameras (default: sequential)
+        loop: Return to first camera at end
+        show_overlay: Show camera transition text
+    
+    Returns:
+        frames: [num_views, H, W, 3] uint8
+        segments: List of (start_frame, end_frame, from_cam, to_cam)
+    """
+    device = pc._xyz.device
+    h = w = rendering_resolution
+    
+    # Generate trajectory
+    fxfycxcy, c2ws, segments = get_dataset_camera_trajectory(
+        dataset_c2ws, dataset_fxfycxcy, num_views, camera_order, loop
+    )
+    
+    fxfycxcy = torch.from_numpy(fxfycxcy).float().to(device)
+    c2ws = torch.from_numpy(c2ws).float().to(device)
+    
+    frames = []
+    for j in range(num_views):
+        render_result = render_opencv_cam(pc, h, w, c2ws[j], fxfycxcy[j])
+        frame = render_result["render"].detach().cpu().numpy()
+        frame = (frame * 255).clip(0, 255).astype(np.uint8)
+        frame = rearrange(frame, "c h w -> h w c")
+        
+        if show_overlay:
+            # Find which segment this frame belongs to
+            for seg_start, seg_end, from_cam, to_cam in segments:
+                if seg_start <= j < seg_end:
+                    text = f"Cam {from_cam} -> Cam {to_cam}"
+                    frame = add_camera_overlay(frame, text)
+                    break
+        
+        frames.append(frame)
+    
+    torch.cuda.empty_cache()
+    frames = np.stack(frames, axis=0)
+    
+    return frames, segments
+
+
+def render_dataset_views(
+    pc,  # GaussianModel
+    dataset_c2ws: np.ndarray,  # [num_cams, 4, 4]
+    dataset_fxfycxcy: np.ndarray,  # [num_cams, 4]
+    rendering_resolution: int = 384,
+    show_overlay: bool = True,
+):
+    """
+    Render from exact dataset camera positions for GT comparison.
+    
+    Returns:
+        frames: [num_cams, H, W, 3] uint8
+    """
+    device = pc._xyz.device
+    h = w = rendering_resolution
+    num_cams = dataset_c2ws.shape[0]
+    
+    fxfycxcy = torch.from_numpy(dataset_fxfycxcy).float().to(device)
+    c2ws = torch.from_numpy(dataset_c2ws).float().to(device)
+    
+    frames = []
+    for j in range(num_cams):
+        render_result = render_opencv_cam(pc, h, w, c2ws[j], fxfycxcy[j])
+        frame = render_result["render"].detach().cpu().numpy()
+        frame = (frame * 255).clip(0, 255).astype(np.uint8)
+        frame = rearrange(frame, "c h w -> h w c")
+        
+        if show_overlay:
+            frame = add_camera_overlay(frame, f"Cam {j}")
+        
+        frames.append(frame)
+    
+    torch.cuda.empty_cache()
+    return np.stack(frames, axis=0)
+
+
+def get_turntable_with_dataset_views(
+    dataset_c2ws: np.ndarray,  # [num_cams, 4, 4]
+    dataset_fxfycxcy: np.ndarray,  # [num_cams, 4]
+    hfov: float = 50,
+    num_turntable_views: int = 58,  # 64 - 6 dataset views
+    w: int = 384,
+    h: int = 384,
+    radius: float = 2.7,
+    elevation: float = 20,
+):
+    """
+    Generate turntable cameras + exact dataset cameras.
+    Dataset views are placed at positions 0-5, turntable at 6-63.
+    
+    Returns:
+        w, h, total_views, fxfycxcy [total_views, 4], c2ws [total_views, 4, 4]
+        dataset_view_indices: indices of dataset views in output
+    """
+    num_dataset = dataset_c2ws.shape[0]
+    total_views = num_dataset + num_turntable_views
+    
+    # Generate turntable views
+    _, _, _, turntable_fxfycxcy, turntable_c2ws = get_turntable_cameras(
+        hfov=hfov, num_views=num_turntable_views, w=w, h=h,
+        radius=radius, elevation=elevation, trajectory_mode="turntable"
+    )
+    
+    # Combine: dataset views first, then turntable
+    fxfycxcy = np.concatenate([dataset_fxfycxcy, turntable_fxfycxcy], axis=0)
+    c2ws = np.concatenate([dataset_c2ws, turntable_c2ws], axis=0)
+    
+    dataset_view_indices = list(range(num_dataset))
+    
+    return w, h, total_views, fxfycxcy, c2ws, dataset_view_indices

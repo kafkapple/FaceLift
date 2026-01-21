@@ -65,6 +65,10 @@ from .gaussians_renderer import (
     imageseq2video,
     render_opencv_cam,
     render_turntable,
+    render_dataset_views,
+    render_dataset_trajectory,
+    get_turntable_with_dataset_views,
+    add_camera_overlay,
 )
 from .transform_data import SplitData, TransformInput, TransformTarget
 from .utils_transformer import (
@@ -1753,13 +1757,60 @@ class GSLRM(nn.Module):
             turntable_resolution = turntable_cfg.get("resolution", 384)
             turntable_elevation = turntable_cfg.get("elevation", 20)
             turntable_radius = turntable_cfg.get("radius", 2.7)
-            turntable_image = render_turntable(
-                model_results.gaussians[batch_idx],
-                rendering_resolution=turntable_resolution,
-                num_views=turntable_views,
-                elevation=turntable_elevation,
-                radius=turntable_radius
-            )
+            trajectory_mode = turntable_cfg.get("trajectory_mode", "turntable")
+            elevation_end = turntable_cfg.get("elevation_end", None)
+            include_dataset_views = turntable_cfg.get("include_dataset_views", False)
+            
+            # Get dataset camera poses if needed
+            dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()  # [num_cams, 4, 4]
+            dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()  # [num_cams, 4]
+            
+            if include_dataset_views:
+                # Render with dataset views included (first 6 are dataset cameras)
+                num_dataset = dataset_c2ws.shape[0]
+                num_turntable = turntable_views - num_dataset
+                
+                w, h, total_views, combined_fxfycxcy, combined_c2ws, dataset_indices = get_turntable_with_dataset_views(
+                    dataset_c2ws, dataset_fxfycxcy,
+                    num_turntable_views=num_turntable,
+                    w=turntable_resolution, h=turntable_resolution,
+                    radius=turntable_radius, elevation=turntable_elevation
+                )
+                
+                # Render all views
+                device = model_results.gaussians[batch_idx]._xyz.device
+                combined_fxfycxcy_t = torch.from_numpy(combined_fxfycxcy).float().to(device)
+                combined_c2ws_t = torch.from_numpy(combined_c2ws).float().to(device)
+                
+                frames = []
+                for j in range(total_views):
+                    from .gaussians_renderer import render_opencv_cam
+                    render_result = render_opencv_cam(
+                        model_results.gaussians[batch_idx], h, w, 
+                        combined_c2ws_t[j], combined_fxfycxcy_t[j]
+                    )
+                    frame = render_result["render"].detach().cpu().numpy()
+                    frame = (frame * 255).clip(0, 255).astype(np.uint8)
+                    frame = rearrange(frame, "c h w -> h w c")
+                    # Add overlay for dataset views
+                    if j < num_dataset:
+                        frame = add_camera_overlay(frame, f"Cam {j}")
+                    frames.append(frame)
+                
+                turntable_image = np.concatenate([f[None] for f in frames], axis=0)
+                turntable_image = rearrange(turntable_image, "v h w c -> h (v w) c")
+            else:
+                # Standard turntable
+                turntable_image = render_turntable(
+                    model_results.gaussians[batch_idx],
+                    rendering_resolution=turntable_resolution,
+                    num_views=turntable_views,
+                    elevation=turntable_elevation,
+                    radius=turntable_radius,
+                    trajectory_mode=trajectory_mode,
+                    elevation_end=elevation_end
+                )
+            
             # render_turntable returns: h x (views*w) x c
             # Reshape to 8x8 grid layout
             h_img = turntable_image.shape[0]
@@ -1771,6 +1822,20 @@ class GSLRM(nn.Module):
             Image.fromarray(turntable_grid).save(
                 os.path.join(output_directory, f"turntable_{item_uid}.jpg")
             )
+            
+            # Additionally save dataset camera views for direct GT comparison
+            if turntable_cfg.get("save_dataset_views", True):
+                dataset_views = render_dataset_views(
+                    model_results.gaussians[batch_idx],
+                    dataset_c2ws, dataset_fxfycxcy,
+                    rendering_resolution=turntable_resolution,
+                    show_overlay=True
+                )
+                # Arrange as horizontal strip
+                dataset_strip = rearrange(dataset_views, "v h w c -> h (v w) c")
+                Image.fromarray(dataset_strip).save(
+                    os.path.join(output_directory, f"dataset_views_{item_uid}.jpg")
+                )
 
             # Save individual input images during inference
             if self.config.inference:
