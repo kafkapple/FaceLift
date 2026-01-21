@@ -76,7 +76,6 @@ training:
   losses:
     l2_loss_weight: 1.0
     lpips_loss_weight: 0.0
-    background_loss_weight: 0.0
     perceptual_loss_weight: 0.5
     ssim_loss_weight: 0.0
     pixelalign_loss_weight: 0.0

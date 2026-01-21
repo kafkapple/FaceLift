@@ -395,9 +395,6 @@ class LossComputer(nn.Module):
             img_aligned_xyz, input, b, v, h, w
         )
 
-        # Background loss (optional - not in original paper)
-        losses['background'] = self._compute_background_loss(rendering, mask)
-
         # Scale range statistics for logging
         losses['gt_min'] = target.min()
         losses['gt_max'] = target.max()
@@ -461,35 +458,6 @@ class LossComputer(nn.Module):
 
         return iou
 
-    def _compute_background_loss(self, rendering, mask):
-        """
-        Compute background color supervision loss.
-
-        Forces the rendering to produce a specific background color (e.g., white)
-        in regions where mask indicates background (mask < 0.5).
-
-        This is NOT in the original FaceLift paper, but can help with
-        the issue of dark backgrounds appearing during finetuning.
-        """
-        bg_weight = self.config.training.losses.get("background_loss_weight", 0.0)
-        if bg_weight > 0.0 and mask is not None:
-            # Get target background color from config (default: white)
-            bg_target = self.config.training.losses.get(
-                "background_color_target", [1.0, 1.0, 1.0]
-            )
-            bg_target = torch.tensor(bg_target, device=rendering.device, dtype=rendering.dtype)
-            bg_target = bg_target.view(1, 3, 1, 1)
-
-            # Background mask: where mask < 0.5
-            bg_mask = (mask < 0.5).float()
-            num_bg_pixels = bg_mask.sum().clamp(min=1.0)
-
-            # MSE between rendering and target background color in background regions
-            bg_error = (rendering - bg_target) ** 2
-            masked_bg_error = bg_error * bg_mask
-            return masked_bg_error.sum() / (num_bg_pixels * 3)  # 3 for RGB
-
-        return torch.tensor(0.0, device=rendering.device)
 
     def _compute_l2_loss(self, rendering, target, mask=None):
         """
@@ -609,7 +577,6 @@ class LossComputer(nn.Module):
     def _compute_total_loss(self, losses):
         """Compute weighted sum of all losses."""
         weights = self.config.training.losses
-        bg_weight = weights.get("background_loss_weight", 0.0)
         return (
             weights.l2_loss_weight * losses['l2']
             + weights.lpips_loss_weight * losses['lpips']
@@ -617,7 +584,6 @@ class LossComputer(nn.Module):
             + weights.ssim_loss_weight * losses['ssim']
             + weights.pixelalign_loss_weight * losses['pixelalign']
             + weights.pointsdist_loss_weight * losses['pointsdist']
-            + bg_weight * losses['background']
         )
     
     def _create_visual(self, rendering, target, v, mask=None, rendered_alpha=None):
@@ -1018,7 +984,6 @@ class LossComputer(nn.Module):
             ssim_loss=losses['ssim'],
             pixelalign_loss=losses['pixelalign'],
             pointsdist_loss=losses['pointsdist'],
-            background_loss=losses['background'],
             mask_iou=losses['mask_iou'],
             mask_coverage=losses['mask_coverage'],
             visual=visual,
@@ -1028,7 +993,6 @@ class LossComputer(nn.Module):
             norm_ssim_loss=losses['ssim'] / l2_safe,
             norm_pixelalign_loss=losses['pixelalign'] / l2_safe,
             norm_pointsdist_loss=losses['pointsdist'] / l2_safe,
-            norm_background_loss=losses['background'] / l2_safe,
             # Scale range statistics (GT and Pred pixel value distributions)
             gt_min=losses['gt_min'],
             gt_max=losses['gt_max'],

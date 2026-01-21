@@ -96,7 +96,6 @@ def get_experiment_info(config) -> Dict[str, Any]:
         "lpips_loss_weight": losses.get("lpips_loss_weight", 0.0),
         "perceptual_loss_weight": losses.get("perceptual_loss_weight", 0.0),
         "ssim_loss_weight": losses.get("ssim_loss_weight", 0.0),
-        "background_loss_weight": losses.get("background_loss_weight", 0.0),
         # Split info
         "split_method": split_method,
     }
@@ -138,7 +137,6 @@ def get_wandb_log_dict(
     primary = ["loss", "l2_loss", "psnr", "mask_iou", "mask_type"]
 
     # Secondary metrics (log if non-zero)
-    secondary = ["perceptual_loss", "ssim_loss", "lpips_loss", "background_loss"]
 
     # Auxiliary metrics
     auxiliary = ["gt_mean", "pred_mean", "mask_coverage", "gaussians_usage"]

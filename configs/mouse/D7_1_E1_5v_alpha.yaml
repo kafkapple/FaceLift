@@ -68,7 +68,6 @@ training:
     masked_pixelalign_loss: true
     masked_l2_loss: true
     masked_ssim_loss: true
-    background_loss_weight: 0.0
     pointsdist_loss_weight: 0.0
     warmup_pointsdist: false
     distill_loss_weight: 0.0

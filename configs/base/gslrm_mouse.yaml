@@ -70,7 +70,6 @@ training:
     warmup_pointsdist: false
     distill_loss_weight: 0.0
     clamp_rendering: true
-    background_loss_weight: 0.0
 
   # Optimizer settings
   optimizer:

@@ -168,7 +168,6 @@ def generate_experiment_config(config: dict, exp_name: str = None) -> bool:
                 'masked_pixelalign_loss': defaults.get('masked_l2_loss', True),
                 'masked_l2_loss': defaults.get('masked_l2_loss', True),
                 'masked_ssim_loss': defaults.get('masked_ssim_loss', True),
-                'background_loss_weight': defaults.get('background_loss_weight', 1.0),
                 'pointsdist_loss_weight': 0.0,
                 'warmup_pointsdist': False,
                 'distill_loss_weight': 0.0,

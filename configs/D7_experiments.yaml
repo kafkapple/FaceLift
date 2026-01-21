@@ -47,7 +47,6 @@ D7_E1_baseline:
     # Weights
     l2_loss_weight: 1.0
     ssim_loss_weight: 0.2
-    background_loss_weight: 0.0
 
   # Training
   batch_size: 4
@@ -96,7 +95,6 @@ D7_E2_gtmask:
     # Weights
     l2_loss_weight: 1.0
     ssim_loss_weight: 0.2
-    background_loss_weight: 1.0
 
   # Training
   batch_size: 4
@@ -149,7 +147,6 @@ D7_E3_alpha:
     # Weights
     l2_loss_weight: 1.0
     ssim_loss_weight: 0.2
-    background_loss_weight: 0.5
 
   # Training
   batch_size: 4

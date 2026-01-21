@@ -40,4 +40,3 @@ experiment_defaults:
   num_input_views: 5
   lr: 1.0e-6
   use_rendered_alpha_mask: true
-  background_loss_weight: 1.0

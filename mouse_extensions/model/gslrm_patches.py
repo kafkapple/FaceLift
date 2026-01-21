@@ -200,5 +200,4 @@ def get_mask_config_for_logging(config) -> Dict[str, any]:
         "config/use_pred_mask": use_pred,
         "config/masked_l2_loss": use_masked_loss,
         "config/alpha_loss_weight": losses.get("alpha_loss_weight", 0.0),
-        "config/background_loss_weight": losses.get("background_loss_weight", 0.0),
     }

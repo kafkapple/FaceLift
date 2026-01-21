@@ -199,7 +199,6 @@ D7_E2_gtmask:
       masked_ssim_loss: true
       mask_mode: "gt"
       use_rendered_alpha_mask: false
-      background_loss_weight: 1.0
       pointsdist_loss_weight: 0.0
       warmup_pointsdist: false
       distill_loss_weight: 0.0
@@ -315,7 +314,6 @@ D7_E3_alpha:
       use_rendered_alpha_mask: true
       alpha_mask_threshold: 0.3
       min_mask_ratio: 0.1
-      background_loss_weight: 0.5
       pointsdist_loss_weight: 0.0
       warmup_pointsdist: false
       distill_loss_weight: 0.0
@@ -429,7 +427,6 @@ D7_E4_long:
       masked_ssim_loss: true
       mask_mode: "gt"
       use_rendered_alpha_mask: false
-      background_loss_weight: 1.0
       pointsdist_loss_weight: 0.0
       warmup_pointsdist: false
       distill_loss_weight: 0.0

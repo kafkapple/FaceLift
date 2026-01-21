@@ -42,7 +42,6 @@ D7_5_E1_baseline:
     use_predicted_mask: false
     l2_loss_weight: 1.0
     ssim_loss_weight: 0.2
-    background_loss_weight: 0.0
 
   # Training
   batch_size: 4
@@ -92,7 +91,6 @@ D7_5_E2_gtmask:
     use_predicted_mask: false
     l2_loss_weight: 1.0
     ssim_loss_weight: 0.2
-    background_loss_weight: 1.0
 
   batch_size: 4
   num_workers: 4
@@ -135,7 +133,6 @@ D7_5b_E1_baseline:
     use_predicted_mask: false
     l2_loss_weight: 1.0
     ssim_loss_weight: 0.2
-    background_loss_weight: 0.0
 
   # Training
   batch_size: 4
@@ -186,7 +183,6 @@ D7_5b_E2_gtmask:
     use_predicted_mask: false
     l2_loss_weight: 1.0
     ssim_loss_weight: 0.2
-    background_loss_weight: 1.0
 
   batch_size: 4
   num_workers: 4
