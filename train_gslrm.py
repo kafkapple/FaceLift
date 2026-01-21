@@ -155,6 +155,15 @@ class GSLRMTrainer:
         else:
             return self.model.module
 
+    @property
+    def _val_output_dir(self):
+        """Get experiment-specific validation output directory."""
+        # Extract experiment name from checkpoint_dir (e.g., 'D7_1_E2_2_gt_mask')
+        checkpoint_dir = self.config.training.checkpointing.checkpoint_dir
+        exp_name = os.path.basename(checkpoint_dir)
+        base_val_dir = self.config.get("validation", {}).get("output_dir", "experiments/validation")
+        return os.path.join(base_val_dir, exp_name)
+
     def _set_epoch(self, dataloader, epoch):
         """Set epoch for sampler (only for DistributedSampler)."""
         if not self.single_gpu_mode and hasattr(dataloader.sampler, 'set_epoch'):
@@ -986,7 +995,7 @@ class GSLRMTrainer:
     def run_validation(self):
         """Run validation loop."""
         print(f"Running validation at step {self.fwdbwd_pass_step}; "
-              f"save results to: {self.config.get('validation', {}).get('output_dir', 'experiments/validation')}")
+              f"save results to: {self._val_output_dir}")
         self._barrier()
         
         self._set_epoch(self.val_dataloader, 0)
@@ -1007,7 +1016,7 @@ class GSLRMTrainer:
 
                 try:
                     val_metrics = self.model_module.save_validations(
-                        os.path.join(self.config.get("validation", {}).get("output_dir", "experiments/validation"), f"iter_{self.fwdbwd_pass_step:08d}"),
+                        os.path.join(self._val_output_dir, f"iter_{self.fwdbwd_pass_step:08d}"),
                         result,
                         batch,
                         self.dataset,
@@ -1085,7 +1094,7 @@ class GSLRMTrainer:
                 wandb.log(wandb_log_val_metrics, step=self.fwdbwd_pass_step)
 
                 # Log validation images to WandB
-                val_vis_dir = os.path.join(self.config.get("validation", {}).get("output_dir", "experiments/validation"), f"iter_{self.fwdbwd_pass_step:08d}")
+                val_vis_dir = os.path.join(self._val_output_dir, f"iter_{self.fwdbwd_pass_step:08d}")
                 self._log_visuals_to_wandb(val_vis_dir, prefix="val")
 
             torch.cuda.empty_cache()
@@ -1094,7 +1103,7 @@ class GSLRMTrainer:
         
         # Summarize validation results
         if self.ddp_rank == 0:
-            self._summarize_evaluation_results(self.config.get("validation", {}).get("output_dir", "experiments/validation"))
+            self._summarize_evaluation_results(self._val_output_dir)
             
         self._barrier()
         self.model.train()
@@ -1105,9 +1114,7 @@ class GSLRMTrainer:
             print("[Test] No test dataloader available, skipping test evaluation")
             return
 
-        test_output_dir = self.config.get("validation", {}).get(
-            "output_dir", "experiments/validation"
-        ).replace("validation", "test")
+        test_output_dir = self._val_output_dir.replace("validation", "test")
 
         return run_test_evaluation(
             self,
