@@ -183,3 +183,39 @@ frames, segments = render_dataset_trajectory(
 ```
 
 ---
+
+## 8. Camera Index Reference (2026-01-21)
+
+### 8.1 D8 Camera Characteristics
+
+| View | Azimuth | Elevation | Z-score | Notes |
+|------|---------|-----------|---------|-------|
+| 0 | -147° | +14.9° | -0.56 | Normal |
+| 1 | +34° | +20.6° | +0.19 | Normal |
+| 2 | +86° | +11.3° | -1.04 | Lowest |
+| 3 | -11° | +10.7° | -1.11 | Lowest |
+| 4 | +144° | +26.5° | +0.98 | High |
+| 5 | -64° | +30.8° | **+1.54** | **OUTLIER** |
+
+### 8.2 Visualization Note
+
+**Issue**: gt_vs_pred.png columns don't show camera indices
+- Column position = `image_choices` order (varies with random selection)
+- To identify: check `perview_metrics.txt` for camera IDs
+
+```
+# Example: perview_metrics.txt
+view 000000, psnr: 25.1234, ...  # Column 0 = Camera 0
+view 000002, psnr: 24.5678, ...  # Column 1 = Camera 2
+```
+
+### 8.3 New Experiments
+
+| Config | Description | Key Setting |
+|--------|-------------|-------------|
+| E4_6 | Exclude View 5 | `exclude_camera_indices: [5]` |
+| E4_7 | Optimal Alpha | `alpha_loss: 0.5, threshold: 0.5` |
+
+---
+
+*Updated: 2026-01-21*

@@ -20,8 +20,9 @@ Usage:
 
 import torch
 import numpy as np
-from typing import Optional, Tuple, Dict, Union
+from typing import Optional, Tuple, Dict, Union, List
 from dataclasses import dataclass
+from PIL import Image, ImageDraw, ImageFont
 
 
 # =============================================================================
@@ -96,6 +97,71 @@ def compute_pred_mask(
         # RGB-based detection (removebg style)
         color_distance = (rendering - 1.0).abs().mean(dim=-3, keepdim=True)
         return (color_distance > config.rgb_threshold).float()
+
+
+def _add_camera_labels(
+    visual_np: np.ndarray,
+    view_indices: List[int],
+    image_width: int,
+    label_height: int = 20,
+    font_size: int = 12
+) -> np.ndarray:
+    """
+    Add camera index labels at the top of each column in the visualization.
+    
+    Args:
+        visual_np: Visualization image (H, W, 3) uint8
+        view_indices: List of camera indices for each column
+        image_width: Width of each view image
+        label_height: Height of label bar
+        font_size: Font size for labels
+        
+    Returns:
+        Labeled visualization (H+label_height, W, 3) uint8
+    """
+    h, w, c = visual_np.shape
+    num_views = len(view_indices)
+    
+    # Create label bar
+    label_bar = np.ones((label_height, w, c), dtype=np.uint8) * 40  # Dark gray background
+    
+    # Convert to PIL for text drawing
+    label_img = Image.fromarray(label_bar)
+    draw = ImageDraw.Draw(label_img)
+    
+    # Try to use a monospace font, fall back to default
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", font_size)
+    except:
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf", font_size)
+        except:
+            font = ImageFont.load_default()
+    
+    # Draw camera labels centered on each column
+    for i, cam_idx in enumerate(view_indices):
+        label_text = f"Cam {cam_idx}"
+        
+        # Calculate center position for this column
+        col_center_x = i * image_width + image_width // 2
+        
+        # Get text bounding box for centering
+        bbox = draw.textbbox((0, 0), label_text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        text_x = col_center_x - text_width // 2
+        text_y = (label_height - text_height) // 2
+        
+        # Draw text in white
+        draw.text((text_x, text_y), label_text, fill=(255, 255, 255), font=font)
+    
+    # Convert back to numpy and concatenate
+    label_bar = np.array(label_img)
+    labeled_visual = np.concatenate([label_bar, visual_np], axis=0)
+    
+    return labeled_visual
+
 
 
 def create_mask_overlay(
@@ -231,7 +297,8 @@ def create_training_visual(
     config: VisualizationConfig,
     gt_mask: Optional[torch.Tensor] = None,
     rendered_alpha: Optional[torch.Tensor] = None,
-    num_views: int = 6
+    num_views: int = 6,
+    view_indices: Optional[List[int]] = None
 ) -> Tuple[np.ndarray, Dict[str, float]]:
     """
     Create training visualization.
@@ -329,6 +396,11 @@ def create_training_visual(
     # Convert to numpy
     visual_np = (visual.detach().cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
     
+    # Add camera labels if view_indices provided
+    if view_indices is not None:
+        image_width = target.size(3)  # W dimension
+        visual_np = _add_camera_labels(visual_np, view_indices, image_width)
+    
     return visual_np, error_stats
 
 
@@ -337,7 +409,8 @@ def create_validation_visual(
     rendering: torch.Tensor,
     config: VisualizationConfig,
     rendered_alpha: Optional[torch.Tensor] = None,
-    max_views: int = 10
+    max_views: int = 10,
+    view_indices: Optional[List[int]] = None
 ) -> Tuple[np.ndarray, Dict[str, float]]:
     """
     Create validation visualization.
@@ -425,6 +498,15 @@ def create_validation_visual(
     
     # Convert to numpy
     visual_np = (visual.detach().cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
+    
+    # Add camera labels if view_indices provided
+    if view_indices is not None:
+        # Handle subsampling case
+        if num_views < len(view_indices):
+            step = len(view_indices) // num_views
+            view_indices = [view_indices[i] for i in range(0, len(view_indices), step)][:num_views]
+        image_width = target.size(3)  # W dimension after potential subsampling
+        visual_np = _add_camera_labels(visual_np, view_indices, image_width)
     
     return visual_np, error_stats
 

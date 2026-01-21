@@ -313,6 +313,7 @@ class LossComputer(nn.Module):
         result_softpa: Optional[edict] = None,
         create_visual: bool = False,
         rendered_alpha: Optional[torch.Tensor] = None,  # [b, v, 1, h, w] NEW
+        view_indices: Optional[list] = None,  # Camera indices for visualization
     ) -> edict:
         """
         Compute all losses between rendered and target images.
@@ -359,7 +360,7 @@ class LossComputer(nn.Module):
         # Create visualization if requested (include mask if available)
         # Use rendered_alpha as mask fallback for visualization if GT mask not available
         visual_mask = mask if mask is not None else (rendered_alpha_flat > 0.5).float() if rendered_alpha_flat is not None else None
-        visual = self._create_visual(rendering_flat, target_flat, v, visual_mask, rendered_alpha_flat) if create_visual else None
+        visual = self._create_visual(rendering_flat, target_flat, v, visual_mask, rendered_alpha_flat, view_indices) if create_visual else None
 
         # Compile loss metrics
         return self._compile_loss_metrics(losses, total_loss, visual)
@@ -590,7 +591,7 @@ class LossComputer(nn.Module):
             + weights.pointsdist_loss_weight * losses['pointsdist']
         )
     
-    def _create_visual(self, rendering, target, v, mask=None, rendered_alpha=None):
+    def _create_visual(self, rendering, target, v, mask=None, rendered_alpha=None, view_indices=None):
         """
         Create visualization - delegates to mouse_extensions for consistency.
         """
@@ -603,7 +604,8 @@ class LossComputer(nn.Module):
         vis_config = VisualizationConfig.from_training_config(self.config)
         visual_np, _ = create_training_visual(
             target_with_alpha, rendering, vis_config,
-            gt_mask=mask, rendered_alpha=rendered_alpha, num_views=v
+            gt_mask=mask, rendered_alpha=rendered_alpha, num_views=v,
+            view_indices=view_indices
         )
         return visual_np
     
@@ -1646,6 +1648,12 @@ class GSLRM(nn.Module):
             if rendered_images.shape[1] == target_data.image.shape[1]:
                 # rendered_alpha is now directly available from deferred render
                 
+                # Extract view indices for visualization (first batch item, all views)
+                batch_view_indices = None
+                if hasattr(target_data, "index") and target_data.index is not None:
+                    # index shape: [B, V, 2] where [:, :, 0] is camera index
+                    batch_view_indices = target_data.index[0, :, 0].cpu().numpy().tolist()
+                
                 loss_metrics = self.loss_calculator(
                     rendered_images,
                     target_data.image,
@@ -1654,6 +1662,7 @@ class GSLRM(nn.Module):
                     create_visual=create_visual,
                     result_softpa=gaussian_splat_result,
                     rendered_alpha=rendered_alpha,
+                    view_indices=batch_view_indices,
                 )
 
         # Create Gaussian models for each batch item and compute usage statistics
@@ -1977,9 +1986,11 @@ class GSLRM(nn.Module):
                 batch_rendered_alpha = model_results.rendered_alpha[batch_idx]  # [V, 1, H, W]
             
             vis_config = VisualizationConfig.from_training_config(self.config)
+            view_ids = target_data.index[batch_idx, :, 0].cpu().numpy().tolist()
             comparison_np, _ = create_validation_visual(
                 gt_images, rendered_images, vis_config,
-                rendered_alpha=batch_rendered_alpha
+                rendered_alpha=batch_rendered_alpha,
+                view_indices=view_ids
             )
             # Convert back to tensor for downstream code
             comparison_image = torch.from_numpy(comparison_np).float() / 255.0
@@ -2179,9 +2190,11 @@ class GSLRM(nn.Module):
                 
                 # Use centralized visualization function
                 vis_config = VisualizationConfig.from_training_config(self.config)
+                view_ids_list = target_data.index[batch_idx, :, 0].cpu().numpy().tolist()
                 comparison_np, error_stats = create_validation_visual(
                     full_target, rendered, vis_config,
-                    rendered_alpha=batch_rendered_alpha
+                    rendered_alpha=batch_rendered_alpha,
+                    view_indices=view_ids_list
                 )
                 # Determine num_rows for annotation
                 mask_mode = self.config.training.losses.get("mask_mode", None)
