@@ -59,6 +59,11 @@ training:
     remove_alpha: false
     background_color: white
 
+    # Camera exclusion for ablation experiments (leave-one-out)
+    # Use EITHER exclude OR include (not both)
+    exclude_camera_indices: []     # e.g., [3] to exclude camera 3
+    # include_camera_indices: null # e.g., [0,1,2,4,5] to include only these
+
   # Loss defaults (overridden by experiment config)
   losses:
     l2_loss_weight: 1.0
