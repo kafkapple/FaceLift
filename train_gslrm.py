@@ -164,6 +164,14 @@ class GSLRMTrainer:
         base_val_dir = self.config.get("validation", {}).get("output_dir", "experiments/validation")
         return os.path.join(base_val_dir, exp_name)
 
+    @property
+    def _inf_output_dir(self):
+        """Get experiment-specific inference output directory."""
+        checkpoint_dir = self.config.training.checkpointing.checkpoint_dir
+        exp_name = os.path.basename(checkpoint_dir)
+        base_inf_dir = self.config.get("inference", {}).get("output_dir", "experiments/inference")
+        return os.path.join(base_inf_dir, exp_name)
+
     def _set_epoch(self, dataloader, epoch):
         """Set epoch for sampler (only for DistributedSampler)."""
         if not self.single_gpu_mode and hasattr(dataloader.sampler, 'set_epoch'):
@@ -530,7 +538,7 @@ class GSLRMTrainer:
         
     def run_inference(self):
         """Run inference mode."""
-        inference_output = self.config.get("inference", {}).get("output_dir", "experiments/inference")
+        inference_output = self._inf_output_dir
         print(f"Running inference; save results to: {inference_output}")
         
         if self.ddp_rank == 0:
@@ -551,7 +559,7 @@ class GSLRMTrainer:
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 result = self.model(batch, create_visual=True)
                 self.model_module.save_visuals(
-                    self.config.get("inference", {}).get("output_dir", "experiments/inference"), result, batch, save_all=True
+                    self._inf_output_dir, result, batch, save_all=True
                 )
             torch.cuda.empty_cache()
             
