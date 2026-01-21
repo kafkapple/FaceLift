@@ -45,20 +45,16 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 from PIL import Image
 
-# Mouse extensions (optional)
-try:
-    from mouse_extensions.model import (
-        VisualizationConfig,
-        create_training_visual,
-        create_validation_visual,
-        compute_error_stats,
-        compute_mask_from_config,
-        create_threshold_comparison,
-        MaskType,
-    )
-    MOUSE_EXTENSIONS_AVAILABLE = True
-except ImportError:
-    MOUSE_EXTENSIONS_AVAILABLE = False
+# Mouse extensions (required for mouse data training)
+from mouse_extensions.model import (
+    VisualizationConfig,
+    create_training_visual,
+    create_validation_visual,
+    compute_error_stats,
+    compute_mask_from_config,
+    create_threshold_comparison,
+    MaskType,
+)
 
 # Local imports
 from .utils_losses import PerceptualLoss, SsimLoss
@@ -373,21 +369,8 @@ class LossComputer(nn.Module):
         """
         losses = {}
         
-        # Mask computation using mouse_extensions (if available)
-        if MOUSE_EXTENSIONS_AVAILABLE:
-            mask, _ = compute_mask_from_config(self.config, rendering, mask, rendered_alpha)
-        else:
-            # Fallback: inline mask logic
-            use_pred_mask = self.config.training.losses.get("use_predicted_mask", False)
-            pred_mask_threshold = self.config.training.losses.get("pred_mask_threshold", 0.1)
-            if use_pred_mask:
-                bg_color = 1.0
-                color_distance = (rendering - bg_color).abs().mean(dim=1, keepdim=True)
-                mask = (color_distance > pred_mask_threshold).float()
-            elif rendered_alpha is not None:
-                use_rendered_alpha = self.config.training.losses.get("use_rendered_alpha_mask", False)
-                if use_rendered_alpha:
-                    mask = (rendered_alpha > 0.5).float()
+        # Mask computation using mouse_extensions
+        mask, _ = compute_mask_from_config(self.config, rendering, mask, rendered_alpha)
 
         # L2 (MSE) loss - optionally masked
         losses['l2'] = self._compute_l2_loss(rendering, target, mask)
@@ -641,20 +624,18 @@ class LossComputer(nn.Module):
         """
         Create visualization - delegates to mouse_extensions for consistency.
         """
-        if MOUSE_EXTENSIONS_AVAILABLE:
-            # Reconstruct 4-channel target if mask was extracted
-            if mask is not None:
-                target_with_alpha = torch.cat([target, mask], dim=1)
-            else:
-                target_with_alpha = target
-            
-            vis_config = VisualizationConfig.from_training_config(self.config)
-            visual_np, _ = create_training_visual(
-                target_with_alpha, rendering, vis_config,
-                gt_mask=mask, rendered_alpha=rendered_alpha, num_views=v
-            )
-            return visual_np
-        return self._create_visual_inline(rendering, target, v, mask, rendered_alpha)
+        # Reconstruct 4-channel target if mask was extracted
+        if mask is not None:
+            target_with_alpha = torch.cat([target, mask], dim=1)
+        else:
+            target_with_alpha = target
+        
+        vis_config = VisualizationConfig.from_training_config(self.config)
+        visual_np, _ = create_training_visual(
+            target_with_alpha, rendering, vis_config,
+            gt_mask=mask, rendered_alpha=rendered_alpha, num_views=v
+        )
+        return visual_np
     
     def _create_visual_inline(self, rendering, target, v, mask=None, rendered_alpha=None):
         """
@@ -798,16 +779,9 @@ class LossComputer(nn.Module):
         # Add alpha and RGB threshold comparison rows if alpha is available
         if rendered_alpha is not None:
             try:
-                if MOUSE_EXTENSIONS_AVAILABLE:
-                    # Use module function
-                    alpha_comparison = create_threshold_comparison(
-                        rendering, rendered_alpha, mask, v, target.shape[2]
-                    )
-                else:
-                    # Fallback to internal method
-                    alpha_comparison = self._create_threshold_comparison(
-                        rendering, rendered_alpha, mask, v, target.shape[2]
-                    )
+                alpha_comparison = create_threshold_comparison(
+                    rendering, rendered_alpha, mask, v, target.shape[2]
+                )
                 if alpha_comparison is not None:
                     visual_np = np.vstack([visual_np, alpha_comparison])
             except Exception as e:
@@ -1949,19 +1923,14 @@ class GSLRM(nn.Module):
             if hasattr(model_results, 'rendered_alpha') and model_results.rendered_alpha is not None:
                 batch_rendered_alpha = model_results.rendered_alpha[batch_idx]  # [V, 1, H, W]
             
-            if MOUSE_EXTENSIONS_AVAILABLE:
-                vis_config = VisualizationConfig.from_training_config(self.config)
-                comparison_np, _ = create_validation_visual(
-                    gt_images, rendered_images, vis_config,
-                    rendered_alpha=batch_rendered_alpha
-                )
-                # Convert back to tensor for downstream code
-                comparison_image = torch.from_numpy(comparison_np).float() / 255.0
-                comparison_image = comparison_image.permute(2, 0, 1).unsqueeze(0)  # [1, 3, H, W]
-            else:
-                # Fallback: simple comparison without mask
-                gt_rgb = gt_images[:, :3, :, :] if gt_images.size(1) >= 3 else gt_images
-                comparison_image = torch.stack((gt_rgb, rendered_images), dim=0)
+            vis_config = VisualizationConfig.from_training_config(self.config)
+            comparison_np, _ = create_validation_visual(
+                gt_images, rendered_images, vis_config,
+                rendered_alpha=batch_rendered_alpha
+            )
+            # Convert back to tensor for downstream code
+            comparison_image = torch.from_numpy(comparison_np).float() / 255.0
+            comparison_image = comparison_image.permute(2, 0, 1).unsqueeze(0)  # [1, 3, H, W]
 
             num_views = comparison_image.size(1)
             if num_views > 10:
@@ -2143,28 +2112,20 @@ class GSLRM(nn.Module):
                 if hasattr(model_results, 'rendered_alpha') and model_results.rendered_alpha is not None:
                     batch_rendered_alpha = model_results.rendered_alpha[batch_idx]  # (V, 1, H, W)
                 
-                if MOUSE_EXTENSIONS_AVAILABLE:
-                    # Use centralized visualization function
-                    vis_config = VisualizationConfig.from_training_config(self.config)
-                    comparison_np, error_stats = create_validation_visual(
-                        full_target, rendered, vis_config,
-                        rendered_alpha=batch_rendered_alpha
-                    )
-                    # Determine num_rows for annotation
-                    mask_mode = self.config.training.losses.get("mask_mode", None)
-                    num_rows = 5 if (full_target.size(1) == 4 and mask_mode != "none") else 3
-                    # Add error scale annotation
-                    comparison_np = self.loss_calculator._add_error_scale_annotation(
-                        comparison_np, error_stats, h, num_rows
-                    )
-                    Image.fromarray(comparison_np).save(os.path.join(item_output_dir, "gt_vs_pred.png"))
-                else:
-                    # Fallback: simple GT | Rendered comparison
-                    gt_rgb = full_target[:, :3, :, :] if full_target.size(1) == 4 else full_target
-                    comparison = torch.stack((gt_rgb, rendered), dim=0)
-                    comparison = rearrange(comparison, "t v c h w -> (t h) (v w) c")
-                    comparison_np = (comparison.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-                    Image.fromarray(comparison_np).save(os.path.join(item_output_dir, "gt_vs_pred.png"))
+                # Use centralized visualization function
+                vis_config = VisualizationConfig.from_training_config(self.config)
+                comparison_np, error_stats = create_validation_visual(
+                    full_target, rendered, vis_config,
+                    rendered_alpha=batch_rendered_alpha
+                )
+                # Determine num_rows for annotation
+                mask_mode = self.config.training.losses.get("mask_mode", None)
+                num_rows = 5 if (full_target.size(1) == 4 and mask_mode != "none") else 3
+                # Add error scale annotation
+                comparison_np = self.loss_calculator._add_error_scale_annotation(
+                    comparison_np, error_stats, h, num_rows
+                )
+                Image.fromarray(comparison_np).save(os.path.join(item_output_dir, "gt_vs_pred.png"))
                 
                 # Save per-view metrics
                 view_ids = target_data.index[batch_idx, :, 0].cpu().numpy()

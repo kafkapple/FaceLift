@@ -22,20 +22,14 @@ import torch
 import numpy as np
 from typing import Optional, Tuple, Dict, Union
 from dataclasses import dataclass
-from enum import Enum
 
 
 # =============================================================================
 # Configuration
 # =============================================================================
 
-class MaskType(Enum):
-    """Mask types for visualization."""
-    NONE = "none"     # No mask
-    ALPHA = "alpha"   # Rendered alpha threshold
-    GT = "gt"         # Ground truth mask
-    RGB = "rgb"       # RGB distance threshold (removebg style)
-
+# Import MaskType from loss_extensions (single source of truth)
+from .loss_extensions import MaskType
 
 # Backward compatibility alias
 VisualizationMaskType = MaskType

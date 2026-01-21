@@ -67,7 +67,6 @@ from .gslrm_patches import (
 # Visualization Extensions (new)
 from .visualization_extensions import (
     VisualizationConfig,
-    MaskType,
     create_training_visual,
     create_validation_visual,
     compute_pred_mask,

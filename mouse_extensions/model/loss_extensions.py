@@ -11,10 +11,11 @@ from dataclasses import dataclass
 
 
 class MaskType(Enum):
-    """Mask types for loss computation."""
+    """Mask types for loss computation and visualization."""
     NONE = "none"           # Full image loss (no mask)
     GT = "gt"               # Ground truth mask from alpha channel
     RGB_PRED = "rgb_pred"   # Predicted from RGB distance to background
+    RGB = "rgb"             # Alias for RGB_PRED (backward compat with visualization)
     ALPHA = "alpha"         # Rendered alpha from Gaussian splatting
 
 
