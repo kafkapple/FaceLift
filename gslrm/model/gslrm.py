@@ -1757,9 +1757,11 @@ class GSLRM(nn.Module):
             turntable_resolution = turntable_cfg.get("resolution", 384)
             turntable_elevation = turntable_cfg.get("elevation", 20)
             turntable_radius = turntable_cfg.get("radius", 2.7)
-            trajectory_mode = turntable_cfg.get("trajectory_mode", "turntable")
+            trajectory_mode = turntable_cfg.get("trajectory_mode", "dataset_cameras")
             elevation_end = turntable_cfg.get("elevation_end", None)
-            include_dataset_views = turntable_cfg.get("include_dataset_views", False)
+            # Auto-enable dataset views when using dataset_cameras mode
+            include_dataset_views = turntable_cfg.get("include_dataset_views", 
+                                                       trajectory_mode == "dataset_cameras")
             
             # Get dataset camera poses if needed
             dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()  # [num_cams, 4, 4]
