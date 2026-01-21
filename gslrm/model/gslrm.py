@@ -1747,14 +1747,27 @@ class GSLRM(nn.Module):
             item_uid = input_data.index[batch_idx, 0, -1].item()
 
             # Render turntable visualization (8x8 = 64 views for comprehensive coverage)
-            turntable_views = 64
-            turntable_image = render_turntable(model_results.gaussians[batch_idx], num_views=turntable_views)
+            # Get turntable config
+            turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
+            turntable_views = turntable_cfg.get("num_views", 64)
+            turntable_resolution = turntable_cfg.get("resolution", 384)
+            turntable_elevation = turntable_cfg.get("elevation", 20)
+            turntable_radius = turntable_cfg.get("radius", 2.7)
+            turntable_image = render_turntable(
+                model_results.gaussians[batch_idx],
+                rendering_resolution=turntable_resolution,
+                num_views=turntable_views,
+                elevation=turntable_elevation,
+                radius=turntable_radius
+            )
             # render_turntable returns: h x (views*w) x c
             # Reshape to 8x8 grid layout
             h_img = turntable_image.shape[0]
             w_per_view = turntable_image.shape[1] // turntable_views
             turntable_grid = turntable_image.reshape(h_img, turntable_views, w_per_view, 3)
-            turntable_grid = rearrange(turntable_grid, "h (rows cols) w c -> (rows h) (cols w) c", rows=8, cols=8)
+            grid_rows = turntable_cfg.get("grid_rows", 8)
+            grid_cols = turntable_cfg.get("grid_cols", 8)
+            turntable_grid = rearrange(turntable_grid, "h (rows cols) w c -> (rows h) (cols w) c", rows=grid_rows, cols=grid_cols)
             Image.fromarray(turntable_grid).save(
                 os.path.join(output_directory, f"turntable_{item_uid}.jpg")
             )
@@ -1943,11 +1956,22 @@ class GSLRM(nn.Module):
             ).save_ply(os.path.join(item_output_dir, "gaussians.ply"))
             
             # Create turntable visualization
-            num_turntable_views = 150
+            # Get turntable config for inference
+            turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
+            num_turntable_views = turntable_cfg.get("inference_views", 150)
+            turntable_resolution = turntable_cfg.get("inference_resolution", None)
+            turntable_elevation = turntable_cfg.get("elevation", 20)
+            turntable_radius = turntable_cfg.get("radius", 2.7)
             render_resolution = input_image.shape[0]
             
+            # Use configured resolution or default to input resolution
+            actual_resolution = turntable_resolution if turntable_resolution else render_resolution
             turntable_frames = render_turntable(
-                model_results.gaussians[batch_idx], rendering_resolution=render_resolution, num_views=num_turntable_views
+                model_results.gaussians[batch_idx],
+                rendering_resolution=actual_resolution,
+                num_views=num_turntable_views,
+                elevation=turntable_elevation,
+                radius=turntable_radius
             )
             turntable_frames = rearrange(
                 turntable_frames, "height (views width) channels -> views height width channels", views=num_turntable_views
@@ -1955,7 +1979,8 @@ class GSLRM(nn.Module):
             turntable_frames = np.ascontiguousarray(turntable_frames)
             
             # Save basic turntable video
-            imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=30)
+            turntable_fps = turntable_cfg.get("fps", 30)
+            imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=turntable_fps)
             
             # Save description and preview if available
             try:
