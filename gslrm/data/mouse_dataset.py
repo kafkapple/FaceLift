@@ -105,6 +105,13 @@ class MouseViewDataset(Dataset):
         self.target_has_input = dataset_config.get("target_has_input", True)
         self.random_view_selection = dataset_config.get("random_view_selection", False)
 
+        # Camera exclusion/inclusion for ablation experiments
+        # Use either exclude_camera_indices OR include_camera_indices (not both)
+        self.exclude_camera_indices = dataset_config.get("exclude_camera_indices", [])
+        self.include_camera_indices = dataset_config.get("include_camera_indices", None)
+        if self.exclude_camera_indices and self.include_camera_indices:
+            raise ValueError("Cannot specify both exclude_camera_indices and include_camera_indices")
+
         # Mouse-specific settings
         mouse_config = self.config.get("mouse", {})
         aug_config = mouse_config.get("augmentation", {})
@@ -136,6 +143,10 @@ class MouseViewDataset(Dataset):
 
         print(f"[MouseViewDataset] Split: {split}, Samples: {len(self.all_data_paths)}")
         print(f"[MouseViewDataset] Views: {self.num_views}, Input views: {self.num_input_views}")
+        if self.exclude_camera_indices:
+            print(f"[MouseViewDataset] Excluding cameras: {self.exclude_camera_indices}")
+        if self.include_camera_indices:
+            print(f"[MouseViewDataset] Including only cameras: {self.include_camera_indices}")
         print(f"[MouseViewDataset] Augmentation: {self.use_augmentation}")
         up_mode = "Z-up" if self.normalize_to_z_up else "Y-up"
         print(f"[MouseViewDataset] Camera normalization: {up_mode}={self.normalize_cameras}, distance={self.target_camera_distance}")
@@ -252,6 +263,12 @@ class MouseViewDataset(Dataset):
             Tuple of (input_indices, target_indices)
         """
         all_indices = list(range(min(total_views, self.num_views)))
+
+        # Apply camera exclusion/inclusion filtering
+        if self.include_camera_indices is not None:
+            all_indices = [i for i in all_indices if i in self.include_camera_indices]
+        elif self.exclude_camera_indices:
+            all_indices = [i for i in all_indices if i not in self.exclude_camera_indices]
 
         # Fixed view ordering for both training and validation
         # This ensures consistent camera-to-index mapping
