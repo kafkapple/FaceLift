@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>D8 Comprehensive Camera and Preprocessing Report</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 20px; background: #f5f7fa; line-height: 1.6; }
+        .container { max-width: 1600px; margin: 0 auto; }
+        h1 { color: #1a1a2e; border-bottom: 3px solid #4a90d9; padding-bottom: 15px; }
+        h2 { color: #16213e; margin-top: 40px; border-left: 5px solid #4a90d9; padding-left: 15px; }
+        h3 { color: #34495e; }
+        
+        .summary-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                       color: white; padding: 25px; border-radius: 15px; margin: 20px 0; }
+        .summary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; }
+        .metric { background: rgba(255,255,255,0.2); padding: 15px; border-radius: 10px; text-align: center; }
+        .metric-value { font-size: 24px; font-weight: bold; }
+        .metric-label { font-size: 11px; opacity: 0.9; }
+        
+        .viz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 30px 0; }
+        .viz-img { width: 100%; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .viz-full { width: 100%; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: 20px 0; }
+        
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; background: white; 
+                border-radius: 10px; overflow: hidden; font-size: 13px; }
+        th { background: #4a90d9; color: white; padding: 12px 8px; text-align: center; }
+        td { padding: 10px 8px; text-align: center; border-bottom: 1px solid #eee; }
+        tr:hover { background: #f8f9fa; }
+        
+        .good { background: #d4edda; }
+        .bad { background: #f8d7da; }
+        .warning { background: #fff3cd; }
+        .info { background: #d1ecf1; }
+        
+        .formula-box { background: white; padding: 20px; margin: 20px 0; 
+                       border-left: 4px solid #4a90d9; border-radius: 5px;
+                       box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .key-point { background: #e8f6f3; padding: 15px; border-left: 4px solid #1abc9c; 
+                     margin: 15px 0; border-radius: 5px; }
+        .warning-box { background: #fdf2e9; padding: 15px; border-left: 4px solid #e67e22; 
+                       margin: 15px 0; border-radius: 5px; }
+        
+        code { background: #f5f5f5; padding: 2px 6px; font-family: monospace; border-radius: 3px; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 15px; overflow-x: auto; border-radius: 8px; }
+        
+        .toc { background: white; padding: 20px; margin: 20px 0; border-radius: 10px;
+               box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .toc ul { columns: 2; -webkit-columns: 2; -moz-columns: 2; }
+        .toc li { margin: 8px 0; }
+        .toc a { text-decoration: none; color: #4a90d9; }
+        .toc a:hover { text-decoration: underline; }
+        
+        .cam-table { font-size: 11px; }
+        .cam-table th { padding: 8px 4px; font-size: 10px; }
+        .cam-table td { padding: 6px 4px; font-size: 10px; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+<h1>D8 Comprehensive Camera and Preprocessing Report</h1>
+<p><strong>Generated:</strong> 2026-01-21 20:33 | <strong>Data:</strong> markerless_mouse_1_nerf | <strong>Version:</strong> D8</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#sec1">1. Executive Summary</a></li>
+<li><a href="#sec2">2. Camera Setup Visualization</a></li>
+<li><a href="#sec3">3. Camera Parameters (Before/After)</a></li>
+<li><a href="#sec4">4. Preprocessing Methods Comparison</a></li>
+<li><a href="#sec5">5. Mouse Size & Error Amplification</a></li>
+<li><a href="#sec6">6. D8.1 Zoom Analysis</a></li>
+<li><a href="#sec7">7. Mathematical Verification</a></li>
+<li><a href="#sec8">8. Recommendations</a></li>
+</ul>
+</div>
+
+<h2 id="sec1">1. Executive Summary</h2>
+
+<div class="summary-box">
+<h3 style="color:white; margin-top:0;">D8 Preprocessing Results</h3>
+<div class="summary-grid">
+<div class="metric">
+    <div class="metric-value">6</div>
+    <div class="metric-label">Camera Views</div>
+</div>
+<div class="metric">
+    <div class="metric-value">548.9938</div>
+    <div class="metric-label">Focal Length (fx=fy)</div>
+</div>
+<div class="metric">
+    <div class="metric-value">256.0</div>
+    <div class="metric-label">Principal Point (cx=cy)</div>
+</div>
+<div class="metric">
+    <div class="metric-value">2.7</div>
+    <div class="metric-label">Camera Distance</div>
+</div>
+<div class="metric">
+    <div class="metric-value">~0 deg</div>
+    <div class="metric-label">Ray Error</div>
+</div>
+</div>
+</div>
+
+<div class="key-point">
+<h4>Key Improvements in D8</h4>
+<ul>
+<li><strong>Homography Transform:</strong> H = K_target @ K_orig^-1 (vs affine in D7)</li>
+<li><strong>Skew Correction:</strong> Original camera skew (up to 5.8px) is removed</li>
+<li><strong>Exact Focal Length:</strong> 548.9937744140625 (GS-LRM pretrained exact value)</li>
+<li><strong>LANCZOS4 Interpolation:</strong> Higher quality image resampling</li>
+</ul>
+</div>
+
+<h2 id="sec2">2. Camera Setup Visualization</h2>
+
+<h3>2.1 Camera Images (Layout: Row1=[4,2,1], Row2=[0,5,3])</h3>
+<img src="camera_images_grid.png" class="viz-full" alt="Camera Images Grid">
+<p><em>Camera layout arranged to show opposing pairs visually aligned.</em></p>
+
+<h3>2.2 Top View (X-Y Plane) with Opposing Pairs</h3>
+<div class="viz-grid">
+<div>
+<img src="camera_top_view.png" class="viz-img" alt="Top View">
+<p style="text-align:center; color:#666;"><strong>Opposing pairs:</strong> 4-3, 2-5, 1-0</p>
+</div>
+<div>
+<img src="camera_side_view.png" class="viz-img" alt="Side View">
+<p style="text-align:center; color:#666;">Elevation angles by camera</p>
+</div>
+</div>
+
+<h3>2.3 3D Camera Setup</h3>
+<img src="camera_3d_setup.png" class="viz-full" alt="3D Camera Setup">
+
+<h2 id="sec3">3. Camera Parameters (Before/After Preprocessing)</h2>
+
+<h3>3.1 Original Camera Parameters (Before)</h3>
+<table class="cam-table">
+<tr><th>View</th><th>fx</th><th>fy</th><th>cx</th><th>cy</th><th>skew</th><th>Distance (mm)</th></tr>
+<tr>
+<td><strong style="color:#e74c3c">Cam 0</strong></td>
+<td>1632.3</td>
+<td>1639.3</td>
+<td>601.3</td>
+<td>491.2</td>
+<td>-5.82</td>
+<td>246.1</td>
+</tr>
+<tr>
+<td><strong style="color:#3498db">Cam 1</strong></td>
+<td>1556.8</td>
+<td>1580.5</td>
+<td>622.0</td>
+<td>417.5</td>
+<td>1.39</td>
+<td>414.5</td>
+</tr>
+<tr>
+<td><strong style="color:#2ecc71">Cam 2</strong></td>
+<td>1630.3</td>
+<td>1633.0</td>
+<td>611.4</td>
+<td>477.6</td>
+<td>-0.91</td>
+<td>363.7</td>
+</tr>
+<tr>
+<td><strong style="color:#f39c12">Cam 3</strong></td>
+<td>1606.2</td>
+<td>1617.6</td>
+<td>582.6</td>
+<td>551.9</td>
+<td>-5.89</td>
+<td>340.0</td>
+</tr>
+<tr>
+<td><strong style="color:#9b59b6">Cam 4</strong></td>
+<td>1618.3</td>
+<td>1628.9</td>
+<td>641.5</td>
+<td>453.2</td>
+<td>-1.27</td>
+<td>318.3</td>
+</tr>
+<tr>
+<td><strong style="color:#1abc9c">Cam 5</strong></td>
+<td>1636.9</td>
+<td>1642.5</td>
+<td>613.3</td>
+<td>524.3</td>
+<td>-4.93</td>
+<td>305.7</td>
+</tr>
+</table>
+
+<h3>3.2 D8 Processed Camera Parameters (After)</h3>
+<table class="cam-table">
+<tr><th>View</th><th>fx</th><th>fy</th><th>cx</th><th>cy</th><th>Azimuth</th><th>Elevation</th><th>Distance</th></tr>
+<tr class="good">
+<td><strong style="color:#e74c3c">Cam 0</strong></td>
+<td>548.9938</td>
+<td>548.9938</td>
+<td>256.0</td>
+<td>256.0</td>
+<td>-147.0 deg</td>
+<td>14.9 deg</td>
+<td>2.7000</td>
+</tr>
+<tr class="good">
+<td><strong style="color:#3498db">Cam 1</strong></td>
+<td>548.9938</td>
+<td>548.9938</td>
+<td>256.0</td>
+<td>256.0</td>
+<td>34.0 deg</td>
+<td>20.6 deg</td>
+<td>2.7000</td>
+</tr>
+<tr class="good">
+<td><strong style="color:#2ecc71">Cam 2</strong></td>
+<td>548.9938</td>
+<td>548.9938</td>
+<td>256.0</td>
+<td>256.0</td>
+<td>86.1 deg</td>
+<td>11.3 deg</td>
+<td>2.7000</td>
+</tr>
+<tr class="good">
+<td><strong style="color:#f39c12">Cam 3</strong></td>
+<td>548.9938</td>
+<td>548.9938</td>
+<td>256.0</td>
+<td>256.0</td>
+<td>-11.3 deg</td>
+<td>10.7 deg</td>
+<td>2.7000</td>
+</tr>
+<tr class="good">
+<td><strong style="color:#9b59b6">Cam 4</strong></td>
+<td>548.9938</td>
+<td>548.9938</td>
+<td>256.0</td>
+<td>256.0</td>
+<td>144.0 deg</td>
+<td>26.5 deg</td>
+<td>2.7000</td>
+</tr>
+<tr class="good">
+<td><strong style="color:#1abc9c">Cam 5</strong></td>
+<td>548.9938</td>
+<td>548.9938</td>
+<td>256.0</td>
+<td>256.0</td>
+<td>-64.1 deg</td>
+<td>30.8 deg</td>
+<td>2.7000</td>
+</tr>
+</table>
+
+<h2 id="sec4">4. Preprocessing Methods Comparison</h2>
+
+<table>
+<tr><th>Method</th><th>Paradigm</th><th>fx</th><th>PP (cx,cy)</th><th>Skew</th><th>Geometry</th><th>Ray Error</th><th>Rec.</th></tr>
+<tr class="bad"><td><strong>D4</strong></td><td>object_centered_crop</td><td>549</td><td>256 (forced)</td><td>ignored</td><td>WRONG</td><td>~5-17 deg</td><td>-</td></tr>
+<tr><td><strong>D6-1</strong></td><td>no_crop_resize</td><td>549</td><td>varies</td><td>ignored</td><td>correct</td><td>0 deg</td><td>-</td></tr>
+<tr><td><strong>D7</strong></td><td>pp_centered_shift</td><td>549</td><td>256</td><td>ignored</td><td>correct</td><td>~0.17 deg</td><td>-</td></tr>
+<tr class="info"><td><strong>D7.1</strong></td><td>pp_centered_shift</td><td>549</td><td>256</td><td>ignored</td><td>correct</td><td>~0 deg</td><td>OK</td></tr>
+<tr class="good"><td><strong>D8</strong></td><td>precision_homography</td><td>548.9938</td><td>256</td><td>corrected</td><td>correct</td><td>~0 deg</td><td>Best</td></tr>
+<tr class="warning"><td><strong>D8.1</strong></td><td>homography+zoom</td><td>713.69</td><td>varies</td><td>corrected</td><td>correct</td><td>see sec 6</td><td>Large mouse</td></tr>
+</table>
+
+<div class="formula-box">
+<h4>D8 Homography Transform</h4>
+<p>The key difference from D7 is using homography instead of affine:</p>
+\[
+H = K_{target} \cdot K_{orig}^{-1}
+\]
+<p>This correctly handles:</p>
+<ul>
+<li><strong>Skew correction:</strong> Original skew values (-5.82 to +1.39 px) are removed</li>
+<li><strong>fx/fy unification:</strong> Both become exactly 548.9937744140625</li>
+<li><strong>PP centering:</strong> Principal point moves to (256, 256)</li>
+</ul>
+</div>
+
+<h2 id="sec5">5. Mouse Size & Error Amplification</h2>
+
+<div class="key-point">
+<h4>D8 Mouse Size Analysis</h4>
+<table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>Image Size</td><td>512 x 512 = 262,144 px</td></tr>
+<tr><td>Mouse Pixels</td><td>6,681 px</td></tr>
+<tr><td>Mouse Area Ratio</td><td>2.5%</td></tr>
+<tr><td>Bounding Box</td><td>140 x 161 px</td></tr>
+<tr><td>Linear Size Ratio</td><td>29.3%</td></tr>
+<tr><td><strong>Error Amplification</strong></td><td><strong>3.41x</strong></td></tr>
+</table>
+</div>
+
+<div class="warning-box">
+<h4>Error Amplification Explanation</h4>
+<p>When the mouse occupies ~29% of the image linearly:</p>
+<ul>
+<li>A 1px camera parameter error becomes <strong>3.4px</strong> error relative to mouse size</li>
+<li>D4 PP error (~37px) amplifies to <strong>~126px</strong> relative error</li>
+<li>D8 skew error (up to 0.9px) would amplify to <strong>~3.1px</strong> if not corrected</li>
+</ul>
+</div>
+
+<h3>5.2 D8.1 (Zoom 1.3x) Mouse Size</h3>
+<table>
+<tr><th>Metric</th><th>D8</th><th>D8.1</th><th>Improvement</th></tr>
+<tr><td>Mouse Pixels</td><td>6,681</td><td>11,359</td><td>+70%</td></tr>
+<tr><td>Linear Size</td><td>29.3%</td><td>38.3%</td><td>+9.0%</td></tr>
+<tr><td>Error Amp.</td><td>3.41x</td><td>2.61x</td><td>-23%</td></tr>
+</table>
+
+<h2 id="sec6">6. D8.1 Zoom Analysis</h2>
+
+<div class="warning-box">
+<h4>Why D8.1 Deviates from GS-LRM Parameters</h4>
+<p>D8.1 applies 1.3x zoom via crop+resize, which changes the effective focal length:</p>
+<ul>
+<li><strong>fx, fy:</strong> 548.9938 x 1.3 = <strong>713.69</strong></li>
+<li><strong>cx, cy:</strong> Varies per view based on crop offset (not fixed at 256)</li>
+</ul>
+</div>
+
+<h3>6.1 D8.1 PP Distribution (varies by view)</h3>
+<table>
+<tr><th>Statistic</th><th>cx</th><th>cy</th></tr>
+<tr><td>Min</td><td>202.8</td><td>178.1</td></tr>
+<tr><td>Max</td><td>332.8</td><td>227.5</td></tr>
+<tr><td>Mean</td><td>265.4</td><td>201.1</td></tr>
+<tr><td>Std Dev</td><td>45.3</td><td>19.8</td></tr>
+</table>
+
+<h3>6.2 Matching D8.1 to FaceLift (Theoretical)</h3>
+<div class="formula-box">
+<p>To use D8.1 data with GS-LRM pretrained model (expects fx=549, cx=256):</p>
+
+<p><strong>Option 1: Use D8.1 as-is</strong></p>
+<ul>
+<li>GS-LRM reads fx, cx, cy from data file (not hardcoded)</li>
+<li>Model should adapt to different focal lengths during finetuning</li>
+<li>Expected ray error: <strong>4.26 deg</strong> at image center</li>
+</ul>
+
+<p><strong>Option 2: Post-process to match GS-LRM</strong></p>
+<ul>
+<li>Apply additional transform to set fx=549, cx=cy=256</li>
+<li>Would reduce effective zoom and mouse size</li>
+<li>Not recommended - loses the benefit of zoom</li>
+</ul>
+</div>
+
+<h2 id="sec7">7. Mathematical Verification</h2>
+
+<div class="formula-box">
+<h4>7.1 Ray Direction Calculation</h4>
+<p>For pixel (u, v), the ray direction in camera coordinates:</p>
+\[
+\mathbf{d}_c = \begin{bmatrix} (u - c_x) / f_x \\ (v - c_y) / f_y \\ 1 \end{bmatrix}
+\]
+
+<h4>7.2 D8 Ray Error Verification</h4>
+<p>At image edge (u=0 or u=512):</p>
+\[
+\theta_{error} = \arctan\left(\frac{\Delta c_x}{f_x}\right)
+\]
+<p>For D8 with cx=256, cy=256 (exact): <strong>ray error ~0 deg</strong></p>
+<p>For D4 with PP error ~37px: <strong>ray error = arctan(37/549) ≈ 3.9 deg</strong></p>
+</div>
+
+<h2 id="sec8">8. Recommendations</h2>
+
+<div class="key-point">
+<h4>Summary</h4>
+<table>
+<tr><th>Use Case</th><th>Recommended</th><th>Reason</th></tr>
+<tr><td>Standard training</td><td><strong>D8</strong></td><td>Exact GS-LRM params, skew corrected</td></tr>
+<tr><td>Larger mouse needed</td><td><strong>D8.1</strong></td><td>1.3x zoom, ~40% larger mouse pixels</td></tr>
+<tr><td>Legacy comparison</td><td>D7.1</td><td>Compatible with previous experiments</td></tr>
+</table>
+</div>
+
+<h3>D8 Preprocessing Command</h3>
+<pre>
+cd /home/joon/dev/FaceLift
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D8 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D8
+</pre>
+
+<h3>D8.1 Preprocessing Command</h3>
+<pre>
+cd /home/joon/dev/FaceLift
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D8.1 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D8_1
+</pre>
+
+<hr>
+<p style="color:#888; font-size:12px; text-align:center;">
+Generated by generate_comprehensive_d8_report.py | FaceLift Mouse Extension | 2026-01-21 20:33
+</p>
+
+</div>
+<h2 id="sec-orig">Appendix: Original Camera Setup (Before Normalization)</h2>
+<p>The following shows the camera positions in the original coordinate system (mm scale) before transformation to the normalized GS-LRM format.</p>
+<div class="viz-grid">
+<div>
+<img src="camera_3d_original.png" class="viz-img" alt="Original 3D Setup">
+<p style="text-align:center; color:#666;">Original camera positions (distances 246-415mm)</p>
+</div>
+<div>
+<img src="camera_top_view_original.png" class="viz-img" alt="Original Top View">
+<p style="text-align:center; color:#666;">Original top view with mm coordinates</p>
+</div>
+</div>
+
+</body>
+</html>

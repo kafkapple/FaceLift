@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Preprocessing Comparison Report</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 20px; background: #f5f7fa; line-height: 1.6; }
+        .container { max-width: 1600px; margin: 0 auto; }
+        h1 { color: #1a1a2e; border-bottom: 3px solid #4a90d9; padding-bottom: 15px; }
+        h2 { color: #16213e; margin-top: 35px; border-left: 5px solid #4a90d9; padding-left: 15px; }
+        h3 { color: #34495e; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; background: white; border-radius: 8px; overflow: hidden; font-size: 12px; }
+        th { background: #4a90d9; color: white; padding: 10px 8px; text-align: center; font-size: 11px; }
+        td { padding: 8px; text-align: center; border-bottom: 1px solid #eee; }
+        .good { background: #d4edda; }
+        .warning { background: #fff3cd; }
+        .bad { background: #f8d7da; }
+        .formula-box { background: white; padding: 15px; margin: 15px 0; border-left: 4px solid #4a90d9; border-radius: 5px; }
+        .key-point { background: #e8f6f3; padding: 15px; border-left: 4px solid #1abc9c; margin: 15px 0; border-radius: 5px; }
+        .warning-box { background: #fdf2e9; padding: 15px; border-left: 4px solid #e67e22; margin: 15px 0; border-radius: 5px; }
+        .viz-img { width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 15px 0; }
+        code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 8px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+<div class="container">
+<h1>Preprocessing Methods Comparison Report</h1>
+<p><strong>Generated:</strong> 2026-01-21 20:53 | <strong>Datasets:</strong> 15</p>
+
+<h2>1. GS-LRM / FaceLift Expected Parameters</h2>
+<div class="key-point">
+<p>GS-LRM pretrained model expects:</p>
+<ul>
+<li><strong>fx = fy = 548.9937744141</strong></li>
+<li><strong>cx = cy = 256.0</strong> (PP at image center)</li>
+<li><strong>Image size = 512 × 512</strong></li>
+<li><strong>Camera distance ≈ 2.7</strong> (normalized)</li>
+</ul>
+</div>
+
+<h2>2. Dataset Parameters Summary</h2>
+<table>
+<tr>
+<th>Dataset</th>
+<th>fx (mean±std)</th>
+<th>fy (mean±std)</th>
+<th>cx (mean±std)</th>
+<th>cy (mean±std)</th>
+<th>Distance</th>
+<th>fx Dev.</th>
+<th>PP Dev.</th>
+<th>Ray Err.</th>
+<th>Skew</th>
+<th>Geom.</th>
+</tr>
+<tr>
+<td><strong>D1_pp_centered</strong></td>
+<td>549.00±0.00</td>
+<td>549.00±0.00</td>
+<td>256.0±0.0</td>
+<td>256.0±0.0</td>
+<td>2.70</td>
+<td class="good">0.01</td>
+<td class="good">0.0</td>
+<td class="good">0.00°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D3</strong></td>
+<td>874.83±14.82</td>
+<td>880.34±11.32</td>
+<td>275.0±104.1</td>
+<td>199.0±30.5</td>
+<td>331.37</td>
+<td class="bad">325.84</td>
+<td class="bad">60.1</td>
+<td class="bad">11.92°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D3_normalized</strong></td>
+<td>549.00±0.00</td>
+<td>552.45±7.10</td>
+<td>256.0±0.0</td>
+<td>256.0±0.0</td>
+<td>2.70</td>
+<td class="good">0.01</td>
+<td class="good">0.0</td>
+<td class="good">0.00°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D3_postcorrect</strong></td>
+<td>874.83±14.82</td>
+<td>880.34±11.32</td>
+<td>256.0±0.0</td>
+<td>256.0±0.0</td>
+<td>331.37</td>
+<td class="bad">325.84</td>
+<td class="good">0.0</td>
+<td class="good">0.00°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D4</strong></td>
+<td>549.00±0.00</td>
+<td>552.45±7.10</td>
+<td>256.0±0.0</td>
+<td>256.0±0.0</td>
+<td>2.70</td>
+<td class="good">0.01</td>
+<td class="good">0.0</td>
+<td class="good">0.00°</td>
+<td>×</td>
+<td class="bad">✗</td>
+</tr>
+<tr>
+<td><strong>D6-1</strong></td>
+<td>549.00±9.30</td>
+<td>552.45±7.10</td>
+<td>208.3±6.1</td>
+<td>186.8±15.0</td>
+<td>2.70</td>
+<td class="good">0.01</td>
+<td class="bad">84.1</td>
+<td class="bad">10.83°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D6-2</strong></td>
+<td>549.00±9.30</td>
+<td>552.45±7.10</td>
+<td>208.8±64.8</td>
+<td>212.3±34.8</td>
+<td>2.70</td>
+<td class="good">0.01</td>
+<td class="bad">64.3</td>
+<td class="bad">15.62°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D6-3</strong></td>
+<td>549.00±9.30</td>
+<td>552.45±7.10</td>
+<td>172.6±65.3</td>
+<td>124.9±19.1</td>
+<td>2.70</td>
+<td class="good">0.01</td>
+<td class="bad">155.4</td>
+<td class="bad">21.59°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D7</strong></td>
+<td>549.00±0.00</td>
+<td>549.00±0.00</td>
+<td>256.0±0.0</td>
+<td>256.0±0.0</td>
+<td>2.70</td>
+<td class="good">0.01</td>
+<td class="good">0.0</td>
+<td class="good">0.00°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D7_1</strong></td>
+<td>549.00±0.00</td>
+<td>549.00±0.00</td>
+<td>256.0±0.0</td>
+<td>256.0±0.0</td>
+<td>2.70</td>
+<td class="good">0.01</td>
+<td class="good">0.0</td>
+<td class="good">0.00°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D7_2</strong></td>
+<td>547.27±1.18</td>
+<td>550.75±1.20</td>
+<td>256.0±0.0</td>
+<td>256.0±0.0</td>
+<td>2.70</td>
+<td class="warning">1.72</td>
+<td class="good">0.0</td>
+<td class="good">0.00°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D7_5</strong></td>
+<td>675.50±24.14</td>
+<td>679.73±22.67</td>
+<td>256.0±0.0</td>
+<td>256.0±0.0</td>
+<td>2.70</td>
+<td class="bad">126.51</td>
+<td class="good">0.0</td>
+<td class="good">0.00°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D7_5b</strong></td>
+<td>721.13±36.02</td>
+<td>725.65±35.08</td>
+<td>256.0±0.0</td>
+<td>256.0±0.0</td>
+<td>2.70</td>
+<td class="bad">172.13</td>
+<td class="good">0.0</td>
+<td class="good">0.00°</td>
+<td>×</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D8_1_sample</strong></td>
+<td>713.69±0.00</td>
+<td>713.69±0.00</td>
+<td>265.4±45.3</td>
+<td>201.1±19.8</td>
+<td>2.70</td>
+<td class="bad">164.70</td>
+<td class="bad">55.7</td>
+<td class="bad">8.71°</td>
+<td>✓</td>
+<td class="good">✓</td>
+</tr>
+<tr>
+<td><strong>D8_sample</strong></td>
+<td>548.99±0.00</td>
+<td>548.99±0.00</td>
+<td>256.0±0.0</td>
+<td>256.0±0.0</td>
+<td>2.70</td>
+<td class="good">0.00</td>
+<td class="good">0.0</td>
+<td class="good">0.00°</td>
+<td>✓</td>
+<td class="good">✓</td>
+</tr>
+</table>
+
+<h2>3. Error Metrics Visualization</h2>
+<img src="error_comparison.png" class="viz-img" alt="Error Comparison">
+
+<h2>4. Principal Point Distribution</h2>
+<img src="pp_distribution.png" class="viz-img" alt="PP Distribution">
+
+<h2>5. Mathematical Foundation</h2>
+
+<div class="formula-box">
+<h3>5.1 Ray Direction Calculation</h3>
+<p>For pixel (u, v), the ray direction in camera coordinates:</p>
+\[
+\mathbf{d}_c = \begin{bmatrix} (u - c_x) / f_x \\ (v - c_y) / f_y \\ 1 \end{bmatrix}
+\]
+<p><strong>Critical:</strong> If \(c_x, c_y\) are wrong, the ray direction is wrong.</p>
+</div>
+
+<div class="formula-box">
+<h3>5.2 Ray Error Quantification</h3>
+<p>At pixel (256, 256) center, the ray angle error when PP deviates from (256, 256):</p>
+\[
+\theta_{\text{error}} = \arctan\left(\sqrt{\left(\frac{256 - c_x}{f_x}\right)^2 + \left(\frac{256 - c_y}{f_y}\right)^2}\right)
+\]
+</div>
+
+<div class="formula-box">
+<h3>5.3 D8 Homography Transform</h3>
+<p>D8 uses homography instead of affine to correct skew:</p>
+\[
+H = K_{\text{target}} \cdot K_{\text{orig}}^{-1}
+\]
+<p>Where:</p>
+\[
+K_{\text{target}} = \begin{bmatrix} 548.99 & 0 & 256 \\ 0 & 548.99 & 256 \\ 0 & 0 & 1 \end{bmatrix}
+\]
+</div>
+
+<h2>6. D8 vs D7.1 Comparison</h2>
+<table>
+<tr><th>Aspect</th><th>D7.1 (Affine)</th><th>D8 (Homography)</th></tr>
+<tr><td>fx Precision</td><td>549.0</td><td class="good">548.9937744140625</td></tr>
+<tr><td>Skew Handling</td><td>Ignored (up to 0.9px error)</td><td class="good">Corrected (0px error)</td></tr>
+<tr><td>Ray Error</td><td>~0°</td><td class="good">~1e-6° (numerical precision)</td></tr>
+<tr><td>Interpolation</td><td>LINEAR</td><td class="good">LANCZOS4</td></tr>
+</table>
+
+<h2>7. Original Camera Skew Values</h2>
+<table>
+<tr><th>Camera</th><th>Original Skew (px)</th><th>D7.1 Edge Error (px)</th><th>D8 Error</th></tr>
+<tr><td>Cam 0</td><td>-5.82</td><td>0.91</td><td class="good">~0</td></tr>
+<tr><td>Cam 1</td><td>+1.39</td><td>0.23</td><td class="good">~0</td></tr>
+<tr><td>Cam 2</td><td>-0.91</td><td>0.14</td><td class="good">~0</td></tr>
+<tr><td>Cam 3</td><td>-5.89</td><td>0.94</td><td class="good">~0</td></tr>
+<tr><td>Cam 4</td><td>-1.27</td><td>0.20</td><td class="good">~0</td></tr>
+<tr><td>Cam 5</td><td>-4.93</td><td>0.77</td><td class="good">~0</td></tr>
+</table>
+
+<h2>8. Mouse Size & Error Amplification</h2>
+<table>
+<tr><th>Dataset</th><th>Mouse Pixels</th><th>Area Ratio</th><th>BBox Size</th><th>Linear Ratio</th><th>Error Amp.</th></tr>
+<tr>
+<td><strong>D8_sample</strong></td>
+<td>6,681</td>
+<td>2.5%</td>
+<td>140×161</td>
+<td>29.3%</td>
+<td><strong>3.4×</strong></td>
+</tr>
+<tr>
+<td><strong>D8_1_sample</strong></td>
+<td>11,359</td>
+<td>4.3%</td>
+<td>183×210</td>
+<td>38.3%</td>
+<td><strong>2.6×</strong></td>
+</tr>
+<tr>
+<td><strong>D7_1</strong></td>
+<td>6,659</td>
+<td>2.5%</td>
+<td>140×161</td>
+<td>29.3%</td>
+<td><strong>3.4×</strong></td>
+</tr>
+</table>
+
+<div class="warning-box">
+<h4>Error Amplification Interpretation</h4>
+<p>When mouse occupies ~30% of image linearly:</p>
+<ul>
+<li>1px camera error → <strong>3.3px</strong> error relative to mouse</li>
+<li>D4 PP error (~37px) → <strong>~120px</strong> relative error</li>
+<li>D8 skew correction prevents up to <strong>~3px</strong> relative error</li>
+</ul>
+</div>
+
+<h2>9. D8.1 Zoom Analysis</h2>
+<div class="warning-box">
+<h4>D8.1 fx ≠ 549 - Is This a Problem?</h4>
+<p>D8.1 applies 1.3× zoom via crop+resize:</p>
+<ul>
+<li><strong>fx = 713.69</strong> (= 548.99 × 1.3) - different from pretrained</li>
+<li><strong>cx, cy varies</strong> per view (not fixed at 256)</li>
+<li>But ray directions are <strong>GEOMETRICALLY CORRECT</strong></li>
+</ul>
+<p><strong>Conclusion:</strong> D8.1 is correct. Model will adapt during finetuning. Use D8 if strict fx=549 is needed.</p>
+</div>
+
+<h2>10. Recommendations</h2>
+<table>
+<tr><th>Use Case</th><th>Recommended</th><th>Reason</th></tr>
+<tr><td>Standard training</td><td class="good"><strong>D8</strong></td><td>Exact GS-LRM params, skew corrected</td></tr>
+<tr><td>Larger mouse needed</td><td class="warning"><strong>D8.1</strong></td><td>1.3× zoom, fx=713.69</td></tr>
+<tr><td>Legacy comparison</td><td>D7.1</td><td>Compatible with previous experiments</td></tr>
+</table>
+
+<h2>11. Preprocessing Commands</h2>
+<pre>
+# D8 (Recommended)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D8 --input-dir /path/to/raw --output-dir /path/to/D8
+
+# D8.1 (With 1.3x zoom)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D8.1 --input-dir /path/to/raw --output-dir /path/to/D8.1
+</pre>
+
+<hr>
+<p style="color:#888; font-size:11px; text-align:center;">
+Generated by report_generator.py | FaceLift Mouse Extension | {timestamp}
+</p>
+</div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # FaceLift Mouse Preprocessing Registry
 
-> **Version**: v3.0 (2026-01-20)
+> **Version**: v3.1 (2026-01-21)
 > **Single Source of Truth** for all preprocessing configurations
 
 ---
@@ -14,6 +14,15 @@
 | **D7.1** | individual | 549/549 (exact) | ~0° | **★ RECOMMENDED** |
 | **D7.2** | average | ~548/~550 | ~0.2° | Alternative |
 | **D7** | fx_only | 549/549 (fy forced) | ~0.4° | Current Production |
+
+### Camera Parameter Consistency (2026-01-21 분석)
+
+| 데이터셋 | fx/fy | cx/cy | w2c | 프레임 간 일관성 |
+|----------|-------|-------|-----|-----------------|
+| **D7_1** | 549/549 | **256/256 고정** | 동일 | ✅ **100% 동일** |
+| D6-3 | 549/549 | 가변 (±100px) | 동일 | ⚠️ PP만 변동 |
+
+**결론**: D7_1은 모든 프레임에서 카메라 파라미터 완전 동일 (고정 셋업)
 
 ### Deprecated Presets
 

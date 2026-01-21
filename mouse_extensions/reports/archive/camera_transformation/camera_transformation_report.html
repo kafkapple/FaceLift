@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera Transformation Report - Mouse FaceLift</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; border-bottom: 3px solid #4CAF50; padding-bottom: 10px; }
+        h2 { color: #555; margin-top: 30px; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th { background: #4CAF50; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .highlight { background: #e8f5e9 !important; font-weight: bold; }
+        .diff { color: #c62828; }
+        .same { color: #2e7d32; }
+        img { max-width: 100%; height: auto; margin: 20px 0; border: 1px solid #ddd; border-radius: 5px; }
+        .summary-box { background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .code { background: #263238; color: #aed581; padding: 15px; border-radius: 5px; font-family: monospace; overflow-x: auto; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .metric { background: #fff; padding: 15px; border-radius: 8px; border-left: 4px solid #4CAF50; }
+        .metric-value { font-size: 24px; font-weight: bold; color: #333; }
+        .metric-label { color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Camera Transformation Report</h1>
+        <p><strong>Generated:</strong> 2026-01-21 18:34:00</p>
+        <p><strong>Purpose:</strong> Compare original MAMMAL cameras with preprocessed FaceLift cameras</p>
+
+        <div class="summary-box">
+            <h2>Summary</h2>
+            <div class="grid">
+                <div class="metric">
+                    <div class="metric-value">0.008148</div>
+                    <div class="metric-label">Scale Factor (dist: 331.4mm to 2.700)</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">549.0</div>
+                    <div class="metric-label">Target Focal Length (fx = fy)</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">256.0</div>
+                    <div class="metric-label">Target Principal Point (cx = cy)</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">2.700</div>
+                    <div class="metric-label">Target Distance</div>
+                </div>
+            </div>
+        </div>
+
+        <h2>1. Camera Position Comparison</h2>
+        <table>
+            <tr>
+                <th>Camera</th>
+                <th>Original Distance (mm)</th>
+                <th>Preprocessed Distance</th>
+                <th>Original Elevation</th>
+                <th>Preprocessed Elevation</th>
+                <th>Azimuth</th>
+            </tr>
+            
+            <tr>
+                <td>Camera 0</td>
+                <td>246.06</td>
+                <td>2.700</td>
+                <td>14.9 deg</td>
+                <td class="same">14.9 deg</td>
+                <td>-147.0 deg</td>
+            </tr>
+            <tr>
+                <td>Camera 1</td>
+                <td>414.45</td>
+                <td>2.700</td>
+                <td>20.6 deg</td>
+                <td class="same">20.6 deg</td>
+                <td>34.0 deg</td>
+            </tr>
+            <tr>
+                <td>Camera 2</td>
+                <td>363.66</td>
+                <td>2.700</td>
+                <td>11.3 deg</td>
+                <td class="same">11.3 deg</td>
+                <td>86.1 deg</td>
+            </tr>
+            <tr>
+                <td>Camera 3</td>
+                <td>340.02</td>
+                <td>2.700</td>
+                <td>10.7 deg</td>
+                <td class="same">10.7 deg</td>
+                <td>-11.3 deg</td>
+            </tr>
+            <tr>
+                <td>Camera 4</td>
+                <td>318.30</td>
+                <td>2.700</td>
+                <td>26.5 deg</td>
+                <td class="same">26.5 deg</td>
+                <td>144.0 deg</td>
+            </tr>
+            <tr>
+                <td>Camera 5</td>
+                <td>305.71</td>
+                <td>2.700</td>
+                <td>30.8 deg</td>
+                <td class="same">30.8 deg</td>
+                <td>-64.1 deg</td>
+            </tr>
+        </table>
+
+        <h2>2. Intrinsics Comparison</h2>
+        <table>
+            <tr>
+                <th>Camera</th>
+                <th>Original fx</th>
+                <th>Preprocessed fx</th>
+                <th>Original cx</th>
+                <th>Preprocessed cx</th>
+                <th>Original cy</th>
+                <th>Preprocessed cy</th>
+            </tr>
+            
+            <tr>
+                <td>Camera 0</td>
+                <td>1632.3</td>
+                <td class="highlight">549.0</td>
+                <td>601.3</td>
+                <td class="highlight">256.0</td>
+                <td>491.2</td>
+                <td class="highlight">256.0</td>
+            </tr>
+            <tr>
+                <td>Camera 1</td>
+                <td>1556.8</td>
+                <td class="highlight">549.0</td>
+                <td>622.0</td>
+                <td class="highlight">256.0</td>
+                <td>417.5</td>
+                <td class="highlight">256.0</td>
+            </tr>
+            <tr>
+                <td>Camera 2</td>
+                <td>1630.3</td>
+                <td class="highlight">549.0</td>
+                <td>611.4</td>
+                <td class="highlight">256.0</td>
+                <td>477.6</td>
+                <td class="highlight">256.0</td>
+            </tr>
+            <tr>
+                <td>Camera 3</td>
+                <td>1606.2</td>
+                <td class="highlight">549.0</td>
+                <td>582.6</td>
+                <td class="highlight">256.0</td>
+                <td>551.9</td>
+                <td class="highlight">256.0</td>
+            </tr>
+            <tr>
+                <td>Camera 4</td>
+                <td>1618.3</td>
+                <td class="highlight">549.0</td>
+                <td>641.5</td>
+                <td class="highlight">256.0</td>
+                <td>453.2</td>
+                <td class="highlight">256.0</td>
+            </tr>
+            <tr>
+                <td>Camera 5</td>
+                <td>1636.9</td>
+                <td class="highlight">549.0</td>
+                <td>613.3</td>
+                <td class="highlight">256.0</td>
+                <td>524.3</td>
+                <td class="highlight">256.0</td>
+            </tr>
+        </table>
+
+        <h2>3. 3D Visualization</h2>
+        <div class="grid">
+            <div>
+                <h3>Original Cameras (mm scale)</h3>
+                <img src="original_cameras_3d.png" alt="Original Cameras">
+            </div>
+            <div>
+                <h3>Preprocessed Cameras (normalized scale)</h3>
+                <img src="preprocessed_cameras_3d.png" alt="Preprocessed Cameras">
+            </div>
+        </div>
+
+        <h2>4. Comparison Charts</h2>
+        <img src="comparison_2d.png" alt="Comparison Charts">
+
+        <h2>5. W2C Matrix Sample (Camera 0)</h2>
+        <div class="grid">
+            <div>
+                <h3>Original W2C</h3>
+                <div class="code">[    0.5769    -0.8167    -0.0139    10.3386]<br>[    0.0027     0.0189    -0.9998    66.4148]<br>[    0.8168     0.5768     0.0131   236.6992]<br>[    0.0000     0.0000     0.0000     1.0000]</div>
+            </div>
+            <div>
+                <h3>Preprocessed W2C</h3>
+                <div class="code">[    0.5769    -0.8167    -0.0139     0.1134]<br>[    0.0027     0.0189    -0.9998     0.7288]<br>[    0.8168     0.5768     0.0131     2.5973]<br>[    0.0000     0.0000     0.0000     1.0000]</div>
+            </div>
+        </div>
+
+        <h2>6. Transformation Explanation</h2>
+        <div class="summary-box">
+            <h3>What Changes:</h3>
+            <ul>
+                <li><strong>Distance:</strong> 331.37mm to 2.700 (scale factor: 0.008148)</li>
+                <li><strong>Focal Length:</strong> ~1613 to 549 (FOV normalization to 50 deg)</li>
+                <li><strong>Principal Point:</strong> Variable (~612, ~486) to Fixed (256, 256)</li>
+            </ul>
+            <h3>What Stays Same:</h3>
+            <ul>
+                <li><strong>Rotation Matrix (R):</strong> Identical - preserves camera orientation</li>
+                <li><strong>Elevation Angles:</strong> Identical - preserves view angles</li>
+                <li><strong>Azimuth Angles:</strong> Identical - preserves camera layout</li>
+                <li><strong>Relative Camera Positions:</strong> Preserved (only scaled)</li>
+            </ul>
+        </div>
+
+        <h2>7. Why This Transformation?</h2>
+        <p>FaceLift/GS-LRM was pretrained on Objaverse data with specific camera parameters:</p>
+        <ul>
+            <li>Object distance approx 2.7 units</li>
+            <li>FOV approx 50 deg (fx = 549 for 512px image)</li>
+            <li>Principal point at image center (256, 256)</li>
+        </ul>
+        <p>Matching these parameters allows the pretrained model to work optimally with mouse data.</p>
+
+        <hr>
+        <p style="color: #666; font-size: 12px;">Generated by visualize_camera_transformation.py | Mouse FaceLift Project</p>
+    </div>
+</body>
+</html>

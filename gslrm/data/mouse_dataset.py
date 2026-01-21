@@ -548,6 +548,41 @@ class MouseSingleViewDataset(Dataset):
 
         self.bg_color = "white"
         self.target_size = config.model.image_tokenizer.image_size
+        
+        # Compute average intrinsics for robustness (handles D8.1 where cx/cy varies)
+        self._compute_average_intrinsics()
+    
+    def _compute_average_intrinsics(self):
+        """Compute average intrinsics across all views for robust inference.
+        
+        This is important for D8.1 where cx/cy varies per view due to zoom crop offset.
+        Using average ensures more consistent behavior regardless of which view the
+        input image most closely matches.
+        """
+        cameras = self.reference_cameras
+        
+        # Extract parameters from all cameras
+        fxs = [c["fx"] for c in cameras]
+        fys = [c["fy"] for c in cameras]
+        cxs = [c["cx"] for c in cameras]
+        cys = [c["cy"] for c in cameras]
+        
+        # Check if intrinsics vary significantly (D8.1 case)
+        cx_std = np.std(cxs)
+        cy_std = np.std(cys)
+        
+        if cx_std > 5 or cy_std > 5:  # Threshold for significant variation
+            # Use average intrinsics
+            self._avg_fx = np.mean(fxs)
+            self._avg_fy = np.mean(fys)
+            self._avg_cx = np.mean(cxs)
+            self._avg_cy = np.mean(cys)
+            self._use_average = True
+            print(f"[MouseSingleViewDataset] Using average intrinsics (cx_std={cx_std:.1f}, cy_std={cy_std:.1f})")
+            print(f"  Average: fx={self._avg_fx:.2f}, fy={self._avg_fy:.2f}, cx={self._avg_cx:.2f}, cy={self._avg_cy:.2f}")
+        else:
+            # Use first camera (all cameras have similar intrinsics)
+            self._use_average = False
 
     def __len__(self):
         return len(self.image_paths)
@@ -573,16 +608,26 @@ class MouseSingleViewDataset(Dataset):
                 resample=Image.LANCZOS
             )
 
-        # Use first camera's parameters as reference
+        # Use average intrinsics if they vary (D8.1), otherwise first camera
         camera = self.reference_cameras[0]
         resize_ratio = self.target_size / camera["w"]
 
-        intrinsics = np.array([
-            camera["fx"] * resize_ratio,
-            camera["fy"] * resize_ratio,
-            camera["cx"] * resize_ratio,
-            camera["cy"] * resize_ratio
-        ])
+        if self._use_average:
+            # Use pre-computed average intrinsics (for D8.1 with varying cx/cy)
+            intrinsics = np.array([
+                self._avg_fx * resize_ratio,
+                self._avg_fy * resize_ratio,
+                self._avg_cx * resize_ratio,
+                self._avg_cy * resize_ratio
+            ])
+        else:
+            # Use first camera (standard case where all views have same intrinsics)
+            intrinsics = np.array([
+                camera["fx"] * resize_ratio,
+                camera["fy"] * resize_ratio,
+                camera["cx"] * resize_ratio,
+                camera["cy"] * resize_ratio
+            ])
 
         c2w = np.linalg.inv(np.array(camera["w2c"]))
 

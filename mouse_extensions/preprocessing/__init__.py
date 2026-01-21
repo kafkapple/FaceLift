@@ -4,37 +4,46 @@ Mouse Extensions - Preprocessing Module
 This module handles preprocessing of markerless mouse data for FaceLift GS-LRM.
 
 Usage:
+    # Using unified preprocessor (D7+)
     from mouse_extensions.preprocessing import UnifiedPreprocessor, PreprocessConfig
-    from mouse_extensions.preprocessing.center_estimation import CenterEstimator
     
-    # Using presets (recommended)
-    config = PreprocessConfig.from_preset('D3', input_dir, output_dir)
+    config = PreprocessConfig.from_preset("D8", input_dir=..., output_dir=...)
     preprocessor = UnifiedPreprocessor(config)
     preprocessor.run()
 
+    # CLI
+    python -m mouse_extensions.preprocessing.preprocess --preset D8 \\
+        --input-dir /path/to/raw --output-dir /path/to/D8
+
+Presets (D7+):
+    - D7    : PP-centered shift, affine (fx_only scale)
+    - D7.1  : PP-centered shift, affine (individual scale)
+    - D7.2  : PP-centered shift, affine (average scale)
+    - D8    : Precision homography, skew correction [RECOMMENDED]
+    - D8.1  : D8 + 1.3x zoom for larger mouse
+
+Legacy Presets (D1-D6):
+    See archive/unified_preprocessor_d7_legacy.py
+
 Key Components:
-    - unified_preprocessor: Consolidated preprocessing with presets (v13, D1, D2, D3)
+    - preprocess: Unified preprocessing for D7+ (single entry point)
+    - presets: Preset configurations
     - center_estimation: Multi-view object center estimation
-    - data_loader: Unified data loading for video/image sources
-    - run_pipeline: YAML-based pipeline runner  
-    - split_dataset: Train/val split generator
-
-Presets:
-    - v13: Legacy PP-bugged format (compatibility)
-    - D1: PP-centered crop (cx=cy=256)
-    - D2: Correct PP without shift
-    - D3: Triangulation-based center with correct PP (RECOMMENDED)
-
-Center Estimation (2026-01-17):
-    Per-view 2D center estimation causes cross-view inconsistency (14.4px error).
-    Use triangulation for unified 3D center (0px reprojection error).
+    - data_loader: Unified data loading
 """
 
-from .unified_preprocessor import (
+from .preprocess import (
     UnifiedPreprocessor,
     PreprocessConfig,
-    CenterMethodType,
-    PPMethodType,
+    TransformType,
+    ScaleMode,
+)
+
+from .presets import (
+    PRESETS,
+    get_preset,
+    list_presets,
+    get_recommended,
 )
 
 from .center_estimation import (
@@ -48,11 +57,16 @@ from .center_estimation import (
 from .data_loader import DataLoader
 
 __all__ = [
-    # Unified Preprocessor
+    # Unified Preprocessor (D7+)
     "UnifiedPreprocessor",
     "PreprocessConfig",
-    "CenterMethodType",
-    "PPMethodType",
+    "TransformType",
+    "ScaleMode",
+    # Presets
+    "PRESETS",
+    "get_preset",
+    "list_presets",
+    "get_recommended",
     # Center Estimation
     "CenterEstimator",
     "CenterMethod",

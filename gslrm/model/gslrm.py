@@ -1825,6 +1825,15 @@ class GSLRM(nn.Module):
                 os.path.join(output_directory, f"turntable_{item_uid}.jpg")
             )
             
+            # Optionally save turntable video during training
+            if turntable_cfg.get("save_video", False):
+                # Reshape back to individual frames for video
+                turntable_frames = turntable_image.reshape(h_img, turntable_views, w_per_view, 3)
+                turntable_frames = rearrange(turntable_frames, "h v w c -> v h w c")
+                turntable_frames = np.ascontiguousarray(turntable_frames)
+                turntable_fps = turntable_cfg.get("fps", 30)
+                imageseq2video(turntable_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=turntable_fps)
+            
             # Additionally save dataset camera views for direct GT comparison
             if turntable_cfg.get("save_dataset_views", True):
                 dataset_views = render_dataset_views(
