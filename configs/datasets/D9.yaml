@@ -1,6 +1,6 @@
 # Dataset: D9
 # Original resolution, no transformation, 100% geometry accuracy
-# Generated: 2026-01-22 17:54:19
+# Generated: 2026-01-22 21:27:08
 
 _name: D9
 _description: "Original resolution, no transformation, 100% geometry accuracy"
@@ -13,11 +13,11 @@ _preprocessing:
 
 training:
   dataset:
-    dataset_path: /tmp/D9_test/data_mouse_train.txt
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D9/data_mouse_train.txt
 
 validation:
-  dataset_path: /tmp/D9_test/data_mouse_val.txt
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D9/data_mouse_val.txt
 
 _stats:
-  num_train: 3
-  num_val: 0
+  num_train: 3238
+  num_val: 359
