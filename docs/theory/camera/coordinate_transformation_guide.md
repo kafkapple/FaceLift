@@ -391,3 +391,175 @@ $$
 *문서 버전: 2.0*
 *작성일: 2026-01-13*
 *프로젝트: FaceLift Mouse 3D Reconstruction*
+
+---
+
+## 6. 스케일 변환 원리
+
+### 6.1 핀홀 카메라 모델
+
+43364
+u = f_x \cdot \frac{X}{Z} + c_x, \quad v = f_y \cdot \frac{Y}{Z} + c_y
+43364
+
+### 6.2 3D 장면의 스케일 불변성
+
+**스케일 변환 적용**:
+- 3D 점: $\mathbf{P}' = s \cdot \mathbf{P}$
+- 초점거리: '_x = f_x / s$
+
+
+
+---
+
+## 6. 스케일 변환 원리
+
+### 6.1 핀홀 카메라 모델
+
+$$
+u = f_x \cdot \frac{X}{Z} + c_x, \quad v = f_y \cdot \frac{Y}{Z} + c_y
+$$
+
+### 6.2 3D 장면의 스케일 불변성
+
+**스케일 변환 적용**:
+- 3D 점: $\mathbf{P}' = s \cdot \mathbf{P}$
+- 초점거리: $f'_x = f_x / s$
+
+**증명**:
+$$
+u' = \frac{f_x}{s} \cdot \frac{sX}{sZ} + c_x = f_x \cdot \frac{X}{Z} + c_x = u
+$$
+
+> **결론**: 거리와 fx를 같은 비율로 조정하면 **이미지 불변**. 회전(R)은 유지, Translation(T)만 스케일링.
+
+### 6.3 FaceLift 정규화 예시
+
+| 항목 | 원본 | 정규화 | 비율 |
+|------|------|--------|------|
+| Translation | [10.34, 66.41, 236.70] | [0.11, 0.73, 2.60] | ×0.011 |
+| fx | 1632 | 549 | ×0.336 |
+| 평균 거리 | ~330 | 2.7 | ×0.008 |
+
+**스케일 팩터**: $s = 2.7 / 330 \approx 0.008$
+
+---
+
+## 7. Affine vs Homography 변환
+
+### 7.1 변환 비교
+
+| 항목 | Affine (D7.1) | Homography (D8) |
+|------|---------------|-----------------|
+| **자유도** | 6 (scale, rotation, translation, shear) | 8 (perspective 포함) |
+| **행렬** | 2×3 | 3×3 |
+| **평행선** | 보존 ✅ | 보존 안됨 |
+| **Skew 보정** | ❌ 불가 | ✅ 가능 |
+| **OpenCV** | warpAffine | warpPerspective |
+
+### 7.2 D7.1 Affine 변환
+
+$$
+\begin{bmatrix} u' \\ v' \end{bmatrix} =
+\begin{bmatrix} s_x & 0 \\ 0 & s_y \end{bmatrix}
+\begin{bmatrix} u \\ v \end{bmatrix} +
+\begin{bmatrix} t_x \\ t_y \end{bmatrix}
+$$
+
+### 7.3 D8 Homography 변환 (Skew 보정)
+
+$$
+\mathbf{H} = \mathbf{K}_{target} \cdot \mathbf{K}_{orig}^{-1}
+$$
+
+**K_target (목표)**:
+$$
+\mathbf{K}_{target} = \begin{bmatrix}
+548.99 & 0 & 256 \\
+0 & 548.99 & 256 \\
+0 & 0 & 1
+\end{bmatrix}
+$$
+
+**K_orig (원본, skew 포함)**:
+$$
+\mathbf{K}_{orig} = \begin{bmatrix}
+548.7 & 0.003 & 252.1 \\
+0 & 551.5 & 257.8 \\
+0 & 0 & 1
+\end{bmatrix}
+$$
+
+**한 번에 보정되는 항목**:
+1. Skew (s): 0.003 → 0
+2. 비등방성: fx/fy ≈ 0.995 → 1.0
+3. PP 이동: (cx, cy) → (256, 256)
+
+### 7.4 D7.1 vs D8 정밀도 비교
+
+| 항목 | D7.1 | D8 |
+|------|------|-----|
+| fx, fy | 549.0 (반올림) | 548.9937744 (정밀값) |
+| Skew | 무시 (~0.9px) | Homography로 보정 |
+| 변환 방식 | Affine (scale+shift) | Perspective (K_target × K_orig⁻¹) |
+| Skew ray error | ~0.02° | 0° |
+
+---
+
+## 8. OpenCV 카메라 Convention
+
+### 8.1 좌표축 정의
+
+- **+X**: 오른쪽
+- **+Y**: 아래쪽
+- **+Z**: 카메라가 바라보는 방향 (전방)
+
+### 8.2 C2W 행렬 해석
+
+$$
+\mathbf{C2W} = \begin{bmatrix}
+\mathbf{R} & \mathbf{t} \\
+\mathbf{0}^T & 1
+\end{bmatrix}
+$$
+
+- `c2w[:3, 0]` = 카메라 X축 (world 좌표)
+- `c2w[:3, 1]` = 카메라 Y축 (world 좌표)
+- `c2w[:3, 2]` = 카메라 Z축 = **시선 방향** (world 좌표)
+- `c2w[:3, 3]` = 카메라 위치 (world 좌표)
+
+> **시각화 시**: `-c2w[:3, 2]`를 사용하면 카메라가 바라보는 방향을 화살표로 표시
+
+---
+
+## 9. 데이터 파이프라인 요약
+
+```
+MAMMAL 원본 (new_cam.pkl)
+         │
+         ▼
+[1] 평균 거리 계산 (avg ≈ 330mm)
+         │
+         ▼
+[2] 스케일 팩터 (2.7 / 330 ≈ 0.008)
+         │
+         ▼
+[3] Translation 정규화 (T × scale)
+         │
+         ▼
+[4] FaceLift Intrinsics 적용
+    - fx = fy = 549
+    - cx = cy = 256
+         │
+         ▼
+[5] 이미지 변환
+    - D7.1: Affine (warpAffine)
+    - D8: Homography (warpPerspective)
+         │
+         ▼
+[6] opencv_cameras.json 저장
+```
+
+---
+
+*Updated: 2026-01-23*
