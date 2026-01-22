@@ -202,6 +202,54 @@ $$
 
 ---
 
+## Value Range & Normalization ✅ Verified
+
+### 데이터 흐름
+
+| 단계 | 범위 | 코드 위치 |
+|------|------|----------|
+| **데이터 로딩** | [0, 255] → [0, 1] | `mouse_dataset.py:398` (`/ 255.0`) |
+| **L2 Loss** | [0, 1] 직접 사용 | `gslrm.py:_compute_l2_loss` |
+| **VGG Perceptual** | [0, 1] → [~-124, 131] | `utils_losses.py:322` (`* 255 - mean`) |
+| **LPIPS** | [0, 1] → [-1, 1] | `gslrm.py:493` (`* 2 - 1`) |
+| **SSIM** | [0, 1] 직접 사용 | `utils_losses.py:SsimLoss` |
+
+### VGG ImageNet 정규화
+
+```python
+# gslrm/model/utils_losses.py:34
+IMAGENET_MEAN = [123.6800, 116.7790, 103.9390]  # BGR
+
+# Line 322-323: 적용
+real_img_normalized = real_img * 255.0 - imagenet_mean
+```
+
+### LPIPS 정규화
+
+```python
+# gslrm/model/gslrm.py:493-495
+return self.lpips_loss_module(
+    rendering * 2.0 - 1.0, target * 2.0 - 1.0  # [0,1] → [-1,1]
+).mean()
+```
+
+---
+
+## Original vs FaceLift Implementation ✅
+
+| 항목 | GS-LRM 원본 | FaceLift | 일치 |
+|------|------------|----------|------|
+| Perceptual Loss 종류 | VGG | VGG | ✅ |
+| Perceptual 가중치 | 0.5 | 0.5 | ✅ |
+| Perceptual Mask | ❌ (사용 안함) | ❌ (default False) | ✅ |
+| LPIPS | 미사용 (0.0) | 미사용 (0.0) | ✅ |
+| Value Range | 표준 VGG 정규화 | 동일 | ✅ |
+
+> **Note**: `masked_perceptual_loss`는 Mouse Extension 기능으로, 원본 GS-LRM에는 없음.
+> 원본과 동일하게 사용하려면 `masked_perceptual_loss: false` (기본값) 유지.
+
+---
+
 ## References
 
 1. **LRM** (Hong et al., 2023): [arXiv:2311.04400](https://arxiv.org/abs/2311.04400)
@@ -238,5 +286,5 @@ def _compute_total_loss(self, losses):
 ---
 
 *Created: 2026-01-19*
-*Last Updated: 2026-01-19*
+*Last Updated: 2026-01-22*
 *Source: FaceLift Mouse Fork, verified against original papers*
