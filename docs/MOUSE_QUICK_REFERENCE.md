@@ -11,7 +11,7 @@
 cd /home/joon/dev/FaceLift
 
 # 1. 학습 (500 steps, ~10분)
-CUDA_VISIBLE_DEVICES=4 torchrun --standalone --nproc_per_node=1 \
+CUDA_VISIBLE_DEVICES=5 torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E_quick_alpha
 
 # 2. 체크포인트 확인
