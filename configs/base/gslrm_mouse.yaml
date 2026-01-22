@@ -78,6 +78,10 @@ training:
     pointsdist_loss_weight: 0.0
     warmup_pointsdist: false
     distill_loss_weight: 0.0
+
+    # Opacity regularization (reduces floaters/ghosting)
+    opacity_reg_weight: 0.0       # 0.0=disabled, 0.01-0.02=recommended
+    opacity_reg_type: entropy     # entropy | l1_sparse | binary
     clamp_rendering: true
 
   # Optimizer settings
