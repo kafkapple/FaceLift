@@ -148,12 +148,14 @@ class PreprocessConfig:
             config.target_fx = preset.get('target_fx', GSLRM_EXACT_FX)
             config.zoom = preset.get('zoom', 1.0)
             
-        # ====== NATIVE (D9) ======
+        # ====== NATIVE (D9, D9_norm) ======
         elif config.paradigm == Paradigm.NATIVE:
             config.transform = TransformType.NONE
             config.output_size = None  # Keep original
-            config.normalize_fx = False
-            config.normalize_translation = False
+            # Read normalization settings from preset (D9_norm uses normalize_translation=True)
+            config.normalize_fx = preset.get('normalize_fx', False)
+            config.normalize_translation = preset.get('normalize_translation', False)
+            config.target_distance = preset.get('target_distance', 2.7)
 
         # Apply overrides
         for key, value in overrides.items():

@@ -171,6 +171,38 @@ PRESETS = {
         "note": "Requires ~4.5x more memory. For A6000+ GPUs.",
         "memory_factor": 4.5,
     },
+    # D9 with translation normalization only (experimental)
+    "D9_norm": {
+        "paradigm": "native",
+        "transform": "none",
+        "crop": False,
+        "pp_method": "original",
+        "normalize_fx": False,
+        "normalize_translation": True,
+        "target_distance": 2.7,
+        "output_size": None,
+        "description": "Original resolution + translation normalization",
+        "ray_error": "0 deg",
+        "active": True,
+        "experimental": True,
+        "note": "Experimental: fx unchanged (1632), translation normalized to 2.7",
+        "memory_factor": 4.5,
+    },
+    # D9 resized to 512x512 with full normalization (safest)
+    "D9_resized": {
+        "paradigm": "pp_centered_shift",
+        "transform": "affine",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": False,
+        "target_fx": 549.0,
+        "output_size": 512,
+        "description": "D9 resized to 512x512 with full normalization",
+        "ray_error": "~0 deg",
+        "active": True,
+        "recommended_for_d9": True,
+        "note": "Safe: matches pretrained distribution exactly",
+    },
 }
 
 
@@ -180,7 +212,7 @@ VERSION_HIERARCHY = {
     "geometry_preserving": ["D6-1", "D6-2", "D6-3"],
     "pp_centered": ["D7", "D7.1", "D7.2"],
     "precision": ["D8", "D8.1"],
-    "native": ["D9"],
+    "native": ["D9", "D9_norm", "D9_resized"],
     "recommended": "D7.1",
 }
 
@@ -208,3 +240,4 @@ def get_recommended() -> str:
 def get_presets_by_paradigm(paradigm: str) -> list:
     """Get all presets for a given paradigm."""
     return [k for k, v in PRESETS.items() if v.get("paradigm") == paradigm]
+
