@@ -1,6 +1,6 @@
 # FaceLift Mouse Extension - Quick Reference
 
-> **Last Updated**: 2026-01-22 23:30
+> **Last Updated**: 2026-01-22
 > **Full Documentation**: Obsidian `30_Projects/_CODES/code_Face_Lift/docs/`
 
 ---
@@ -57,6 +57,19 @@ python -m mouse_extensions.preprocessing.preprocess \
 ### 1.3 D9 주의사항 ⚠️
 
 D9는 카메라 정규화 미적용 → Pretrained 모델과 불일치 → **학습 실패**
+
+**핵심 비율**:
+```
+Pretrained: fx/trans ≈ 203 (549/2.7)
+D9 현재:    fx/trans ≈ 6.6 (1632/246) ← 불일치!
+```
+
+**D9 정규화 해결책** (translation만 조정):
+```
+D9 fx = 1632 유지
+D9 trans = fx / 203 = 1632 / 203 ≈ 8.0
+즉, 246 → 8.0으로 정규화 필요
+```
 
 ---
 
@@ -123,10 +136,29 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_rende
 
 ### 3.3 mask_mode vs alpha_loss (독립적!)
 
-| 설정 | 역할 | 
+| 설정 | 역할 |
 |------|------|
 | **mask_mode** | L2 loss 계산 영역 (none/gt/alpha) |
 | **alpha_loss_weight** | rendered alpha → GT mask supervision |
+
+### 3.4 ⚠️ mask_mode: alpha 악순환 경고
+
+```
+mask_mode: alpha 사용 시 피드백 루프 발생 가능:
+
+초기 alpha 부정확 → 배경도 foreground로 인식
+       ↓
+잘못된 영역에서 loss 계산 → 배경에 Gaussian 생성 유도
+       ↓
+alpha mask 더 확장 → fg_coverage: 0.33 → 0.70 악화
+
+정상 fg_coverage: ~0.05 (생쥐 = 이미지의 5-15%)
+E4_6 실험: 0.55 (55%가 foreground!) → mask_iou: 0.04 (심각)
+```
+
+**권장**:
+- 기본: `mask_mode: gt` 또는 `mask_mode: none`
+- alpha 사용 시: threshold 0.7+ 상향, alpha_loss_weight ≤ 0.1
 
 ---
 
@@ -165,7 +197,30 @@ visualization:
 
 ---
 
-## 6. Troubleshooting
+## 6. Technical Notes
+
+### 6.1 Perceptual Loss Background (0.5)
+
+VGG perceptual loss는 전체 이미지에 대해 계산 → 단순 마스크 적용 불가.
+
+**해결책**: 배경을 neutral gray (0.5)로 설정
+```python
+# 배경 = 0.5 → VGG feature 응답 최소화
+rendering = rendering * mask + 0.5 * (1 - mask)
+target = target * mask + 0.5 * (1 - mask)
+```
+
+| 배경 값 | 문제 |
+|---------|------|
+| 0.0 (검정) | 마스크 경계에서 인위적 edge 감지 |
+| 1.0 (흰색) | 동일 문제 - 인위적 contrast |
+| **0.5 (회색)** ✅ | 중립 - feature 응답 최소 |
+
+**참고**: ImageNet mean = [0.485, 0.456, 0.406], 0.5는 근사치
+
+---
+
+## 7. Troubleshooting
 
 | 문제 | 원인 | 해결 |
 |------|------|------|
@@ -175,7 +230,7 @@ visualization:
 
 ---
 
-## 7. 파일 위치
+## 8. 파일 위치
 
 ```
 configs/
@@ -190,7 +245,7 @@ configs/
 
 ---
 
-*Updated: 2026-01-22 23:30*
+*Updated: 2026-01-22*
 
 ---
 
