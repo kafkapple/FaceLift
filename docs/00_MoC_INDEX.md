@@ -39,6 +39,7 @@ docs/
 | 문서 | 용도 |
 |------|------|
 | **[PREPROCESSING_REGISTRY](./practical/datasets/PREPROCESSING_REGISTRY.md)** | 전처리 프리셋 비교 (D1~D9) |
+| [MOUSE_DATASET](./practical/datasets/MOUSE_DATASET.md) | 데이터셋 출처 (DANNCE) |
 
 ### Config (설정)
 | 문서 | 용도 |
@@ -66,6 +67,11 @@ docs/
 | 문서 | 내용 |
 |------|------|
 | **[GS-LRM_Loss_Formula](./theory/loss/GS-LRM_Loss_Formula.md)** | Loss 함수, 가중치, Value Range |
+
+### Metrics (평가 지표)
+| 문서 | 내용 |
+|------|------|
+| **[METRICS_GUIDE](./theory/metrics/METRICS_GUIDE.md)** | PSNR, SSIM, mask_iou, 진단 가이드 |
 
 ### Mask (마스크)
 | 문서 | 내용 |
@@ -155,8 +161,10 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 |----------|------|------|
 | Practical | MOUSE_QUICK_REFERENCE | ✅ Active |
 | Practical/datasets | PREPROCESSING_REGISTRY | ✅ Active |
+| Practical/datasets | MOUSE_DATASET | ✅ Active |
 | Theory/loss | GS-LRM_Loss_Formula | ✅ Active |
 | Theory/mask | ALPHA_MASK_COMPLETE_GUIDE | ✅ Active |
+| Theory/metrics | METRICS_GUIDE | ✅ Active |
 | MoC | 00_MoC_INDEX (이 문서) | ✅ Active |
 
 ---

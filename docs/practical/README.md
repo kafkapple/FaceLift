@@ -8,6 +8,7 @@
 - [MOUSE_QUICK_REFERENCE.md](./MOUSE_QUICK_REFERENCE.md) - 빠른 시작 가이드
 
 ## Datasets
+- [MOUSE_DATASET.md](./datasets/MOUSE_DATASET.md) - 데이터셋 출처 (DANNCE)
 - [PREPROCESSING_REGISTRY.md](./datasets/PREPROCESSING_REGISTRY.md) - 전처리 프리셋 (D1~D9)
 
 ## Config

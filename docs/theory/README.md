@@ -16,3 +16,6 @@
 ## Mask (마스크)
 - [ALPHA_MASK_COMPLETE_GUIDE.md](./mask/ALPHA_MASK_COMPLETE_GUIDE.md) - mask_mode, alpha_loss
 - [Research_Note_Mask_Binarization_Issue.md](./mask/Research_Note_Mask_Binarization_Issue.md) - 이진화 이슈
+
+## Metrics (평가 지표)
+- [METRICS_GUIDE.md](./metrics/METRICS_GUIDE.md) - PSNR, SSIM, mask_iou, 진단 가이드
