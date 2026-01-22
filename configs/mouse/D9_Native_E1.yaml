@@ -80,7 +80,7 @@ training:
 # =============================================================================
 visualization:
   turntable:
-    num_views: 64
+    num_views: 36
     resolution: 384
     elevation: 15
     save_video: true
