@@ -1,0 +1,21 @@
+# =============================================================================
+# Experiment: E1.4 Paper Baseline 5-View Fixed
+# =============================================================================
+# 5 input views, fixed selection, NO mask
+# =============================================================================
+
+_name: E1_4_5v_paper_fixed
+_description: "Paper baseline with 5 views, fixed selection"
+
+training:
+  dataset:
+    num_views: 6
+    num_input_views: 5
+    random_view_selection: false
+
+  losses:
+    masked_pixelalign_loss: false
+    masked_l2_loss: false
+    masked_ssim_loss: false
+    mask_mode: none
+    alpha_loss_weight: 0.0

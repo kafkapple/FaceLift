@@ -1,0 +1,32 @@
+# =============================================================================
+# Experiment: E5.9 GT Mask - Ground Truth Mask
+# =============================================================================
+# Uses ground truth mask instead of predicted mask
+# Most stable reference for mask-based loss experiments
+# =============================================================================
+
+_name: E5_9_gt_mask
+_description: "GT mask baseline, 4 input views"
+_hypothesis: "H5.9: GT mask provides stable reference without prediction errors"
+_comparison_group: [E5_4_rgb_mask_01, E5_7_optimal_alpha]
+
+training:
+  dataset:
+    random_view_selection: false
+    num_views: 6
+    num_input_views: 4               # Paper setting
+
+  losses:
+    mask_mode: gt                    # Ground truth mask
+    masked_pixelalign_loss: true
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    alpha_loss_weight: 0.3
+    alpha_loss_type: bce
+    opacity_reg_weight: 0.01
+    opacity_reg_type: entropy
+    background_loss_weight: 1.0
+
+  logging:
+    wandb:
+      exp_name: null

@@ -1,0 +1,21 @@
+# =============================================================================
+# Experiment: E2.4 GT Mask 5-View Fixed
+# =============================================================================
+# 5 input views, fixed selection, GT mask supervision
+# =============================================================================
+
+_name: E2_6_5v_gt_fixed
+_description: "GT mask with 5 views, fixed selection"
+
+training:
+  dataset:
+    num_views: 6
+    num_input_views: 5
+    random_view_selection: false
+
+  losses:
+    masked_pixelalign_loss: true
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    mask_mode: gt
+    alpha_loss_weight: 0.0

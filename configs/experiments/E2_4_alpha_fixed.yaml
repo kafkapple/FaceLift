@@ -1,0 +1,29 @@
+# =============================================================================
+# Experiment: E2.3 Alpha Mask
+# =============================================================================
+# Hypothesis H2: Rendered alpha mask vs GT mask
+# 4 views, fixed selection, rendered alpha mask supervision
+# =============================================================================
+
+_name: E2_4_alpha_fixed
+_description: "Rendered alpha mask supervision"
+_hypothesis: H2
+_comparison_group: [E1_2, E2_2, E2_3]
+
+training:
+  dataset:
+    num_views: 6
+    num_input_views: 4
+    random_view_selection: false
+
+  losses:
+    masked_pixelalign_loss: true
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    mask_mode: alpha
+    alpha_mask_threshold: 0.5
+    alpha_loss_weight: 0.0
+
+  logging:
+    wandb:
+      exp_name: null

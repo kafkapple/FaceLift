@@ -1,0 +1,41 @@
+# =============================================================================
+# Experiment: E5.6b Alpha Threshold 0.7 + Random View Selection
+# =============================================================================
+# Base: E5_6_alpha_thresh_07 (threshold 0.7, alpha_loss 0.5)
+# Change: Add random_view_selection for better generalization
+# =============================================================================
+
+_name: E5_6b_alpha_thresh_07_random
+_description: "E5_6 + random view selection for generalization"
+_hypothesis: "H5.6b: Random view selection improves novel view synthesis"
+_comparison_group: [E5_6_alpha_thresh_07, E5_2_conservative]
+
+training:
+  dataset:
+    random_view_selection: true      # Key change: false -> true
+    num_views: 6
+    num_input_views: 4
+
+  losses:
+    mask_mode: alpha
+    alpha_mask_threshold: 0.7
+    masked_pixelalign_loss: true
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    
+    alpha_loss_weight: 0.5
+    alpha_loss_type: bce
+    
+    opacity_reg_weight: 0.02
+    opacity_reg_type: l1_sparse
+    
+    background_loss_weight: 1.0
+
+  logging:
+    wandb:
+      exp_name: null
+
+visualization:
+  turntable:
+    save_video: true
+    fps: 30

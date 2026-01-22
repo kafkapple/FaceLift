@@ -1,0 +1,22 @@
+# =============================================================================
+# Experiment: E4.1 Alpha Basic (No Tuning)
+# =============================================================================
+# 5 input views, fixed selection, basic alpha mask (threshold=0.5, no loss)
+# =============================================================================
+
+_name: E4_1_alpha_basic
+_description: "Basic alpha settings - baseline for tuning comparison"
+
+training:
+  dataset:
+    num_views: 6
+    num_input_views: 5
+    random_view_selection: false
+
+  losses:
+    masked_pixelalign_loss: true
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    mask_mode: alpha
+    alpha_mask_threshold: 0.5
+    alpha_loss_weight: 0.0

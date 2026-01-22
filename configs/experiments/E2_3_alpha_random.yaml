@@ -1,0 +1,22 @@
+# =============================================================================
+# Experiment: E2.3 Alpha Mask Random (4v)
+# =============================================================================
+# 4 input views, random selection, rendered alpha mask supervision
+# =============================================================================
+
+_name: E2_3_alpha_random
+_description: "Alpha mask with random view selection"
+
+training:
+  dataset:
+    num_views: 6
+    num_input_views: 4
+    random_view_selection: true
+
+  losses:
+    masked_pixelalign_loss: true
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    mask_mode: alpha
+    alpha_mask_threshold: 0.5
+    alpha_loss_weight: 0.0

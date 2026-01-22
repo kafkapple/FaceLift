@@ -1,0 +1,33 @@
+# =============================================================================
+# Experiment: E4.6 Aggressive Alpha + Exclude View 5
+# =============================================================================
+# Based on E4.3 (best IoU: 0.60) + exclude unusual camera (View 5)
+# View 5 has highest elevation (30.8°, z-score=1.54)
+# =============================================================================
+
+_name: E4_6_aggressive_exclude_v5
+_description: "Aggressive alpha settings excluding unusual View 5"
+_hypothesis: "H4b: Excluding outlier camera improves mask learning"
+_comparison_group: [E4_3]
+
+training:
+  dataset:
+    random_view_selection: false
+    num_views: 6                    # Total available
+    num_input_views: 4              # Use 4 of 5 remaining
+    exclude_camera_indices: [5]     # ★ Exclude View 5 (elevation outlier)
+
+  losses:
+    masked_pixelalign_loss: true
+    masked_l2_loss: true
+    masked_ssim_loss: true
+    mask_mode: alpha
+    alpha_mask_threshold: 0.5
+    alpha_loss_weight: 0.5          # Strong (from E4_3)
+    alpha_loss_type: bce
+    opacity_reg_weight: 0.01        # Regularization (from E4_3)
+    opacity_reg_type: entropy
+
+  logging:
+    wandb:
+      exp_name: null
