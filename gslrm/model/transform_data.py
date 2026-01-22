@@ -183,10 +183,10 @@ class SplitData(nn.Module):
         
         for key, value in data_batch.items():
             # Always use first N views as input
-            input_data[key] = value[:, :self.config.training.dataset.num_input_views, ...]
+            input_data[key] = value[:, :self.config.model.num_input_views, ...]
             
             # Calculate num_target_views from num_views (not explicitly in config)
-            num_target_views = self.config.training.dataset.num_views
+            num_target_views = self.config.model.num_views
             
             if num_target_views >= value.size(1):
                 target_data[key] = value
@@ -205,8 +205,8 @@ class SplitData(nn.Module):
         b, v = value.shape[:2]
         
         # Get config values
-        num_input_views = self.config.training.dataset.num_input_views
-        num_views = self.config.training.dataset.num_views
+        num_input_views = self.config.model.num_input_views
+        num_views = self.config.model.num_views
         num_target_views = num_views  # Use all views as targets
         
         if target_has_input:

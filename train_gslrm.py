@@ -494,8 +494,8 @@ class GSLRMTrainer:
         else:
             # Fallback: minimal experiment info
             config_copy["experiment"] = {
-                "num_input_views": self.config.training.dataset.num_input_views,
-                "total_views": self.config.training.dataset.num_views,
+                "num_input_views": self.config.model.num_input_views,
+                "total_views": self.config.model.num_views,
                 "max_steps": self.config.training.schedule.max_fwdbwd_passes,
             }
         
