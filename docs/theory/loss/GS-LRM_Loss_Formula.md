@@ -228,6 +228,31 @@ real_img_normalized = real_img * 255.0 - imagenet_mean
 
 ### LPIPS 정규화
 
+### Gaussian Rendering 출력 범위 ⚠️
+
+| 항목 | 범위 | 소스 |
+|------|------|------|
+| **GT Image** | [0, 1] | image_np / 255.0 |
+| **Rendered Image** | [0, ∞) 이론적 | diff-gaussian-rasterization |
+| **Background Color** | (1.0, 1.0, 1.0) | render_opencv_cam 기본값 |
+
+**잠재적 문제**:
+- SH (Spherical Harmonics) 평가 시 RGB > 1.0 또는 RGB < 0 가능
+- 학습 초기, 불안정한 Gaussian에서 더 자주 발생
+- Out-of-range 값이 loss를 불안정하게 만듦
+
+**해결**: Loss 계산 전 clamping 추가
+```python
+# gslrm/model/gslrm.py - compute_losses()
+rendering_flat = rendering_flat.clamp(0.0, 1.0)  # 추가됨
+```
+
+| 항목 | 이전 | 이후 |
+|------|------|------|
+| Rendering 범위 | [-∞, +∞] 가능 | [0, 1] 보장 |
+| Loss 안정성 | out-of-range로 불안정 | ✅ 안정적 |
+| GT와 일치 | 불일치 가능 | ✅ 일치 |
+
 ```python
 # gslrm/model/gslrm.py:493-495
 return self.lpips_loss_module(
