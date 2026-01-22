@@ -1,3 +1,5 @@
+> **Navigation**: [← MoC Dashboard](./reports/00_MoC_INDEX.md) | [Quick Reference](./MOUSE_QUICK_REFERENCE.md) | [Loss Formula](./GS-LRM_Loss_Formula.md) | [Alpha Guide](./ALPHA_MASK_COMPLETE_GUIDE.md)
+
 # FaceLift Mouse Preprocessing Registry
 
 > **Version**: v4.1 (2026-01-22)

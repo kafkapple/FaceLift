@@ -1,171 +1,179 @@
-# Mouse-FaceLift 연구 보고서 목차 (Map of Contents)
+# FaceLift Mouse - Documentation Hub (MoC)
 
-**프로젝트:** Mouse 3D/4D Reconstruction using FaceLift Pipeline
-**기간:** 2024-12-08 ~ 2026-01-05
-**최종 업데이트:** 2026-01-05
-
----
-
-## 📋 프로젝트 개요
-
-FaceLift (Human Face 3D Reconstruction) 파이프라인을 Mouse 데이터에 적용하여 Multi-view 이미지로부터 3D Gaussian Splatting 기반 재구성 수행.
-
-### 핵심 파이프라인
-```
-Single View Image → MVDiffusion → 6 Multi-View Images → GS-LRM → 3D Gaussians
-```
-
-### 주요 성과
-- ✅ 카메라 정규화 파이프라인 구축 (거리 2.7, FOV 50°)
-- ✅ pixel_based 전처리 방법 개발 (CoM centering + pixel scaling)
-- ✅ prompt_embeds 정렬 문제 해결
-- ✅ Mask 적용 학습 설정 완료
-- 🔄 GS-LRM 학습 진행 중
+> **Last Updated**: 2026-01-22
+> **Single Source of Truth** for all FaceLift Mouse documentation
 
 ---
 
-## 📅 날짜별 보고서 목록
+## 📚 Core Reference Documents (권위 문서)
 
-| 날짜 | 파일명 | 주요 내용 |
-|------|--------|----------|
-| **2024-12-08** | [241208_consolidated.md](./241208_consolidated.md) | 카메라 파라미터 분석, 좌표계 변환, 버그 수정 |
-| **2025-12-10** | [251210_finetune_strategy.md](./251210_research_mouse_facelift_finetune_strategy.md) | 2단계 파이프라인 파인튜닝 전략 |
-| **2025-12-12** | [251212_consolidated.md](./251212_consolidated.md) | 파이프라인 분석, 도메인 갭 이슈 |
-| **2025-12-13** | [251213_consolidated.md](./251213_consolidated.md) | prompt_embeds 해결, 2단계 학습 전략 |
-| **2025-12-18** | [251218_camera_spec_comparison.md](./251218_camera_spec_comparison_report.md) | Human vs Mouse 카메라 정량 비교 |
-| **2025-12-19** | [251219_consolidated.md](./251219_consolidated.md) | 알려진 이슈 종합, 카메라 정렬 |
-| **2025-12-20** | [251220_synthetic_pipeline.md](./251220_critical_synthetic_data_pipeline.md) | 합성 데이터 파이프라인 핵심 사항 |
-| **2026-01-05** | [260105_experiment_summary.md](./260105_mouse_facelift_experiment_summary.md) | 최신 실험 요약, 환경 설정 |
-
----
-
-## 🔑 핵심 이슈 및 해결책 요약
-
-### 1. 카메라 정규화 (Critical)
-- **문제**: Mouse 원본 카메라 거리 (2.0~3.4) ≠ FaceLift 표준 (2.7)
-- **해결**: `preprocess_pixel_based.py`로 fx=fy=548.99, cx=cy=256.0 정규화
-- **참조**: 241208, 251218, 251219
-
-### 2. prompt_embeds 불일치 (Critical)
-- **문제**: FaceLift embeds (수평 뷰) ≠ Mouse 카메라 (경사 20°)
-- **해결**: Mouse용 prompt_embeds 생성 (`mouse_prompt_embeds_6view/`)
-- **참조**: 251212, 251213
-
-### 3. Mask 미적용 (High)
-- **문제**: `remove_alpha: true`로 mask 손실
-- **해결**: `remove_alpha: false`, `masked_l2_loss: true`, `masked_ssim_loss: true`
-- **참조**: 260105
-
-### 4. num_input_views 설정 (High)
-- **문제**: num_input_views=1 (너무 어려움)
-- **해결**: num_input_views=5 (pretrained와 유사)
-- **참조**: 251219
-
-### 5. Perceptual Loss 도메인 불일치 (High)
-- **문제**: VGG 기반 loss가 Mouse 도메인에서 gradient explosion
-- **해결**: `lpips_loss_weight: 0.0`, `perceptual_loss_weight: 0.0`
-- **참조**: 251219
-
----
-
-## 📁 핵심 파일 위치
-
-### 전처리 스크립트
-| 스크립트 | 용도 |
-|----------|------|
-| `scripts/preprocess_pixel_based.py` | ⭐ 권장: CoM centering + pixel scaling |
-| `scripts/convert_markerless_to_facelift.py` | 원본 → FaceLift 형식 변환 |
-| `scripts/generate_synthetic_data.py` | 합성 데이터 생성 |
-
-### 학습 Config
-| Config | 용도 |
-|--------|------|
-| `configs/mouse_gslrm_pixel_based_v2.yaml` | ⭐ 권장: GS-LRM 학습 (mask 적용) |
-| `configs/mouse_mvdiffusion.yaml` | MVDiffusion 학습 |
-
-### 데이터셋
-| 경로 | 상태 | 설명 |
+| 문서 | 용도 | 상태 |
 |------|------|------|
-| `data_mouse` | ✅ | 원본 (2,000 샘플) |
-| `data_mouse_pixel_based` | ✅ | pixel_based 전처리 완료 |
+| **[MOUSE_QUICK_REFERENCE.md](./MOUSE_QUICK_REFERENCE.md)** | 빠른 시작, 명령어, 실험 권장 | ⭐ Primary |
+| **[PREPROCESSING_REGISTRY.md](./PREPROCESSING_REGISTRY.md)** | 전처리 프리셋 비교 (D1~D9) | ⭐ Primary |
+| **[GS-LRM_Loss_Formula.md](./GS-LRM_Loss_Formula.md)** | Loss 함수, 가중치, Value Range | ⭐ Primary |
+| **[ALPHA_MASK_COMPLETE_GUIDE.md](./ALPHA_MASK_COMPLETE_GUIDE.md)** | mask_mode, alpha_loss, 시각화 | ⭐ Primary |
 
-### 체크포인트
-| 경로 | 용도 |
-|------|------|
-| `checkpoints/gslrm/ckpt_0000000000021125.pt` | Human pretrained |
-| `checkpoints/gslrm/mouse_pixel_based_v2/` | Mouse fine-tuned |
+### 문서 계층 구조
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    MoC Dashboard (이 문서)                       │
+│                         ▲ 중심 허브                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
+│  │ QUICK_REFERENCE │  │  PREPROCESSING  │  │   LOSS_FORMULA  │ │
+│  │   (How-To)      │  │   (Datasets)    │  │   (Training)    │ │
+│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘ │
+│           │                    │                    │          │
+│           └────────────────────┼────────────────────┘          │
+│                                │                               │
+│                    ┌───────────┴───────────┐                   │
+│                    │  ALPHA_MASK_GUIDE     │                   │
+│                    │  (Mask & Visualization)│                   │
+│                    └───────────────────────┘                   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 🚀 빠른 시작 가이드
+## 🚀 Quick Start
 
-### 환경 설정 (gpu03)
+### 즉시 실행 가능한 명령어
+
 ```bash
+# 1. 환경 설정
 ssh gpu03
-conda activate facelift
 cd /home/joon/dev/FaceLift
+
+# 2. 학습 (D7.1 + mask_mode=gt)
+CUDA_VISIBLE_DEVICES=4 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E_quick_alpha
+
+# 3. Alpha Threshold 시각화
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha_thresholds \
+    --checkpoint checkpoints/gslrm/D7_1_E_quick_alpha/ckpt_step_500.pt \
+    --thresholds 0.3 0.5 0.7 0.9
 ```
 
-### GS-LRM 학습 실행
-```bash
-CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py --config configs/mouse_gslrm_pixel_based_v2.yaml \
-    > train_log.txt 2>&1 &
-```
-
-### 학습 모니터링
-```bash
-tail -f train_log.txt
-# 또는 W&B: https://wandb.ai/kafkapple-joon-kaist/mouse_facelift
-```
+→ 상세: [MOUSE_QUICK_REFERENCE.md](./MOUSE_QUICK_REFERENCE.md)
 
 ---
 
-## 📊 평가 지표
+## 📖 Technical Deep-Dives
 
-| 지표 | 목표 | 설명 |
-|------|------|------|
-| PSNR | >25 dB | Peak Signal-to-Noise Ratio |
-| SSIM | >0.9 | Structural Similarity Index |
-| LPIPS | <0.15 | Learned Perceptual Similarity (낮을수록 좋음) |
-| Mask IoU | >0.9 | GT mask vs 렌더링 mask 일치도 |
+### 전처리 & 카메라
 
----
-
-## 📝 문서 관리 규칙
-
-1. **날짜 형식**: YYMMDD (예: 260105 = 2026-01-05)
-2. **통합 원칙**: 같은 날짜의 보고서는 하나로 통합
-3. **MoC 유지**: 새 보고서 추가 시 이 파일 업데이트
-4. **핵심 위주**: 상세 내용보다 결론과 해결책 중심으로 작성
-
----
-
-*🤖 Generated with Claude Code*
-
----
-
-## 📅 2026-01-05 추가 보고서
-
-| 파일 | 내용 |
+| 문서 | 내용 |
 |------|------|
-| [260105_view_order_and_mask_features.md](./260105_view_order_and_mask_features.md) | ⭐ **핵심** - 뷰 순서 문제, Mask Loss 분석 |
-| [260105_modularization_analysis.md](./260105_modularization_analysis.md) | 코드 모듈화 분석 및 개선 제안 |
+| [Camera_Preprocessing_Analysis_Report.md](./Camera_Preprocessing_Analysis_Report.md) | 카메라 행렬 분석, 좌표 변환 |
+| [coordinate_transformation_guide.md](./coordinate_transformation_guide.md) | 좌표계 변환 이론 |
+| [260121_Camera_Data_Pipeline.md](./260121_Camera_Data_Pipeline.md) | 데이터 파이프라인 상세 |
 
-### 핵심 발견: use_mouse_dataset의 의미
+### 설정 & 실험
 
-```yaml
-mouse:
-  use_mouse_dataset: true   # MouseViewDataset 사용 (고정 뷰 순서)
-  use_mouse_dataset: false  # RandomViewDataset 사용 (랜덤 뷰 샘플링)
+| 문서 | 내용 |
+|------|------|
+| [CONFIG_MODULAR.md](./CONFIG_MODULAR.md) | 모듈화 config 시스템 |
+| [EXPERIMENT_REGISTRY.md](./EXPERIMENT_REGISTRY.md) | 실험 ID 레지스트리 |
+| [EXPERIMENT_MATRIX.md](./EXPERIMENT_MATRIX.md) | 실험 파라미터 조합 |
+
+### 마스크 & Loss
+
+| 문서 | 내용 |
+|------|------|
+| [D9_MASK_EXPERIMENT_PIPELINE.md](./D9_MASK_EXPERIMENT_PIPELINE.md) | D9 마스크 실험 파이프라인 |
+| [Research_Note_Mask_Binarization_Issue.md](./Research_Note_Mask_Binarization_Issue.md) | 마스크 이진화 이슈 분석 |
+
+---
+
+## 🔬 Experiment Tracking
+
+### 현재 권장 실험
+
+| 우선순위 | 데이터셋 | 실험 | 목적 |
+|----------|---------|------|------|
+| P1 | D7.1 | E_quick_alpha | 기본 검증 (mask_mode=gt) |
+| P2 | D8 | E_quick_alpha | Skew 보정 비교 |
+| P3 | D7_5 | E_quick_alpha | 확대 마우스 |
+
+→ 상세: [PREPROCESSING_REGISTRY.md](./PREPROCESSING_REGISTRY.md) Section "권장 프리셋"
+
+### 핵심 지표
+
+| 지표 | 목표 | 모니터링 |
+|------|------|----------|
+| PSNR | >25 dB | WandB `train/psnr` |
+| mask_iou | >0.8 | WandB `train/mask_iou` |
+| fg_coverage | ~0.05 | WandB (정상 범위) |
+
+→ 상세: [GS-LRM_Loss_Formula.md](./GS-LRM_Loss_Formula.md)
+
+---
+
+## 📁 Archive
+
+### 날짜별 보고서
+
+| 위치 | 내용 |
+|------|------|
+| [reports/archive/](./reports/archive/) | 2024년 보고서 |
+| [reports/](./reports/) | 현재 보고서 |
+
+### Legacy 문서
+
+| 문서 | 상태 |
+|------|------|
+| D7_SCALE_MODES.md | ⚠️ D7 시리즈 레거시 |
+| v3_vs_v5_comparison.md | ⚠️ 초기 버전 비교 |
+| preprocessing_theory_v5.md | ⚠️ 이론 레거시 |
+
+---
+
+## 🔗 Backlink Protocol
+
+### 모든 문서에 추가할 헤더
+
+```markdown
+> **Navigation**: [← MoC Dashboard](./reports/00_MoC_INDEX.md) | [Quick Reference](./MOUSE_QUICK_REFERENCE.md)
 ```
 
-**RandomViewDataset (FaceLift 원본)**:
-- 매 step 뷰 순서 랜덤 샘플링
-- Human 데이터: 균등 배치라서 영향 적음
-- **Mouse 데이터: 불균등 배치라서 흐릿한 출력 발생!**
+### 문서 간 참조 규칙
 
-**MouseViewDataset (Mouse 전용)**:
-- 고정된 뷰 순서 [0,1,2,3,4,5]
-- 카메라 정규화 포함
-- **Mouse 데이터에 필수!**
+1. **권위 문서 수정 시**: 이 MoC에 변경 기록
+2. **새 문서 생성 시**: MoC에 링크 추가
+3. **문서 이동/삭제 시**: MoC 링크 업데이트
+
+---
+
+## 📊 Document Status
+
+| 문서 | Version | Last Updated | Status |
+|------|---------|--------------|--------|
+| MOUSE_QUICK_REFERENCE | - | 2026-01-22 | ✅ Active |
+| PREPROCESSING_REGISTRY | v4.1 | 2026-01-22 | ✅ Active |
+| GS-LRM_Loss_Formula | - | 2026-01-22 | ✅ Active |
+| ALPHA_MASK_COMPLETE_GUIDE | v1.1 | 2026-01-22 | ✅ Active |
+| MoC Dashboard (이 문서) | v2.0 | 2026-01-22 | ✅ Active |
+
+---
+
+## 🔧 Maintenance
+
+### 주간 점검 항목
+
+- [ ] 권위 문서 4개 최신 상태 확인
+- [ ] 새 실험 결과 반영 여부
+- [ ] Dead link 점검
+
+### 문서 추가 절차
+
+1. 문서 작성
+2. MoC에 링크 추가
+3. 관련 권위 문서에 상호 참조 추가
+
+---
+
+*FaceLift Mouse Project | MoC Dashboard v2.0*

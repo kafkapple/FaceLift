@@ -1,3 +1,5 @@
+> **Navigation**: [← MoC Dashboard](./reports/00_MoC_INDEX.md) | [Quick Reference](./MOUSE_QUICK_REFERENCE.md) | [Preprocessing](./PREPROCESSING_REGISTRY.md) | [Alpha Guide](./ALPHA_MASK_COMPLETE_GUIDE.md)
+
 # GS-LRM Loss Formula
 
 > GS-LRM 총 손실 함수 및 실험별 가중치 설정

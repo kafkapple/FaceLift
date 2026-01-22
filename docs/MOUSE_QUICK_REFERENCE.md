@@ -1,3 +1,5 @@
+> **Navigation**: [← MoC Dashboard](./reports/00_MoC_INDEX.md) | [Quick Reference](./MOUSE_QUICK_REFERENCE.md) | [Preprocessing](./PREPROCESSING_REGISTRY.md) | [Loss Formula](./GS-LRM_Loss_Formula.md)
+
 # FaceLift Mouse Extension - Quick Reference
 
 > **Last Updated**: 2026-01-22
