@@ -50,9 +50,7 @@ from mouse_extensions.model import (
     VisualizationConfig,
     create_training_visual,
     create_validation_visual,
-    compute_error_stats,
     compute_mask_from_config,
-    create_threshold_comparison,
     MaskType,
 )
 
