@@ -31,6 +31,10 @@ model:
   use_custom_plucker: true
   clip_xyz: true
 
+  # View configuration (can be overridden by experiment configs)
+  num_views: 6           # Total views for target rendering
+  num_input_views: 4     # Input views for encoding
+
 # -----------------------------------------------------------------------------
 # Training Runtime (Fixed)
 # -----------------------------------------------------------------------------
