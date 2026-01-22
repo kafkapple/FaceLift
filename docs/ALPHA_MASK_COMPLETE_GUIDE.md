@@ -1,7 +1,7 @@
 # Alpha Mask & Loss Complete Guide
 
-**Version**: 1.0
-**Date**: 2026-01-21
+**Version**: 1.1
+**Date**: 2026-01-22
 **Author**: Claude Code Analysis
 
 ---
@@ -343,7 +343,101 @@ python scripts/alpha_sweep.py \
 
 ---
 
-## 10. Quick Reference
+## 10. Ghost Gaussian Pruning (실험적)
+
+### 10.1 개념
+
+**Ghost Gaussian**: Object 경계 외부에 존재하는 불필요한 Gaussian
+
+특징:
+- 낮은 opacity (< 0.05)
+- GT mask 외부에 위치
+- Alpha "bleed" 현상 유발 (mask 확장 원인)
+
+### 10.2 GhostGaussianRegularizer
+
+```python
+# mouse_extensions/model/gaussian_pruning.py
+class GhostGaussianRegularizer:
+    """GT 배경 영역에서 alpha 패널티 적용"""
+
+    def compute_loss(self, rendered_alpha, gt_mask):
+        # 배경 영역 (gt_mask=0)에서 alpha → 0 유도
+        background_mask = 1.0 - gt_mask
+        ghost_penalty = (rendered_alpha * background_mask).mean()
+        return ghost_penalty
+```
+
+### 10.3 설정
+
+```yaml
+training:
+  losses:
+    ghost_reg_weight: 0.01  # 0.0 = 비활성 (기본)
+```
+
+---
+
+## 11. Adaptive Threshold (계획됨)
+
+### 11.1 개념
+
+| 방식 | 설명 |
+|------|------|
+| **Static** | threshold = 0.5 (고정) |
+| **Adaptive** | threshold = f(iteration, loss, metrics) |
+
+### 11.2 구현 방향
+
+1. **Validation IoU 기반**: IoU 낮으면 threshold 조정
+2. **Ghost area ratio 기반**: ghost 영역 비율로 동적 조정
+3. **Multi-threshold 시각화**: 최적값 탐색 후 고정
+
+### 11.3 현재 상태
+
+> ⚠️ **미구현**: 현재는 Static threshold만 지원
+>
+> Multi-threshold 시각화 도구로 최적값 탐색 후 고정 권장:
+> ```bash
+> python -m mouse_extensions.scripts.analysis.analyze_alpha_thresholds \
+>     --thresholds 0.3 0.5 0.7 0.9
+> ```
+
+---
+
+## 12. 데이터 마스크 자동 생성
+
+### 12.1 auto_generate_mask
+
+RGB 이미지에서 배경(흰색)을 감지하여 마스크 자동 생성:
+
+```python
+# gslrm/data/mouse_dataset.py
+if self.auto_generate_mask and image_np.shape[2] == 3:
+    threshold = self.mask_threshold / 255.0  # default: 250
+    is_background = np.all(image_np > threshold, axis=2)
+    alpha = (~is_background).astype(np.float32)
+    image_np = np.concatenate([image_np, alpha[:, :, None]], axis=2)
+```
+
+### 12.2 설정
+
+```yaml
+dataset:
+  auto_generate_mask: true   # RGB → RGBA 자동 변환
+  mask_threshold: 250        # 배경 감지 threshold (0-255)
+```
+
+### 12.3 마스크 생성 로직
+
+```
+RGB 픽셀 (r, g, b) where all > 250/255 → 배경 (alpha=0)
+RGB 픽셀 (r, g, b) where any ≤ 250/255 → 전경 (alpha=1)
+```
+
+---
+
+## 13. Quick Reference
 
 ### 핵심 설정 요약
 
@@ -364,4 +458,4 @@ python scripts/alpha_sweep.py \
 
 ---
 
-*FaceLift Mouse Project | Alpha Mask Complete Guide v1.0*
+*FaceLift Mouse Project | Alpha Mask Complete Guide v1.1*
