@@ -132,6 +132,32 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 
 ---
 
+
+## 📖 Reference & Tutorials
+
+### Reference (참조)
+| 문서 | 내용 |
+|------|------|
+| [Code_Location_Registry](./reference/Code_Location_Registry.md) | 핵심 코드 위치 |
+| [Config_Options](./reference/Config_Options.md) | 설정 옵션 상세 |
+| [Project_Structure](./reference/Project_Structure.md) | 프로젝트 구조 |
+
+### Tutorials (튜토리얼)
+| 단계 | 문서 | 내용 |
+|------|------|------|
+| 0 | [Branch_Setup](./tutorials/Step0_Branch_Setup.md) | 브랜치 설정 |
+| 1 | [Fork_and_Setup](./tutorials/Step1_Fork_and_Setup.md) | 포크 및 환경 |
+| 2 | [Mouse_Dataset](./tutorials/Step2_Mouse_Dataset.md) | 데이터셋 준비 |
+| 3 | [Preprocessing](./tutorials/Step3_Preprocessing.md) | 전처리 |
+| 4 | [Config_Setup](./tutorials/Step4_Config_Setup.md) | 설정 |
+| 5 | [Training](./tutorials/Step5_Training.md) | 학습 |
+
+### Troubleshooting (문제 해결)
+| 문서 | 내용 |
+|------|------|
+| [clip_tokenizer_error](./troubleshooting/clip_tokenizer_merges_error.md) | CLIP 토크나이저 오류 |
+
+---
 ## 📁 Archive & Legacy
 
 ### Reports
@@ -176,6 +202,10 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 | Theory/loss | GS-LRM_Loss_Formula | ✅ Active |
 | Theory/mask | ALPHA_MASK_COMPLETE_GUIDE | ✅ Active |
 | Theory/metrics | METRICS_GUIDE | ✅ Active |
+| Reference | Code_Location_Registry | ✅ Active |
+| Reference | Config_Options | ✅ Active |
+| Tutorials | Step0-5 | ✅ Active |
+| Troubleshooting | clip_tokenizer_error | ✅ Active |
 | MoC | 00_MoC_INDEX (이 문서) | ✅ Active |
 
 ---
