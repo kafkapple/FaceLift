@@ -1,219 +1,174 @@
 # FaceLift Mouse Preprocessing Registry
 
-> **Version**: v3.1 (2026-01-21)
+> **Version**: v4.0 (2026-01-22)
 > **Single Source of Truth** for all preprocessing configurations
 
 ---
 
-## Quick Reference
+## 전처리 패러다임 개요
 
-### Active Presets (D7 Paradigm)
-
-| Preset | Scale Mode | fx/fy | Ray Error | Status |
-|--------|------------|-------|-----------|--------|
-| **D7.1** | individual | 549/549 (exact) | ~0° | **★ RECOMMENDED** |
-| **D7.2** | average | ~548/~550 | ~0.2° | Alternative |
-| **D7** | fx_only | 549/549 (fy forced) | ~0.4° | Current Production |
-
-### Camera Parameter Consistency (2026-01-21 분석)
-
-| 데이터셋 | fx/fy | cx/cy | w2c | 프레임 간 일관성 |
-|----------|-------|-------|-----|-----------------|
-| **D7_1** | 549/549 | **256/256 고정** | 동일 | ✅ **100% 동일** |
-| D6-3 | 549/549 | 가변 (±100px) | 동일 | ⚠️ PP만 변동 |
-
-**결론**: D7_1은 모든 프레임에서 카메라 파라미터 완전 동일 (고정 셋업)
-
-### Deprecated Presets
-
-| Preset | Issue | Ray Error |
-|--------|-------|-----------|
-| D1-D4 | PP=256 forced | 5-13° |
-| D6-1/2/3 | Object-centered | varies |
+| 패러다임 | 프리셋 | PP 처리 | 이미지 변환 | Ray Error | 상태 |
+|----------|--------|---------|-------------|-----------|------|
+| **pp_centered_shift** | D7, D7.1, D7.2 | 256으로 shift | 이미지도 shift | ~0° | ⭐ 권장 |
+| geometry_preserving | D6-1, D6-2, D6-3 | 정확한 값 유지 | 최소 변환 | 0° | 실험적 |
+| precision_homography | D8, D8.1 | 256으로 shift | Homography+skew | ~0° | 실험적 |
+| native | D9, D9_norm | 원본 유지 | 없음 | 0° | 고해상도용 |
+| object_centered | D1-D4 | 256 강제 | Crop | 5-13° | ❌ DEPRECATED |
 
 ---
 
-## 1. System Architecture
+## 상세 프리셋 비교
 
-### Unified Entry Point
+### 이미지 처리
+
+| 프리셋 | 입력 해상도 | 출력 해상도 | Crop | Shift | 파일 크기 |
+|--------|-------------|-------------|------|-------|-----------|
+| **D7.1** | 1152×1024 | **512×512** | ❌ | ✅ | ~22% |
+| D6-2 | 1152×1024 | **512×512** | ❌ | ❌ | ~22% |
+| D4 | 1152×1024 | 512×512 | ✅ | - | ~22% |
+| D9 | 1152×1024 | **1152×1024** | ❌ | ❌ | 100% |
+| D9_resized | 1152×1024 | **512×512** | ❌ | ✅ | ~22% |
+
+### 카메라 파라미터
+
+| 프리셋 | fx | fy | cx | cy | translation |
+|--------|-----|-----|-----|-----|-------------|
+| **D7.1** | **549** | **549** | **256** | **256** | **2.7** |
+| D6-2 | 549 | 549 | **가변** | **가변** | 2.7 |
+| D4 | 원본 | 원본 | **256 (강제)** | **256 (강제)** | 원본 |
+| D9 | 1632 | 1607 | 576 | 512 | 246 |
+| D9_norm | 1632 | 1607 | 576 | 512 | **2.7** |
+| D9_resized | **549** | **549** | **256** | **256** | **2.7** |
+
+### Pretrained 호환성
+
+| 프리셋 | fx 일치 | trans 일치 | 호환성 | 권장 용도 |
+|--------|---------|------------|--------|-----------|
+| **D7.1** | ✅ 549 | ✅ 2.7 | **완벽** | 일반 학습 |
+| D6-2 | ✅ 549 | ✅ 2.7 | 좋음 | 기하학 연구 |
+| D4 | ❌ | ❌ | **불가** | DEPRECATED |
+| D9 | ❌ 1632 | ❌ 246 | **불가** | - |
+| D9_norm | ❌ 1632 | ✅ 2.7 | 실험적 | 고해상도 연구 |
+| D9_resized | ✅ 549 | ✅ 2.7 | **완벽** | D7.1과 동일 |
+
+---
+
+## D7.1 vs D9_resized
+
+**결론: 사실상 동일**
+
+| 항목 | D7.1 | D9_resized |
+|------|------|------------|
+| 패러다임 | pp_centered_shift | pp_centered_shift |
+| 출력 해상도 | 512×512 | 512×512 |
+| fx, fy | 549, 549 | 549, 549 |
+| cx, cy | 256, 256 | 256, 256 |
+| translation | 2.7 | 2.7 |
+| **차이점** | - | 없음 |
+
+→ **D9_resized는 불필요**. D7.1 사용 권장.
+
+---
+
+## D6-2 vs D7.1 핵심 차이
+
+| 항목 | D6-2 | D7.1 |
+|------|------|------|
+| **PP 처리** | 가상 shift (이미지 그대로) | 실제 shift (이미지 이동) |
+| **cx, cy 값** | 실제 값 유지 (가변) | 256 고정 |
+| **이미지 품질** | 100% 보존 | 가장자리 ~50px 손실 가능 |
+| **기하학 정확도** | 완벽 (0°) | 거의 완벽 (~0°) |
+| **Pretrained 호환** | 좋음 | 완벽 |
+
+---
+
+## GPU 메모리 요구사항
+
+| 프리셋 | 해상도 | 픽셀 수 | 상대 메모리 |
+|--------|--------|---------|-------------|
+| D7.1/D6-2/D9_resized | 512×512 | 262K | **1x** (~16GB) |
+| D9/D9_norm | 1152×1024 | 1.18M | **4.5x** (~72GB) |
+
+---
+
+## 권장 프리셋
+
+| 목적 | 권장 프리셋 | 이유 |
+|------|-------------|------|
+| **일반 학습** | **D7.1** | Pretrained 완벽 호환, 검증됨 |
+| 기하학 연구 | D6-2 | 정확한 PP, 이미지 품질 보존 |
+| 고해상도 실험 | D9_norm | 원본 해상도 (메모리 4.5x 필요) |
+
+---
+
+## 전처리 명령어
+
+### D7.1 (권장)
 ```bash
-python -m mouse_extensions.preprocessing.preprocess --preset D7.1 \
-    --input-dir /path/to/raw \
-    --output-dir /path/to/D7_1
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D7.1 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1
 ```
 
-### Modular Config System
-```
-configs/mouse/_modular/
-├── base/
-│   ├── model.yaml      # Fixed GS-LRM architecture
-│   └── runtime.yaml    # Training runtime settings
-├── schemas/
-│   ├── 5v_alpha.yaml   # 5-view with alpha mask (★ recommended)
-│   ├── 4v_alpha.yaml   # 4-view with alpha mask
-│   ├── 5v_nomask.yaml  # 5-view no mask (stable)
-│   ├── 6v_alpha.yaml   # 6-view with alpha mask
-│   └── 4v_random.yaml  # 4-view random selection
-├── datasets/
-│   ├── D7.yaml         # Current production
-│   ├── D7_t.yaml       # Temporal split
-│   ├── D7_1.yaml       # Individual scale (recommended)
-│   └── D7_2.yaml       # Average scale
-└── generate_config.py  # Config generator
-```
-
----
-
-## 2. D7 Preprocessing Details
-
-### 2.1 Common Pipeline
-1. Load raw images and camera parameters
-2. Compute scale factor to achieve fx=549
-3. Shift image to center PP at (256, 256)
-4. Normalize camera distance to 2.7
-5. Save in FaceLift format
-
-### 2.2 Scale Mode Differences
-
-**D7 (fx_only)**:
-```python
-scale = target_fx / orig_fx
-# fy becomes: orig_fy * scale ≈ 551.5
-# But recorded as: fy = 549 (forced!)
-```
-
-**D7.1 (individual)** [★ RECOMMENDED]:
-```python
-scale_x = target_fx / orig_fx
-scale_y = target_fy / orig_fy
-# fx = 549 (exact)
-# fy = 549 (exact)
-# Anisotropic: ~0.6% vertical compression
-```
-
-**D7.2 (average)**:
-```python
-scale = (scale_x + scale_y) / 2
-# fx ≈ 548.1
-# fy ≈ 550.0
-# Isotropic scaling
-```
-
----
-
-## 3. Preprocessing Commands
-
-### D7.1 (Recommended)
+### D6-2 (기하학 정확)
 ```bash
-cd /home/joon/dev/FaceLift
-/home/joon/anaconda3/envs/facelift/bin/python \
-    -m mouse_extensions.scripts.preprocess_D7_pp_centered \
-    --data-dir /home/joon/data/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \
-    --camera-pkl /home/joon/data/markerless_mouse_1_nerf/new_cam.pkl \
-    --frame-interval 5 \
-    --scale-mode individual
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D6-2 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D6-2
 ```
 
-### D7.2 (Alternative)
+### D9 (원본 해상도)
 ```bash
-cd /home/joon/dev/FaceLift
-/home/joon/anaconda3/envs/facelift/bin/python \
-    -m mouse_extensions.scripts.preprocess_D7_pp_centered \
-    --data-dir /home/joon/data/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D7_2 \
-    --camera-pkl /home/joon/data/markerless_mouse_1_nerf/new_cam.pkl \
-    --frame-interval 5 \
-    --scale-mode average
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D9 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D9
 ```
 
 ---
 
-## 4. Config Generation
+## 데이터 위치
 
-### Generate Experiment Config
-```bash
-cd /home/joon/dev/FaceLift/configs/mouse/_modular
-
-# List options
-python generate_config.py --list
-
-# Generate D7.1 + 5v_alpha
-python generate_config.py --dataset D7_1 --schema 5v_alpha
-
-# Output: configs/mouse/D7_1_E1_5v_alpha.yaml
-```
-
-### Available Schemas
-| Schema | Views | Mask | Description |
-|--------|-------|------|-------------|
-| 5v_alpha | 5 | alpha (0.5) | ★ Recommended |
-| 4v_alpha | 4 | alpha (0.5) | Fewer views |
-| 5v_nomask | 5 | none | Stable baseline |
-| 6v_alpha | 6 | alpha (0.5) | Maximum views |
-| 4v_random | 4 | alpha (0.5) | Random selection |
-
----
-
-## 5. Data Locations
-
-### Preprocessed Data
+### 전처리 완료
 ```
 /home/joon/data/preprocessed/FaceLift_mouse/
-├── D7/        # 3238 train, 359 val
-├── D7_t/      # 1222 train, 1187 val, 1188 test (temporal)
-├── D7_1/      # [TO BE CREATED]
-└── D7_2/      # [TO BE CREATED]
+├── D7_1/      # 3238 train, 359 val (권장)
+├── D9/        # 3238 train, 359 val (고해상도, 미정규화)
+└── ...
 ```
 
-### Raw Data
+### Raw 데이터
 ```
-/home/joon/data/markerless_mouse_1_nerf/
-├── raw_videos/           # Original MP4s
-├── simpleclick_undist/   # Mask videos
-└── new_cam.pkl           # Camera parameters
-```
-
----
-
-## 6. Archive
-
-### Archived Configs
-```
-configs/mouse/_archive/
-├── legacy_gslrm_v/       # 36 files (gslrm_v15~v71)
-├── deprecated_D1_D4/     # 38 files (D1~D4)
-└── deprecated_D6/        # 30 files (D6-1/2/3)
-```
-
-### Archived Datasets
-```
-/home/joon/data/preprocessed/FaceLift_mouse/
-├── D1_pp_centered/       # [DEPRECATED]
-├── D2_correct_pp/        # [DEPRECATED]
-├── D3*/                  # [DEPRECATED]
-├── D4/                   # [DEPRECATED]
-├── D6-*/                 # [DEPRECATED]
-└── data_mouse_v1*/       # [DEPRECATED]
+/home/joon/data/raw/markerless_mouse_1_nerf/
+├── raw_videos/           # 6개 MP4
+├── simpleclick_undist/   # 마스크 MP4
+└── new_cam.pkl           # 카메라 파라미터
 ```
 
 ---
 
-## 7. Changelog
+## DEPRECATED 프리셋
+
+| 프리셋 | 문제점 |
+|--------|--------|
+| D1-D4 | PP=256 강제 → Ray error 5-13° |
+| D5 | 실험적, 미완성 |
+
+---
+
+## Changelog
+
+### v4.0 (2026-01-22)
+- D9, D9_norm, D9_resized 추가
+- 상세 프리셋 비교표 추가
+- D7.1 vs D9_resized 동일성 확인
 
 ### v3.0 (2026-01-20)
-- Added D7.1, D7.2 presets
-- Created modular config system
-- Archived 104 legacy configs
-- Unified preprocessing entry point
-
-### v2.0 (2026-01-19)
-- D7 PP-centered shift paradigm
-- Temporal split variants
-
-### v1.0 (2026-01-17)
-- Initial D1-D4 object-centered approach
+- D7.1, D7.2 추가
+- 모듈화 config 시스템
 
 ---
 
-*Last updated: 2026-01-20*
+*Last updated: 2026-01-22*
