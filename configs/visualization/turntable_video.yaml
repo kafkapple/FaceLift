@@ -1,0 +1,13 @@
+# Turntable Video Configuration
+# Add to experiment config to enable turntable mp4 generation
+
+visualization:
+  turntable:
+    num_views: 64
+    resolution: 384
+    elevation: 20
+    radius: 2.7
+    trajectory_mode: dataset_cameras
+    include_dataset_views: true
+    save_video: true
+    fps: 30

@@ -598,6 +598,12 @@ class GSLRMTrainer:
         
     def _summarize_evaluation_results(self, evaluation_folder: str):
         """Summarize evaluation metrics into a CSV file."""
+        # Check if folder exists
+        if not os.path.exists(evaluation_folder):
+            os.makedirs(evaluation_folder, exist_ok=True)
+            print(f"Created validation folder: {evaluation_folder}")
+            return  # No results to summarize yet
+        
         # Get all subdirectories
         subfolders = [
             os.path.join(evaluation_folder, o)

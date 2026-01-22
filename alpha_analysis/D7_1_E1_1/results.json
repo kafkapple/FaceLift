@@ -1,0 +1,16 @@
+{
+  "checkpoint": "checkpoints/_temp/D7_1_E1_1_paper_random/ckpt_0000000000002300.pt",
+  "config": "configs/mouse/D7_1_E1_1_paper_random.yaml",
+  "sample_dir": "/home/joon/data/preprocessed/FaceLift_mouse/D7_1/train/000000",
+  "has_gt": false,
+  "alpha_stats": {
+    "min": 0.946045994758606,
+    "max": 0.9998999834060669,
+    "mean": 0.9998942613601685,
+    "std": 0.00020860332006122917,
+    "median": 0.9998977184295654,
+    "pct_above_0.5": 100.0,
+    "pct_above_0.7": 100.0,
+    "pct_above_0.9": 100.0
+  }
+}

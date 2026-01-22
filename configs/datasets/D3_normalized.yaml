@@ -1,0 +1,15 @@
+# Dataset: D3_normalized
+# Triangulation center + actual PP + camera normalization
+# Status: deprecated - use D7_1 for PP-centered version
+
+_name: D3_normalized
+_description: "Triangulation center, actual PP, normalized (fx=549, dist=2.7)"
+_split_type: random
+_status: deprecated
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D3_normalized/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D3_normalized/data_mouse_val.txt

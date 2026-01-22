@@ -1,0 +1,23 @@
+# Dataset: D9
+# Original resolution, no transformation, 100% geometry accuracy
+# Generated: 2026-01-22 17:54:19
+
+_name: D9
+_description: "Original resolution, no transformation, 100% geometry accuracy"
+_category: native
+_preprocessing:
+  paradigm: native
+  transform: none
+  target_fx: original
+  output_size: original
+
+training:
+  dataset:
+    dataset_path: /tmp/D9_test/data_mouse_train.txt
+
+validation:
+  dataset_path: /tmp/D9_test/data_mouse_val.txt
+
+_stats:
+  num_train: 3
+  num_val: 0

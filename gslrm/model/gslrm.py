@@ -662,8 +662,9 @@ class LossComputer(nn.Module):
                 pred_mask = (rendered_alpha_bv > alpha_threshold).float()
             else:
                 # Fallback: RGB-based detection (removebg style)
+                rgb_threshold = self.config.training.losses.get("pred_mask_threshold", 0.1)
                 color_distance = (rendering_bv - 1.0).abs().mean(dim=2, keepdim=True)  # [b, v, 1, h, w]
-                pred_mask = (color_distance > 0.1).float()
+                pred_mask = (color_distance > rgb_threshold).float()
             
             pred_mask_rgb = pred_mask.expand(-1, -1, 3, -1, -1)
             pred_mask_overlay = pred_mask_rgb * fg_color + (1 - pred_mask_rgb) * bg_color
@@ -676,9 +677,10 @@ class LossComputer(nn.Module):
 
             # Apply union mask to error (show errors in GT OR Pred foreground)
             gt_mask_binary = (mask_bv > 0.5).float()
-            # Compute pred mask from rendered (removebg style)
+            # Compute pred mask from rendered (removebg style, use config threshold)
+            union_rgb_threshold = self.config.training.losses.get("pred_mask_threshold", 0.1)
             pred_color_dist = (rendering_bv - 1.0).abs().mean(dim=2, keepdim=True)
-            pred_mask_binary = (pred_color_dist > 0.1).float()
+            pred_mask_binary = (pred_color_dist > union_rgb_threshold).float()
             # Union: show error where GT OR Pred has foreground
             union_mask = ((gt_mask_binary + pred_mask_binary) > 0.5).float()
             masked_error = error * union_mask
@@ -2301,11 +2303,9 @@ def compute_pred_mask_for_visualization(
     rendered_alpha: Optional[torch.Tensor],
     config,
     channel_dim: int = 1,
-) -> torch.Tensor:
+) -> Optional[torch.Tensor]:
     """
     Compute predicted mask based on mask_mode configuration.
-    
-    Centralizes mask computation logic to avoid code duplication.
     
     Args:
         rendering: Rendered RGB tensor [..., 3, H, W] or [..., H, W, 3]
@@ -2314,17 +2314,39 @@ def compute_pred_mask_for_visualization(
         channel_dim: Dimension of channel axis (default 1 for [B, 3, H, W])
     
     Returns:
-        pred_mask: Binary mask tensor [..., 1, H, W]
+        pred_mask: Binary mask tensor [..., 1, H, W] or None
+    
+    Mask Modes:
+        - "none" / None: No masking, returns None
+        - "alpha": Use rendered alpha with threshold
+        - "rgb_pred": Detect foreground by color distance from white
+        - "gt": Ground truth mask (handled externally, returns None here)
     """
     mask_mode = config.training.losses.get("mask_mode", None)
     
-    if rendered_alpha is not None and mask_mode == "alpha":
-        # Use rendered_alpha with threshold
-        alpha_threshold = config.training.losses.get("alpha_mask_threshold", 0.5)
-        return (rendered_alpha > alpha_threshold).float()
-    else:
-        # Fallback: RGB-based detection (removebg style)
-        # Pixels far from white (1.0) are foreground
+    # No masking
+    if mask_mode is None or mask_mode == "none":
+        return None
+    
+    # Alpha-based masking
+    if mask_mode == "alpha":
+        if rendered_alpha is None:
+            # Fallback to rgb_pred if alpha not available
+            mask_mode = "rgb_pred"
+        else:
+            alpha_threshold = config.training.losses.get("alpha_mask_threshold", 0.5)
+            return (rendered_alpha > alpha_threshold).float()
+    
+    # RGB-based detection (for rgb_pred mode or alpha fallback)
+    if mask_mode == "rgb_pred":
+        pred_threshold = config.training.losses.get("pred_mask_threshold", 0.1)
         color_distance = (rendering - 1.0).abs().mean(dim=channel_dim, keepdim=True)
-        return (color_distance > 0.1).float()
+        return (color_distance > pred_threshold).float()
+    
+    # GT mask is provided externally
+    if mask_mode == "gt":
+        return None
+    
+    # Unknown mode - return None
+    return None
 

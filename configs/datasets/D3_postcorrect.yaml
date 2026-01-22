@@ -1,0 +1,15 @@
+# Dataset: D3_postcorrect
+# Triangulation center + post-hoc PP correction
+# Status: deprecated - use D7_1 for correct PP handling
+
+_name: D3_postcorrect
+_description: "Triangulation center with post-correction, NO normalization"
+_split_type: random
+_status: deprecated
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D3_postcorrect/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D3_postcorrect/data_mouse_val.txt
