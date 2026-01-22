@@ -1,4 +1,4 @@
-> **Navigation**: [← MoC Dashboard](./reports/00_MoC_INDEX.md) | [Quick Reference](./MOUSE_QUICK_REFERENCE.md) | [Preprocessing](./PREPROCESSING_REGISTRY.md) | [Alpha Guide](./ALPHA_MASK_COMPLETE_GUIDE.md)
+> **Navigation**: [← MoC](../../00_MoC_INDEX.md) | [Practical](../../practical/) | [Theory](../)
 
 # GS-LRM Loss Formula
 
