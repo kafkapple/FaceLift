@@ -21,6 +21,9 @@ FaceLift Mouse 프로젝트에서 사용하는 데이터셋 출처 및 구조.
 | **프레임/비디오** | 3000 프레임 |
 | **샘플링** | 100 프레임/비디오 |
 | **총 샘플 수** | **7,200개** |
+| **원본 FPS** | 300 fps |
+| **샘플링 간격** | 5 frames (frame_jump=5) |
+| **유효 FPS** | 60 fps (300/5) |
 
 ### 1.2 Data URLs
 
@@ -38,6 +41,23 @@ FaceLift Mouse 프로젝트에서 사용하는 데이터셋 출처 및 구조.
 |------|------|
 | **Human Annotation** | 172개 샘플 (1,032 이미지), 22개 랜드마크 수작업 라벨링 |
 | **Model Prediction** | DANNCE 모델로 전체 비디오 키네마틱/행동 예측 |
+
+### 1.4 Sampling Strategy
+
+| 항목 | 값 | 설명 |
+|------|-----|------|
+| **원본 FPS** | 300 fps | 고속 카메라 촬영 |
+| **frame_jump** | 5 | 5프레임마다 1개 샘플링 |
+| **유효 FPS** | 60 fps | 실제 학습 데이터 시간 해상도 |
+| **프레임/비디오** | 3000 → 600 | 샘플링 후 프레임 수 |
+
+**⚠️ MAMMAL과 정렬 주의**:
+- MAMMAL: interval=1 (매 프레임)
+- Pose-Splatter: frame_jump=5
+- **불일치 시 temporal mismatch 발생**
+
+---
+
 
 ### 1.4 Landmark Definition (22 keypoints)
 
