@@ -756,3 +756,166 @@ Scene-level 일반화가 필요한 경우(다양한 장면)에만 중심 이동 
 
 *Updated: 2026-01-23*
 *Reference: GS-LRM Paper Analysis*
+
+
+---
+
+## 12. 카메라 시각화 구현
+
+### 12.1 시각화 구성 요소
+
+| 요소 | 설명 | C2W 행렬 사용 |
+|------|------|---------------|
+| **카메라 위치** | 3D 공간에서 카메라 원점 | `c2w[:3, 3]` |
+| **시선 방향** | 카메라가 바라보는 방향 화살표 | `c2w[:3, 2]` |
+| **카메라 Frustum** | 시야각(FOV) 표현 피라미드 | intrinsics + c2w |
+| **이미지 Billboard** | 카메라 앞에 배치된 RGB 이미지 | c2w + focal length |
+
+### 12.2 구현 상세
+
+#### 12.2.1 카메라 위치 (Position)
+
+```python
+# C2W에서 직접 추출
+camera_position = c2w[:3, 3]  # [x, y, z]
+
+# W2C에서 계산 (역변환)
+R = w2c[:3, :3]
+t = w2c[:3, 3]
+camera_position = -R.T @ t
+```
+
+#### 12.2.2 시선 방향 (Viewing Direction)
+
+```python
+# OpenCV convention: +Z가 카메라 전방
+viewing_direction = c2w[:3, 2]  # 카메라 Z축
+
+# 시각화용 화살표 (카메라 위치에서 시작)
+arrow_start = camera_position
+arrow_end = camera_position + viewing_direction * arrow_length
+```
+
+> **주의**: OpenCV에서 카메라는 +Z 방향을 바라봄. 일부 렌더러(OpenGL)는 -Z.
+
+#### 12.2.3 카메라 Frustum (FOV 피라미드)
+
+```python
+def compute_frustum_corners(c2w, fx, fy, cx, cy, width, height, near=0.1, far=1.0):
+    """
+    Frustum 8개 꼭짓점 계산 (near/far plane 각 4개)
+    """
+    # 이미지 모서리의 normalized 좌표
+    corners_2d = [
+        [0, 0],           # top-left
+        [width, 0],       # top-right
+        [width, height],  # bottom-right
+        [0, height],      # bottom-left
+    ]
+
+    frustum_points = []
+    for z in [near, far]:
+        for u, v in corners_2d:
+            # Pixel → Normalized → Camera → World
+            x_n = (u - cx) / fx
+            y_n = (v - cy) / fy
+
+            # Camera 좌표 (depth = z)
+            p_cam = np.array([x_n * z, y_n * z, z, 1])
+
+            # World 좌표
+            p_world = c2w @ p_cam
+            frustum_points.append(p_world[:3])
+
+    return np.array(frustum_points)
+```
+
+#### 12.2.4 이미지 Billboard
+
+```python
+def place_image_billboard(c2w, fx, image, distance=0.5):
+    """
+    카메라 앞 distance 위치에 이미지 평면 배치
+    """
+    H, W = image.shape[:2]
+
+    # Billboard 크기 (실제 투영 크기)
+    billboard_width = W * distance / fx
+    billboard_height = H * distance / fx
+
+    # Billboard 중심 (카메라 앞 distance 위치)
+    center = c2w[:3, 3] + c2w[:3, 2] * distance
+
+    # Billboard 좌표축
+    right = c2w[:3, 0] * billboard_width / 2
+    up = -c2w[:3, 1] * billboard_height / 2  # Y 반전 (이미지 좌표계)
+
+    # 4개 모서리
+    corners = [
+        center - right + up,   # top-left
+        center + right + up,   # top-right
+        center + right - up,   # bottom-right
+        center - right - up,   # bottom-left
+    ]
+
+    return corners, image
+```
+
+### 12.3 시각화 예시 코드 (Matplotlib)
+
+```python
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+def visualize_cameras(c2w_list, colors=None):
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='3d')
+
+    for i, c2w in enumerate(c2w_list):
+        pos = c2w[:3, 3]
+        direction = c2w[:3, 2]
+
+        # 카메라 위치 (점)
+        color = colors[i] if colors else 'blue'
+        ax.scatter(*pos, c=color, s=50, label=f'Cam {i}')
+
+        # 시선 방향 (화살표)
+        ax.quiver(*pos, *direction, length=0.3, color=color, arrow_length_ratio=0.2)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.legend()
+    plt.show()
+```
+
+### 12.4 FaceLift Mouse 카메라 배치
+
+```
+Top View (XY plane):
+         Y
+         ^
+         |
+    [2]  |  [1]
+      \  |  /
+       \ | /
+    [3]--*--[0]  → X
+       / | \
+      /  |  \
+    [4]  |  [5]
+         |
+
+Side View (XZ plane):
+         Z (up)
+         ^
+         |   [5] elevation +30.8° ⚠️
+        /|\
+       / | \
+      /  |  \
+   [0-4] |   → X
+         |
+```
+
+**View 5 특이점**: 다른 뷰(elevation ~0°) 대비 +30.8° 높은 각도
+
+---
