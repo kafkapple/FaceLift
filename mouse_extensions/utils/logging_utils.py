@@ -73,9 +73,9 @@ def get_experiment_info(config) -> Dict[str, Any]:
         "dataset_version": extract_version(dataset.dataset_path),
         "dataset_name": extract_dataset_name(dataset.dataset_path),
         # View configuration
-        "num_input_views": dataset.num_input_views,
-        "total_views": dataset.num_views,
-        "input_ratio": dataset.num_input_views / dataset.num_views,
+        "num_input_views": config.model.get("num_input_views", 6),
+        "total_views": config.model.get("num_views", 8),
+        "input_ratio": config.model.get("num_input_views", 6) / config.model.get("num_views", 8),
         "random_view_selection": dataset.get("random_view_selection", False),
         # Mask configuration
         "use_masked_loss": losses.get("masked_l2_loss", False),
