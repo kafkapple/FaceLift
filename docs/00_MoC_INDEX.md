@@ -18,14 +18,17 @@ docs/
 │   └── experiments/             # 실험 파이프라인
 │
 ├── theory/                       📚 이론 문서
-│   ├── model/                   # GS-LRM 아키텍처 ★
+│   ├── model/                   # GS-LRM 아키텍처
 │   ├── camera/                  # MVG, 카메라 기하학
 │   ├── loss/                    # Loss 수식, 가중치
 │   ├── mask/                    # Mask, Alpha 이론
 │   └── metrics/                 # 평가 지표
 │
+├── reference/                    📖 참조 문서
+├── tutorials/                    📘 튜토리얼 (Step 0-5)
+├── troubleshooting/              🔧 문제 해결
 ├── reports/                      📊 날짜별 보고서
-└── legacy/                       ⚠️ Deprecated
+└── _archive/                     🗄️ 아카이브 (정리된 구문서)
 ```
 
 ---
@@ -59,7 +62,7 @@ docs/
 
 ## 📚 Theory (이론 문서)
 
-### Model (아키텍처) ★ NEW
+### Model (아키텍처)
 | 문서 | 내용 |
 |------|------|
 | **[GS-LRM_ARCHITECTURE_GUIDE](./theory/model/GS-LRM_ARCHITECTURE_GUIDE.md)** | 3DGS vs GS-LRM, 픽셀당 Gaussian |
@@ -68,8 +71,7 @@ docs/
 ### Camera (MVG, 카메라 기하학)
 | 문서 | 내용 |
 |------|------|
-| **[coordinate_transformation_guide](./theory/camera/coordinate_transformation_guide.md)** | 좌표계 변환, 정규화 이론 |
-| [Camera_Preprocessing_Analysis_Report](./theory/camera/Camera_Preprocessing_Analysis_Report.md) | 카메라 행렬 분석 |
+| **[coordinate_transformation_guide](./theory/camera/coordinate_transformation_guide.md)** | 좌표계 변환, 정규화 이론, 시각화 |
 
 ### Loss (손실 함수)
 | 문서 | 내용 |
@@ -86,6 +88,32 @@ docs/
 |------|------|
 | **[ALPHA_MASK_COMPLETE_GUIDE](./theory/mask/ALPHA_MASK_COMPLETE_GUIDE.md)** | mask_mode, alpha_loss, 시각화 |
 | [Research_Note_Mask_Binarization_Issue](./theory/mask/Research_Note_Mask_Binarization_Issue.md) | 마스크 이진화 이슈 분석 |
+
+---
+
+## 📖 Reference & Tutorials
+
+### Reference (참조)
+| 문서 | 내용 |
+|------|------|
+| [Code_Location_Registry](./reference/Code_Location_Registry.md) | 핵심 코드 위치 |
+| [Config_Options](./reference/Config_Options.md) | 설정 옵션 상세 |
+| [Project_Structure](./reference/Project_Structure.md) | 프로젝트 구조 |
+
+### Tutorials (튜토리얼)
+| 단계 | 문서 | 내용 |
+|------|------|------|
+| 0 | [Branch_Setup](./tutorials/Step0_Branch_Setup.md) | 브랜치 설정 |
+| 1 | [Fork_and_Setup](./tutorials/Step1_Fork_and_Setup.md) | 포크 및 환경 |
+| 2 | [Mouse_Dataset](./tutorials/Step2_Mouse_Dataset.md) | 데이터셋 준비 |
+| 3 | [Preprocessing](./tutorials/Step3_Preprocessing.md) | 전처리 |
+| 4 | [Config_Setup](./tutorials/Step4_Config_Setup.md) | 설정 |
+| 5 | [Training](./tutorials/Step5_Training.md) | 학습 |
+
+### Troubleshooting (문제 해결)
+| 문서 | 내용 |
+|------|------|
+| [clip_tokenizer_error](./troubleshooting/clip_tokenizer_merges_error.md) | CLIP 토크나이저 오류 |
 
 ---
 
@@ -132,44 +160,19 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 
 ---
 
-
-## 📖 Reference & Tutorials
-
-### Reference (참조)
-| 문서 | 내용 |
-|------|------|
-| [Code_Location_Registry](./reference/Code_Location_Registry.md) | 핵심 코드 위치 |
-| [Config_Options](./reference/Config_Options.md) | 설정 옵션 상세 |
-| [Project_Structure](./reference/Project_Structure.md) | 프로젝트 구조 |
-
-### Tutorials (튜토리얼)
-| 단계 | 문서 | 내용 |
-|------|------|------|
-| 0 | [Branch_Setup](./tutorials/Step0_Branch_Setup.md) | 브랜치 설정 |
-| 1 | [Fork_and_Setup](./tutorials/Step1_Fork_and_Setup.md) | 포크 및 환경 |
-| 2 | [Mouse_Dataset](./tutorials/Step2_Mouse_Dataset.md) | 데이터셋 준비 |
-| 3 | [Preprocessing](./tutorials/Step3_Preprocessing.md) | 전처리 |
-| 4 | [Config_Setup](./tutorials/Step4_Config_Setup.md) | 설정 |
-| 5 | [Training](./tutorials/Step5_Training.md) | 학습 |
-
-### Troubleshooting (문제 해결)
-| 문서 | 내용 |
-|------|------|
-| [clip_tokenizer_error](./troubleshooting/clip_tokenizer_merges_error.md) | CLIP 토크나이저 오류 |
-
----
-## 📁 Archive & Legacy
+## 🗄️ Archive
 
 ### Reports
 | 위치 | 내용 |
 |------|------|
-| [reports/archive/](./reports/archive/) | 날짜별 보고서 |
+| [reports/](./reports/) | 날짜별 분석 보고서 |
 
-### Legacy (⚠️ Deprecated)
-| 문서 | 상태 |
+### Archive (정리된 구문서)
+| 폴더 | 내용 |
 |------|------|
-| [D7_SCALE_MODES](./legacy/D7_SCALE_MODES.md) | ⚠️ D7 시리즈 레거시 |
-| [v3_vs_v5_comparison](./legacy/v3_vs_v5_comparison.md) | ⚠️ 초기 버전 비교 |
+| [_archive/camera/](./_archive/camera/) | 이전 카메라 문서 |
+| [_archive/guides/](./_archive/guides/) | 이전 가이드 문서 |
+| [_archive/legacy/](./_archive/legacy/) | 레거시 문서 |
 
 ---
 
@@ -195,19 +198,16 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 |----------|------|------|
 | Practical | MOUSE_QUICK_REFERENCE | ✅ Active |
 | Practical/datasets | PREPROCESSING_REGISTRY | ✅ Active |
-| Practical/datasets | MOUSE_DATASET | ✅ Active |
-| Theory/model | GS-LRM_ARCHITECTURE_GUIDE | ✅ Active ★ NEW |
-| Theory/model | FLOATER_ARTIFACT_ANALYSIS | ✅ Active ★ NEW |
+| Theory/model | GS-LRM_ARCHITECTURE_GUIDE | ✅ Active |
+| Theory/model | FLOATER_ARTIFACT_ANALYSIS | ✅ Active |
 | Theory/camera | coordinate_transformation_guide | ✅ Active |
 | Theory/loss | GS-LRM_Loss_Formula | ✅ Active |
 | Theory/mask | ALPHA_MASK_COMPLETE_GUIDE | ✅ Active |
 | Theory/metrics | METRICS_GUIDE | ✅ Active |
 | Reference | Code_Location_Registry | ✅ Active |
-| Reference | Config_Options | ✅ Active |
 | Tutorials | Step0-5 | ✅ Active |
-| Troubleshooting | clip_tokenizer_error | ✅ Active |
 | MoC | 00_MoC_INDEX (이 문서) | ✅ Active |
 
 ---
 
-*FaceLift Mouse Project | MoC Dashboard v3.1 | 2026-01-23*
+*FaceLift Mouse Project | MoC Dashboard v3.2 | 2026-01-23*
