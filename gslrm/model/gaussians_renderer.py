@@ -109,6 +109,97 @@ def add_camera_overlay(image: np.ndarray, text: str) -> np.ndarray:
     return img
 
 
+def add_row_labels_to_grid(
+    grid_image: np.ndarray,
+    camera_order: list,
+    grid_rows: int,
+    grid_cols: int,
+    row_height: int,
+    label_height: int = 25,
+    loop: bool = True
+) -> np.ndarray:
+    """
+    Add row labels like 'Cam 1->3' to the top of each row in the grid.
+    
+    Args:
+        grid_image: [H, W, 3] uint8 image
+        camera_order: e.g., [1, 3, 5, 0, 4, 2] for 360 deg traversal
+        grid_rows: Number of rows in the grid
+        grid_cols: Number of columns in the grid
+        row_height: Height of each cell in pixels
+        label_height: Height of label bar in pixels
+        loop: Whether camera path loops back to start
+    
+    Returns:
+        Image with label bars added (height increases by label_height * grid_rows)
+    """
+    h, w = grid_image.shape[:2]
+    
+    # Build camera order including loop-back if needed
+    full_order = list(camera_order)
+    if loop and full_order[0] != full_order[-1]:
+        full_order = full_order + [full_order[0]]
+    
+    # Calculate frames per segment
+    total_frames = grid_rows * grid_cols
+    num_segments = len(full_order) - 1
+    frames_per_segment = total_frames / num_segments if num_segments > 0 else total_frames
+    
+    # Build segment info for each row
+    row_labels = []
+    for row_idx in range(grid_rows):
+        row_start_frame = row_idx * grid_cols
+        row_end_frame = row_start_frame + grid_cols - 1
+        
+        # Find which segment(s) this row spans
+        start_seg = int(row_start_frame / frames_per_segment) if frames_per_segment > 0 else 0
+        end_seg = int(row_end_frame / frames_per_segment) if frames_per_segment > 0 else 0
+        
+        start_seg = min(start_seg, num_segments - 1)
+        end_seg = min(end_seg, num_segments - 1)
+        
+        if start_seg == end_seg:
+            from_cam = full_order[start_seg]
+            to_cam = full_order[start_seg + 1]
+            row_labels.append(f"Cam {from_cam} -> {to_cam}")
+        else:
+            from_cam = full_order[start_seg]
+            to_cam = full_order[end_seg + 1]
+            row_labels.append(f"Cam {from_cam} -> {to_cam}")
+    
+    # Create new image with label bars
+    new_height = h + label_height * grid_rows
+    result = np.zeros((new_height, w, 3), dtype=np.uint8)
+    
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.5
+    font_thick = 1
+    
+    for row_idx in range(grid_rows):
+        # Position of this row's label bar
+        label_y = row_idx * (row_height + label_height)
+        # Position of this row's image data
+        img_y = label_y + label_height
+        
+        # Copy image row
+        src_start = row_idx * row_height
+        src_end = src_start + row_height
+        result[img_y:img_y + row_height, :] = grid_image[src_start:src_end, :]
+        
+        # Draw label bar (dark background)
+        result[label_y:label_y + label_height, :] = (30, 30, 30)
+        
+        # Add text
+        text = row_labels[row_idx]
+        (tw, th), _ = cv2.getTextSize(text, font, font_scale, font_thick)
+        text_x = 10
+        text_y = label_y + (label_height + th) // 2
+        cv2.putText(result, text, (text_x, text_y), font, font_scale, (255, 255, 255), font_thick)
+    
+    return result
+
+
+
 @torch.no_grad()
 def get_turntable_cameras(
     hfov=50,

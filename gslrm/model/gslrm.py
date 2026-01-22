@@ -67,6 +67,7 @@ from .gaussians_renderer import (
     render_dataset_trajectory,
     get_turntable_with_dataset_views,
     add_camera_overlay,
+    add_row_labels_to_grid,
 )
 from .transform_data import SplitData, TransformInput, TransformTarget
 from .utils_transformer import (
@@ -1506,7 +1507,7 @@ class GSLRM(nn.Module):
             # Render turntable visualization (8x8 = 64 views for comprehensive coverage)
             # Get turntable config
             turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
-            turntable_views = turntable_cfg.get("num_views", 64)
+            turntable_views = turntable_cfg.get("num_views", 36)
             turntable_resolution = turntable_cfg.get("resolution", 384)
             turntable_elevation = turntable_cfg.get("elevation", 20)
             turntable_radius = turntable_cfg.get("radius", 2.7)
@@ -1567,13 +1568,21 @@ class GSLRM(nn.Module):
                 )
             
             # render_turntable returns: h x (views*w) x c
-            # Reshape to 8x8 grid layout
+            # Reshape to 6x6 grid layout (default)
             h_img = turntable_image.shape[0]
             w_per_view = turntable_image.shape[1] // turntable_views
             turntable_grid = turntable_image.reshape(h_img, turntable_views, w_per_view, 3)
-            grid_rows = turntable_cfg.get("grid_rows", 8)
-            grid_cols = turntable_cfg.get("grid_cols", 8)
+            grid_rows = turntable_cfg.get("grid_rows", 6)  # Default 6x6 grid
+            grid_cols = turntable_cfg.get("grid_cols", 6)
             turntable_grid = rearrange(turntable_grid, "h (rows cols) w c -> (rows h) (cols w) c", rows=grid_rows, cols=grid_cols)
+            
+            # Add row labels if enabled (e.g., "Cam 1 -> 3")
+            if turntable_cfg.get("add_row_labels", False):
+                camera_order = turntable_cfg.get("camera_order", [1, 3, 5, 0, 4, 2])
+                turntable_grid = add_row_labels_to_grid(
+                    turntable_grid, camera_order, grid_rows, grid_cols, h_img
+                )
+            
             Image.fromarray(turntable_grid).save(
                 os.path.join(output_directory, f"turntable_{item_uid}.jpg")
             )
@@ -1990,6 +1999,26 @@ class GSLRM(nn.Module):
                 turntable_frames = np.ascontiguousarray(turntable_frames)
                 
                 imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=30)
+                
+                # Also save 6x6 grid image for quick inspection
+                turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
+                grid_rows = turntable_cfg.get("grid_rows", 6)
+                grid_cols = turntable_cfg.get("grid_cols", 6)
+                grid_views = grid_rows * grid_cols
+                
+                # Use first grid_views frames for grid image
+                grid_frames = turntable_frames[:grid_views]  # (V, H, W, C)
+                h_img = grid_frames.shape[1]
+                grid_image = rearrange(grid_frames, "(rows cols) h w c -> (rows h) (cols w) c", rows=grid_rows, cols=grid_cols)
+                
+                # Add row labels if enabled
+                if turntable_cfg.get("add_row_labels", False):
+                    camera_order = turntable_cfg.get("camera_order", [1, 3, 5, 0, 4, 2])
+                    grid_image = add_row_labels_to_grid(
+                        grid_image, camera_order, grid_rows, grid_cols, h_img
+                    )
+                
+                Image.fromarray(grid_image).save(os.path.join(item_output_dir, "turntable_grid.jpg"))
                 
                 # Create turntable with input overlay
                 border_width = 2
