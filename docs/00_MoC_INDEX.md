@@ -18,9 +18,11 @@ docs/
 │   └── experiments/             # 실험 파이프라인
 │
 ├── theory/                       📚 이론 문서
+│   ├── model/                   # GS-LRM 아키텍처 ★
 │   ├── camera/                  # MVG, 카메라 기하학
 │   ├── loss/                    # Loss 수식, 가중치
-│   └── mask/                    # Mask, Alpha 이론
+│   ├── mask/                    # Mask, Alpha 이론
+│   └── metrics/                 # 평가 지표
 │
 ├── reports/                      📊 날짜별 보고서
 └── legacy/                       ⚠️ Deprecated
@@ -57,10 +59,16 @@ docs/
 
 ## 📚 Theory (이론 문서)
 
+### Model (아키텍처) ★ NEW
+| 문서 | 내용 |
+|------|------|
+| **[GS-LRM_ARCHITECTURE_GUIDE](./theory/model/GS-LRM_ARCHITECTURE_GUIDE.md)** | 3DGS vs GS-LRM, 픽셀당 Gaussian |
+| [FLOATER_ARTIFACT_ANALYSIS](./theory/model/FLOATER_ARTIFACT_ANALYSIS.md) | Ghosting 원인, 해결책 |
+
 ### Camera (MVG, 카메라 기하학)
 | 문서 | 내용 |
 |------|------|
-| [coordinate_transformation_guide](./theory/camera/coordinate_transformation_guide.md) | 좌표계 변환 이론 |
+| **[coordinate_transformation_guide](./theory/camera/coordinate_transformation_guide.md)** | 좌표계 변환, 정규화 이론 |
 | [Camera_Preprocessing_Analysis_Report](./theory/camera/Camera_Preprocessing_Analysis_Report.md) | 카메라 행렬 분석 |
 
 ### Loss (손실 함수)
@@ -162,6 +170,9 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 | Practical | MOUSE_QUICK_REFERENCE | ✅ Active |
 | Practical/datasets | PREPROCESSING_REGISTRY | ✅ Active |
 | Practical/datasets | MOUSE_DATASET | ✅ Active |
+| Theory/model | GS-LRM_ARCHITECTURE_GUIDE | ✅ Active ★ NEW |
+| Theory/model | FLOATER_ARTIFACT_ANALYSIS | ✅ Active ★ NEW |
+| Theory/camera | coordinate_transformation_guide | ✅ Active |
 | Theory/loss | GS-LRM_Loss_Formula | ✅ Active |
 | Theory/mask | ALPHA_MASK_COMPLETE_GUIDE | ✅ Active |
 | Theory/metrics | METRICS_GUIDE | ✅ Active |
@@ -169,4 +180,4 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 
 ---
 
-*FaceLift Mouse Project | MoC Dashboard v3.0 | 2026-01-23*
+*FaceLift Mouse Project | MoC Dashboard v3.1 | 2026-01-23*
