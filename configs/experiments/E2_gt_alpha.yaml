@@ -1,0 +1,11 @@
+# E2: GT Mask + Alpha Supervision ⭐ RECOMMENDED
+# mask_mode: gt + alpha_loss for shape convergence
+# Reference: LGM + Pose Splatter combined
+
+training:
+  losses:
+    mask_mode: gt
+    normalize_by_mask: true
+    alpha_loss_weight: 0.1
+    alpha_loss_type: mse
+    bg_loss_weight: 0.0

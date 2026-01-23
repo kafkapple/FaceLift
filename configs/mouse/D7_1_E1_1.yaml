@@ -1,0 +1,25 @@
+# D7_1_E1_1: GT Mask Only - P2
+# Experiment: E1 (GT mask, no alpha supervision)
+
+_base_:
+  - ../gslrm_base.yaml
+
+training:
+  dataset:
+    data_list: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_train.txt
+    num_views: 6
+    num_input_views: 5
+    random_view_selection: true
+
+  losses:
+    mask_mode: gt
+    normalize_by_mask: true
+    alpha_loss_weight: 0.0
+    bg_loss_weight: 0.0
+
+validation:
+  data_list: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_val.txt
+
+wandb:
+  name: D7_1_E1_1
+  tags: [D7_1, E1, gt_only, 5v, random]

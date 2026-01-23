@@ -226,3 +226,62 @@ configs/
 ---
 
 *Quick Reference v3.0 | 2026-01-24*
+
+## Quick Commands (v3.0)
+
+### P0: 권장 실험 (GT + Alpha Supervision)
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# 단일 실행
+CUDA_VISIBLE_DEVICES=5 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E2_1.yaml
+
+# 백그라운드 실행
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E2_1.yaml \
+    > logs/D7_1_E2_1.log 2>&1 &
+```
+
+### 전체 마스크 모드 비교 (병렬 실행)
+
+```bash
+# E0: Baseline (GPU 4)
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E0_1.yaml > logs/D7_1_E0_1.log 2>&1 &
+
+# E2: GT + Alpha ⭐ (GPU 5)
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E2_1.yaml > logs/D7_1_E2_1.log 2>&1 &
+
+# E1: GT Only (GPU 6)
+CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E1_1.yaml > logs/D7_1_E1_1.log 2>&1 &
+
+# E4: BG Penalty (GPU 7)
+CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E4_1.yaml > logs/D7_1_E4_1.log 2>&1 &
+```
+
+### View Ablation
+
+```bash
+# 5v (기본) vs 4v
+CUDA_VISIBLE_DEVICES=4 ... --config configs/mouse/D7_1_E2_1.yaml  # 5v
+CUDA_VISIBLE_DEVICES=5 ... --config configs/mouse/D7_1_E2_2.yaml  # 4v
+```
+
+### 실험 모니터링
+
+```bash
+# 로그 확인
+tail -f logs/D7_1_E2_1.log
+
+# GPU 사용량
+nvidia-smi -l 5
+
+# wandb 확인
+# https://wandb.ai/[project]/FaceLift
+```
+

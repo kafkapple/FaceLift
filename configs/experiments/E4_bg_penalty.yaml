@@ -1,31 +1,11 @@
-# =============================================================================
-# E4: Background Penalty (bg_loss)
-# =============================================================================
-# Literature: Object-Centric 2DGS (2025)
-# Purpose: Suppress background opacity for clean boundaries
-# =============================================================================
-
-_name: E4_bg_penalty
-_description: "Background opacity penalty"
-_mask_mode: bg_penalty
+# E4: Background Penalty - Object-Centric 2DGS Style
+# Alpha supervision + background loss penalty
+# Reference: Object-Centric 2DGS
 
 training:
-  dataset:
-    num_views: 6
-    num_input_views: 4
-    random_view_selection: true
-
   losses:
-    # No RGB masking
     mask_mode: none
     normalize_by_mask: false
-    
-    # Alpha supervision + background penalty
     alpha_loss_weight: 0.1
     alpha_loss_type: mse
-    bg_loss_weight: 0.5  # Background penalty
-    
-    # Standard losses
-    l2_loss_weight: 1.0
-    perceptual_loss_weight: 0.5
-    ssim_loss_weight: 0.0
+    bg_loss_weight: 0.5

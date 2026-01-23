@@ -1,0 +1,11 @@
+# E3: Alpha Supervision Only - LGM Style
+# No mask for L2/perceptual, only alpha supervision
+# Reference: LGM (MSE alpha loss)
+
+training:
+  losses:
+    mask_mode: none
+    normalize_by_mask: false
+    alpha_loss_weight: 0.1
+    alpha_loss_type: mse
+    bg_loss_weight: 0.0

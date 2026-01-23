@@ -1,0 +1,27 @@
+# D7_1_E0_1: Baseline (No Mask) - P1
+# Dataset: D7.1 (Individual scale, geometric correction)
+# Experiment: E0 (No mask, no alpha supervision)
+# SubNum: 1 (5v, random)
+
+_base_:
+  - ../gslrm_base.yaml
+
+training:
+  dataset:
+    data_list: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_train.txt
+    num_views: 6
+    num_input_views: 5
+    random_view_selection: true
+
+  losses:
+    mask_mode: none
+    normalize_by_mask: false
+    alpha_loss_weight: 0.0
+    bg_loss_weight: 0.0
+
+validation:
+  data_list: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_val.txt
+
+wandb:
+  name: D7_1_E0_1
+  tags: [D7_1, E0, baseline, 5v, random]

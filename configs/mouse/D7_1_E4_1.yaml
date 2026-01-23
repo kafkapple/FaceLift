@@ -1,0 +1,26 @@
+# D7_1_E4_1: Background Penalty - P4
+# Experiment: E4 (Alpha + BG penalty)
+
+_base_:
+  - ../gslrm_base.yaml
+
+training:
+  dataset:
+    data_list: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_train.txt
+    num_views: 6
+    num_input_views: 5
+    random_view_selection: true
+
+  losses:
+    mask_mode: none
+    normalize_by_mask: false
+    alpha_loss_weight: 0.1
+    alpha_loss_type: mse
+    bg_loss_weight: 0.5
+
+validation:
+  data_list: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_val.txt
+
+wandb:
+  name: D7_1_E4_1
+  tags: [D7_1, E4, bg_penalty, 5v, random]

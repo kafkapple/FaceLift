@@ -1,32 +1,11 @@
-# =============================================================================
-# E5: Composite (mask_mode: composite)
-# =============================================================================
-# Literature: Nerfstudio
-# Purpose: Implicit alpha supervision via background compositing
-# =============================================================================
-
-_name: E5_composite
-_description: "Background compositing (Nerfstudio style)"
-_mask_mode: composite
+# E5: Composite Background - Nerfstudio Style
+# Render with learned background, composite with GT
+# Reference: Nerfstudio
 
 training:
-  dataset:
-    num_views: 6
-    num_input_views: 4
-    random_view_selection: true
-
   losses:
-    # Composite mode
     mask_mode: composite
-    background_color: 1.0  # white
     normalize_by_mask: false
-    
-    # Optional: explicit alpha supervision
     alpha_loss_weight: 0.05
     alpha_loss_type: mse
     bg_loss_weight: 0.0
-    
-    # Standard losses
-    l2_loss_weight: 1.0
-    perceptual_loss_weight: 0.5
-    ssim_loss_weight: 0.0
