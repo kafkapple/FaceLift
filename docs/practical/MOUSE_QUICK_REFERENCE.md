@@ -58,7 +58,7 @@ CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E1_gt > logs/D7_1_E1_gt.log 2>&1 &
 
 # E4: BG Penalty (GPU 7)
-CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E4_bg_penalty > logs/D7_1_E4_bg_penalty.log 2>&1 &
 ```
 
@@ -96,3 +96,25 @@ ps aux | grep train_gslrm
 ---
 
 *FaceLift Mouse v3.2 | Modular Mode | 2026-01-23*
+
+---
+
+## 실험 변형 (Variants)
+
+| Experiment | 설명 | 사용 |
+|------------|------|------|
+| E2_gt_alpha_4v | 4-view 입력 | View ablation |
+| E2_gt_alpha_fixed | Fixed view order | Random vs Fixed 비교 |
+| E2_gt_alpha_overfit | 1-view overfit | 디버깅/sanity check |
+| E6_rgb_pred | RGB mask prediction | Deprecated, 비교용 |
+
+```bash
+# 4v ablation
+torchrun ... -d D7_1 -e E2_gt_alpha_4v
+
+# Fixed view order
+torchrun ... -d D7_1 -e E2_gt_alpha_fixed
+
+# Overfit test
+torchrun ... -d D7_1 -e E2_gt_alpha_overfit
+```
