@@ -197,3 +197,4 @@ reports/*.jpg
 # Archive folders
 */_archive/
 _archive/
+experiments/
