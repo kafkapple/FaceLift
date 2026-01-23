@@ -1,16 +1,21 @@
-# FaceLift Mouse Quick Reference v5.2
+# FaceLift Mouse Quick Reference v5.3
 
-> Last Updated: 2026-01-24 | Modular Mode | D7_1 Verified
+> Last Updated: 2026-01-24 | Modular Mode | D7_1 Verified | Complete Guide
 
 ---
 
 ## Table of Contents
 1. [Quick Start](#quick-start)
 2. [Baseline Comparison](#baseline-comparison)
-3. [Experiment Matrix](#experiment-matrix)
+3. [Experiment Priority Matrix](#experiment-priority-matrix)
 4. [Datasets](#datasets)
-5. [Commands](#commands)
-6. [Monitoring](#monitoring)
+5. [Experiments](#experiments)
+6. [Preprocessing](#preprocessing)
+7. [Complete Commands](#complete-commands)
+8. [Visualization & Analysis](#visualization--analysis)
+9. [Monitoring](#monitoring)
+10. [File Locations](#file-locations)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -20,7 +25,7 @@
 cd /home/joon/dev/FaceLift
 conda activate facelift
 
-# 권장 실험 (D7_1 검증됨)
+# P0 권장 실험 (D7_1 검증됨)
 CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E2_gt_alpha
 ```
@@ -52,118 +57,443 @@ CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
 
 ```bash
 # 원본 논문 설정 (lr=1e-4)
-CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_paper_original
+CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E0_paper_original > logs/D7_1_E0_paper.log 2>&1 &
 
 # 생쥐 적응 설정 (lr=1e-5)
-CUDA_VISIBLE_DEVICES=1 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_mouse_baseline
+CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E0_mouse_baseline > logs/D7_1_E0_mouse.log 2>&1 &
 ```
 
 ---
 
-## Experiment Matrix
+## Experiment Priority Matrix
 
-### Mask Mode 실험
+### 전체 우선순위 (Dataset × Experiment)
 
-| Experiment | mask_mode | alpha_loss | lr | Priority | 설명 |
-|------------|-----------|------------|-----|----------|------|
-| **E0_paper_original** | none | 0.0 | 1e-4 | P1 | 논문 원본 baseline |
-| **E0_mouse_baseline** | none | 0.0 | 1e-5 | P1 | 생쥐 finetuning |
-| **E2_gt_alpha** ⭐ | gt | 0.1 | base | **P0** | **GT + alpha (권장)** |
-| E2_gt_alpha_3v | gt | 0.1 | base | P2 | 3-view 강건성 |
-| E2_gt_alpha_5v | gt | 0.1 | base | P2 | 5-view 최대 정보 |
-| E1_gt | gt | 0.0 | base | P3 | GT mask only |
-| E7_alpha_optimized | alpha | 0.1 | base | P4 | Alpha threshold=0.6 |
+| Priority | Dataset | Experiment | 특징 | 상태 |
+|----------|---------|------------|------|------|
+| **P0** | **D7_1** | **E2_gt_alpha** | Affine + GT mask + α | ✅ Verified |
+| **P1** | D7_1 | E0_paper_original | 논문 원본 baseline | ✅ Ready |
+| **P1** | D7_1 | E0_mouse_baseline | 생쥐 finetuning | ✅ Ready |
+| **P2** | D7_1 | E2_gt_alpha_3v | 3-view 강건성 | ✅ Ready |
+| **P2** | D7_1 | E2_gt_alpha_5v | 5-view 최대 정보 | ✅ Ready |
+| **P3** | D8 | E2_gt_alpha | Homography | ⚠️ Test needed |
+| **P4** | D8_1 | E2_gt_alpha | 1.3x zoom | ⚠️ Test needed |
 
-### 우선순위 설명
+### 실험 목적별 분류
 
-- **P0**: 권장 실험 (먼저 실행)
-- **P1**: 베이스라인 비교 (lr 차이 분석)
-- **P2**: View ablation (3v vs 4v vs 5v)
-- **P3-P4**: 보조 실험
+| 목적 | Dataset | Experiment | 설명 |
+|------|---------|------------|------|
+| **기준선** | D7_1 | E2_gt_alpha | 모든 비교의 기준 |
+| **베이스라인 비교** | D7_1 | E0_paper_original, E0_mouse_baseline | lr 영향 분석 |
+| **강건성** | D7_1 | E2_gt_alpha_3v | 적은 입력에서 성능 |
+| **최대 품질** | D7_1 | E2_gt_alpha_5v | 최대 정보 활용 |
+| **기하학 정밀** | D8 | E2_gt_alpha | Homography + skew |
 
 ---
 
 ## Datasets
 
-### 검증 상태
+### 데이터셋 비교표
 
-| Dataset | 상태 | 특징 |
-|---------|------|------|
-| **D7_1** ⭐ | ✅ 검증됨 | Affine, 기본 데이터셋 |
-| D8 | ⚠️ 테스트 필요 | Homography + skew |
-| D8_1 | ⚠️ 테스트 필요 | 1.3x zoom |
-| D9, D10 | 🗄️ 아카이브됨 | 미검증 |
+| Dataset | Paradigm | Transform | Zoom | PP | 상태 |
+|---------|----------|-----------|------|-----|------|
+| **D7_1** ⭐ | pp_centered | Affine (individual) | 1.0x | 256 | ✅ Verified |
+| D7_2 | pp_centered | Affine (average) | 1.0x | 256 | ✅ Ready |
+| D8 | precision | Homography+skew | 1.0x | 256 | ⚠️ Test needed |
+| D8_1 | precision | Homography+skew | 1.3x | var | ⚠️ Test needed |
+| D9 | native | None | - | orig | ⚠️ 검증 중 |
+| D10 | up_aligned | Homography | 1.0x | 256 | ⚠️ 전처리 중 |
 
 ### 데이터 경로
 
 ```
 /home/joon/data/preprocessed/FaceLift_mouse/
-├── D7_1/       ✅ (3238 train, 359 val)
-├── D8/         ⚠️ 테스트 필요
-└── D8_1/       ⚠️ 테스트 필요
+├── D7_1/       ✅ Verified (3238 train, 359 val)
+├── D7_2/       ✅ Ready
+├── D8/         ⚠️ Test needed
+├── D8_1/       ⚠️ Test needed
+├── D9/        ⚠️ 검증 중
+└── D10/       ⚠️ 전처리 중
 ```
 
 ---
 
-## Commands
+## Experiments
 
-### 기본 명령어
+### Modular Mode 구조
 
-```bash
-# 권장 실험
-python train_gslrm.py -d D7_1 -e E2_gt_alpha
+```
+train_gslrm.py -d <DATASET> -e <EXPERIMENT>
 
-# 베이스라인 비교
-python train_gslrm.py -d D7_1 -e E0_paper_original   # lr=1e-4
-python train_gslrm.py -d D7_1 -e E0_mouse_baseline   # lr=1e-5
-
-# View ablation
-python train_gslrm.py -d D7_1 -e E2_gt_alpha_3v      # 3 input views
-python train_gslrm.py -d D7_1 -e E2_gt_alpha_5v      # 5 input views
+configs/
+├── base/gslrm_mouse.yaml      # 공통 설정 (자동 로드)
+├── datasets/<DATASET>.yaml    # 데이터 경로
+└── experiments/<EXPERIMENT>.yaml  # 실험 설정
 ```
 
-### GPU 할당 예시
+### Mask Mode 실험 (E0-E5)
+
+| Experiment | mask_mode | alpha_loss | lr | Priority | 설명 |
+|------------|-----------|------------|-----|----------|------|
+| **E0_paper_original** | none | 0.0 | 1e-4 | P1 | 논문 원본 baseline |
+| **E0_mouse_baseline** | none | 0.0 | 1e-5 | P1 | 생쥐 finetuning |
+| E1_gt | gt | 0.0 | base | P4 | GT mask only |
+| **E2_gt_alpha** ⭐ | gt | 0.1 | base | **P0** | GT + alpha supervision |
+| E3_alpha | none | 0.1 | base | P5 | Alpha supervision only |
+| E4_bg_penalty | none | 0.1+bg | base | P4 | Background penalty |
+
+### View Ablation 실험
+
+| Experiment | Input | Holdout | Loss 계산 | 용도 |
+|------------|-------|---------|-----------|------|
+| E2_gt_alpha_3v | 3 | 3 | 3개 평균 | 강건성 테스트 |
+| **E2_gt_alpha** | 4 | 2 | 2개 평균 | **기본 (권장)** |
+| E2_gt_alpha_5v | 5 | 1 | 1개 | 최대 정보 |
+
+### View Selection
+
+| Experiment | random_view_selection | 설명 |
+|------------|----------------------|------|
+| E2_gt_alpha | true (default) | Random view order |
+| E2_gt_alpha_fixed | false | Fixed view order |
+
+---
+
+## Preprocessing
+
+### 통합 전처리
 
 ```bash
-# 병렬 실험
-CUDA_VISIBLE_DEVICES=0 python train_gslrm.py -d D7_1 -e E0_paper_original &
-CUDA_VISIBLE_DEVICES=1 python train_gslrm.py -d D7_1 -e E0_mouse_baseline &
-CUDA_VISIBLE_DEVICES=2 python train_gslrm.py -d D7_1 -e E2_gt_alpha &
+cd /home/joon/dev/FaceLift
+conda activate facelift
+
+# D7.1 전처리 (권장)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D7_1 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1
+```
+
+### Preset 목록
+
+```bash
+# 사용 가능한 preset 확인
+python -m mouse_extensions.preprocessing.preprocess --list-presets
+
+# Available: D7, D7.1, D7.2, D8, D8.1
+```
+
+### 전처리 검증
+
+```bash
+# 단일 데이터셋 검증
+python -m mouse_extensions.scripts.validate_preprocessing \
+    --dataset_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1
+
+# 카메라 파라미터 검증
+python -m mouse_extensions.scripts.diagnostics.validate_cameras \
+    --dataset_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1
+```
+
+### Split 생성
+
+```bash
+# Train/Val split 생성 (8:2)
+python -m mouse_extensions.preprocessing.generate_split \
+    --dataset_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \
+    --train_ratio 0.8
+```
+
+---
+
+## Complete Commands
+
+### 1. 권장 실험 (P0)
+
+```bash
+cd /home/joon/dev/FaceLift
+conda activate facelift
+
+# P0: D7_1 + E2_gt_alpha (권장, 검증됨)
+CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha > logs/D7_1_E2_gt_alpha.log 2>&1 &
+```
+
+### 2. 베이스라인 비교 (P1)
+
+```bash
+# P1: 논문 원본 baseline (lr=1e-4)
+CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E0_paper_original > logs/D7_1_E0_paper.log 2>&1 &
+
+# P1: 생쥐 finetuning baseline (lr=1e-5)
+CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E0_mouse_baseline > logs/D7_1_E0_mouse.log 2>&1 &
+```
+
+### 3. View Ablation (P2)
+
+```bash
+# P2: 3-view input (강건성)
+CUDA_VISIBLE_DEVICES=3 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
+
+# P2: 5-view input (최대 정보)
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
+```
+
+### 4. 기타 Mask Mode (P3-P4)
+
+```bash
+# P3: GT mask only
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E1_gt > logs/D7_1_E1_gt.log 2>&1 &
+
+# P4: Background penalty
+CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E4_bg_penalty > logs/D7_1_E4_bg.log 2>&1 &
+```
+
+### 5. D8 테스트 (미검증)
+
+```bash
+# P3: D8 (Homography) - 테스트 필요
+CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D8 -e E2_gt_alpha > logs/D8_E2_gt_alpha.log 2>&1 &
+```
+
+### 6. 병렬 실행 예시
+
+```bash
+# GPU 0-4에서 5개 실험 동시 실행
+CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha > logs/D7_1_E2.log 2>&1 &
+CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E0_paper_original > logs/D7_1_E0_paper.log 2>&1 &
+CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E0_mouse_baseline > logs/D7_1_E0_mouse.log 2>&1 &
+CUDA_VISIBLE_DEVICES=3 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
+```
+
+---
+
+## Visualization & Analysis
+
+### 1. Mask Mode 분석
+
+```bash
+# 마스크 모드 비교 분석
+python -m mouse_extensions.scripts.analysis.mask_mode_analysis \
+    --checkpoint checkpoints/gslrm/D7_1_E2_gt_alpha/latest.pt \
+    --output_dir outputs/mask_analysis
+```
+
+### 2. Alpha 분석
+
+```bash
+# Rendered alpha 분석
+python -m mouse_extensions.scripts.analysis.analyze_rendered_alpha \
+    --checkpoint checkpoints/gslrm/D7_1_E2_gt_alpha/latest.pt
+
+# Alpha threshold 분석
+python -m mouse_extensions.scripts.analysis.analyze_alpha_thresholds \
+    --checkpoint checkpoints/gslrm/D7_1_E2_gt_alpha/latest.pt
+```
+
+### 3. 카메라 시각화
+
+```bash
+# 카메라 설정 시각화
+python -m mouse_extensions.scripts.visualize_camera_setup_v4 \
+    --dataset_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \
+    --output_dir outputs/camera_viz
+```
+
+### 4. Temporal Turntable (동영상 생성)
+
+```bash
+# Turntable 동영상 생성
+python -m mouse_extensions.scripts.inference.temporal_turntable \
+    --checkpoint checkpoints/gslrm/D7_1_E2_gt_alpha/latest.pt \
+    --output_dir outputs/turntable \
+    --num_frames 60
+```
+
+### 5. Checkpoint 렌더링
+
+```bash
+# Checkpoint에서 렌더링
+python -m mouse_extensions.scripts.render_from_checkpoint \
+    --checkpoint checkpoints/gslrm/D7_1_E2_gt_alpha/latest.pt \
+    --input_dir /path/to/test/data \
+    --output_dir outputs/renders
 ```
 
 ---
 
 ## Monitoring
 
-### WandB
-
-- Project: `FaceLift-Mouse`
-- Key metrics: `train/loss`, `train/psnr`, `val/psnr`
-
 ### 로그 확인
 
 ```bash
 # 실시간 로그
-tail -f outputs/D7_1_E2_gt_alpha/*/train.log
+tail -f logs/D7_1_E2_gt_alpha.log
 
-# 최근 체크포인트
-ls -lt outputs/D7_1_*/checkpoints/ | head
+# 최근 로그
+tail -100 logs/D7_1_E2_gt_alpha.log
+
+# 에러만 확인
+grep -i error logs/D7_1_E2_gt_alpha.log
+
+# 여러 로그 동시 확인
+tail -f logs/D7_1_*.log
 ```
+
+### GPU 상태
+
+```bash
+# 실시간 GPU 모니터링
+watch -n 1 nvidia-smi
+
+# 특정 GPU만
+nvidia-smi -i 0,1,2,3
+
+# GPU 프로세스 확인
+nvidia-smi --query-compute-apps=pid,name,gpu_name,used_memory --format=csv
+```
+
+### WandB
+
+```
+Project: https://wandb.ai/joon/FaceLift
+Key metrics: train/loss, train/psnr, val/psnr, mask/fg_coverage
+```
+
+### 프로세스 관리
+
+```bash
+# 실행 중인 학습 확인
+ps aux | grep train_gslrm
+
+# 특정 GPU 프로세스
+nvidia-smi -i 0 --query-compute-apps=pid,name --format=csv
+
+# 프로세스 종료 (PID 확인 후)
+kill <PID>
+
+# ⚠️ 절대 사용 금지: killall python (다른 실험 종료됨)
+```
+
+### 주요 메트릭
+
+| 메트릭 | 설명 | 정상 범위 |
+|--------|------|----------|
+| train/loss | Total loss | 0.1~0.5 |
+| train/psnr | PSNR | 15~25 |
+| train/l2_loss | L2 reconstruction | 0.01~0.1 |
+| val/psnr | Validation PSNR | 15~25 |
+| mask/fg_coverage | Foreground coverage | 0.3~0.7 |
 
 ---
 
 ## File Locations
 
-| 항목 | 경로 |
+### Config
+
+| 항목 | 위치 |
 |------|------|
 | Base config | `configs/base/gslrm_mouse.yaml` |
 | Dataset configs | `configs/datasets/D*.yaml` |
 | Experiment configs | `configs/experiments/E*.yaml` |
+| Combined configs | `configs/mouse/D*_E*.yaml` |
+
+### Data
+
+| 항목 | 위치 |
+|------|------|
+| Raw data | `/home/joon/data/raw/markerless_mouse_*` |
+| Preprocessed | `/home/joon/data/preprocessed/FaceLift_mouse/` |
+| Train list | `{dataset}/data_mouse_train.txt` |
+| Val list | `{dataset}/data_mouse_val.txt` |
+
+### Model
+
+| 항목 | 위치 |
+|------|------|
+| Pretrained | `checkpoints/gslrm/ckpt_0000000000021125.pt` |
+| Experiment checkpoints | `checkpoints/gslrm/{dataset}_{experiment}/` |
 | Outputs | `outputs/{dataset}_{experiment}/` |
-| Checkpoints | `checkpoints/gslrm/` |
+
+### Code
+
+| 항목 | 위치 |
+|------|------|
+| Training script | `train_gslrm.py` |
+| Model | `gslrm/model/gslrm.py` |
+| Mouse extensions | `mouse_extensions/` |
+| Preprocessing | `mouse_extensions/preprocessing/` |
+| Analysis scripts | `mouse_extensions/scripts/analysis/` |
+| Visualization | `mouse_extensions/visualization/` |
+
+### Documentation
+
+| 항목 | 위치 |
+|------|------|
+| This document | `docs/practical/MOUSE_QUICK_REFERENCE.md` |
+| Preprocessing registry | `docs/PREPROCESSING_REGISTRY.md` |
+| Experiment registry | `docs/practical/experiments/EXPERIMENT_REGISTRY.md` |
 
 ---
 
-*v5.2 | 2026-01-24 | D7_1 Verified*
+## Troubleshooting
+
+### Config 오류
+
+```bash
+# Modular mode 권장 (Legacy mode 대신)
+python train_gslrm.py -d D7_1 -e E2_gt_alpha    # ✅ Modular
+python train_gslrm.py --config file.yaml        # ⚠️ Legacy
+```
+
+### 메모리 부족
+
+- `batch_size_per_gpu` 줄이기 (base config에서 2 → 1)
+- `num_workers` 줄이기
+
+### CUDA 오류
+
+```bash
+# GPU 상태 확인
+nvidia-smi
+
+# 특정 GPU 지정
+CUDA_VISIBLE_DEVICES=5 torchrun ...
+```
+
+### Pretrained checkpoint 오류
+
+```bash
+# 항상 pretrained 사용 확인
+ls checkpoints/gslrm/ckpt_0000000000021125.pt
+
+# Base config에 포함되어 있으므로 Modular mode 사용 시 자동 적용
+```
+
+---
+
+## See Also
+
+- [CONFIG_SCHEMA.md](config/CONFIG_SCHEMA.md) - Config 구조 상세
+- [PREPROCESSING_REGISTRY.md](../PREPROCESSING_REGISTRY.md) - 전처리 버전 기록
+- [configs/README.md](../../configs/README.md) - Config 시스템 개요
+- [EXPERIMENT_REGISTRY.md](experiments/EXPERIMENT_REGISTRY.md) - 실험 목록
+
+---
+
+*FaceLift Mouse Quick Reference v5.3 | Complete Guide | 2026-01-24*
