@@ -1587,7 +1587,7 @@ class GSLRM(nn.Module):
                     num_views=turntable_views,
                     camera_order=camera_order,
                     loop=loop_trajectory,
-                    show_overlay=True
+                    show_overlay=False
                 )
                 # turntable_frames: [num_views, H, W, 3]
                 turntable_image = rearrange(turntable_frames, "v h w c -> h (v w) c")
@@ -1673,7 +1673,7 @@ class GSLRM(nn.Module):
                     model_results.gaussians[batch_idx],
                     dataset_c2ws, dataset_fxfycxcy,
                     rendering_resolution=turntable_resolution,
-                    show_overlay=True
+                    show_overlay=False
                 )
                 # Arrange as horizontal strip
                 dataset_strip = rearrange(dataset_views, "v h w c -> h (v w) c")
