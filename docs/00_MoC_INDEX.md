@@ -1,6 +1,6 @@
 # FaceLift Mouse - Documentation Hub (MoC)
 
-> **Last Updated**: 2026-01-23
+> **Last Updated**: 2026-01-24
 > **Single Source of Truth** for all FaceLift Mouse documentation
 
 ---
@@ -57,6 +57,7 @@ docs/
 |------|------|
 | [EXPERIMENT_REGISTRY](./practical/experiments/EXPERIMENT_REGISTRY.md) | 실험 ID 레지스트리 |
 | [D9_MASK_EXPERIMENT_PIPELINE](./practical/experiments/D9_MASK_EXPERIMENT_PIPELINE.md) | D9 마스크 실험 |
+| **[Mask_Experiment_Priority](./practical/experiments/Mask_Experiment_Priority.md)** | D7 마스크 실험 우선순위 (P0-P4) ⭐ |
 
 ---
 
@@ -83,11 +84,12 @@ docs/
 |------|------|
 | **[METRICS_GUIDE](./theory/metrics/METRICS_GUIDE.md)** | PSNR, SSIM, mask_iou, 진단 가이드 |
 
-### Mask (마스크)
+### Mask (마스크) ⭐ Updated
 | 문서 | 내용 |
 |------|------|
 | **[ALPHA_MASK_COMPLETE_GUIDE](./theory/mask/ALPHA_MASK_COMPLETE_GUIDE.md)** | mask_mode, alpha_loss, 시각화 |
 | [Research_Note_Mask_Binarization_Issue](./theory/mask/Research_Note_Mask_Binarization_Issue.md) | 마스크 이진화 이슈 분석 |
+| **[Mask_Literature_Review](./theory/mask/Mask_Literature_Review.md)** | 문헌 기반 설계 (LGM, Pose Splatter) ⭐ |
 
 ---
 
@@ -210,4 +212,4 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 
 ---
 
-*FaceLift Mouse Project | MoC Dashboard v3.2 | 2026-01-23*
+*FaceLift Mouse Project | MoC Dashboard v3.3 | 2026-01-23*
