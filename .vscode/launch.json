@@ -1,0 +1,54 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug: Mask Training (D7_1 E1)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train_gslrm.py",
+            "args": [
+                "--config", "configs/mouse/mask_exp/D7_mask_E1_gt_alpha_sup.yaml"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Debug: Quick Test (5 steps)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train_gslrm.py",
+            "args": [
+                "--config", "configs/mouse/mask_exp/D7_mask_E1_gt_alpha_sup.yaml",
+                "training.max_steps=5",
+                "training.val_every=2"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Debug: Mask Analysis Script",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mouse_extensions.scripts.analysis.mask_mode_analysis",
+            "args": [
+                "--checkpoint", "checkpoints/gslrm/D7_1_E1/ckpt_step_1000.pt",
+                "--data_dir", "/home/joon/data/preprocessed/FaceLift_mouse/D7_1/val",
+                "--output_dir", "./experiments/analysis/debug_test"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

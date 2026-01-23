@@ -114,6 +114,7 @@ docs/
 | 3 | [Preprocessing](./tutorials/Step3_Preprocessing.md) | 전처리 |
 | 4 | [Config_Setup](./tutorials/Step4_Config_Setup.md) | 설정 |
 | 5 | [Training](./tutorials/Step5_Training.md) | 학습 |
+| ★ | **[VSCode_Debug_Mask_Guide](./tutorials/VSCode_Debug_Mask_Guide.md)** | **VS Code 마스크 디버깅** |
 
 ### Troubleshooting (문제 해결)
 | 문서 | 내용 |
@@ -221,4 +222,4 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 
 ---
 
-*FaceLift Mouse Project | MoC Dashboard v3.4 | 2026-01-24*
+*FaceLift Mouse Project | MoC Dashboard v3.5 | 2026-01-24*
