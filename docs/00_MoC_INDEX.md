@@ -73,6 +73,9 @@ docs/
 | 문서 | 내용 |
 |------|------|
 | **[coordinate_transformation_guide](./theory/camera/coordinate_transformation_guide.md)** | 좌표계 변환, 정규화 이론, 시각화 |
+| [center_estimation](./theory/camera/center_estimation.md) | Multi-view 중심 추정, Triangulation |
+| [mvg_virtual_zoom_theory](./theory/camera/mvg_virtual_zoom_theory.md) | 가상 줌 이론, 작은 객체 확대 |
+| [error_amplification_analysis](./theory/camera/error_amplification_analysis.md) | PP 오류 증폭 분석 |
 
 ### Loss (손실 함수)
 | 문서 | 내용 |
