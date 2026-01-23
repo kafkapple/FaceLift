@@ -1,6 +1,6 @@
 # FaceLift Mouse - Documentation Hub (MoC)
 
-> **Last Updated**: 2026-01-24
+> **Last Updated**: 2026-01-24 | **Version**: v3.4
 > **Single Source of Truth** for all FaceLift Mouse documentation
 
 ---
@@ -146,9 +146,12 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 
 | 우선순위 | 데이터셋 | 실험 | 목적 |
 |----------|---------|------|------|
-| P1 | D7.1 | E_quick_alpha | 기본 검증 (mask_mode=gt) |
-| P2 | D8 | E_quick_alpha | Skew 보정 비교 |
-| P3 | D7_5 | E_quick_alpha | 확대 마우스 |
+| **P0** ⭐ | D7_1 | E1_gt_alpha_sup | 문헌 기반 마스크 (LGM + Pose Splatter) |
+| P1 | D7_1 | E2_composite | Composite 모드 테스트 |
+| P2 | D7_1 | E3_bg_penalty | Background Penalty |
+| P3 | D8 | E_quick_alpha | Homography 정밀도 비교 |
+
+→ 상세: [EXPERIMENT_REGISTRY](./practical/experiments/EXPERIMENT_REGISTRY.md) | [Mask_Experiment_Priority](./practical/experiments/Mask_Experiment_Priority.md)
 
 ### 핵심 지표
 
@@ -199,6 +202,9 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 | 카테고리 | 문서 | 상태 |
 |----------|------|------|
 | Practical | MOUSE_QUICK_REFERENCE | ✅ Active |
+| Practical/experiments | EXPERIMENT_REGISTRY | ✅ Active |
+| Practical/experiments | Mask_Experiment_Priority | ✅ Active |
+| Theory/mask | Mask_Literature_Review | ✅ Active |
 | Practical/datasets | PREPROCESSING_REGISTRY | ✅ Active |
 | Theory/model | GS-LRM_ARCHITECTURE_GUIDE | ✅ Active |
 | Theory/model | FLOATER_ARTIFACT_ANALYSIS | ✅ Active |
@@ -212,4 +218,4 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 
 ---
 
-*FaceLift Mouse Project | MoC Dashboard v3.3 | 2026-01-23*
+*FaceLift Mouse Project | MoC Dashboard v3.4 | 2026-01-24*

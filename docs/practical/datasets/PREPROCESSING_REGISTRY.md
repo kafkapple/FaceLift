@@ -2,10 +2,24 @@
 
 # FaceLift Mouse Preprocessing Registry
 
-> **Version**: v4.1 (2026-01-22)
+> **Version**: v4.2 (2026-01-24)
 > **Single Source of Truth** for all preprocessing configurations
 
 ---
+
+## 권장 순위 (Quick Reference)
+
+| 순위 | Dataset | 용도 | PP | Ray Error | 상태 |
+|------|---------|------|-----|-----------|------|
+| **P0** ⭐ | **D7_1** | 표준 (기하학 정확) | 256 shift | ~0° | ✅ 검증됨 |
+| **P1** | **D8** | 최고 정밀도 (Homography) | 256 shift | ~0° | ✅ 검증됨 |
+| P2 | v13 | Legacy 비교용 (pixel scaling) | 256 강제 | ~5-13° | ⚠️ Ghosting |
+| P3 | D4 | PP=256 강제 비교용 (centering) | 256 강제 | ~5-13° | ⚠️ Ray error |
+
+> **비교 실험용 Legacy 데이터셋**:
+> - **v13**: 단순 pixel-based scaling, PP=256 강제 → Ghosting 원인 분석용
+> - **D4**: Object-centered crop + PP=256 강제 → PP 버그 영향 분석용
+
 
 ## 전처리 패러다임 개요
 
