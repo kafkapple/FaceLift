@@ -271,14 +271,25 @@ CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
 # GPU 0-4에서 5개 실험 동시 실행
 CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E2_gt_alpha > logs/D7_1_E2.log 2>&1 &
-CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E0_paper_original > logs/D7_1_E0_paper.log 2>&1 &
-CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E0_mouse_baseline > logs/D7_1_E0_mouse.log 2>&1 &
 CUDA_VISIBLE_DEVICES=3 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E2_gt_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
 CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E2_gt_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
+
+
+CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D8 -e E0_paper_original > logs/D8_E0_paper.log 2>&1 &
+CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D10 -e E0_paper_original > logs/D10_E0_paper.log 2>&1 &
+CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D10_1 -e E0_paper_original > logs/D10_1_E0_paper.log 2>&1 &
+CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D3_normalized -e E0_paper_original > logs/D3_normalized_E0_paper.log 2>&1 &
+    
 ```
 
 ---
@@ -497,3 +508,119 @@ ls checkpoints/gslrm/ckpt_0000000000021125.pt
 ---
 
 *FaceLift Mouse Quick Reference v5.3 | Complete Guide | 2026-01-24*
+
+---
+
+## D8.2: Adaptive Zoom Preprocessing (NEW)
+
+### 특징
+- **D8 기반**: Homography + skew correction (기하학적 정확도 유지)
+- **Adaptive Zoom**: bbox 기반 자동 확대 (생쥐가 프레임의 85% 차지)
+- **NO Up-Alignment**: D10의 좌표계 회전 문제 없음
+
+### 명령어
+```bash
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D8.2 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D8_2
+```
+
+### 기대 출력
+```
+Computing adaptive zoom (target fill: 0.85)
+  Adaptive zoom: 1.XXx
+Transform: homography, Scale: individual, Zoom: 1.XXx
+```
+
+### 기하학적 정확도 + Zoom 원리
+```
+Homography H = K' · K⁻¹ (projective transform)
+- fx' = fx × scale × zoom
+- PP shift: (cx,cy) → (256,256)
+- 3D→2D projection 관계 정확히 보존
+- Ray direction 보존
+```
+
+---
+
+## Temporal Turntable Video Generation
+
+### 용도
+연속 프레임에서 시간에 따른 3D 재구성 변화를 영상으로 생성
+
+### 명령어
+```bash
+cd /home/joon/dev/FaceLift
+CUDA_VISIBLE_DEVICES=0 python -m mouse_extensions.scripts.inference.temporal_turntable \
+    --checkpoint checkpoints/gslrm/D7_1_E0_paper_original/iter_XXXXX/model.pt \
+    --config checkpoints/gslrm/D7_1_E0_paper_original/config.yaml \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1/train \
+    --start_frame 0 \
+    --end_frame 30 \
+    --frame_step 1 \
+    --mode rotating \
+    --num_views 60 \
+    --resolution 384 \
+    --output_dir outputs/temporal_test
+```
+
+### 모드 옵션
+| 모드 | 설명 | 출력 |
+|------|------|------|
+| `temporal_single_angle` | 고정 시점, 시간만 변화 | T frames |
+| `rotating` | 시간 + 회전 동시 | T frames |
+| `full_turntable` | 전체 시간 × 전체 각도 | T × N frames |
+
+### 주요 파라미터
+| 파라미터 | 설명 | 기본값 |
+|----------|------|--------|
+| `--start_frame` | 시작 프레임 | 0 |
+| `--end_frame` | 끝 프레임 | 30 |
+| `--frame_step` | 프레임 간격 | 1 |
+| `--num_views` | 360° 분할 수 | 60 |
+| `--resolution` | 출력 해상도 | 384 |
+| `--elevation` | 카메라 고도 (도) | 15.0 |
+| `--radius` | 카메라 거리 | 2.0 |
+
+---
+
+## Known Issues & Solutions
+
+### D10 렌더링 실패
+| 문제 | Up-alignment가 ~93° 좌표계 회전 적용 |
+|------|--------------------------------------|
+| 증상 | PSNR ~18 (D7_1: ~23), 렌더링 왜곡 |
+| 원인 | vertical_lines.npz의 up 벡터가 X축 방향 |
+| 해결 | **D8.2 사용** (up-alignment 없음) |
+
+### D8.2 Adaptive Zoom 미작동 (수정됨)
+| 문제 | zoom=1.0으로 고정 |
+|------|-------------------|
+| 원인 | PRECISION_HOMOGRAPHY에서 adaptive_zoom 미로드 |
+| 해결 | preprocess.py 수정 (commit `178cbcb`) |
+
+---
+
+## Dataset Selection Guide
+
+```
+                    ┌──────────────────────────────────────┐
+                    │    생쥐 영역 최대화 필요?            │
+                    └─────────────┬────────────────────────┘
+                                  │
+                    ┌─────────────┴─────────────┐
+                    │                           │
+                   YES                          NO
+                    │                           │
+                    ▼                           ▼
+           ┌───────────────┐           ┌───────────────┐
+           │    D8.2       │           │    D7_1       │
+           │ Adaptive Zoom │           │  Baseline     │
+           │ (검증 필요)   │           │  (검증됨)     │
+           └───────────────┘           └───────────────┘
+```
+
+---
+
+*v5.4 | 2026-01-24 | Added D8.2, Temporal Turntable, Known Issues*
