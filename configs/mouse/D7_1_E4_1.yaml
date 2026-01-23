@@ -1,8 +1,5 @@
 # D7_1_E4_1: Background Penalty - P4
-# Experiment: E4 (Alpha + BG penalty)
-
-_base_:
-  - ../gslrm_base.yaml
+# Dataset: D7.1, Experiment: E4 (Alpha + BG penalty)
 
 training:
   dataset:
@@ -10,17 +7,68 @@ training:
     num_views: 6
     num_input_views: 5
     random_view_selection: true
+    image_size: 512
+
+  model:
+    image_tokenizer:
+      image_size: 512
+      patch_size: 8
+    transformer:
+      d: 1024
+      n_layer: 24
+      n_head: 16
+    gaussians:
+      n_gaussians: 2
+      sh_degree: 0
+    hard_pixelalign: true
+    clip_xyz: true
 
   losses:
+    l2_loss_weight: 1.0
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0
+    lpips_loss_weight: 0.0
     mask_mode: none
     normalize_by_mask: false
     alpha_loss_weight: 0.1
     alpha_loss_type: mse
     bg_loss_weight: 0.5
+    pixelalign_loss_weight: 0.0
+    masked_pixelalign_loss: true
+    pointsdist_loss_weight: 0.0
+    warmup_pointsdist: false
+    distill_loss_weight: 0.0
+    l2_warmup_steps: 500
+
+  optimizer:
+    lr: 1.0e-06
+    weight_decay: 0.05
+    grad_clip_norm: 50.0
+  
+  scheduler:
+    warmup: 500
+    max_fwdbwd_passes: 15000
+
+  amp:
+    use_amp: true
+    amp_dtype: bf16
+
+  checkpoint:
+    checkpoint_every: 100
+    keep_last_n: 5
+
+  logging:
+    vis_every: 100
+    val_every: 200
+
+  batch:
+    batch_size_per_gpu: 2
+    num_workers: 4
 
 validation:
   data_list: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_val.txt
 
 wandb:
+  project: FaceLift
   name: D7_1_E4_1
   tags: [D7_1, E4, bg_penalty, 5v, random]

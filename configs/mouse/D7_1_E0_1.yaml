@@ -3,25 +3,110 @@
 # Experiment: E0 (No mask, no alpha supervision)
 # SubNum: 1 (5v, random)
 
-_base_:
-  - ../gslrm_base.yaml
+profile: false
+debug: false
+
+model:
+  class_name: gslrm.model.gslrm.GSLRM
+  image_tokenizer:
+    image_size: 512
+    patch_size: 8
+    in_channels: 9
+  transformer:
+    d: 1024
+    d_head: 64
+    n_layer: 24
+  gaussians:
+    n_gaussians: 2
+    sh_degree: 0
+    upsampler:
+      upsample_factor: 1
+  add_refsrc_marker: false
+  hard_pixelalign: true
+  use_custom_plucker: true
+  clip_xyz: true
 
 training:
+  runtime:
+    use_tf32: true
+    use_amp: true
+    amp_dtype: bf16
+    torch_compile: false
+    grad_accum_steps: 1
+    grad_clip_norm: 1.0
+    grad_checkpoint_every: 1
+  
   dataset:
-    data_list: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_train.txt
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_train.txt
     num_views: 6
     num_input_views: 5
+    maximize_view_overlap: false
     random_view_selection: true
-
+    target_has_input: true
+    normalize_distance_to: 0.0
+    remove_alpha: false
+    background_color: white
+  
+  dataloader:
+    batch_size_per_gpu: 2
+    num_workers: 4
+    num_threads: 32
+    prefetch_factor: 32
+  
   losses:
+    l2_loss_weight: 1.0
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0
+    lpips_loss_weight: 0.0
+    pixelalign_loss_weight: 0.0
+    masked_pixelalign_loss: true
+    pointsdist_loss_weight: 0.0
+    warmup_pointsdist: false
+    distill_loss_weight: 0.0
+    # E0: No mask, no alpha supervision
     mask_mode: none
     normalize_by_mask: false
     alpha_loss_weight: 0.0
     bg_loss_weight: 0.0
+  
+  optimizer:
+    lr: 0.0001
+    beta1: 0.9
+    beta2: 0.95
+    weight_decay: 0.05
+    reset_lr: false
+    reset_weight_decay: false
+    reset_training_state: true
+  
+  schedule:
+    num_epochs: 100000
+    early_stop_after_epochs: 100000
+    max_fwdbwd_passes: 20000
+    warmup: 500
+    l2_warmup_steps: 500
+  
+  checkpointing:
+    resume_ckpt: checkpoints/gslrm/stage_2
+    checkpoint_every: 500
+    checkpoint_dir: checkpoints/gslrm/D7_1_E0_1
+  
+  logging:
+    print_every: 20
+    vis_every: 100
+    wandb:
+      project: FaceLift
+      exp_name: D7_1_E0_1
+      group: D7_1_baseline
+      job_type: E0_no_mask
+      log_every: 50
+      offline: false
+
+inference:
+  enabled: false
+  output_dir: experiments/inference/D7_1_E0_1
 
 validation:
-  data_list: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_val.txt
-
-wandb:
-  name: D7_1_E0_1
-  tags: [D7_1, E0, baseline, 5v, random]
+  enabled: true
+  val_every: 200
+  output_dir: experiments/validation/D7_1_E0_1
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_val.txt
