@@ -1,4 +1,4 @@
-# FaceLift Mouse Quick Reference v5.3
+# FaceLift Mouse Quick Reference v5.5
 
 > Last Updated: 2026-01-24 | Modular Mode | D7_1 Verified | Complete Guide
 
@@ -97,14 +97,16 @@ CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
 
 ### 데이터셋 비교표
 
-| Dataset | Paradigm | Transform | Zoom | PP | 상태 |
-|---------|----------|-----------|------|-----|------|
-| **D7_1** ⭐ | pp_centered | Affine (individual) | 1.0x | 256 | ✅ Verified |
-| D7_2 | pp_centered | Affine (average) | 1.0x | 256 | ✅ Ready |
-| D8 | precision | Homography+skew | 1.0x | 256 | ⚠️ Test needed |
-| D8_1 | precision | Homography+skew | 1.3x | var | ⚠️ Test needed |
-| D9 | native | None | - | orig | ⚠️ 검증 중 |
-| D10 | up_aligned | Homography | 1.0x | 256 | ⚠️ 전처리 중 |
+| Dataset | Paradigm | Transform | Zoom | PP | Pretrained 호환 | 상태 |
+|---------|----------|-----------|------|-----|-----------------|------|
+| **D7_1** ⭐ | pp_centered | Affine (individual) | 1.0x | 256 | ✅ | ✅ Verified |
+| D7_2 | pp_centered | Affine (average) | 1.0x | 256 | ✅ | ✅ Ready |
+| D8 | precision | Homography+skew | 1.0x | 256 | ✅ | ⚠️ Test needed |
+| D8_1 | precision | Homography+skew | 1.3x | var | ✅ | ⚠️ Test needed |
+| **D8_2** 🆕 | precision | Homography+skew | **Adaptive** | 256 | ✅ | ⚠️ 전처리 중 |
+| D9 | native | None | - | orig | ✅ | ⚠️ 검증 중 |
+| D10 | up_aligned | Homography | 1.0x | 256 | ❌ (93° 회전) | ⛔ 비권장 |
+| D10.1 | up_aligned | Homography | Adaptive | var | ❌ (93° 회전) | ⛔ 비권장 |
 
 ### 데이터 경로
 
@@ -181,8 +183,40 @@ python -m mouse_extensions.preprocessing.preprocess \
 ```bash
 # 사용 가능한 preset 확인
 python -m mouse_extensions.preprocessing.preprocess --list-presets
+```
 
-# Available: D7, D7.1, D7.2, D8, D8.1
+### 생쥐 크기 최대화 + Ray 정확도 프리셋 비교
+
+| Preset | Zoom | Up-Align | Ray Error | Pretrained 호환 | 권장 |
+|--------|------|----------|-----------|-----------------|------|
+| **D8.2** | Adaptive [1.0-1.5], 85% fill | No | ~0 deg | **✅** | **★ 권장** |
+| D8.1 | Fixed 1.3x | No | ~0 deg | ✅ | 대안 |
+| D10.1 | Adaptive [1.2-1.5], 80% fill | Yes | ~0 deg | ❌ | 비권장 |
+| D10.2 | Fixed 1.3x | Yes | ~0 deg | ❌ | 비권장 |
+
+**⚠️ D10 계열 문제:**
+- `up_alignment: True` → `vertical_lines.npz`의 up 벡터로 **~93° 좌표 회전**
+- GS-LRM pretrained 모델이 MAMMAL 원본 좌표계 기대 → 호환 불가
+- 증상: 렌더링 품질 저하, PSNR ~18 (D7_1: ~23)
+
+### D8.2 전처리 (권장)
+
+```bash
+# D8.2: Adaptive zoom + 기하학적 정확도 + Pretrained 호환
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D8.2 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D8_2
+```
+
+**D8.2 특징:**
+```yaml
+paradigm: precision_homography
+adaptive_zoom: true
+zoom_range: [1.0, 1.5]
+zoom_fill_ratio: 0.85      # 생쥐가 프레임의 85% 차지
+up_alignment: false        # ★ Pretrained 호환 핵심
+ray_error: ~0 deg
 ```
 
 ### 전처리 검증
@@ -507,7 +541,7 @@ ls checkpoints/gslrm/ckpt_0000000000021125.pt
 
 ---
 
-*FaceLift Mouse Quick Reference v5.3 | Complete Guide | 2026-01-24*
+*FaceLift Mouse Quick Reference v5.5 | Complete Guide | 2026-01-24*
 
 ---
 
@@ -604,6 +638,17 @@ CUDA_VISIBLE_DEVICES=0 python -m mouse_extensions.scripts.inference.temporal_tur
 
 ## Dataset Selection Guide
 
+### 빠른 선택
+
+| 목적 | 권장 Dataset | 이유 |
+|------|-------------|------|
+| **기준선/안정성** | D7_1 | ✅ 검증됨, 안정적 |
+| **생쥐 크기 최대화** | D8.2 | Adaptive zoom, ray 정확 |
+| **고정 확대** | D8.1 | 1.3x zoom, 간단 |
+| **원본 해상도** | D9 | 변환 없음, 메모리 4.5x |
+
+### 결정 흐름도
+
 ```
                     ┌──────────────────────────────────────┐
                     │    생쥐 영역 최대화 필요?            │
@@ -614,13 +659,29 @@ CUDA_VISIBLE_DEVICES=0 python -m mouse_extensions.scripts.inference.temporal_tur
                    YES                          NO
                     │                           │
                     ▼                           ▼
-           ┌───────────────┐           ┌───────────────┐
-           │    D8.2       │           │    D7_1       │
-           │ Adaptive Zoom │           │  Baseline     │
-           │ (검증 필요)   │           │  (검증됨)     │
-           └───────────────┘           └───────────────┘
+    ┌───────────────────────────────┐   ┌───────────────┐
+    │  프레임마다 zoom 다르게?      │   │    D7_1       │
+    └───────────────┬───────────────┘   │  Baseline     │
+                    │                   │  (✅ 검증됨)  │
+          ┌─────────┴─────────┐         └───────────────┘
+          │                   │
+         YES                  NO
+          │                   │
+          ▼                   ▼
+   ┌──────────────┐   ┌──────────────┐
+   │   D8.2       │   │   D8.1       │
+   │ Adaptive     │   │ Fixed 1.3x   │
+   │ ★ 권장      │   │              │
+   └──────────────┘   └──────────────┘
 ```
+
+### ⚠️ 피해야 할 설정
+
+| Dataset | 문제 |
+|---------|------|
+| D10, D10.1, D10.2 | Up-alignment로 ~93° 좌표 회전 → Pretrained 불호환 |
+| D1-D4 | Deprecated (cross-view inconsistency) |
 
 ---
 
-*v5.4 | 2026-01-24 | Added D8.2, Temporal Turntable, Known Issues*
+*v5.5 | 2026-01-24 | D8.2 권장, D10 비권장 명시, Dataset Selection Guide 개선*
