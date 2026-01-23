@@ -991,7 +991,7 @@ class GSLRM(nn.Module):
         """Backward compatibility wrapper for set_training_step."""
         self.set_training_step(current_step, start_step, max_step)
 
-    def train(self, mode: bool = True) -> None:
+    def train(self, mode: bool = True):
         """
         Override train method to keep frozen modules in eval mode.
         
@@ -1002,6 +1002,7 @@ class GSLRM(nn.Module):
         # Keep loss calculator in eval mode to prevent training of frozen components
         if self.loss_calculator is not None:
             self.loss_calculator.eval()
+        return self
 
     def get_parameter_overview(self) -> edict:
         """
