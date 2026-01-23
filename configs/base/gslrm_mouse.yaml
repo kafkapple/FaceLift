@@ -146,6 +146,7 @@ visualization:
     radius: 2.7             # Camera distance from center
     grid_rows: 6            # Grid layout rows
     grid_cols: 6            # Grid layout cols
+    save_video: true        # Save turntable mp4 during training
 
     # Inference (video)
     inference_views: 150    # Frames for turntable video
