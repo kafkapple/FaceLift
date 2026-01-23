@@ -392,3 +392,80 @@ CUDA_VISIBLE_DEVICES=5 torchrun ...
 ---
 
 *FaceLift Mouse v4.0 | Comprehensive Reference | 2026-01-23*
+
+---
+
+## Complete Command Reference
+
+### 전처리 명령어
+
+```bash
+cd /home/joon/dev/FaceLift
+conda activate facelift
+
+# D10: Up-alignment
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D10 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D10
+
+# D10.1: Up-alignment + Adaptive zoom
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D10.1 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D10_1
+```
+
+### 실험 실행 명령어
+
+```bash
+cd /home/joon/dev/FaceLift
+conda activate facelift
+
+# === 기존 데이터셋 (즉시 실행 가능) ===
+
+# P0: D8 + E2_gt_alpha (권장)
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D8 -e E2_gt_alpha > logs/D8_E2.log 2>&1 &
+
+# D8.1: 1.3x zoom (마우스 크기 증가)
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D8_1 -e E2_gt_alpha > logs/D8_1_E2.log 2>&1 &
+
+# D9_norm: Full resolution (A6000+ 필요)
+CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D9_norm -e E2_gt_alpha_native > logs/D9_norm_E2.log 2>&1 &
+
+# === View Ablation ===
+
+# 3-view input (강건성 테스트)
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D8 -e E2_gt_alpha_3v > logs/D8_E2_3v.log 2>&1 &
+
+# 5-view input (최대 정보)
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D8 -e E2_gt_alpha_5v > logs/D8_E2_5v.log 2>&1 &
+
+# === D10 (전처리 후) ===
+
+# D10: Up-alignment
+CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D10 -e E2_gt_alpha > logs/D10_E2.log 2>&1 &
+
+# D10.1: Up-alignment + Adaptive zoom
+CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D10_1 -e E2_gt_alpha > logs/D10_1_E2.log 2>&1 &
+```
+
+### 모니터링
+
+```bash
+# 로그 확인
+tail -f logs/D8_E2.log
+
+# GPU 상태
+watch -n 1 nvidia-smi
+
+# WandB
+# https://wandb.ai/joon/FaceLift
+```
