@@ -1,0 +1,35 @@
+# E0_mouse_baseline: Mouse-adapted Baseline
+# Paper settings with mouse-specific adjustments
+#
+# Adjustments from paper:
+# - lr: 1e-5 (lower for finetuning from pretrained)
+# - grad_clip_norm: 5.0 (moderate clipping)
+# - maximize_view_overlap: false (all 6 views similar distance)
+
+model:
+  num_views: 6           # Mouse data has 6 views
+  num_input_views: 4     # 4 input, 2 holdout
+
+training:
+  dataset:
+    maximize_view_overlap: false  # Mouse views are equidistant
+    random_view_selection: true   # Random input view selection
+
+  optimizer:
+    lr: 0.00001          # 1e-5 (finetuning from pretrained)
+    beta1: 0.9
+    beta2: 0.95
+    weight_decay: 0.05
+
+  runtime:
+    grad_clip_norm: 5.0  # Moderate clipping for stability
+
+  losses:
+    # No masking baseline
+    l2_loss_weight: 1.0
+    perceptual_loss_weight: 0.5
+    lpips_loss_weight: 0.0
+    ssim_loss_weight: 0.0
+    mask_mode: none
+    alpha_loss_weight: 0.0
+    bg_loss_weight: 0.0

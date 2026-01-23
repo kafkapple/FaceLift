@@ -1,0 +1,37 @@
+# E0_paper_original: FaceLift Paper Original Settings
+# Exact paper settings, only adapted for 6-view mouse data
+#
+# Key differences from current base:
+# - lr: 1e-4 (vs 1e-6)
+# - grad_clip_norm: 1.0 (vs 50.0)
+# - maximize_view_overlap: true
+# - num_input_views: 4 (paper uses 4 for training, 6 for inference)
+
+model:
+  num_views: 6           # Mouse data has 6 views (paper: 8)
+  num_input_views: 4     # Paper default for training
+
+training:
+  dataset:
+    maximize_view_overlap: true   # Paper setting
+    random_view_selection: true   # Implicit in paper (random.sample)
+
+  optimizer:
+    lr: 0.0001           # Paper: 1e-4 (NOT 1e-6)
+    beta1: 0.9
+    beta2: 0.95
+    weight_decay: 0.05
+
+  runtime:
+    grad_clip_norm: 1.0  # Paper: 1.0 (NOT 50.0)
+
+  losses:
+    # Paper settings (no mask mode)
+    l2_loss_weight: 1.0
+    perceptual_loss_weight: 0.5
+    lpips_loss_weight: 0.0
+    ssim_loss_weight: 0.0
+    # No masking in original paper
+    mask_mode: none
+    alpha_loss_weight: 0.0
+    bg_loss_weight: 0.0
