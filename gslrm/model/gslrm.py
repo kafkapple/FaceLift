@@ -408,7 +408,7 @@ class LossComputer(nn.Module):
         losses['pred_mean'] = rendering.mean()
 
         # Mask IoU computation (GT mask vs Predicted mask from rendering)
-        losses['mask_iou'] = self._compute_mask_iou(rendering, target, mask)
+        losses['mask_iou'] = self._compute_mask_iou(rendering, target, mask, rendered_alpha)
         # Mask coverage: percentage of foreground pixels
         if mask is not None:
             mask_binary = (mask > 0.5).float()
@@ -418,18 +418,18 @@ class LossComputer(nn.Module):
 
         return losses
 
-    def _compute_mask_iou(self, rendering, target, gt_mask):
+    def _compute_mask_iou(self, rendering, target, gt_mask, rendered_alpha=None):
         """
-        Compute IoU between GT mask and predicted mask derived from rendering.
+        Compute IoU between GT mask and predicted mask.
 
-        The predicted mask is computed by thresholding the rendered image:
-        - Pixels where rendering is close to background (white) are background
-        - Pixels with significant color deviation are foreground
+        Uses the same mask computation as training for consistency.
+        Falls back to RGB-based detection for mask_mode=none.
 
         Args:
             rendering: Rendered images [B*V, 3, H, W] in [0, 1]
             target: Target images [B*V, 3, H, W] in [0, 1]
             gt_mask: Ground truth mask [B*V, 1, H, W] or None
+            rendered_alpha: Rendered alpha [B*V, 1, H, W] or None (for mask_mode=alpha)
 
         Returns:
             IoU score as scalar tensor
@@ -437,19 +437,22 @@ class LossComputer(nn.Module):
         if gt_mask is None:
             return torch.tensor(0.0, device=rendering.device)
 
-        # Get background color from config (default: white)
-        bg_color = self.config.training.losses.get(
-            "background_color_target", [1.0, 1.0, 1.0]
+        # Use same mask computation as training for consistency
+        pred_mask, mask_type = compute_mask_from_config(
+            self.config, rendering, gt_mask, rendered_alpha
         )
-        bg_threshold = self.config.training.losses.get("mask_iou_threshold", 0.1)
 
-        # Compute predicted mask: distance from background color
-        bg_tensor = torch.tensor(bg_color, device=rendering.device, dtype=rendering.dtype)
-        bg_tensor = bg_tensor.view(1, 3, 1, 1)
+        # Fallback to RGB-based detection if mask_mode=none
+        if pred_mask is None:
+            bg_color = self.config.training.losses.get(
+                "background_color_target", [1.0, 1.0, 1.0]
+            )
+            bg_threshold = self.config.training.losses.get("mask_iou_threshold", 0.1)
 
-        # Pixels far from background are foreground
-        color_distance = (rendering - bg_tensor).abs().mean(dim=1, keepdim=True)
-        pred_mask = (color_distance > bg_threshold).float()
+            bg_tensor = torch.tensor(bg_color, device=rendering.device, dtype=rendering.dtype)
+            bg_tensor = bg_tensor.view(1, 3, 1, 1)
+            color_distance = (rendering - bg_tensor).abs().mean(dim=1, keepdim=True)
+            pred_mask = (color_distance > bg_threshold).float()
 
         # GT mask binary
         gt_mask_binary = (gt_mask > 0.5).float()
@@ -518,9 +521,23 @@ class LossComputer(nn.Module):
         """
         Compute SSIM loss with optional masking.
 
-        If masked_ssim_loss is enabled in config and mask is provided,
-        renders and targets are masked before SSIM computation.
-        Note: SSIM is computed on masked regions by setting background to same value.
+        NOTE: Original GS-LRM/FaceLift uses full image SSIM (no masking).
+        Masked SSIM is a custom extension (masked_ssim_loss: true).
+
+        Original behavior (default, recommended):
+            - Full image SSIM computation
+            - Consistent with published results
+
+        Extended behavior (masked_ssim_loss: true):
+            - Background set to neutral gray (0.5)
+            - Creates artificial edges at mask boundaries
+            - SSIM is sensitive to these edges - may affect scores
+            - Use with caution
+
+        Args:
+            rendering: Rendered images [B*V, 3, H, W]
+            target: Target images [B*V, 3, H, W]
+            mask: Optional foreground mask [B*V, 1, H, W]
         """
         if self.config.training.losses.ssim_loss_weight > 0.0:
             use_mask = self.config.training.losses.get("masked_ssim_loss", False)
@@ -1376,6 +1393,7 @@ class GSLRM(nn.Module):
 
         # Perform rendering and loss computation if target data is available
         loss_metrics = None
+        rendered_alpha = None
         rendered_images = None
         
         if target_data is not None:

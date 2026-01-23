@@ -78,23 +78,32 @@ def _get_color_tensor(
 def compute_pred_mask(
     rendering: torch.Tensor,
     rendered_alpha: Optional[torch.Tensor],
-    config: VisualizationConfig
+    config: VisualizationConfig,
+    gt_mask: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """
     Compute predicted mask from rendering.
-    
+
+    When mask_mode is "gt", returns the GT mask for consistent visualization.
+    When mask_mode is "alpha", uses rendered alpha threshold.
+    Otherwise, falls back to RGB-based detection.
+
     Args:
         rendering: Rendered RGB [..., 3, H, W]
         rendered_alpha: Rendered alpha [..., 1, H, W] or None
         config: Visualization config
-        
+        gt_mask: Optional GT mask [..., 1, H, W] for mask_mode="gt"
+
     Returns:
         Binary mask [..., 1, H, W]
     """
-    if config.mask_mode == "alpha" and rendered_alpha is not None:
+    if config.mask_mode == "gt" and gt_mask is not None:
+        # Use GT mask for consistent visualization
+        return (gt_mask > 0.5).float()
+    elif config.mask_mode == "alpha" and rendered_alpha is not None:
         return (rendered_alpha > config.alpha_threshold).float()
     else:
-        # RGB-based detection (removebg style)
+        # RGB-based detection (removebg style) - fallback for rgb_pred mode
         color_distance = (rendering - 1.0).abs().mean(dim=-3, keepdim=True)
         return (color_distance > config.rgb_threshold).float()
 
@@ -367,7 +376,8 @@ def create_training_visual(
             num_rows += 1
         
         # Compute pred mask and create overlay
-        pred_mask_bv = compute_pred_mask(rendering_bv, rendered_alpha_bv, config)
+        # Pass gt_mask for mask_mode="gt" consistency
+        pred_mask_bv = compute_pred_mask(rendering_bv, rendered_alpha_bv, config, gt_mask_bv)
         masked_rendering = create_mask_overlay(rendering_bv, pred_mask_bv, config)
         rows_list.append(masked_rendering)
         num_rows += 1
@@ -473,7 +483,8 @@ def create_validation_visual(
         rows_list.append(masked_gt)
         
         # Pred mask overlay
-        pred_mask = compute_pred_mask(rendering, rendered_alpha, config)
+        # Pass gt_mask for mask_mode="gt" consistency
+        pred_mask = compute_pred_mask(rendering, rendered_alpha, config, gt_mask)
         masked_rendering = create_mask_overlay(rendering, pred_mask, config)
         rows_list.append(masked_rendering)
         

@@ -19,6 +19,81 @@ class MaskType(Enum):
     ALPHA = "alpha"         # Rendered alpha from Gaussian splatting
 
 
+class AlphaMaskSafetyMode(Enum):
+    """
+    Safety modes for alpha mask usage without alpha supervision.
+
+    When mask_mode=alpha is used without alpha_loss_weight > 0,
+    the mask can expand during training causing ghosting artifacts.
+
+    Modes:
+        WARN: Allow but print warning (default, backward compatible)
+        STRICT: Raise error, require alpha_loss > 0
+        FALLBACK_GT: Fall back to GT mask if available
+        FALLBACK_NONE: Fall back to no masking
+    """
+    WARN = "warn"
+    STRICT = "strict"
+    FALLBACK_GT = "fallback_gt"
+    FALLBACK_NONE = "fallback_none"
+
+
+# Global flag to prevent repeated warnings
+_ALPHA_MASK_WARNING_SHOWN = False
+
+
+def reset_alpha_mask_warning():
+    """Reset the alpha mask warning flag (useful for testing)."""
+    global _ALPHA_MASK_WARNING_SHOWN
+    _ALPHA_MASK_WARNING_SHOWN = False
+
+
+def validate_mask_config(config) -> list:
+    """
+    Validate mask configuration and return list of warnings.
+
+    Args:
+        config: Training config with losses section
+
+    Returns:
+        List of warning messages (empty if all valid)
+    """
+    warnings = []
+    losses = config.training.losses
+
+    mask_mode = losses.get("mask_mode", None)
+    alpha_loss_weight = losses.get("alpha_loss_weight", 0.0)
+
+    # Check alpha mask without supervision
+    if mask_mode == "alpha" and alpha_loss_weight <= 0.0:
+        safety = losses.get("alpha_mask_safety", "warn")
+        if safety == "warn":
+            warnings.append(
+                "mask_mode=alpha without alpha_loss_weight may cause mask spreading. "
+                "Recommended: set alpha_loss_weight > 0 or use mask_mode=gt"
+            )
+
+    # Check rgb_pred with low threshold
+    if mask_mode == "rgb_pred":
+        threshold = losses.get("pred_mask_threshold", 0.1)
+        if threshold < 0.05:
+            warnings.append(
+                f"pred_mask_threshold={threshold} is very low, may include background noise"
+            )
+
+    # Check masked perceptual/ssim (non-original behavior)
+    if losses.get("masked_perceptual_loss", False):
+        warnings.append(
+            "masked_perceptual_loss=True differs from original GS-LRM/FaceLift behavior"
+        )
+    if losses.get("masked_ssim_loss", False):
+        warnings.append(
+            "masked_ssim_loss=True differs from original GS-LRM/FaceLift behavior"
+        )
+
+    return warnings
+
+
 @dataclass
 class MaskConfig:
     """Configuration for mask computation."""
@@ -75,6 +150,51 @@ def compute_mask_from_config(
         
         elif mask_mode == "alpha":
             if rendered_alpha is not None:
+                # Safety check: alpha mask without alpha supervision can cause spreading
+                alpha_loss_weight = losses_config.get("alpha_loss_weight", 0.0)
+                safety_mode_str = losses_config.get("alpha_mask_safety", "warn")
+
+                try:
+                    safety_mode = AlphaMaskSafetyMode(safety_mode_str)
+                except ValueError:
+                    safety_mode = AlphaMaskSafetyMode.WARN
+
+                if alpha_loss_weight <= 0.0:
+                    global _ALPHA_MASK_WARNING_SHOWN
+
+                    if safety_mode == AlphaMaskSafetyMode.STRICT:
+                        raise ValueError(
+                            "mask_mode=alpha requires alpha_loss_weight > 0 to prevent mask spreading. "
+                            "Set alpha_loss_weight > 0 or change alpha_mask_safety to 'warn'/'fallback_gt'/'fallback_none'."
+                        )
+
+                    elif safety_mode == AlphaMaskSafetyMode.FALLBACK_GT:
+                        if gt_mask is not None:
+                            if not _ALPHA_MASK_WARNING_SHOWN:
+                                print("[WARNING] mask_mode=alpha without alpha_loss, falling back to GT mask")
+                                _ALPHA_MASK_WARNING_SHOWN = True
+                            return gt_mask, MaskType.GT
+                        else:
+                            if not _ALPHA_MASK_WARNING_SHOWN:
+                                print("[WARNING] mask_mode=alpha without alpha_loss, GT unavailable, using NONE")
+                                _ALPHA_MASK_WARNING_SHOWN = True
+                            return None, MaskType.NONE
+
+                    elif safety_mode == AlphaMaskSafetyMode.FALLBACK_NONE:
+                        if not _ALPHA_MASK_WARNING_SHOWN:
+                            print("[WARNING] mask_mode=alpha without alpha_loss, falling back to NONE")
+                            _ALPHA_MASK_WARNING_SHOWN = True
+                        return None, MaskType.NONE
+
+                    else:  # WARN (default)
+                        if not _ALPHA_MASK_WARNING_SHOWN:
+                            print(
+                                "[WARNING] mask_mode=alpha without alpha_loss_weight may cause mask spreading/ghosting. "
+                                "Consider setting alpha_loss_weight > 0 or using mask_mode=gt for stability."
+                            )
+                            _ALPHA_MASK_WARNING_SHOWN = True
+
+                # Proceed with alpha mask
                 mask = (rendered_alpha > alpha_threshold).float()
                 # Safety: ensure minimum mask ratio
                 if min_mask_ratio > 0:
@@ -348,29 +468,42 @@ def compute_alpha_metrics(
 class AlphaLossComputer:
     """
     Alpha loss computation module.
-    
+
     Usage:
         alpha_loss_computer = AlphaLossComputer(config)
         loss = alpha_loss_computer(rendered_alpha, gt_alpha)
         metrics = alpha_loss_computer.get_metrics(rendered_alpha, gt_alpha)
-    
+
     Config options:
         training.losses.alpha_loss_weight: float (default 0.0, disabled)
         training.losses.alpha_loss_type: str ('bce', 'mse', 'dice', 'focal')
         training.losses.alpha_focal_gamma: float (default 2.0)
+
+    Recommended settings for mask_mode=alpha:
+        alpha_loss_weight: 0.1 (or higher)
+        alpha_loss_type: focal (for imbalanced fg/bg)
     """
-    
+
     def __init__(self, config):
         self.config = config
         losses = config.training.losses
-        
+
         self.weight = losses.get("alpha_loss_weight", 0.0)
         self.loss_type = losses.get("alpha_loss_type", "bce")
         self.focal_gamma = losses.get("alpha_focal_gamma", 2.0)
         self.enabled = self.weight > 0.0
-        
+
+        # Check for potential misconfiguration
+        mask_mode = losses.get("mask_mode", None)
+        self._using_alpha_mask_without_supervision = (
+            mask_mode == "alpha" and not self.enabled
+        )
+
         if self.enabled:
             print(f"[AlphaLossComputer] Enabled: weight={self.weight}, type={self.loss_type}")
+        elif self._using_alpha_mask_without_supervision:
+            # Warning is handled by compute_mask_from_config, but we track it here
+            pass
     
     def __call__(
         self,
@@ -403,6 +536,7 @@ class AlphaLossComputer:
             "alpha_loss/enabled": self.enabled,
             "alpha_loss/weight": self.weight,
             "alpha_loss/type": self.loss_type,
+            "alpha_loss/unsafe_alpha_mask": self._using_alpha_mask_without_supervision,
         }
 
 
