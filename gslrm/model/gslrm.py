@@ -53,6 +53,12 @@ from mouse_extensions.model import (
     compute_mask_from_config,
     MaskType,
 )
+# Literature-based mask losses (v2.0)
+from mouse_extensions.model.mask_losses import (
+    compute_alpha_supervision_loss,
+    compute_background_penalty_loss,
+    AlphaLossType,
+)
 
 # Local imports
 from .utils_losses import PerceptualLoss, SsimLoss
@@ -416,6 +422,22 @@ class LossComputer(nn.Module):
         else:
             losses['mask_coverage'] = torch.tensor(1.0, device=rendering.device)
 
+
+        # Alpha supervision loss (LGM style)
+        alpha_loss_weight = getattr(self.config.training.losses, "alpha_loss_weight", 0.0)
+        if alpha_loss_weight > 0 and rendered_alpha is not None and mask is not None:
+            alpha_loss_type = getattr(self.config.training.losses, "alpha_loss_type", "mse")
+            loss_type = AlphaLossType.MSE if alpha_loss_type == "mse" else AlphaLossType.BCE
+            losses["alpha_loss"] = compute_alpha_supervision_loss(rendered_alpha, mask, loss_type)
+        else:
+            losses["alpha_loss"] = torch.tensor(0.0, device=rendering.device)
+
+        # Background penalty loss (Object-Centric 2DGS style)
+        bg_loss_weight = getattr(self.config.training.losses, "bg_loss_weight", 0.0)
+        if bg_loss_weight > 0 and rendered_alpha is not None and mask is not None:
+            losses["bg_loss"] = compute_background_penalty_loss(rendered_alpha, mask)
+        else:
+            losses["bg_loss"] = torch.tensor(0.0, device=rendering.device)
         return losses
 
     def _compute_mask_iou(self, rendering, target, gt_mask, rendered_alpha=None):
@@ -596,16 +618,29 @@ class LossComputer(nn.Module):
         return torch.tensor(0.0, device=img_aligned_xyz.device)
     
     def _compute_total_loss(self, losses):
-        """Compute weighted sum of all losses."""
+        """Compute weighted sum of all losses including alpha and background penalties."""
         weights = self.config.training.losses
-        return (
-            weights.l2_loss_weight * losses['l2']
-            + weights.lpips_loss_weight * losses['lpips']
-            + weights.perceptual_loss_weight * losses['perceptual']
-            + weights.ssim_loss_weight * losses['ssim']
-            + weights.pixelalign_loss_weight * losses['pixelalign']
-            + weights.pointsdist_loss_weight * losses['pointsdist']
+        
+        total = (
+            weights.l2_loss_weight * losses["l2"]
+            + weights.lpips_loss_weight * losses["lpips"]
+            + weights.perceptual_loss_weight * losses["perceptual"]
+            + weights.ssim_loss_weight * losses["ssim"]
+            + weights.pixelalign_loss_weight * losses["pixelalign"]
+            + weights.pointsdist_loss_weight * losses["pointsdist"]
         )
+        
+        # Add alpha supervision loss (LGM style)
+        alpha_weight = getattr(weights, "alpha_loss_weight", 0.0)
+        if alpha_weight > 0:
+            total = total + alpha_weight * losses.get("alpha_loss", 0.0)
+        
+        # Add background penalty loss (Object-Centric 2DGS style)
+        bg_weight = getattr(weights, "bg_loss_weight", 0.0)
+        if bg_weight > 0:
+            total = total + bg_weight * losses.get("bg_loss", 0.0)
+        
+        return total
     
     def _create_visual(self, rendering, target, v, mask=None, rendered_alpha=None, view_indices=None):
         """
@@ -769,7 +804,6 @@ class LossComputer(nn.Module):
             pred_max=losses['pred_max'],
             pred_mean=losses['pred_mean'],
         )
-
 
 class GSLRM(nn.Module):
     """
