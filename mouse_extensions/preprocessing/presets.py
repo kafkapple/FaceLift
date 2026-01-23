@@ -154,6 +154,23 @@ PRESETS = {
         "ray_error": "~0 deg",
         "active": True,
     },
+    "D8.2": {
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "adaptive_zoom": True,
+        "zoom_range": [1.0, 1.5],
+        "zoom_fill_ratio": 0.85,
+        "description": "D8 + Adaptive zoom (bbox-based) - NO up-alignment",
+        "ray_error": "~0 deg",
+        "active": True,
+        "note": "Best of D8 (geometry) + D10.1 (zoom). Mouse fills 85% of frame.",
+    },
+
 
     # ==========================================================================
     # NATIVE: D9 (Original Resolution)
@@ -268,7 +285,7 @@ VERSION_HIERARCHY = {
     "deprecated": ["D1", "D4"],
     "geometry_preserving": ["D6-1", "D6-2", "D6-3"],
     "pp_centered": ["D7", "D7.1", "D7.2"],
-    "precision": ["D8", "D8.1"],
+    "precision": ["D8", "D8.1", "D8.2"],
     "native": ["D9", "D9_norm", "D9_resized"],
     "up_aligned": ["D10", "D10.1", "D10.2"],
     "recommended": "D7.1",
