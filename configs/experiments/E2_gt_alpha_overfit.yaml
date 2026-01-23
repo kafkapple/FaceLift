@@ -1,0 +1,14 @@
+# E2 variant: Overfit test (1 view input)
+# For debugging and sanity check
+
+training:
+  dataset:
+    num_input_views: 1
+
+  losses:
+    mask_mode: gt
+    alpha_loss_weight: 0.1
+    alpha_loss_type: mse
+
+  schedule:
+    max_fwdbwd_passes: 1000

@@ -197,5 +197,6 @@ reports/*.jpg
 # Archive folders
 */_archive/
 _archive/
-experiments/
+# experiments/ (output dir, not configs)
 alpha_analysis/
+\!configs/experiments/

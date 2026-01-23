@@ -1,0 +1,8 @@
+# E6: RGB-based mask prediction
+# Uses rendered RGB to predict mask (deprecated, for comparison)
+
+training:
+  losses:
+    mask_mode: rgb_pred
+    alpha_loss_weight: 0.0
+    bg_loss_weight: 0.0
