@@ -1,6 +1,6 @@
-# FaceLift Mouse Quick Reference v4.0
+# FaceLift Mouse Quick Reference v4.1
 
-> Last Updated: 2026-01-23 | Modular Mode
+> Last Updated: 2026-01-24 | Modular Mode
 
 ---
 
@@ -54,11 +54,19 @@ configs/
 | **E6_rgb_pred** | rgb_pred | 0.0 | 0.0 | P5 | RGB mask (deprecated) |
 
 #### 2. View Ablation
-| Experiment | num_input_views | 설명 |
-|------------|-----------------|------|
-| E2_gt_alpha | 5 (default) | 5-view input |
-| **E2_gt_alpha_4v** | 4 | 4-view ablation |
-| **E2_gt_alpha_overfit** | 1 | 1-view overfit test |
+| Experiment | num_input_views | holdout | 설명 |
+|------------|-----------------|---------|------|
+| **E2_gt_alpha_3v** | 3 | 3 | 강건성 테스트 (적은 입력) |
+| E2_gt_alpha | 4 (default) | 2 | 기본 설정 |
+| **E2_gt_alpha_5v** | 5 | 1 | 최대 정보 |
+| **E2_gt_alpha_overfit** | 1 | 5 | 오버핏 테스트 |
+
+**Loss 계산**: Holdout 뷰들의 loss **평균**
+
+**권장**:
+- 일반 학습: 4개 입력 (균형)
+- 강건성: 3개 입력
+- 최대 품질: 5개 입력
 
 #### 3. View Selection
 | Experiment | random_view_selection | 설명 |
@@ -95,6 +103,10 @@ CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
 # View ablation (4v)
 CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E2_gt_alpha_4v > logs/D7_1_E2_gt_alpha_4v.log 2>&1 &
+
+# overfit
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha > logs/D7_1_E2_gt_alpha.log 2>&1 &
 ```
 
 ---
@@ -103,38 +115,64 @@ CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
 
 ### 권장 데이터셋
 
-| Dataset | 설명 | 상태 |
-|---------|------|------|
-| **D7_1** ⭐ | Individual scale, geometric correction | **권장** |
-| **D7_2** | Average scale | Active |
-| **D8** | Homography + skew correction | Active |
-| v13 | Original FaceLift format | Legacy |
+| Dataset | 설명 | 상태 | Priority |
+|---------|------|------|----------|
+| **D7_1** ⭐ | Individual scale, PP=256 | **Stable** | P1 |
+| **D8** ⭐ | Homography + skew correction | **Precision** | P0 |
+| D9_norm | Full resolution + trans_norm | Experimental | P2 |
+| **D10** | D8 + Up-alignment | **Proposed** | P3 |
+
+### 실험 우선순위
+
+| Priority | Dataset | Experiment | 설명 |
+|----------|---------|------------|------|
+| **P0** | D8 | E2_gt_alpha | Homography + GT mask + α |
+| **P1** | D7_1 | E2_gt_alpha | Baseline comparison |
+| **P2** | D9_norm | E2_gt_alpha_native | Full-resolution test |
+| **P3** | D10 | E2_gt_alpha | Up-aligned (needs preprocessing) |
 
 ### 전체 데이터셋 목록
 
-| Dataset | Center | PP | Transform | 상태 |
-|---------|--------|-----|-----------|------|
-| v13 | Global | 256 | None | Legacy |
-| D1-D4 | Various | 256 (bug) | Affine | ⛔ Deprecated |
-| **D7_1** | PP-shift | 256 | Affine (individual) | ✅ Active |
-| D7_2 | PP-shift | 256 | Affine (average) | ✅ Active |
-| D7_t, D7_1_t | Temporal split | 256 | Affine | ✅ Active |
-| **D8** | PP-shift | 256 | Homography + skew | ✅ Active |
-| D8_1 | PP-shift | Variable | Homography + zoom | ⚠️ cx/cy varies |
-| D9 | High-res | Variable | Various | Experimental |
+| Dataset | Paradigm | PP | Transform | Ray Error | 상태 |
+|---------|----------|-----|-----------|-----------|------|
+| v13 | Legacy | 256 | None | ~5° | Legacy |
+| D1-D4 | object_centered | 256 (bug) | Affine | 5-13° | ⛔ Deprecated |
+| D6-1,2,3 | geometry_preserving | Accurate | Various | 0° | Active |
+| **D7_1** | pp_centered_shift | 256 | Affine (individual) | ~0° | ✅ **Recommended** |
+| D7_2 | pp_centered_shift | 256 | Affine (average) | ~0.2° | ✅ Active |
+| **D8** | precision_homography | 256 | Homography + skew | ~0° | ✅ **Precision** |
+| D8_1 | precision_homography | Variable | Homography + 1.3x | ~0° | ⚠️ cx/cy varies |
+| D9 | native | Original | None | 0° | Experimental |
+| D9_norm | native | Original | None + trans_norm | 0° | Experimental |
+| **D10** | up_aligned_zoom | 256 | Homography + up | ~0° | ✅ **Proposed** |
 
 ### 데이터 경로
 ```
 /home/joon/data/preprocessed/FaceLift_mouse/
-├── D7_1/
-│   ├── data_mouse_train.txt
-│   └── data_mouse_val.txt
-├── D7_2/
-├── D8/
-└── ...
+├── D7_1/           # Stable baseline
+├── D8/             # Precision (RECOMMENDED)
+├── D9_norm/        # Full-resolution
+└── (D10/ - TBD)    # Up-aligned
+```
+
+### 실행 명령어 예시
+
+```bash
+# P0: D8 + E2_gt_alpha (권장)
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D8 -e E2_gt_alpha > logs/D8_E2_gt_alpha.log 2>&1 &
+
+# P1: D7_1 baseline
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha > logs/D7_1_E2_gt_alpha.log 2>&1 &
+
+# P2: D9_norm (requires 48GB+ GPU)
+CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D9_norm -e E2_gt_alpha_native > logs/D9_norm_E2.log 2>&1 &
 ```
 
 ---
+
 
 ## Preprocessing
 

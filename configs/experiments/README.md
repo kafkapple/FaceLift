@@ -1,60 +1,40 @@
 # Experiment Configurations
 
-## Naming Convention
+> Last Updated: 2026-01-24
 
-```
-E{series}_{number}_{description}.yaml
-```
+## Quick Reference
 
-- **E1**: Paper baseline (4v random, 4v fixed, 5v)
-- **E2**: GT mask experiments
-- **E3**: Alpha mask variants
-- **E4**: Alpha tuning (conservative, aggressive, optimal)
-- **E5**: Mask mode comparison (num_input_views=4)
+| Experiment | mask_mode | alpha_loss | views | Priority | 설명 |
+|------------|-----------|------------|-------|----------|------|
+| **E2_gt_alpha** ⭐ | gt | 0.1 | 4 | **P0** | 권장 설정 |
+| E0_none | none | 0.0 | 4 | P2 | Baseline |
+| E1_gt | gt | 0.0 | 4 | P3 | GT mask only |
+| E3_alpha | none | 0.1 | 4 | P4 | Alpha only |
+| E4_bg_penalty | none | 0.1 + bg | 4 | P3 | Background penalty |
 
-## E5 Series (Current Focus)
+## View Ablation
 
-| Config | mask_mode | Views | Key Feature |
-|--------|-----------|-------|-------------|
-| E5_1_5v_alpha_random | alpha | 5 | Baseline 5v random |
-| E5_2_alpha_loss_only | alpha | 5 | Alpha loss only |
-| E5_3_4v_alpha_loss | alpha | 4 | 4v baseline |
-| **E5_4_rgb_mask_01** | **rgb_pred** | **4** | RGB mask (threshold=0.1) |
-| E5_5_rgb_mask_02 | rgb_pred | 4 | RGB mask (threshold=0.2) |
-| **E5_6_alpha_thresh_07** | **alpha** | **4** | Alpha (threshold=0.7) |
-| **E5_7_optimal_alpha** | **alpha** | **4** | Best alpha settings |
-| E5_8_alpha_thresh_08 | alpha | 4 | Alpha (threshold=0.8) |
-| E5_9_gt_mask | gt | 4 | GT mask reference |
-| E5_10_no_mask | none | 4 | No mask baseline |
+| Experiment | Input Views | Holdout | 용도 |
+|------------|-------------|---------|------|
+| E2_gt_alpha_3v | 3 | 3 | 강건성 테스트 |
+| E2_gt_alpha | 4 | 2 | 기본 (권장) |
+| E2_gt_alpha_5v | 5 | 1 | 최대 정보 |
+| E2_gt_alpha_overfit | 1 | 5 | 오버핏 테스트 |
 
-## Key Parameters
+## Special Variants
 
-- **num_input_views**: 4 (paper setting) -> train=4, eval=2
-- **num_views**: 6 (total cameras)
-- **random_view_selection**: false (fixed view selection)
+| Experiment | 특징 | 용도 |
+|------------|------|------|
+| E2_gt_alpha_fixed | random_view=false | 고정 뷰 순서 |
+| E2_gt_alpha_native | batch=1, size=1024 | D9/D9_norm 전용 |
 
-## Run Commands
+## Usage
 
 ```bash
-cd /home/joon/dev/FaceLift
+# Modular mode (권장)
+train_gslrm.py -d <DATASET> -e <EXPERIMENT>
 
-# Single experiment
-CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 train_gslrm.py \
-    --base configs/gslrm/base.yaml \
-    --config configs/datasets/D7_1_t.yaml configs/experiments/E5_4_rgb_mask_01.yaml
-
-# With logging
-CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 train_gslrm.py \
-    --base configs/gslrm/base.yaml \
-    --config configs/datasets/D7_1_t.yaml configs/experiments/E5_4_rgb_mask_01.yaml \
-    > logs/E5_4_rgb_mask_01.log 2>&1 &
+# Example
+train_gslrm.py -d D8 -e E2_gt_alpha
+train_gslrm.py -d D8 -e E2_gt_alpha_3v
 ```
-
-## Recommended Experiments
-
-1. **E5_4_rgb_mask_01**: RGB mask - stable, no alpha dependency
-2. **E5_6_alpha_thresh_07**: Stricter alpha threshold
-3. **E5_7_optimal_alpha**: Best consolidated settings
-
----
-Updated: 2026-01-22

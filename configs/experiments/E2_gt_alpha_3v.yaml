@@ -1,0 +1,14 @@
+# E2 variant: 3-view input (stronger generalization)
+# 3 input views, 3 holdout views for supervision
+
+model:
+  num_input_views: 3
+
+training:
+  dataset:
+    random_view_selection: true
+
+  losses:
+    mask_mode: gt
+    alpha_loss_weight: 0.1
+    alpha_loss_type: mse

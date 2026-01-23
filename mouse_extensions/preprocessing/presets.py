@@ -1,7 +1,7 @@
 """
 Dataset Preprocessing Presets for Systematic Testing
 
-Unified preset definitions for all preprocessing versions (D1-D9).
+Unified preset definitions for all preprocessing versions (D1-D10).
 
 Usage:
     from mouse_extensions.preprocessing import get_preset, list_presets
@@ -15,8 +15,9 @@ Paradigms:
     3. precision_homography (D8+): Homography with skew correction
     4. geometry_preserving (D6): Accurate PP, various crop strategies
     5. native (D9): Original resolution, no transformation
+    6. up_aligned_zoom (D10): Up-alignment + adaptive zoom [PROPOSED]
 
-Recommended: D7.1
+Recommended: D7.1 (stable), D8 (precision), D10 (experimental)
 """
 
 PRESETS = {
@@ -164,14 +165,13 @@ PRESETS = {
         "pp_method": "original",
         "normalize_fx": False,
         "normalize_translation": False,
-        "output_size": None,  # Keep original (1152x1024)
+        "output_size": None,
         "description": "Original resolution, no transformation, 100% geometry accuracy",
         "ray_error": "0 deg",
         "active": True,
         "note": "Requires ~4.5x more memory. For A6000+ GPUs.",
         "memory_factor": 4.5,
     },
-    # D9 with translation normalization only (experimental)
     "D9_norm": {
         "paradigm": "native",
         "transform": "none",
@@ -188,7 +188,6 @@ PRESETS = {
         "note": "Experimental: fx unchanged (1632), translation normalized to 2.7",
         "memory_factor": 4.5,
     },
-    # D9 resized to 512x512 with full normalization (safest)
     "D9_resized": {
         "paradigm": "pp_centered_shift",
         "transform": "affine",
@@ -203,17 +202,78 @@ PRESETS = {
         "recommended_for_d9": True,
         "note": "Safe: matches pretrained distribution exactly",
     },
+
+    # ==========================================================================
+    # UP-ALIGNED + ADAPTIVE ZOOM: D10 Methods (PROPOSED)
+    # ==========================================================================
+    "D10": {
+        "paradigm": "up_aligned_zoom",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": True,
+        "up_source": "vertical_lines",  # vertical_lines.npz
+        "adaptive_zoom": False,
+        "zoom": 1.0,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "description": "D8 + Up-direction alignment from vertical_lines.npz",
+        "ray_error": "~0 deg",
+        "active": True,
+        "experimental": True,
+        "note": "Aligns world Z-axis to up direction. Good for turntable consistency.",
+    },
+    "D10.1": {
+        "paradigm": "up_aligned_zoom",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": True,
+        "up_source": "vertical_lines",
+        "adaptive_zoom": True,
+        "zoom_range": [1.2, 1.5],
+        "zoom_fill_ratio": 0.8,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "description": "D10 + Adaptive zoom for larger mouse (bbox-based)",
+        "ray_error": "~0 deg",
+        "active": True,
+        "experimental": True,
+        "note": "Auto-adjusts zoom per frame. Mouse fills 80% of frame.",
+    },
+    "D10.2": {
+        "paradigm": "up_aligned_zoom",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": True,
+        "up_source": "camera_y_mean",  # No vertical_lines.npz dependency
+        "adaptive_zoom": False,
+        "zoom": 1.3,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "description": "D8.1 zoom + Up-alignment from camera Y-axis mean",
+        "ray_error": "~0 deg",
+        "active": True,
+        "note": "Fallback: uses camera Y-axis mean as up. No vertical_lines.npz needed.",
+    },
 }
 
 
-# Version hierarchy
+# Version hierarchy for organization
 VERSION_HIERARCHY = {
     "deprecated": ["D1", "D4"],
     "geometry_preserving": ["D6-1", "D6-2", "D6-3"],
     "pp_centered": ["D7", "D7.1", "D7.2"],
     "precision": ["D8", "D8.1"],
     "native": ["D9", "D9_norm", "D9_resized"],
+    "up_aligned": ["D10", "D10.1", "D10.2"],
     "recommended": "D7.1",
+    "precision_recommended": "D8",
+    "experimental_recommended": "D10",
 }
 
 
@@ -240,4 +300,3 @@ def get_recommended() -> str:
 def get_presets_by_paradigm(paradigm: str) -> list:
     """Get all presets for a given paradigm."""
     return [k for k, v in PRESETS.items() if v.get("paradigm") == paradigm]
-

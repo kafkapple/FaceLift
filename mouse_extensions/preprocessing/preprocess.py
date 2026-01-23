@@ -56,6 +56,157 @@ from .presets import PRESETS, get_preset, get_recommended, list_presets as list_
 GSLRM_EXACT_FX = 548.9937744140625
 JUMP_FRAMES = {5900, 11800, 17700}
 
+# Up-alignment utilities
+def load_up_direction(vertical_lines_path: Path) -> np.ndarray:
+    """Load up direction from vertical_lines.npz.
+    
+    The stored up vector points from floor to ceiling in the original coordinate system.
+    We negate it to match the auto_orient convention (Z-down becomes Z-up after rotation).
+    """
+    data = np.load(vertical_lines_path)
+    up = -data['up']  # Negate for coordinate convention
+    return up / np.linalg.norm(up)
+
+
+def compute_up_from_cameras(extrinsics: np.ndarray) -> np.ndarray:
+    """Estimate up direction from camera Y-axis mean.
+    
+    Fallback when vertical_lines.npz is not available.
+    Assumes cameras are roughly level (Y-axis points up in camera frame).
+    """
+    # extrinsics shape: (num_views, 4, 4) or (num_views, 3, 4)
+    # Camera Y-axis is the second column of rotation matrix (pointing up in camera frame)
+    if extrinsics.shape[1] == 4:
+        R = extrinsics[:, :3, :3]
+    else:
+        R = extrinsics[:, :3, :3]
+    
+    # Average Y-axis across all cameras
+    y_axes = R[:, :, 1]  # shape: (num_views, 3)
+    up = np.mean(y_axes, axis=0)
+    return up / np.linalg.norm(up)
+
+
+def rotation_matrix_from_vectors(vec1: np.ndarray, vec2: np.ndarray) -> np.ndarray:
+    """Compute rotation matrix that rotates vec1 to vec2.
+    
+    Uses Rodrigues' rotation formula.
+    """
+    a = vec1 / np.linalg.norm(vec1)
+    b = vec2 / np.linalg.norm(vec2)
+    
+    v = np.cross(a, b)
+    c = np.dot(a, b)
+    s = np.linalg.norm(v)
+    
+    if s < 1e-10:  # vectors are parallel
+        if c > 0:
+            return np.eye(3)
+        else:
+            # 180 degree rotation - find perpendicular axis
+            perp = np.array([1, 0, 0]) if abs(a[0]) < 0.9 else np.array([0, 1, 0])
+            axis = np.cross(a, perp)
+            axis = axis / np.linalg.norm(axis)
+            # Rodrigues for 180 deg
+            return 2 * np.outer(axis, axis) - np.eye(3)
+    
+    # Skew-symmetric cross-product matrix
+    vx = np.array([[0, -v[2], v[1]],
+                   [v[2], 0, -v[0]],
+                   [-v[1], v[0], 0]])
+    
+    R = np.eye(3) + vx + vx @ vx * ((1 - c) / (s ** 2))
+    return R
+
+
+def apply_up_alignment_to_cameras(cameras: List[Dict], up: np.ndarray) -> List[Dict]:
+    """Apply up-direction alignment to camera extrinsics.
+    
+    Rotates world coordinate system so that 'up' direction aligns with Z-axis.
+    Handles both 'extrinsic' format and separate 'R', 'T' format.
+    """
+    # Compute rotation that aligns 'up' to [0, 0, 1]
+    target_up = np.array([0, 0, 1])
+    R_align = rotation_matrix_from_vectors(up, target_up)
+    
+    aligned_cameras = []
+    for cam in cameras:
+        cam_aligned = cam.copy()
+        
+        # Handle both camera formats
+        if 'extrinsic' in cam:
+            # 4x4 extrinsic matrix format
+            E = cam['extrinsic'].copy()
+            R = E[:3, :3]
+            t = E[:3, 3]
+            
+            R_new = R @ R_align.T
+            t_new = R_align @ t
+            
+            E_new = np.eye(4)
+            E_new[:3, :3] = R_new
+            E_new[:3, 3] = t_new
+            cam_aligned['extrinsic'] = E_new
+        else:
+            # Separate R, T format (raw camera pkl)
+            R = cam['R'].copy()
+            T = cam['T'].copy().flatten()
+            
+            # Apply alignment rotation to the world
+            R_new = R @ R_align.T
+            T_new = R_align @ T
+            
+            cam_aligned['R'] = R_new
+            cam_aligned['T'] = T_new.reshape(-1, 1) if cam['T'].ndim > 1 else T_new
+        
+        aligned_cameras.append(cam_aligned)
+    
+    return aligned_cameras
+
+
+def compute_adaptive_zoom(masks: List[np.ndarray], target_fill: float = 0.8, 
+                          zoom_range: Tuple[float, float] = (1.2, 1.5)) -> float:
+    """Compute zoom factor to make object fill target_fill of frame.
+    
+    Args:
+        masks: List of binary masks for all views
+        target_fill: Target ratio of bounding box to frame (0.8 = 80%)
+        zoom_range: (min_zoom, max_zoom) clipping range
+    
+    Returns:
+        Zoom factor
+    """
+    max_bbox_ratio = 0
+    
+    for mask in masks:
+        if mask is None or mask.sum() == 0:
+            continue
+        
+        # Find bounding box
+        coords = np.argwhere(mask > 0)
+        if len(coords) == 0:
+            continue
+        
+        y_min, x_min = coords.min(axis=0)
+        y_max, x_max = coords.max(axis=0)
+        
+        bbox_h = y_max - y_min
+        bbox_w = x_max - x_min
+        
+        # Ratio of bbox to image
+        h, w = mask.shape[:2]
+        ratio = max(bbox_h / h, bbox_w / w)
+        max_bbox_ratio = max(max_bbox_ratio, ratio)
+    
+    if max_bbox_ratio == 0:
+        return 1.0
+    
+    # Compute zoom to achieve target fill
+    zoom = target_fill / max_bbox_ratio
+    return np.clip(zoom, zoom_range[0], zoom_range[1])
+
+
+
 # Config generation paths
 FACELIFT_ROOT = Path("/home/joon/dev/FaceLift")
 DATASET_CONFIG_DIR = FACELIFT_ROOT / "configs" / "datasets"
@@ -67,6 +218,7 @@ class Paradigm(Enum):
     PP_CENTERED_SHIFT = "pp_centered_shift"
     PRECISION_HOMOGRAPHY = "precision_homography"
     NATIVE = "native"
+    UP_ALIGNED_ZOOM = "up_aligned_zoom"
 
 
 class TransformType(Enum):
@@ -103,6 +255,13 @@ class PreprocessConfig:
     target_distance: float = 2.7
     output_size: Optional[int] = 512
     zoom: float = 1.0
+    
+    # D10: Up-alignment settings
+    up_alignment: bool = False
+    up_source: str = "vertical_lines"  # "vertical_lines" or "camera_y_mean"
+    adaptive_zoom: bool = False
+    zoom_range: Tuple[float, float] = (1.2, 1.5)
+    zoom_fill_ratio: float = 0.8
     
     # D6-specific
     d6_method: str = None  # resize_only, virtual_shift, pp_correct_crop
@@ -156,6 +315,19 @@ class PreprocessConfig:
             config.normalize_fx = preset.get('normalize_fx', False)
             config.normalize_translation = preset.get('normalize_translation', False)
             config.target_distance = preset.get('target_distance', 2.7)
+        # ====== UP_ALIGNED_ZOOM (D10) ======
+        elif config.paradigm == Paradigm.UP_ALIGNED_ZOOM:
+            config.transform = TransformType.HOMOGRAPHY
+            config.skew_correction = preset.get('skew_correction', True)
+            config.scale_mode = ScaleMode(preset.get('scale_mode', 'individual'))
+            config.target_fx = preset.get('target_fx', GSLRM_EXACT_FX)
+            config.zoom = preset.get('zoom', 1.0)
+            # D10-specific
+            config.up_alignment = preset.get('up_alignment', True)
+            config.up_source = preset.get('up_source', 'vertical_lines')
+            config.adaptive_zoom = preset.get('adaptive_zoom', False)
+            config.zoom_range = tuple(preset.get('zoom_range', [1.2, 1.5]))
+            config.zoom_fill_ratio = preset.get('zoom_fill_ratio', 0.8)
 
         # Apply overrides
         for key, value in overrides.items():
@@ -699,10 +871,45 @@ _stats:
                     all_paths.append(str(sample_dir) + '/')
                     saved_count += 1
 
-        # ====== D7/D8: Use video captures ======
-        else:
+        # ====== D7/D8/D10: Use video captures ======
+        elif cfg.paradigm in [Paradigm.PP_CENTERED_SHIFT, Paradigm.PRECISION_HOMOGRAPHY, Paradigm.UP_ALIGNED_ZOOM]:
             print(f"Loading cameras: {cfg.camera_pkl}")
             self.load_cameras(cfg.camera_pkl)
+            
+            # D10: Apply up-alignment if enabled
+            if cfg.up_alignment:
+                print(f"Applying up-alignment (source: {cfg.up_source})")
+                if cfg.up_source == "vertical_lines":
+                    vertical_lines_path = cfg.input_dir / "vertical_lines.npz"
+                    if vertical_lines_path.exists():
+                        up = load_up_direction(vertical_lines_path)
+                        print(f"  Loaded up direction: {up}")
+                    else:
+                        print(f"  Warning: {vertical_lines_path} not found, using camera Y-axis")
+                        extrinsics = np.stack([cam['extrinsic'] for cam in self.cameras])
+                        up = compute_up_from_cameras(extrinsics)
+                else:  # camera_y_mean
+                    extrinsics = np.stack([cam['extrinsic'] for cam in self.cameras])
+                    up = compute_up_from_cameras(extrinsics)
+                    print(f"  Computed up from cameras: {up}")
+                
+                self.cameras = apply_up_alignment_to_cameras(self.cameras, up)
+                print(f"  Cameras aligned to up direction")
+            
+            # D10.1: Adaptive zoom if enabled
+            if cfg.adaptive_zoom:
+                print(f"Computing adaptive zoom (target fill: {cfg.zoom_fill_ratio})")
+                # Load first frame masks to estimate zoom
+                mask_dir = cfg.input_dir / "simpleclick_undist"
+                mask_caps_temp = [cv2.VideoCapture(str(mask_dir / f"{i}.mp4")) for i in range(self.num_views)]
+                first_masks = []
+                for cap in mask_caps_temp:
+                    ret, frame = cap.read()
+                    if ret:
+                        first_masks.append(frame[:, :, 0] > 127)
+                    cap.release()
+                cfg.zoom = compute_adaptive_zoom(first_masks, cfg.zoom_fill_ratio, cfg.zoom_range)
+                print(f"  Adaptive zoom: {cfg.zoom:.2f}x")
 
             video_dir = cfg.input_dir / "videos_undist"
             mask_dir = cfg.input_dir / "simpleclick_undist"
