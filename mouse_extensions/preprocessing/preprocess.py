@@ -306,6 +306,10 @@ class PreprocessConfig:
             config.scale_mode = ScaleMode(preset.get('scale_mode', 'individual'))
             config.target_fx = preset.get('target_fx', GSLRM_EXACT_FX)
             config.zoom = preset.get('zoom', 1.0)
+            # D8.2: Adaptive zoom support
+            config.adaptive_zoom = preset.get("adaptive_zoom", False)
+            config.zoom_range = tuple(preset.get("zoom_range", [1.0, 1.5]))
+            config.zoom_fill_ratio = preset.get("zoom_fill_ratio", 0.85)
             
         # ====== NATIVE (D9, D9_norm) ======
         elif config.paradigm == Paradigm.NATIVE:
