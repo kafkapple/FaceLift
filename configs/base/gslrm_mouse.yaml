@@ -139,8 +139,8 @@ mouse:
 visualization:
   # Turntable visualization settings
   turntable:
-    # Smooth trajectory through 6 dataset cameras
-    smooth_trajectory: true   # Interpolate between dataset cameras
+    # Standard 360° turntable (smooth_trajectory=false)
+    smooth_trajectory: false   # Interpolate between dataset cameras
     loop: true                # Return to first camera
     # Training/validation (grid image)
     num_views: 60           # Total views for grid (default 8x8=64)
