@@ -1,0 +1,30 @@
+# =============================================================================
+# E1: GT Mask (mask_mode: gt)
+# =============================================================================
+# Literature: Pose Splatter (NeurIPS 2025)
+# Purpose: GT-masked RGB loss only (no alpha supervision)
+# =============================================================================
+
+_name: E1_gt
+_description: "GT mask for RGB loss only"
+_mask_mode: gt
+
+training:
+  dataset:
+    num_views: 6
+    num_input_views: 4
+    random_view_selection: true
+
+  losses:
+    # GT mask mode (Pose Splatter)
+    mask_mode: gt
+    normalize_by_mask: true  # Critical for small foreground
+    
+    # No alpha supervision
+    alpha_loss_weight: 0.0
+    bg_loss_weight: 0.0
+    
+    # Standard losses
+    l2_loss_weight: 1.0
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0

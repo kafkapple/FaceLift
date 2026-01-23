@@ -1,0 +1,34 @@
+# =============================================================================
+# E2: GT + Alpha Supervision (mask_mode: gt + alpha_loss) ★ RECOMMENDED
+# =============================================================================
+# Literature: LGM (ECCV 2024) + Pose Splatter (NeurIPS 2025)
+# Purpose: Best practice for small foreground (e.g., mouse)
+# =============================================================================
+
+_name: E2_gt_alpha_sup
+_description: "GT mask + alpha supervision (RECOMMENDED)"
+_mask_mode: gt_alpha_sup
+_priority: P0
+
+training:
+  dataset:
+    num_views: 6
+    num_input_views: 4
+    random_view_selection: true
+
+  losses:
+    # GT mask mode + normalization (Pose Splatter)
+    mask_mode: gt
+    normalize_by_mask: true  # Critical for small foreground!
+    
+    # Alpha supervision (LGM)
+    alpha_loss_weight: 0.1
+    alpha_loss_type: mse  # More stable than BCE
+    
+    # No background penalty
+    bg_loss_weight: 0.0
+    
+    # Standard losses
+    l2_loss_weight: 1.0
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0

@@ -2,8 +2,43 @@
 
 # FaceLift Experiment Registry
 
-> **Version**: 2.0.0 (2026-01-24)
+> **Version**: 3.0.0 (2026-01-24)
 > **Single Source of Truth** for all experiment configurations
+> **New Schema**: E0-E5 maps directly to mask modes
+
+---
+
+## Naming Convention v2.0
+
+```
+{Dataset}_E{MaskMode}[_{SubNum}][_fixed]
+    │       │           │         │
+    │       │           │         └── _fixed: 고정 뷰 선택 (Random이 기본)
+    │       │           └── 선택적 서브넘버 (4v, 5v 등)
+    │       └── E0-E5: 마스크 모드 (아래 표 참조)
+    └── D7_1, D8, v13 등
+
+예시:
+  D7_1_E2        = D7.1 데이터 + GT+Alpha (권장) + Random views
+  D7_1_E2_fixed  = D7.1 데이터 + GT+Alpha + Fixed views
+  D7_1_E2_4v     = D7.1 데이터 + GT+Alpha + 4 views
+```
+
+### E0-E5 마스크 모드 매핑 ★
+
+| Exp | Mask Mode | Alpha Loss | BG Loss | 문헌 | Priority |
+|-----|-----------|------------|---------|------|----------|
+| **E0** | none | - | - | Paper Baseline | P5 |
+| **E1** | gt | - | - | GT Mask Only | P4 |
+| **E2** ⭐ | **gt + α_sup** | **0.1 MSE** | - | **LGM + Pose Splatter** | **P0** |
+| **E3** | α_sup only | 0.1 MSE | - | LGM | P3 |
+| **E4** | bg_penalty | 0.1 MSE | 0.5 | Object-Centric 2DGS | P2 |
+| **E5** | composite | 0.05 MSE | - | Nerfstudio | P1 |
+
+**핵심 원칙**:
+- **Random view selection이 기본** (suffix 없음)
+- `_fixed` suffix는 고정 뷰 선택 시에만 사용
+- `_4v`, `_5v` 등 뷰 수 지정 가능
 
 ---
 
@@ -11,169 +46,189 @@
 
 ### 권장 실험 조합
 
-| Priority | Dataset | Experiment | 목적 | 명령어 |
-|----------|---------|------------|------|--------|
-| **P0** | D7_1 | E6_1_gt_alpha_sup | 문헌 기반 마스크 ⭐ | `-d D7_1 -e D7_mask_E1_gt_alpha_sup` |
-| **P1** | D7_1 | E1_1_paper_random | Paper baseline | `-d D7_1 -e E1_1_paper_random` |
-| **P2** | D8 | E1_1_paper_random | Homography 검증 | `-d D8 -e E1_1_paper_random` |
-| **P3** | v13 | E1_1_paper_random | Legacy 비교 | `-d v13 -e E1_1_paper_random` |
-| **P4** | D4 | E1_1_paper_random | PP=256 강제 비교 | `-d D4 -e E1_1_paper_random` |
+| Priority | 명령어 | 목적 |
+|----------|--------|------|
+| **P0** ⭐ | `--config configs/mouse/D7_1_E2.yaml` | GT + Alpha Supervision |
+| **P1** | `--config configs/mouse/D7_1_E5.yaml` | Composite Mask |
+| **P2** | `--config configs/mouse/D7_1_E4.yaml` | Background Penalty |
+| **P3** | `--config configs/mouse/D7_1_E3.yaml` | Alpha Supervision Only |
+| **P4** | `--config configs/mouse/D7_1_E1.yaml` | GT Mask Only |
+| **P5** | `--config configs/mouse/D7_1_E0.yaml` | No Mask (Baseline) |
 
 ---
 
-## 명명 규칙
+## Config Files
 
-```
-{Dataset}_{Experiment}
-   │          │
-   │          └── E{시리즈}_{번호}_{설명}
-   │
-   └── D{버전} 또는 Legacy ID (v13, D1, D4)
+### Experiment Configs (configs/experiments/)
 
-예시: D7_1_E2_3 = D7.1 데이터셋 + E2 시리즈 3번 실험
-```
+| File | Mode | 설명 |
+|------|------|------|
+| `E0_baseline.yaml` | none | 마스크 없음 (Paper baseline) |
+| `E1_gt.yaml` | gt | GT 마스크만 |
+| **`E2_gt_alpha_sup.yaml`** ⭐ | gt + α | **GT + Alpha Supervision (권장)** |
+| `E3_alpha_sup_only.yaml` | α only | Alpha Supervision만 (LGM) |
+| `E4_bg_penalty.yaml` | bg | Background Penalty |
+| `E5_composite.yaml` | composite | Composite Mask |
+
+### Combined Configs (configs/mouse/)
+
+| File | Dataset | Experiment | Views | Selection |
+|------|---------|------------|-------|-----------|
+| `D7_1_E0.yaml` | D7_1 | Baseline | 5 | Random |
+| `D7_1_E1.yaml` | D7_1 | GT Only | 5 | Random |
+| **`D7_1_E2.yaml`** ⭐ | D7_1 | **GT + Alpha** | 5 | **Random** |
+| `D7_1_E2_fixed.yaml` | D7_1 | GT + Alpha | 5 | Fixed |
+| `D7_1_E2_4v.yaml` | D7_1 | GT + Alpha | 4 | Random |
+| `D7_1_E3.yaml` | D7_1 | Alpha Only | 5 | Random |
+| `D7_1_E4.yaml` | D7_1 | BG Penalty | 5 | Random |
+| `D7_1_E5.yaml` | D7_1 | Composite | 5 | Random |
 
 ---
 
-## 실험 시리즈 개요
+## Experiment Details
 
-### E1: Paper Baseline (No Mask)
+### E0: Baseline (No Mask)
 
-| Config | Views | Selection | Mask | 용도 |
-|--------|-------|-----------|------|------|
-| **E1_1_paper_random** | 4 | random | none | ★ 기본 baseline |
-| E1_2_paper_fixed | 4 | fixed | none | Fixed view 비교 |
-| E1_3_5v_paper_random | 5 | random | none | 5뷰 baseline |
-| E1_4_5v_paper_fixed | 5 | fixed | none | 5뷰 fixed |
+**용도**: Paper 설정 재현, 마스크 효과 비교 기준
 
-### E2: Mask Mode (GT vs Alpha)
-
-| Config | Mask | Views | Selection | 용도 |
-|--------|------|-------|-----------|------|
-| **E2_1_gt_mask_random** | gt | 4 | random | ★ GT 기본 |
-| E2_2_gt_mask | gt | 4 | fixed | GT fixed |
-| E2_3_alpha_random | alpha | 4 | random | Alpha 기본 |
-| E2_4_alpha_fixed | alpha | 4 | fixed | Alpha fixed |
-| E2_5_5v_gt_random | gt | 5 | random | 5뷰 GT |
-| E2_6_5v_gt_fixed | gt | 5 | fixed | 5뷰 GT fixed |
-
-### E3: View Count (Alpha 기본)
-
-| Config | Views | Selection | 용도 |
-|--------|-------|-----------|------|
-| E3_2_5v_alpha | 5 | fixed | ★ 5뷰 기준 |
-| E3_3_4v_alpha | 4 | fixed | 4뷰 비교 |
-| E3_4_4v_alpha_random | 4 | random | 4뷰 random |
-
-### E4: Alpha Tuning
-
-| Config | Threshold | Alpha Loss | Opacity Reg | 용도 |
-|--------|-----------|------------|-------------|------|
-| E4_1_alpha_basic | 0.5 | 0.0 | 0.0 | 기본 |
-| **E4_2_alpha_conservative** | 0.7 | 0.3 | 0.0 | ★ 권장 |
-| E4_3_alpha_aggressive | 0.5 | 0.5 | 0.01 | 공격적 |
-| E4_4_4v_conservative | 0.7 | 0.3 | 0.0 | 4뷰 conservative |
-| E4_5_4v_aggressive | 0.5 | 0.5 | 0.01 | 4뷰 aggressive |
-| E4_6_aggressive_exclude_v5 | 0.5 | 0.5 | 0.01 | v5 제외 |
-| E4_7_optimal_alpha | 0.7 | 0.5 | 0.02 | 최적화 시도 |
-
-### E5: Loss Ablation / Threshold Variants
-
-| Config | 핵심 변경 | 용도 |
-|--------|-----------|------|
-| E5_1_5v_alpha_random | 5v + random | Baseline |
-| E5_2_alpha_loss_only | alpha_loss만 | Loss 분리 |
-| E5_3_4v_alpha_loss | 4v + alpha_loss | 4뷰 loss |
-| E5_4_rgb_mask_01 | RGB 마스크 0.1 | RGB 실험 |
-| E5_5_rgb_mask_02 | RGB 마스크 0.2 | RGB 실험 |
-| **E5_6_alpha_thresh_07** | threshold=0.7 | ★ 높은 threshold |
-| E5_6b_alpha_thresh_07_random | 0.7 + random | Random 변형 |
-| E5_7_optimal_alpha | 최적화 | 종합 |
-| E5_8_alpha_thresh_08 | threshold=0.8 | 더 높은 threshold |
-| E5_9_gt_mask | GT mask | GT 비교 |
-| E5_10_no_mask | No mask | Baseline |
-
-### E6: Literature-Based Mask (신규) ⭐
-
-> **문헌 기반 설계**: LGM, Pose Splatter, Object-Centric 2DGS
-
-| Config | Mode | Alpha Loss | BG Loss | 문헌 | Priority |
-|--------|------|------------|---------|------|----------|
-| D7_mask_E0_baseline | none | - | - | - | P4 |
-| **D7_mask_E1_gt_alpha_sup** | gt | 0.1 MSE | - | LGM+Pose Splatter | **P0** ⭐ |
-| D7_mask_E2_composite | composite | 0.05 MSE | - | Nerfstudio | P1 |
-| D7_mask_E3_bg_penalty | none | 0.1 MSE | 0.5 | Obj-Centric 2DGS | P2 |
-| D7_mask_E4_alpha_sup_only | none | 0.1 MSE | - | LGM | P3 |
-
-**E6 권장 설정**:
 ```yaml
 losses:
-  mask_mode: gt              # GT mask로 RGB loss 제한
+  mask_mode: none
+  alpha_loss_weight: 0.0
+  bg_loss_weight: 0.0
+```
+
+### E1: GT Mask Only
+
+**용도**: 마스킹만 적용, alpha loss 없음
+
+```yaml
+losses:
+  mask_mode: gt
+  normalize_by_mask: true
+  alpha_loss_weight: 0.0
+```
+
+### E2: GT + Alpha Supervision ⭐ (권장)
+
+**문헌**: LGM (ECCV 2024) + Pose Splatter (NeurIPS 2025)
+
+```yaml
+losses:
+  mask_mode: gt
   normalize_by_mask: true    # Pose Splatter: 작은 전경 필수
   alpha_loss_weight: 0.1     # LGM: alpha supervision
   alpha_loss_type: mse       # BCE보다 안정적
 ```
 
-→ 상세: [Mask_Experiment_Priority](./Mask_Experiment_Priority.md), [Mask_Literature_Review](../../theory/mask/Mask_Literature_Review.md)
+**왜 E2가 권장인가?**
+1. LGM: "α_sup enables faster convergence of the shape"
+2. Pose Splatter: normalize_by_mask로 작은 객체 편향 방지
+3. GT 마스크로 안정적인 RGB loss 계산
 
-### E_quick: 빠른 테스트
+### E3: Alpha Supervision Only (LGM)
 
-| Config | Steps | 용도 |
-|--------|-------|------|
-| E_quick_alpha | 500 | 빠른 검증 (~10분) |
+**문헌**: LGM (ECCV 2024)
 
----
-
-## 가설 검증 매트릭스
-
-### H1: Dataset 기하학 영향
-
-| 비교 | 가설 | 지표 |
-|------|------|------|
-| D7_1 vs v13 | PP-shift > Legacy | PSNR, ghosting |
-| D7_1 vs D4 | 정확한 PP > 강제 PP | ray error |
-| D8 vs D7_1 | Homography > Affine | skew 보정 |
-
-### H2: Mask 방식 영향
-
-| 비교 | 가설 | 지표 |
-|------|------|------|
-| E2_1 vs E2_3 | GT mask > Alpha mask | mask_iou |
-| E6_1 vs E2_1 | Alpha supervision 추가 효과 | shape convergence |
-
-### H3: View Count 영향
-
-| 비교 | 가설 | 지표 |
-|------|------|------|
-| E3_2 (5v) vs E3_3 (4v) | 더 많은 뷰 > | PSNR |
-
----
-
-## Config 파일 위치
-
+```yaml
+losses:
+  mask_mode: none           # RGB loss on full image
+  alpha_loss_weight: 0.1    # Shape supervision만
 ```
-configs/
-├── datasets/                    # 데이터셋 설정 (14개)
-│   ├── v13.yaml                 # Legacy
-│   ├── D4.yaml                  # PP=256 강제
-│   ├── D7_1.yaml                # ★ 표준
-│   ├── D8.yaml                  # ★★ Homography
-│   └── ...
-│
-├── experiments/                 # 실험 설정 (33개)
-│   ├── E1_*.yaml               # Paper baseline
-│   ├── E2_*.yaml               # Mask mode
-│   ├── E3_*.yaml               # View count
-│   ├── E4_*.yaml               # Alpha tuning
-│   ├── E5_*.yaml               # Loss ablation
-│   └── E_quick_alpha.yaml      # Quick test
-│
-└── mouse/mask_exp/              # 문헌 기반 마스크 (5개)
-    ├── D7_mask_E0_baseline.yaml
-    ├── D7_mask_E1_gt_alpha_sup.yaml  # ★ P0
-    ├── D7_mask_E2_composite.yaml
-    ├── D7_mask_E3_bg_penalty.yaml
-    └── D7_mask_E4_alpha_sup_only.yaml
+
+**용도**: RGB 마스킹 없이 alpha supervision만의 효과 측정
+
+### E4: Background Penalty
+
+**문헌**: Object-Centric 2DGS
+
+```yaml
+losses:
+  mask_mode: none
+  alpha_loss_weight: 0.1
+  bg_loss_weight: 0.5      # Background penalty
+```
+
+**용도**: 배경 억제를 통한 전경 집중
+
+### E5: Composite Mask
+
+**문헌**: Nerfstudio
+
+```yaml
+losses:
+  mask_mode: composite      # α * rendered + (1-α) * bg
+  normalize_by_mask: false  # 전체 이미지 정규화
+  alpha_loss_weight: 0.05
+```
+
+**용도**: 더 부드러운 전경-배경 블렌딩
+
+---
+
+## Legacy Config Migration
+
+### 기존 → 새 명명 규칙
+
+| Legacy Name | New Name | 비고 |
+|-------------|----------|------|
+| `D7_mask_E1_gt_alpha_sup.yaml` | `D7_1_E2.yaml` | ★ 권장 |
+| `D7_mask_E0_baseline.yaml` | `D7_1_E0.yaml` | |
+| `D7_mask_E2_composite.yaml` | `D7_1_E5.yaml` | E5로 이동 |
+| `D7_mask_E3_bg_penalty.yaml` | `D7_1_E4.yaml` | E4로 이동 |
+| `D7_mask_E4_alpha_sup_only.yaml` | `D7_1_E3.yaml` | E3로 이동 |
+| `E1_1_paper_random.yaml` | `E0_baseline.yaml` | |
+| `E2_1_gt_mask_random.yaml` | `E1_gt.yaml` | |
+
+### 아카이브된 설정
+
+기존 세부 넘버링 configs (`E1_1`, `E2_1`, `E4_7` 등)은 `configs/experiments/_archive/`로 이동
+
+---
+
+## Running Experiments
+
+### Basic Commands
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# P0: 권장 (GT + Alpha Supervision)
+CUDA_VISIBLE_DEVICES=4 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E2.yaml
+
+# P0 with Fixed Views
+CUDA_VISIBLE_DEVICES=4 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E2_fixed.yaml
+
+# Background Execution
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E2.yaml \
+    > logs/D7_1_E2.log 2>&1 &
+```
+
+### Full Comparison (All Mask Modes)
+
+```bash
+# GPU 4: E0 (Baseline)
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E0.yaml \
+    > logs/D7_1_E0.log 2>&1 &
+
+# GPU 5: E2 (GT + Alpha) ★
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E2.yaml \
+    > logs/D7_1_E2.log 2>&1 &
+
+# GPU 6: E3 (Alpha Only)
+CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E3.yaml \
+    > logs/D7_1_E3.log 2>&1 &
+
+# GPU 7: E4 (BG Penalty)
+CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E4.yaml \
+    > logs/D7_1_E4.log 2>&1 &
 ```
 
 ---
@@ -181,10 +236,10 @@ configs/
 ## Related Documents
 
 - [MOUSE_QUICK_REFERENCE](../MOUSE_QUICK_REFERENCE.md) - 명령어 빠른 참조
-- [Mask_Experiment_Priority](./Mask_Experiment_Priority.md) - 마스크 실험 우선순위
+- [EXPERIMENT_NAMING_CONVENTION](./EXPERIMENT_NAMING_CONVENTION.md) - 네이밍 규칙 상세
 - [Mask_Literature_Review](../../theory/mask/Mask_Literature_Review.md) - 마스크 문헌 조사
 - [PREPROCESSING_REGISTRY](../datasets/PREPROCESSING_REGISTRY.md) - 데이터셋 레지스트리
 
 ---
 
-*Experiment Registry v2.0.0 | 2026-01-24*
+*Experiment Registry v3.0.0 | 2026-01-24*

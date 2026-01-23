@@ -1,0 +1,28 @@
+# D7_1 + E2: GT + Alpha Supervision (Fixed Views)
+_base_:
+  - ../base/gslrm_base.yaml
+  - ../datasets/D7_1.yaml
+  - ../experiments/E2_gt_alpha_sup.yaml
+
+experiment:
+  name: D7_1_E2_fixed
+  description: "D7_1 GT + Alpha Supervision (fixed views)"
+
+training:
+  dataset:
+    random_view_selection: false  # Override to fixed
+
+  checkpointing:
+    checkpoint_dir: checkpoints/gslrm/D7_1_E2_fixed
+
+  logging:
+    wandb:
+      exp_name: D7_1_E2_fixed
+      group: D7_1_mask
+      job_type: E2_gt_alpha_sup_fixed
+
+validation:
+  output_dir: experiments/validation/D7_1_E2_fixed
+
+inference:
+  output_dir: experiments/inference/D7_1_E2_fixed

@@ -1,0 +1,33 @@
+# =============================================================================
+# E0: Baseline (mask_mode: none)
+# =============================================================================
+# Literature: GS-LRM, 3DGS (original)
+# Purpose: Paper baseline without mask supervision
+# =============================================================================
+
+_name: E0_baseline
+_description: "Baseline - no mask supervision"
+_mask_mode: none
+
+training:
+  dataset:
+    num_views: 6
+    num_input_views: 4
+    random_view_selection: true  # Default
+
+  losses:
+    # No mask supervision
+    mask_mode: none
+    alpha_loss_weight: 0.0
+    bg_loss_weight: 0.0
+    normalize_by_mask: false
+    
+    # Standard losses
+    l2_loss_weight: 1.0
+    perceptual_loss_weight: 0.5
+    ssim_loss_weight: 0.0
+    
+    # Legacy (disabled)
+    masked_l2_loss: false
+    masked_ssim_loss: false
+    masked_perceptual_loss: false

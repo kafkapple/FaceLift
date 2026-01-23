@@ -1,0 +1,25 @@
+# D7_1 + E1: GT Mask Only (Random)
+_base_:
+  - ../base/gslrm_base.yaml
+  - ../datasets/D7_1.yaml
+  - ../experiments/E1_gt.yaml
+
+experiment:
+  name: D7_1_E1
+  description: "D7_1 GT Mask Only"
+
+training:
+  checkpointing:
+    checkpoint_dir: checkpoints/gslrm/D7_1_E1
+
+  logging:
+    wandb:
+      exp_name: D7_1_E1
+      group: D7_1_mask
+      job_type: E1_gt
+
+validation:
+  output_dir: experiments/validation/D7_1_E1
+
+inference:
+  output_dir: experiments/inference/D7_1_E1

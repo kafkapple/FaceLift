@@ -1,0 +1,25 @@
+# D7_1 + E5: Composite (Nerfstudio)
+_base_:
+  - ../base/gslrm_base.yaml
+  - ../datasets/D7_1.yaml
+  - ../experiments/E5_composite.yaml
+
+experiment:
+  name: D7_1_E5
+  description: "D7_1 Composite (Nerfstudio style)"
+
+training:
+  checkpointing:
+    checkpoint_dir: checkpoints/gslrm/D7_1_E5
+
+  logging:
+    wandb:
+      exp_name: D7_1_E5
+      group: D7_1_mask
+      job_type: E5_composite
+
+validation:
+  output_dir: experiments/validation/D7_1_E5
+
+inference:
+  output_dir: experiments/inference/D7_1_E5

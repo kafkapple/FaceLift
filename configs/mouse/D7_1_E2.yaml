@@ -1,0 +1,25 @@
+# D7_1 + E2: GT + Alpha Supervision (Random) ★ RECOMMENDED
+_base_:
+  - ../base/gslrm_base.yaml
+  - ../datasets/D7_1.yaml
+  - ../experiments/E2_gt_alpha_sup.yaml
+
+experiment:
+  name: D7_1_E2
+  description: "D7_1 GT + Alpha Supervision (RECOMMENDED)"
+
+training:
+  checkpointing:
+    checkpoint_dir: checkpoints/gslrm/D7_1_E2
+
+  logging:
+    wandb:
+      exp_name: D7_1_E2
+      group: D7_1_mask
+      job_type: E2_gt_alpha_sup
+
+validation:
+  output_dir: experiments/validation/D7_1_E2
+
+inference:
+  output_dir: experiments/inference/D7_1_E2
