@@ -1,6 +1,9 @@
 # E2 variant: 4-view ablation
 # Same as E2_gt_alpha but with 4 input views
 
+model:
+  num_input_views: 4
+
 training:
   dataset:
     num_input_views: 4

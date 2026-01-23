@@ -1,6 +1,9 @@
 # E2 variant: Overfit test (1 view input)
 # For debugging and sanity check
 
+model:
+  num_input_views: 1
+
 training:
   dataset:
     num_input_views: 1
