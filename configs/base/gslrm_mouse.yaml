@@ -154,7 +154,7 @@ visualization:
     # Inference (video)
     inference_views: 150    # Frames for turntable video
     inference_resolution: null  # null = use input resolution
-    fps: 15                 # Video framerate
+    fps: 10                 # Video framerate
 
 # -----------------------------------------------------------------------------
 # Validation defaults (paths auto-generated)
