@@ -1,40 +1,53 @@
-# Experiment Configurations
+# Experiment Configurations (D7_1 Verified)
 
-> Last Updated: 2026-01-24
+## Recommended Setup
 
-## Quick Reference
+**Dataset**: D7_1 (verified, geometrically correct)
+**Experiment**: E2_gt_alpha (GT mask + alpha supervision)
 
-| Experiment | mask_mode | alpha_loss | views | Priority | 설명 |
-|------------|-----------|------------|-------|----------|------|
-| **E2_gt_alpha** ⭐ | gt | 0.1 | 4 | **P0** | 권장 설정 |
-| E0_none | none | 0.0 | 4 | P2 | Baseline |
-| E1_gt | gt | 0.0 | 4 | P3 | GT mask only |
-| E3_alpha | none | 0.1 | 4 | P4 | Alpha only |
-| E4_bg_penalty | none | 0.1 + bg | 4 | P3 | Background penalty |
-
-## View Ablation
-
-| Experiment | Input Views | Holdout | 용도 |
-|------------|-------------|---------|------|
-| E2_gt_alpha_3v | 3 | 3 | 강건성 테스트 |
-| E2_gt_alpha | 4 | 2 | 기본 (권장) |
-| E2_gt_alpha_5v | 5 | 1 | 최대 정보 |
-| E2_gt_alpha_overfit | 1 | 5 | 오버핏 테스트 |
-
-## Special Variants
-
-| Experiment | 특징 | 용도 |
-|------------|------|------|
-| E2_gt_alpha_fixed | random_view=false | 고정 뷰 순서 |
-| E2_gt_alpha_native | batch=1, size=1024 | D9/D9_norm 전용 |
-
-## Usage
+## Quick Start
 
 ```bash
-# Modular mode (권장)
-train_gslrm.py -d <DATASET> -e <EXPERIMENT>
+# Default 4-view experiment
+python train_gslrm.py -d D7_1 -e E2_gt_alpha
 
-# Example
-train_gslrm.py -d D8 -e E2_gt_alpha
-train_gslrm.py -d D8 -e E2_gt_alpha_3v
+# 3-view (stronger generalization)
+python train_gslrm.py -d D7_1 -e E2_gt_alpha_3v
+
+# 5-view (more context)
+python train_gslrm.py -d D7_1 -e E2_gt_alpha_5v
 ```
+
+## Experiment Matrix
+
+| Config | mask_mode | alpha_loss | Views | Notes |
+|--------|-----------|------------|-------|-------|
+| **E2_gt_alpha** | gt | 0.1 | 4 | **Recommended** |
+| E2_gt_alpha_3v | gt | 0.1 | 3 | Stronger generalization |
+| E2_gt_alpha_5v | gt | 0.1 | 5 | More context |
+| E2_gt_alpha_overfit | gt | 0.1 | 4 | Single sample test |
+| E1_gt | gt | 0.0 | 4 | No alpha supervision |
+| E0_none | none | 0.0 | 4 | No masking (baseline) |
+| E3_alpha | alpha | 0.0 | 4 | **Not recommended** |
+| E4_bg_penalty | none | 0.0 | 4 | Background penalty |
+| E5_composite | composite | 0.0 | 4 | Nerfstudio style |
+| E7_alpha_optimized | alpha | 0.1 | 4 | Threshold=0.6 |
+
+## Mask Mode Reference
+
+| Mode | Description | Status |
+|------|-------------|--------|
+| **gt** | Ground truth mask | Recommended |
+| **none** | No masking | Baseline |
+| alpha | Rendered alpha mask | Needs alpha_loss |
+| composite | Background compositing | Experimental |
+| rgb_pred | RGB distance from white | **DEPRECATED** |
+
+## Archived
+
+- `_archive/deprecated/`: E6_rgb_pred (deprecated)
+- `_archive/d9_native/`: D9 native resolution (unverified)
+
+---
+
+*Updated: 2026-01-24 | D7_1 Verified*

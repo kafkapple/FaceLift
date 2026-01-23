@@ -1,4 +1,4 @@
-# FaceLift Mouse Quick Reference v5.0
+# FaceLift Mouse Quick Reference v5.1
 
 > Last Updated: 2026-01-24 | Modular Mode | Complete Guide
 
@@ -86,15 +86,16 @@ CUDA_VISIBLE_DEVICES=4 torchrun --standalone --nproc_per_node=1 \
 
 ## Experiments
 
-### Mask Mode 실험 (E0-E6)
+### Mask Mode 실험 (E0-E7)
 
-| Experiment | mask_mode | alpha_loss | 설명 | Priority |
-|------------|-----------|------------|------|----------|
-| E0_none | none | 0.0 | No mask baseline | P8 |
-| E1_gt | gt | 0.0 | GT mask only | P9 |
-| **E2_gt_alpha** ⭐ | gt | 0.1 | **GT + alpha supervision** | **P0** |
-| E3_alpha | none | 0.1 | Alpha only | P10 |
-| E4_bg_penalty | none | 0.1+bg | Background penalty | P9 |
+| Experiment | mask_mode | alpha_loss | threshold | Priority | 설명 |
+|------------|-----------|------------|-----------|----------|------|
+| **E2_gt_alpha** ⭐ | gt | 0.1 | - | **P0** | **GT + alpha (권장)** |
+| **E7_alpha_optimized** | alpha | 0.1 | 0.6 | P7 | Optimized alpha |
+| E0_none | none | 0.0 | - | P8 | No mask baseline |
+| E1_gt | gt | 0.0 | - | P9 | GT mask only |
+| E3_alpha | none | 0.1 | 0.5 | P10 | Alpha only |
+| E4_bg_penalty | none | 0.1+bg | - | P9 | Background penalty |
 
 ### View Ablation 실험
 
@@ -155,6 +156,20 @@ python -m mouse_extensions.preprocessing.preprocess --list-presets
 cd /home/joon/dev/FaceLift
 conda activate facelift
 
+###
+CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha_3v > logs/D7_1_E2_gt_alpha_3v.log 2>&1 &
+
+CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha_fixed > logs/D7_1_E2_gt_alpha_fixed.log 2>&1 &
+
+######
+
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D8 -e E0_none > logs/D8_E0.log 2>&1 &
+
+####
+
 # P0: D8 + E2_gt_alpha (권장)
 CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D8 -e E2_gt_alpha > logs/D8_E2.log 2>&1 &
@@ -166,6 +181,10 @@ CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
 # P2: D8_1 (1.3x zoom)
 CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D8_1 -e E2_gt_alpha > logs/D8_1_E2.log 2>&1 &
+
+# P7: E7_alpha_optimized (GT mask 없이)
+CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D8 -e E7_alpha_optimized > logs/D8_E7.log 2>&1 &
 ```
 
 ### 2. View Ablation 실험
@@ -312,6 +331,22 @@ kill <PID>
 
 ---
 
+## Analysis Reports
+
+### Mask Mode Analysis (D9)
+
+**위치**: 
+
+| Mode | IoU | Best Threshold |
+|------|-----|----------------|
+| alpha | 0.99 | **0.6** |
+| gt | 1.00 | - |
+| rgb_pred | 0.07 | 0.3 |
+
+**권장**:  (E2_gt_alpha) 또는  (E7)
+
+---
+
 ## See Also
 
 - [PREPROCESSING_REGISTRY.md](../reference/PREPROCESSING_REGISTRY.md) - 전처리 상세 문서
@@ -319,4 +354,4 @@ kill <PID>
 
 ---
 
-*FaceLift Mouse Quick Reference v5.0 | 2026-01-24*
+*FaceLift Mouse Quick Reference v5.1 | 2026-01-24*

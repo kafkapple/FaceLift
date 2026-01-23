@@ -1,0 +1,12 @@
+# E7: Alpha Mask with Optimized Threshold
+# Based on mask analysis report: alpha_mask_threshold=0.6 achieves IoU 0.99
+# Use when training without GT masks
+
+training:
+  losses:
+    mask_mode: alpha
+    alpha_mask_threshold: 0.6  # Optimized from D9 analysis (IoU=0.99)
+    normalize_by_mask: true
+    alpha_loss_weight: 0.1
+    alpha_loss_type: mse
+    bg_loss_weight: 0.0

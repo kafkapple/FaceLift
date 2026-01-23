@@ -40,12 +40,14 @@ class AlphaMaskSafetyMode(Enum):
 
 # Global flag to prevent repeated warnings
 _ALPHA_MASK_WARNING_SHOWN = False
+_RGB_PRED_WARNING_SHOWN = False
 
 
 def reset_alpha_mask_warning():
     """Reset the alpha mask warning flag (useful for testing)."""
     global _ALPHA_MASK_WARNING_SHOWN
     _ALPHA_MASK_WARNING_SHOWN = False
+_RGB_PRED_WARNING_SHOWN = False
 
 
 def validate_mask_config(config) -> list:
@@ -210,6 +212,15 @@ def compute_mask_from_config(
                 return None, MaskType.NONE
         
         elif mask_mode == "rgb_pred":
+            # DEPRECATED: rgb_pred assumes white background, doesn't work for mouse data
+            global _RGB_PRED_WARNING_SHOWN
+            if not _RGB_PRED_WARNING_SHOWN:
+                print(
+                    "[WARNING] mask_mode='rgb_pred' is DEPRECATED. "
+                    "Assumes white background (bg=1.0), ineffective for mouse data (IoU ~0.06). "
+                    "Use mask_mode='gt' instead."
+                )
+                _RGB_PRED_WARNING_SHOWN = True
             color_distance = (rendering - bg_color).abs().mean(dim=1, keepdim=True)
             mask = (color_distance > pred_threshold).float()
             return mask, MaskType.RGB_PRED

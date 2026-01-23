@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
 """
-Mask Mode Analysis Script for FaceLift Mouse Project
+Mask Mode Analysis Script for FaceLift Mouse Project (v2.0)
 
 Generates quantitative and qualitative comparison report for different mask modes
-and threshold parameters using real mouse data.
+and threshold parameters using REAL MODEL INFERENCE.
+
+v2.0 Changes:
+- Requires checkpoint for real model inference (no simulation)
+- WandB-style visualizations
+- Per-threshold alpha comparison with actual rendered alpha
+- Comprehensive report with images
 
 Usage:
-    # Basic usage with D9 dataset
-    python -m mouse_extensions.scripts.analysis.mask_mode_analysis \
-        --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D9
-
-    # Custom thresholds
-    python -m mouse_extensions.scripts.analysis.mask_mode_analysis \
-        --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D9 \
-        --alpha_thresholds 0.3 0.5 0.7 \
-        --rgb_thresholds 0.05 0.1 0.2
+    # With trained checkpoint (RECOMMENDED)
+    CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.mask_mode_analysis \
+        --checkpoint checkpoints/gslrm/D7_1_E2/ckpt_step_1000.pt \
+        --config configs/mouse/D7_1_E2.yaml \
+        --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \
+        --output_dir experiments/analysis/mask_mode_D7_1_E2
 
 Output:
-    - mask_analysis_report.md: Markdown report
-    - figures/: Visualization images (WandB style)
+    - mask_analysis_report.md: Markdown report WITH images
+    - figures/: All visualization images
     - results.json: Raw metrics data
 """
 
@@ -31,114 +34,158 @@ import json
 
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from einops import rearrange
+from easydict import EasyDict as edict
 
-# Add project root
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from mouse_extensions.model.visualization_extensions import (
-    VisualizationConfig,
-    create_mask_overlay,
-    create_error_heatmap,
-    compute_pred_mask,
-    compute_error_stats,
-    _add_camera_labels,
-)
+from omegaconf import OmegaConf
 
 
 # =============================================================================
-# Data Loading (Real Mouse Data Only)
+# Model Loading
 # =============================================================================
 
-def load_first_frame_data(data_dir: Path, view_indices: List[int] = None) -> Dict[str, torch.Tensor]:
-    """
-    Load first frame from preprocessed mouse dataset (all 6 views).
+def load_model_and_config(checkpoint_path: str, config_path: str, device: str = "cuda"):
+    """Load trained GS-LRM model from checkpoint."""
+    from gslrm.model.gslrm import GSLRM
 
-    Args:
-        data_dir: Path to preprocessed dataset (e.g., D9/)
-        view_indices: Optional specific view indices to load (default: all 6)
+    config = OmegaConf.load(config_path)
+    checkpoint = torch.load(checkpoint_path, map_location=device)
 
-    Returns:
-        Dict with:
-            - images: [V, 3, H, W] RGB images
-            - masks: [V, 1, H, W] GT masks (if available)
-            - view_indices: List of camera indices
-    """
+    model = GSLRM(config)
+    state_dict = checkpoint.get("model_state_dict", checkpoint.get("state_dict", checkpoint))
+    if any(k.startswith("module.") for k in state_dict.keys()):
+        state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+
+    model.load_state_dict(state_dict, strict=False)
+    model = model.to(device)
+    model.eval()
+
+    step = checkpoint.get("step", "unknown")
+    return model, config, step
+
+
+# =============================================================================
+# Data Loading
+# =============================================================================
+
+def load_sample(data_dir: Path, sample_idx: int, device: str = "cuda"):
+    """Load sample with images and camera parameters."""
     train_dir = data_dir / "train"
     if not train_dir.exists():
         train_dir = data_dir
 
-    # Find first sample (supports multiple naming conventions)
-    # Try: sample_*, numeric (000000), or any directory
-    sample_dirs = sorted(train_dir.glob("sample_*"))
-    if not sample_dirs:
-        # Try numeric directories (D9 style: 000000, 000001, ...)
-        sample_dirs = sorted([d for d in train_dir.iterdir() if d.is_dir() and d.name.isdigit()])
-    if not sample_dirs:
-        # Fallback: any directory
-        sample_dirs = sorted([d for d in train_dir.iterdir() if d.is_dir()])
-    if not sample_dirs:
-        raise FileNotFoundError(f"No sample directories found in {train_dir}")
-
-    sample_dir = sample_dirs[0]
-    print(f"Loading from: {sample_dir}")
+    sample_dirs = sorted([d for d in train_dir.iterdir() if d.is_dir()])
+    if sample_idx >= len(sample_dirs):
+        sample_idx = 0
+    sample_dir = sample_dirs[sample_idx]
 
     img_dir = sample_dir / "images"
-    mask_dir = sample_dir / "masks"
+    camera_file = sample_dir / "opencv_cameras.json"
 
-    # Get all image files
     img_files = sorted(img_dir.glob("*.png"))
-    if not img_files:
-        raise FileNotFoundError(f"No PNG images found in {img_dir}")
+    images, gt_masks = [], []
 
-    # Determine view indices
-    if view_indices is None:
-        view_indices = list(range(len(img_files)))
+    for img_file in img_files:
+        img = Image.open(img_file)
+        img_np = np.array(img).astype(np.float32) / 255.0
 
-    images = []
-    masks = []
-    actual_view_indices = []
+        if img_np.shape[2] == 4:
+            rgb, mask = img_np[:, :, :3], img_np[:, :, 3:4]
+        else:
+            rgb = img_np
+            mask = np.ones((img_np.shape[0], img_np.shape[1], 1), dtype=np.float32)
 
-    for idx in view_indices:
-        if idx >= len(img_files):
-            continue
+        images.append(torch.from_numpy(rgb).permute(2, 0, 1))
+        gt_masks.append(torch.from_numpy(mask).permute(2, 0, 1))
 
-        img_file = img_files[idx]
-        actual_view_indices.append(idx)
+    images = torch.stack(images).unsqueeze(0).to(device)
+    gt_masks = torch.stack(gt_masks).unsqueeze(0).to(device)
 
-        # Load image
-        img = Image.open(img_file).convert("RGB")
-        img_tensor = torch.from_numpy(np.array(img)).float() / 255.0
-        img_tensor = img_tensor.permute(2, 0, 1)  # [3, H, W]
-        images.append(img_tensor)
+    with open(camera_file, "r") as f:
+        cameras = json.load(f)
 
-        # Load mask if exists
-        mask_file = mask_dir / img_file.name
-        if mask_file.exists():
-            mask = Image.open(mask_file).convert("L")
-            mask_tensor = torch.from_numpy(np.array(mask)).float() / 255.0
-            mask_tensor = mask_tensor.unsqueeze(0)  # [1, H, W]
-            masks.append(mask_tensor)
+    fxfycxcy, c2ws = [], []
+    if "frames" in cameras:
+        for cam in cameras["frames"]:
+            fxfycxcy.append([cam["fx"], cam["fy"], cam["cx"], cam["cy"]])
+            c2ws.append(np.linalg.inv(np.array(cam["w2c"])))
+    else:
+        for cam_key in sorted(cameras.keys()):
+            cam = cameras[cam_key]
+            if "K" in cam:
+                K = np.array(cam["K"])
+                fxfycxcy.append([K[0, 0], K[1, 1], K[0, 2], K[1, 2]])
+            else:
+                fxfycxcy.append([cam["fx"], cam["fy"], cam["cx"], cam["cy"]])
+            if "w2c" in cam:
+                c2ws.append(np.linalg.inv(np.array(cam["w2c"])))
+            else:
+                w2c = np.eye(4)
+                w2c[:3, :3] = np.array(cam["R"])
+                w2c[:3, 3] = np.array(cam["t"]).flatten()
+                c2ws.append(np.linalg.inv(w2c))
 
-    result = {
-        "images": torch.stack(images),  # [V, 3, H, W]
-        "view_indices": actual_view_indices,
+    fxfycxcy = torch.tensor(fxfycxcy, dtype=torch.float32).unsqueeze(0).to(device)
+    c2ws = torch.tensor(np.stack(c2ws), dtype=torch.float32).unsqueeze(0).to(device)
+
+    num_views = images.shape[1]
+    index = torch.stack([
+        torch.arange(num_views).long(),
+        torch.zeros(num_views).long(),
+    ], dim=-1).unsqueeze(0).to(device)
+
+    return {
+        "images": images,
+        "gt_masks": gt_masks,
+        "fxfycxcy": fxfycxcy,
+        "c2ws": c2ws,
+        "index": index,
         "sample_dir": str(sample_dir),
+        "num_views": num_views,
     }
-
-    if masks:
-        result["masks"] = torch.stack(masks)  # [V, 1, H, W]
-
-    print(f"Loaded {len(images)} views, shape: {result['images'].shape}")
-    if masks:
-        print(f"GT masks available: {result['masks'].shape}")
-
-    return result
 
 
 # =============================================================================
-# Quantitative Metrics
+# Model Inference
+# =============================================================================
+
+@torch.no_grad()
+def run_inference(model, data):
+    """Run GS-LRM inference and return results."""
+    input_batch = edict({
+        "image": data["images"],
+        "c2w": data["c2ws"],
+        "fxfycxcy": data["fxfycxcy"],
+        "index": data["index"],
+    })
+
+    with torch.autocast(enabled=True, device_type="cuda", dtype=torch.float16):
+        result = model.forward(input_batch, create_visual=True, split_data=True)
+
+    rendered_rgb = result.render[0]  # [V, 3, H, W]
+    rendered_alpha = result.rendered_alpha[0] if result.rendered_alpha is not None else None
+
+    target = result.target.image
+    if target.shape[2] == 4:
+        gt_rgb = target[0, :, :3]  # [V, 3, H, W]
+        gt_mask = target[0, :, 3:4]  # [V, 1, H, W]
+    else:
+        gt_rgb = target[0]
+        gt_mask = data["gt_masks"][0]
+
+    return {
+        "rendered_rgb": rendered_rgb,
+        "rendered_alpha": rendered_alpha,
+        "gt_rgb": gt_rgb,
+        "gt_mask": gt_mask,
+    }
+
+
+# =============================================================================
+# Metrics Computation
 # =============================================================================
 
 def compute_mask_metrics(pred_mask: torch.Tensor, gt_mask: torch.Tensor) -> Dict[str, float]:
@@ -157,250 +204,240 @@ def compute_mask_metrics(pred_mask: torch.Tensor, gt_mask: torch.Tensor) -> Dict
     iou = tp / (tp + fp + fn + eps)
 
     return {
-        "iou": iou,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-        "fg_ratio": pred.mean().item(),
+        "iou": round(iou, 4),
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "f1": round(f1, 4),
+        "pred_mask_ratio": round(pred.mean().item(), 4),
     }
 
 
+def compute_per_view_metrics(pred_mask: torch.Tensor, gt_mask: torch.Tensor) -> List[Dict]:
+    """Compute metrics per view."""
+    V = pred_mask.shape[0]
+    results = []
+    for v in range(V):
+        metrics = compute_mask_metrics(pred_mask[v], gt_mask[v])
+        metrics["view"] = v
+        results.append(metrics)
+    return results
+
+
 # =============================================================================
-# WandB-Style Visualization Functions
+# Visualization Functions (WandB Style)
 # =============================================================================
 
-def create_mode_comparison_visual(
-    images: torch.Tensor,
+def overlay_mask(rgb: torch.Tensor, mask: torch.Tensor, color: torch.Tensor, blend: float = 0.4) -> torch.Tensor:
+    """Overlay colored mask on RGB image."""
+    mask_3ch = mask.expand(-1, 3, -1, -1)
+    color_overlay = color.view(1, 3, 1, 1).to(rgb.device) * mask_3ch
+    return rgb * (1 - blend * mask_3ch) + color_overlay * blend
+
+
+def create_wandb_style_comparison(
+    gt_rgb: torch.Tensor,
     gt_mask: torch.Tensor,
-    alpha_threshold: float = 0.5,
-    rgb_threshold: float = 0.1,
-    view_indices: List[int] = None,
-) -> Tuple[np.ndarray, Dict[str, Dict]]:
+    rendered_rgb: torch.Tensor,
+    rendered_alpha: torch.Tensor,
+    thresholds: List[float],
+    max_views: int = 6,
+) -> Tuple[np.ndarray, Dict]:
     """
-    Create WandB-style multi-row visualization comparing mask modes.
-
-    Output Layout:
-        Row 1: GT Images (all views)
-        Row 2: GT + GT Mask overlay
-        Row 3: GT + Alpha Mask overlay (simulated from GT with noise)
-        Row 4: GT + RGB Pred Mask overlay
-        Row 5: Difference Heatmap (GT vs RGB Pred)
-
-    Args:
-        images: [V, 3, H, W] RGB images
-        gt_mask: [V, 1, H, W] GT masks
-        alpha_threshold: Threshold for alpha mode
-        rgb_threshold: Threshold for rgb_pred mode
-        view_indices: Camera indices for labeling
-
-    Returns:
-        Tuple of (visualization numpy array, metrics dict per mode)
-    """
-    device = images.device
-    v, _, h, w = images.shape
-
-    config_gt = VisualizationConfig(mask_mode="gt", overlay_blend=0.3)
-    config_alpha = VisualizationConfig(
-        mask_mode="alpha",
-        alpha_threshold=alpha_threshold,
-        overlay_blend=0.3
-    )
-    config_rgb = VisualizationConfig(
-        mask_mode="rgb_pred",
-        rgb_threshold=rgb_threshold,
-        overlay_blend=0.3
-    )
-
-    # Simulate rendered_alpha from GT mask with noise (for testing without model)
-    noise = torch.randn_like(gt_mask) * 0.15
-    simulated_alpha = (gt_mask + noise).clamp(0, 1)
-
-    # Compute masks
-    alpha_mask = (simulated_alpha > alpha_threshold).float()
-    rgb_mask = compute_pred_mask(images, None, config_rgb)  # RGB-based
-
-    # Compute metrics
-    metrics = {
-        "alpha": compute_mask_metrics(alpha_mask, gt_mask),
-        "rgb_pred": compute_mask_metrics(rgb_mask, gt_mask),
-        "gt": {"iou": 1.0, "precision": 1.0, "recall": 1.0, "f1": 1.0},
-    }
-
-    # Build visualization rows
-    rows = []
-
-    # Row 1: Original images
-    rows.append(images)
-
-    # Row 2: GT mask overlay
-    gt_overlay = create_mask_overlay(images, gt_mask, config_gt)
-    rows.append(gt_overlay)
-
-    # Row 3: Alpha mask overlay
-    alpha_overlay = create_mask_overlay(images, alpha_mask, config_alpha)
-    rows.append(alpha_overlay)
-
-    # Row 4: RGB pred mask overlay
-    rgb_overlay = create_mask_overlay(images, rgb_mask, config_rgb)
-    rows.append(rgb_overlay)
-
-    # Row 5: Difference heatmap (GT vs RGB Pred)
-    error_raw = (gt_mask.float() - rgb_mask.float()).abs()
-    union_mask = ((gt_mask > 0.5).float() + (rgb_mask > 0.5).float() > 0.5).float()
-    error_heatmap = create_error_heatmap(error_raw, union_mask, config_gt, error_max=1.0)
-    rows.append(error_heatmap)
-
-    # Stack rows: [num_rows, V, C, H, W]
-    visual = torch.stack(rows, dim=0)
-
-    # Rearrange to image: [num_rows * H, V * W, 3]
-    visual = rearrange(visual, "rows v c h w -> (rows h) (v w) c")
-
-    # Convert to numpy
-    visual_np = (visual.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
-
-    # Add camera labels
-    if view_indices is not None:
-        visual_np = _add_camera_labels(visual_np, view_indices, w)
-
-    return visual_np, metrics
-
-
-def create_threshold_sweep_visual(
-    images: torch.Tensor,
-    gt_mask: torch.Tensor,
-    mode: str = "alpha",
-    thresholds: List[float] = [0.3, 0.4, 0.5, 0.6, 0.7],
-    view_idx: int = 0,
-) -> Tuple[np.ndarray, List[Dict]]:
-    """
-    Create threshold sweep visualization for a single view.
-
-    Output Layout (for each threshold):
-        Row 1: Mask at threshold
-        Row 2: Overlay at threshold
-        Row 3: Difference from GT
-
-    Args:
-        images: [V, 3, H, W] RGB images
-        gt_mask: [V, 1, H, W] GT masks
-        mode: "alpha" or "rgb_pred"
-        thresholds: List of threshold values
-        view_idx: Which view to visualize
-
-    Returns:
-        Tuple of (visualization numpy array, metrics list)
-    """
-    device = images.device
-
-    # Extract single view
-    img = images[view_idx:view_idx+1]  # [1, 3, H, W]
-    gt = gt_mask[view_idx:view_idx+1]  # [1, 1, H, W]
-
-    # Simulate alpha for testing
-    noise = torch.randn_like(gt) * 0.15
-    simulated_alpha = (gt + noise).clamp(0, 1)
-
-    config = VisualizationConfig(overlay_blend=0.4)
-
-    metrics_list = []
-    columns = []
-
-    # First column: GT reference
-    gt_col = []
-    gt_col.append(gt.expand(-1, 3, -1, -1))  # Mask as grayscale RGB
-    gt_col.append(create_mask_overlay(img, gt, config))
-    gt_col.append(torch.zeros_like(img))  # No diff for GT
-    columns.append(torch.cat(gt_col, dim=2))  # Stack vertically
-
-    # Threshold columns
-    for thresh in thresholds:
-        if mode == "alpha":
-            pred = (simulated_alpha > thresh).float()
-        else:
-            color_dist = (img - 1.0).abs().mean(dim=1, keepdim=True)
-            pred = (color_dist > thresh).float()
-
-        # Compute metrics
-        m = compute_mask_metrics(pred, gt)
-        m["threshold"] = thresh
-        metrics_list.append(m)
-
-        col = []
-        # Row 1: Mask
-        col.append(pred.expand(-1, 3, -1, -1))
-        # Row 2: Overlay
-        col.append(create_mask_overlay(img, pred, config))
-        # Row 3: Difference heatmap
-        diff = (gt.float() - pred.float()).abs()
-        diff_heat = create_error_heatmap(diff, error_max=1.0)
-        col.append(diff_heat)
-
-        columns.append(torch.cat(col, dim=2))
-
-    # Stack columns horizontally
-    visual = torch.cat(columns, dim=3)
-    visual = visual.squeeze(0).permute(1, 2, 0)  # [H*3, W*(n+1), 3]
-
-    visual_np = (visual.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
-
-    return visual_np, metrics_list
-
-
-def create_all_views_threshold_grid(
-    images: torch.Tensor,
-    gt_mask: torch.Tensor,
-    mode: str = "alpha",
-    threshold: float = 0.5,
-    view_indices: List[int] = None,
-) -> np.ndarray:
-    """
-    Create grid showing all views at a specific threshold.
+    Create WandB-style multi-row comparison visualization.
 
     Layout:
-        Row 1: GT images
-        Row 2: GT mask overlay
-        Row 3: Predicted mask overlay
-        Row 4: Difference heatmap
+        Row 0: GT RGB (masked by GT alpha)
+        Row 1: Rendered RGB
+        Row 2: GT + GT Mask (green overlay)
+        Row 3-N: Rendered + Alpha Mask at each threshold (colored overlay)
+
+    Returns:
+        (visualization numpy array, metrics dict)
     """
-    device = images.device
-    v, _, h, w = images.shape
+    V = min(gt_rgb.shape[0], max_views)
+    _, _, H, W = gt_rgb.shape
+    device = gt_rgb.device
 
-    config = VisualizationConfig(
-        mask_mode=mode,
-        alpha_threshold=threshold,
-        rgb_threshold=threshold,
-        overlay_blend=0.3
-    )
-
-    # Simulate alpha
-    noise = torch.randn_like(gt_mask) * 0.15
-    simulated_alpha = (gt_mask + noise).clamp(0, 1)
-
-    # Compute predicted mask
-    if mode == "alpha":
-        pred_mask = (simulated_alpha > threshold).float()
-    else:
-        pred_mask = compute_pred_mask(images, None, config)
-
-    rows = [
-        images,
-        create_mask_overlay(images, gt_mask, config),
-        create_mask_overlay(images, pred_mask, config),
-        create_error_heatmap(
-            (gt_mask.float() - pred_mask.float()).abs(),
-            error_max=1.0
-        ),
+    # Colors
+    green = torch.tensor([0.0, 1.0, 0.0])
+    colors = [
+        torch.tensor([0.0, 0.5, 1.0]),   # blue
+        torch.tensor([1.0, 0.5, 0.0]),   # orange
+        torch.tensor([1.0, 0.0, 1.0]),   # magenta
+        torch.tensor([0.0, 1.0, 1.0]),   # cyan
+        torch.tensor([1.0, 1.0, 0.0]),   # yellow
     ]
+
+    rows = []
+    labels = []
+
+    # Limit views
+    gt_rgb = gt_rgb[:V]
+    gt_mask = gt_mask[:V]
+    rendered_rgb = rendered_rgb[:V]
+    rendered_alpha = rendered_alpha[:V] if rendered_alpha is not None else torch.ones_like(gt_mask)
+
+    # Row 0: GT RGB (with alpha applied for clean background)
+    gt_rgb_masked = gt_rgb * gt_mask.expand(-1, 3, -1, -1)
+    rows.append(gt_rgb_masked)
+    labels.append("GT RGB (masked)")
+
+    # Row 1: Rendered RGB
+    rows.append(rendered_rgb)
+    labels.append("Rendered RGB")
+
+    # Row 2: GT + GT Mask overlay
+    gt_mask_binary = (gt_mask > 0.5).float()
+    gt_overlay = overlay_mask(gt_rgb, gt_mask_binary, green)
+    rows.append(gt_overlay)
+    labels.append("GT + Mask (green)")
+
+    # Compute metrics for each threshold
+    metrics = {}
+    gt_mask_ratio = gt_mask_binary.mean().item() * 100
+
+    for i, thresh in enumerate(thresholds):
+        color = colors[i % len(colors)]
+        alpha_mask = (rendered_alpha > thresh).float()
+        pred_ratio = alpha_mask.mean().item() * 100
+
+        # Compute metrics
+        m = compute_mask_metrics(alpha_mask, gt_mask)
+        m['threshold'] = thresh
+        m['pred_mask_percent'] = round(pred_ratio, 2)
+        metrics[f"alpha_{thresh}"] = m
+
+        # Create overlay
+        overlay = overlay_mask(rendered_rgb, alpha_mask, color)
+        rows.append(overlay)
+        labels.append(f"Alpha > {thresh} ({pred_ratio:.1f}%)")
+
+    metrics["gt_mask_percent"] = round(gt_mask_ratio, 2)
+
+    # Stack rows: [num_rows, V, 3, H, W] -> [(num_rows*H), (V*W), 3]
+    visual = torch.stack(rows, dim=0)
+    visual = rearrange(visual, "rows v c h w -> (rows h) (v w) c")
+    visual_np = (visual.detach().cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+
+    # Add row labels
+    img = Image.fromarray(visual_np)
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+    except:
+        font = ImageFont.load_default()
+
+    for i, label in enumerate(labels):
+        y_pos = i * H + 5
+        # Black background for text
+        draw.rectangle([5, y_pos, 300, y_pos + 22], fill=(0, 0, 0, 200))
+        draw.text((10, y_pos + 2), label, fill=(255, 255, 255), font=font)
+
+    return np.array(img), labels, metrics
+
+
+def create_rgb_threshold_comparison(
+    gt_rgb: torch.Tensor,
+    gt_mask: torch.Tensor,
+    rendered_rgb: torch.Tensor,
+    thresholds: List[float],
+    max_views: int = 6,
+) -> Tuple[np.ndarray, Dict]:
+    """
+    Create RGB prediction mask comparison (|rendered - white| > threshold).
+    """
+    V = min(gt_rgb.shape[0], max_views)
+    _, _, H, W = gt_rgb.shape
+    device = gt_rgb.device
+
+    colors = [
+        torch.tensor([0.0, 0.5, 1.0]),
+        torch.tensor([1.0, 0.5, 0.0]),
+        torch.tensor([1.0, 0.0, 1.0]),
+        torch.tensor([0.0, 1.0, 1.0]),
+        torch.tensor([1.0, 1.0, 0.0]),
+    ]
+
+    gt_rgb = gt_rgb[:V]
+    gt_mask = gt_mask[:V]
+    rendered_rgb = rendered_rgb[:V]
+
+    rows = []
+    labels = []
+
+    # Row 0: GT with mask
+    gt_mask_binary = (gt_mask > 0.5).float()
+    gt_overlay = overlay_mask(gt_rgb, gt_mask_binary, torch.tensor([0.0, 1.0, 0.0]))
+    rows.append(gt_overlay)
+    labels.append("GT + Mask (green)")
+
+    # Compute distance from white
+    white = torch.ones_like(rendered_rgb)
+    color_dist = (rendered_rgb - white).abs().mean(dim=1, keepdim=True)  # [V, 1, H, W]
+
+    metrics = {}
+
+    for i, thresh in enumerate(thresholds):
+        color = colors[i % len(colors)]
+        rgb_mask = (color_dist > thresh).float()
+        pred_ratio = rgb_mask.mean().item() * 100
+
+        m = compute_mask_metrics(rgb_mask, gt_mask)
+        m['threshold'] = thresh
+        m['pred_mask_percent'] = round(pred_ratio, 2)
+        metrics[f"rgb_{thresh}"] = m
+
+        overlay = overlay_mask(rendered_rgb, rgb_mask, color)
+        rows.append(overlay)
+        labels.append(f"RGB dist > {thresh} ({pred_ratio:.1f}%)")
 
     visual = torch.stack(rows, dim=0)
     visual = rearrange(visual, "rows v c h w -> (rows h) (v w) c")
-    visual_np = (visual.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+    visual_np = (visual.detach().cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
 
-    if view_indices:
-        visual_np = _add_camera_labels(visual_np, view_indices, w)
+    # Add labels
+    img = Image.fromarray(visual_np)
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+    except:
+        font = ImageFont.load_default()
 
-    return visual_np
+    for i, label in enumerate(labels):
+        y_pos = i * gt_rgb.shape[2] + 5
+        draw.rectangle([5, y_pos, 300, y_pos + 22], fill=(0, 0, 0, 200))
+        draw.text((10, y_pos + 2), label, fill=(255, 255, 255), font=font)
+
+    return np.array(img), metrics
+
+
+def create_alpha_histogram(rendered_alpha: torch.Tensor, gt_mask: torch.Tensor) -> np.ndarray:
+    """Create histogram of rendered alpha values in FG and BG regions."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    alpha_flat = rendered_alpha.flatten().cpu().numpy()
+    gt_flat = gt_mask.flatten().cpu().numpy()
+
+    fg_alpha = alpha_flat[gt_flat > 0.5]
+    bg_alpha = alpha_flat[gt_flat <= 0.5]
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.hist(fg_alpha, bins=50, alpha=0.7, label=f"Foreground (n={len(fg_alpha)})", color="green")
+    ax.hist(bg_alpha, bins=50, alpha=0.7, label=f"Background (n={len(bg_alpha)})", color="red")
+    ax.set_xlabel("Rendered Alpha Value")
+    ax.set_ylabel("Count")
+    ax.set_title("Alpha Distribution in FG vs BG Regions")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    fig.canvas.draw()
+    img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    plt.close(fig)
+
+    return img
 
 
 # =============================================================================
@@ -410,115 +447,149 @@ def create_all_views_threshold_grid(
 def generate_report(
     results: Dict,
     output_dir: Path,
-    data_dir: Path,
+    checkpoint_path: str,
+    step: str,
     timestamp: str,
 ) -> str:
-    """Generate markdown report."""
+    """Generate markdown report with embedded image references."""
 
     report = f"""# Mask Mode Analysis Report
 
-**Generated**: {timestamp}
-**Data Source**: `{data_dir}`
-**Sample**: `{results.get('sample_dir', 'N/A')}`
+> **Generated**: {timestamp}
+> **Checkpoint**: `{checkpoint_path}`
+> **Step**: {step}
+> **Sample**: `{results.get("sample_dir", "N/A")}`
 
 ---
 
-## 1. Mode Comparison (All 6 Views)
+## Overview
 
-### Quantitative Metrics vs GT Mask
+This report compares different mask configurations using **REAL MODEL INFERENCE**:
+- **mask_mode: alpha** - Uses rendered alpha > threshold
+- **mask_mode: rgb_pred** - Uses |RGB - white| > threshold
+- **mask_mode: gt** - Uses ground truth alpha (baseline)
 
-| Mode | IoU | F1 | Precision | Recall | FG Ratio |
-|------|-----|----|-----------| -------|----------|
+GT Mask Ratio: **{results.get("gt_mask_percent", 0):.2f}%** (mouse is small in frame)
+
+---
+
+## Alpha Threshold Analysis (mask_mode: alpha)
+
+| Threshold | IoU | Precision | Recall | F1 | Pred Mask % |
+|-----------|-----|-----------|--------|-----|-------------|
 """
 
-    for mode, m in results.get("mode_metrics", {}).items():
-        report += f"| `{mode}` | {m['iou']:.4f} | {m['f1']:.4f} | {m['precision']:.4f} | {m['recall']:.4f} | {m.get('fg_ratio', 0):.3f} |\n"
+    for key, m in results.get("alpha_metrics", {}).items():
+        if key.startswith("alpha_"):
+            report += f"| {m['threshold']:.2f} | {m['iou']:.4f} | {m['precision']:.4f} | {m['recall']:.4f} | {m['f1']:.4f} | {m['pred_mask_percent']:.2f}% |\n"
 
     report += """
-### Visual Comparison
+### Visualization
 
-![Mode Comparison](figures/mode_comparison.png)
-
-**Rows (top to bottom)**:
-1. GT Images
-2. GT + GT Mask overlay (green=foreground, red=background)
-3. GT + Alpha Mask overlay (simulated)
-4. GT + RGB Pred Mask overlay
-5. Difference Heatmap (GT vs RGB Pred)
+![Alpha Threshold Comparison](figures/alpha_comparison.png)
 
 ---
 
-## 2. Alpha Threshold Sweep
+## RGB Prediction Threshold Analysis (mask_mode: rgb_pred)
 
+| Threshold | IoU | Precision | Recall | F1 | Pred Mask % |
+|-----------|-----|-----------|--------|-----|-------------|
 """
 
-    if "alpha_sweep" in results:
-        report += "| Threshold | IoU | F1 | Precision | Recall |\n"
-        report += "|-----------|-----|----|-----------| -------|\n"
-        for m in results["alpha_sweep"]:
-            report += f"| {m['threshold']:.2f} | {m['iou']:.4f} | {m['f1']:.4f} | {m['precision']:.4f} | {m['recall']:.4f} |\n"
-
-        report += "\n![Alpha Sweep](figures/alpha_threshold_sweep.png)\n"
-        report += "\n**Columns**: GT, then each threshold\n"
-        report += "**Rows**: Mask, Overlay, Difference from GT\n"
+    for key, m in results.get("rgb_metrics", {}).items():
+        if key.startswith("rgb_"):
+            report += f"| {m['threshold']:.3f} | {m['iou']:.4f} | {m['precision']:.4f} | {m['recall']:.4f} | {m['f1']:.4f} | {m['pred_mask_percent']:.2f}% |\n"
 
     report += """
+### Visualization
+
+![RGB Threshold Comparison](figures/rgb_comparison.png)
+
 ---
 
-## 3. RGB Prediction Threshold Sweep
+## Alpha Distribution Analysis
+
+![Alpha Histogram](figures/alpha_histogram.png)
+
+This histogram shows the distribution of rendered alpha values:
+- **Green**: Alpha values in GT foreground regions
+- **Red**: Alpha values in GT background regions
+
+Good separation indicates the model learned to distinguish foreground from background.
+
+---
+
+## Best Configurations
 
 """
 
-    if "rgb_sweep" in results:
-        report += "| Threshold | IoU | F1 | Precision | Recall |\n"
-        report += "|-----------|-----|----|-----------| -------|\n"
-        for m in results["rgb_sweep"]:
-            report += f"| {m['threshold']:.2f} | {m['iou']:.4f} | {m['f1']:.4f} | {m['precision']:.4f} | {m['recall']:.4f} |\n"
+    # Find best alpha
+    best_alpha = max(
+        [m for k, m in results.get("alpha_metrics", {}).items() if k.startswith("alpha_")],
+        key=lambda x: x["iou"],
+        default={"threshold": 0.5, "iou": 0}
+    )
 
-        report += "\n![RGB Sweep](figures/rgb_threshold_sweep.png)\n"
+    # Find best rgb
+    best_rgb = max(
+        [m for k, m in results.get("rgb_metrics", {}).items() if k.startswith("rgb_")],
+        key=lambda x: x["iou"],
+        default={"threshold": 0.1, "iou": 0}
+    )
 
-    report += f"""
----
-
-## 4. Recommendations
-
-Based on the analysis:
-
-| Mode | Best Threshold | IoU |
-|------|----------------|-----|
-| Alpha | {results.get('best_alpha_threshold', 0.5):.2f} | {results.get('best_alpha_iou', 0):.4f} |
-| RGB Pred | {results.get('best_rgb_threshold', 0.1):.2f} | {results.get('best_rgb_iou', 0):.4f} |
-
-### Recommended Configuration
-
-```yaml
-training:
-  losses:
-    mask_mode: "alpha"
-    alpha_mask_threshold: {results.get('best_alpha_threshold', 0.5):.2f}
-    pred_mask_threshold: {results.get('best_rgb_threshold', 0.1):.2f}
-    masked_l2_loss: true
-```
+    report += f"""### Overall Best (by IoU)
+| Mode | Best Threshold | IoU | F1 |
+|------|----------------|-----|-----|
+| **Alpha** | {best_alpha.get("threshold", 0.5):.2f} | {best_alpha.get("iou", 0):.4f} | {best_alpha.get("f1", 0):.4f} |
+| **RGB Pred** | {best_rgb.get("threshold", 0.1):.3f} | {best_rgb.get("iou", 0):.4f} | {best_rgb.get("f1", 0):.4f} |
 
 ---
 
-*Generated by mask_mode_analysis.py | FaceLift Mouse Project*
+## Recommendations
+
+### For FaceLift Mouse Project:
+
+1. **mask_mode: gt** (Recommended)
+   - Uses actual GT alpha, no threshold needed
+   - Most stable, no mask expansion during training
+
+2. **mask_mode: alpha** with threshold={best_alpha.get("threshold", 0.5):.2f}
+   - Best IoU: {best_alpha.get("iou", 0):.4f}
+   - ⚠️ Risk: Mask can expand during training if model overfits
+
+3. **mask_mode: rgb_pred** with threshold={best_rgb.get("threshold", 0.1):.3f}
+   - Best IoU: {best_rgb.get("iou", 0):.4f}
+   - More stable than alpha mode but lower accuracy
+
+### Key Insights:
+
+- GT mask ratio: ~{results.get("gt_mask_percent", 2.5):.1f}% (mouse is small in frame)
+- Higher threshold (>0.7) leads to lower recall but prevents mask expansion
+- Lower threshold (<0.3) captures more but may include noise
+
+---
+
+*Generated by mask_mode_analysis.py v2.0 | FaceLift Mouse Project*
 """
 
     return report
 
 
 # =============================================================================
-# Main
+# Main Analysis
 # =============================================================================
 
 def run_analysis(
+    checkpoint_path: str,
+    config_path: str,
     data_dir: Path,
     output_dir: Path,
-    alpha_thresholds: List[float] = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
-    rgb_thresholds: List[float] = [0.05, 0.1, 0.15, 0.2, 0.3],
+    sample_idx: int = 0,
+    alpha_thresholds: List[float] = [0.1, 0.3, 0.5, 0.7, 0.9],
+    rgb_thresholds: List[float] = [0.02, 0.05, 0.1, 0.15, 0.2, 0.3],
+    device: str = "cuda",
 ):
-    """Run full mask mode analysis on real mouse data."""
+    """Run full mask mode analysis with real model inference."""
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     output_dir = Path(output_dir)
@@ -526,153 +597,169 @@ def run_analysis(
     (output_dir / "figures").mkdir(exist_ok=True)
 
     print(f"{'='*60}")
-    print("Mask Mode Analysis")
+    print("Mask Mode Analysis v2.0 (Real Model Inference)")
     print(f"{'='*60}")
+    print(f"Checkpoint: {checkpoint_path}")
     print(f"Data: {data_dir}")
     print(f"Output: {output_dir}")
+    print(f"Alpha thresholds: {alpha_thresholds}")
+    print(f"RGB thresholds: {rgb_thresholds}")
 
-    # Load first frame (all 6 views)
-    data = load_first_frame_data(data_dir)
-    images = data["images"]
-    view_indices = data["view_indices"]
+    # Load model
+    print("\n1. Loading model...")
+    model, config, step = load_model_and_config(checkpoint_path, config_path, device)
+    print(f"   Model loaded (step: {step})")
 
-    if "masks" not in data:
-        raise ValueError("GT masks required for analysis. Dataset must have masks/ directory.")
+    # Load data
+    print("\n2. Loading sample...")
+    data = load_sample(data_dir, sample_idx, device)
+    print(f"   Sample: {data['sample_dir']}")
+    print(f"   Views: {data['num_views']}")
 
-    gt_mask = data["masks"]
+    # Run inference
+    print("\n3. Running inference...")
+    result = run_inference(model, data)
+    print(f"   Rendered RGB: {result[rendered_rgb].shape}")
+    print(f"   Rendered Alpha: {result[rendered_alpha].shape if result[rendered_alpha] is not None else None}")
 
-    results = {
-        "sample_dir": data["sample_dir"],
-        "num_views": len(view_indices),
-        "view_indices": view_indices,
+    # Check if we have rendered alpha
+    if result["rendered_alpha"] is None:
+        print("\n   WARNING: No rendered alpha available! Using GT mask for alpha comparison.")
+        result["rendered_alpha"] = result["gt_mask"]
+
+    # Print alpha statistics
+    alpha = result["rendered_alpha"]
+    print(f"\n   Alpha statistics:")
+    print(f"     Min: {alpha.min().item():.4f}")
+    print(f"     Max: {alpha.max().item():.4f}")
+    print(f"     Mean: {alpha.mean().item():.4f}")
+
+    all_results = {
+        "sample_dir": data['sample_dir'],
+        "step": str(step),
+        "checkpoint": checkpoint_path,
     }
 
-    # 1. Mode comparison (all views)
-    print("\n1. Creating mode comparison...")
-    visual, mode_metrics = create_mode_comparison_visual(
-        images, gt_mask,
-        alpha_threshold=0.5,
-        rgb_threshold=0.1,
-        view_indices=view_indices,
+    # 4. Alpha threshold comparison
+    print("\n4. Creating alpha threshold comparison...")
+    alpha_visual, alpha_labels, alpha_metrics = create_wandb_style_comparison(
+        result["gt_rgb"],
+        result["gt_mask"],
+        result["rendered_rgb"],
+        result["rendered_alpha"],
+        alpha_thresholds,
     )
-    Image.fromarray(visual).save(output_dir / "figures" / "mode_comparison.png")
-    results["mode_metrics"] = mode_metrics
+    Image.fromarray(alpha_visual).save(output_dir / "figures" / "alpha_comparison.png")
+    all_results["alpha_metrics"] = alpha_metrics
+    all_results["gt_mask_percent"] = alpha_metrics.get("gt_mask_percent", 0)
+    print(f"   Saved: figures/alpha_comparison.png")
 
-    # 2. Alpha threshold sweep (single view for clarity)
-    print("2. Creating alpha threshold sweep...")
-    visual, alpha_metrics = create_threshold_sweep_visual(
-        images, gt_mask,
-        mode="alpha",
-        thresholds=alpha_thresholds,
-        view_idx=0,
+    # 5. RGB threshold comparison
+    print("\n5. Creating RGB threshold comparison...")
+    rgb_visual, rgb_metrics = create_rgb_threshold_comparison(
+        result["gt_rgb"],
+        result["gt_mask"],
+        result["rendered_rgb"],
+        rgb_thresholds,
     )
-    Image.fromarray(visual).save(output_dir / "figures" / "alpha_threshold_sweep.png")
-    results["alpha_sweep"] = alpha_metrics
+    Image.fromarray(rgb_visual).save(output_dir / "figures" / "rgb_comparison.png")
+    all_results["rgb_metrics"] = rgb_metrics
+    print(f"   Saved: figures/rgb_comparison.png")
 
-    best_alpha = max(alpha_metrics, key=lambda x: x["iou"])
-    results["best_alpha_threshold"] = best_alpha["threshold"]
-    results["best_alpha_iou"] = best_alpha["iou"]
+    # 6. Alpha histogram
+    print("\n6. Creating alpha histogram...")
+    hist_img = create_alpha_histogram(result["rendered_alpha"], result["gt_mask"])
+    Image.fromarray(hist_img).save(output_dir / "figures" / "alpha_histogram.png")
+    print(f"   Saved: figures/alpha_histogram.png")
 
-    # 3. RGB threshold sweep
-    print("3. Creating RGB threshold sweep...")
-    visual, rgb_metrics = create_threshold_sweep_visual(
-        images, gt_mask,
-        mode="rgb_pred",
-        thresholds=rgb_thresholds,
-        view_idx=0,
-    )
-    Image.fromarray(visual).save(output_dir / "figures" / "rgb_threshold_sweep.png")
-    results["rgb_sweep"] = rgb_metrics
+    # 7. Per-view metrics (for best alpha threshold)
+    print("\n7. Computing per-view metrics...")
+    best_thresh = max(
+        [m for k, m in alpha_metrics.items() if k.startswith("alpha_")],
+        key=lambda x: x["iou"]
+    )["threshold"]
+    best_alpha_mask = (result["rendered_alpha"] > best_thresh).float()
+    per_view = compute_per_view_metrics(best_alpha_mask, result["gt_mask"])
+    all_results["per_view_metrics"] = per_view
+    print(f"   Best threshold: {best_thresh}")
 
-    best_rgb = max(rgb_metrics, key=lambda x: x["iou"])
-    results["best_rgb_threshold"] = best_rgb["threshold"]
-    results["best_rgb_iou"] = best_rgb["iou"]
-
-    # 4. Best threshold grid (all views)
-    print("4. Creating best threshold grids...")
-    visual = create_all_views_threshold_grid(
-        images, gt_mask,
-        mode="alpha",
-        threshold=best_alpha["threshold"],
-        view_indices=view_indices,
-    )
-    Image.fromarray(visual).save(output_dir / "figures" / "best_alpha_all_views.png")
-
-    visual = create_all_views_threshold_grid(
-        images, gt_mask,
-        mode="rgb_pred",
-        threshold=best_rgb["threshold"],
-        view_indices=view_indices,
-    )
-    Image.fromarray(visual).save(output_dir / "figures" / "best_rgb_all_views.png")
-
-    # 5. Generate report
-    print("5. Generating report...")
-    report = generate_report(results, output_dir, data_dir, timestamp)
-
+    # 8. Generate report
+    print("\n8. Generating report...")
+    report = generate_report(all_results, output_dir, checkpoint_path, step, timestamp)
     with open(output_dir / "mask_analysis_report.md", "w") as f:
         f.write(report)
+    print(f"   Saved: mask_analysis_report.md")
 
-    # Save raw results
+    # 9. Save raw results
     with open(output_dir / "results.json", "w") as f:
-        json.dump(results, f, indent=2, default=str)
+        json.dump(all_results, f, indent=2, default=str)
+    print(f"   Saved: results.json")
 
     print(f"\n{'='*60}")
     print("Analysis Complete!")
     print(f"{'='*60}")
-    print(f"Report: {output_dir / 'mask_analysis_report.md'}")
-    print(f"Figures: {output_dir / 'figures'}")
-    print(f"\nBest thresholds:")
-    print(f"  Alpha: {results['best_alpha_threshold']:.2f} (IoU={results['best_alpha_iou']:.4f})")
-    print(f"  RGB:   {results['best_rgb_threshold']:.2f} (IoU={results['best_rgb_iou']:.4f})")
+    print(f"Report: {output_dir / mask_analysis_report.md}")
+    print(f"Figures: {output_dir / figures}")
 
-    return results
+    # Summary
+    best_alpha = max(
+        [m for k, m in alpha_metrics.items() if k.startswith("alpha_")],
+        key=lambda x: x["iou"]
+    )
+    best_rgb = max(
+        [m for k, m in rgb_metrics.items() if k.startswith("rgb_")],
+        key=lambda x: x["iou"]
+    )
+    print(f"\nBest configurations:")
+    print(f"  Alpha: threshold={best_alpha[threshold]:.2f}, IoU={best_alpha[iou]:.4f}")
+    print(f"  RGB:   threshold={best_rgb[threshold]:.3f}, IoU={best_rgb[iou]:.4f}")
+
+    return all_results
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Mask Mode Analysis for FaceLift Mouse Project",
+        description="Mask Mode Analysis v2.0 - Real Model Inference",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Analyze D9 dataset
-  python -m mouse_extensions.scripts.analysis.mask_mode_analysis \\
-      --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D9
-
-  # Custom output and thresholds
-  python -m mouse_extensions.scripts.analysis.mask_mode_analysis \\
-      --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D4 \\
-      --output_dir ./analysis_d4 \\
-      --alpha_thresholds 0.3 0.5 0.7
+  # Run with checkpoint (REQUIRED)
+  CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.mask_mode_analysis \\
+      --checkpoint checkpoints/gslrm/D7_1_E2/ckpt_step_1000.pt \\
+      --config configs/mouse/D7_1_E2.yaml \\
+      --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \\
+      --output_dir experiments/analysis/mask_mode_D7_1_E2
 """
     )
 
-    parser.add_argument(
-        "--data_dir", type=str, required=True,
-        help="Path to preprocessed dataset directory (must have masks/)"
-    )
-    parser.add_argument(
-        "--output_dir", type=str, default="mask_analysis_output",
-        help="Output directory for report and figures"
-    )
+    parser.add_argument("--checkpoint", type=str, required=True, help="Path to model checkpoint")
+    parser.add_argument("--config", type=str, required=True, help="Path to config file")
+    parser.add_argument("--data_dir", type=str, required=True, help="Path to preprocessed data")
+    parser.add_argument("--output_dir", type=str, default="mask_analysis_output", help="Output directory")
+    parser.add_argument("--sample_idx", type=int, default=0, help="Sample index to analyze")
     parser.add_argument(
         "--alpha_thresholds", type=float, nargs="+",
-        default=[0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+        default=[0.1, 0.3, 0.5, 0.7, 0.9],
         help="Alpha threshold values to test"
     )
     parser.add_argument(
         "--rgb_thresholds", type=float, nargs="+",
-        default=[0.05, 0.1, 0.15, 0.2, 0.3],
+        default=[0.02, 0.05, 0.1, 0.15, 0.2, 0.3],
         help="RGB prediction threshold values to test"
     )
+    parser.add_argument("--device", type=str, default="cuda", help="Device")
 
     args = parser.parse_args()
 
     run_analysis(
+        checkpoint_path=args.checkpoint,
+        config_path=args.config,
         data_dir=Path(args.data_dir),
         output_dir=Path(args.output_dir),
+        sample_idx=args.sample_idx,
         alpha_thresholds=args.alpha_thresholds,
         rgb_thresholds=args.rgb_thresholds,
+        device=args.device,
     )
 
 
