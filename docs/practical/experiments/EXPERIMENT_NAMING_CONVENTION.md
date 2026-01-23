@@ -1,84 +1,99 @@
-# Experiment Naming Convention v3.0
+# Experiment Naming Convention v3.1
 
 > Last Updated: 2026-01-23
-
-## Overview
-
-계층적 실험 명명 체계로, E번호가 마스크 모드 계열을, 세부 번호가 변형을 나타냅니다.
 
 ## Format
 
 ```
-{Dataset}_E{MaskMode}_{SubNum}[_fixed]
+D{Dataset}_E{MaskMode}_{keyword}[_variant].yaml
 
-예: D7_1_E2_1        = D7.1 + E2(gt+alpha) + 기본(5v, random)
-    D7_1_E2_2        = D7.1 + E2 + 4v
-    D7_1_E2_1_fixed  = D7.1 + E2 + 기본 + fixed view
-```
-
-## E 계열 정의 (Mask Mode)
-
-| E# | mask_mode | normalize | α_loss | bg_loss | Reference |
-|----|-----------|-----------|--------|---------|-----------|
-| **E0** | none | false | 0.0 | 0.0 | GS-LRM Paper |
-| **E1** | gt | true | 0.0 | 0.0 | Pose Splatter |
-| **E2** ⭐ | gt | true | **0.1** | 0.0 | LGM + Pose Splatter |
-| **E3** | none | false | 0.1 | 0.0 | LGM only |
-| **E4** | none | false | 0.1 | **0.5** | Object-Centric 2DGS |
-| **E5** | composite | false | 0.05 | 0.0 | Nerfstudio |
-
-## SubNum 규칙
-
-| SubNum | 의미 | num_input_views | random_view_selection |
-|--------|------|-----------------|----------------------|
-| **_1** | 기본 | 5 | true |
-| **_2** | 4v | 4 | true |
-| **_3** | 6v | 6 | true |
-| **_4** | conservative | 5 | true (α=0.05) |
-| **_5** | aggressive | 5 | true (α=0.2) |
-
-## Suffix 규칙
-
-| Suffix | 의미 |
-|--------|------|
-| (없음) | random view selection (기본) |
-| **_fixed** | fixed view selection |
-
-## Dataset ID
-
-| Dataset | 설명 | 권장 |
-|---------|------|------|
-| **D7_1** | Individual scale, geometric correction | ⭐ 권장 |
-| D7_2 | Average scale | - |
-| D7_t | Temporal split | ablation |
-| D8 | Homography transform | - |
-| D9 | New preprocessing | testing |
-| v13 | Legacy | - |
-
-## Priority
-
-| Priority | Config | 설명 |
-|----------|--------|------|
-| **P0** | D7_1_E2_1 | 권장 (GT mask + alpha supervision) |
-| P1 | D7_1_E0_1 | Baseline 비교 |
-| P2 | D7_1_E1_1 | GT only 비교 |
-| P3 | D7_1_E2_2 | 4v ablation |
-| P4 | D7_1_E4_1 | BG penalty |
-
-## Examples
-
-```bash
-# P0: 권장 실험
-CUDA_VISIBLE_DEVICES=5 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py --config configs/mouse/D7_1_E2_1.yaml
-
-# View ablation
-CUDA_VISIBLE_DEVICES=4 ... --config configs/mouse/D7_1_E2_2.yaml  # 4v
-
-# Fixed vs Random
-CUDA_VISIBLE_DEVICES=6 ... --config configs/mouse/D7_1_E2_1_fixed.yaml
+예시:
+  D7_1_E2_gt_alpha.yaml       = D7.1 + E2(gt+alpha) + 기본
+  D7_1_E2_gt_alpha_4v.yaml    = D7.1 + E2 + 4뷰 ablation
+  D7_1_E2_overfit_1v.yaml     = D7.1 + E2 + 1뷰 overfit
 ```
 
 ---
 
-*Engram v1.0 | Schema v3.0*
+## Dataset ID
+
+| ID | 설명 | 권장 |
+|----|------|------|
+| **D7_1** | Individual scale, geometric correction | ⭐ 권장 |
+| D7_2 | Average scale | - |
+| D8 | Homography transform | - |
+| D9 | New preprocessing | testing |
+
+---
+
+## Experiment ID (E0-E5)
+
+| E# | mask_mode | normalize | α_loss | bg_loss | 키워드 |
+|----|-----------|-----------|--------|---------|--------|
+| **E0** | none | false | 0.0 | 0.0 | baseline |
+| **E1** | gt | true | 0.0 | 0.0 | gt |
+| **E2** ⭐ | gt | true | 0.1 | 0.0 | gt_alpha |
+| **E3** | none | false | 0.1 | 0.0 | alpha |
+| **E4** | none | false | 0.1 | 0.5 | bg_penalty |
+| **E5** | composite | false | 0.05 | 0.0 | composite |
+
+---
+
+## 키워드 규칙
+
+| 키워드 | 의미 | 예시 |
+|--------|------|------|
+| baseline | 마스크/alpha 없음 | E0_baseline |
+| gt | GT 마스크만 | E1_gt |
+| gt_alpha | GT + alpha supervision | E2_gt_alpha |
+| alpha | Alpha supervision만 | E3_alpha |
+| bg_penalty | 배경 페널티 | E4_bg_penalty |
+| composite | 배경 합성 | E5_composite |
+
+---
+
+## Variant (변형)
+
+| Variant | 의미 | 예시 |
+|---------|------|------|
+| _4v | 4개 입력 뷰 | gt_alpha_4v |
+| _6v | 6개 입력 뷰 | gt_alpha_6v |
+| _fixed | 고정 뷰 선택 | gt_alpha_fixed |
+| _overfit_1v | 1뷰 overfit | overfit_1v |
+
+---
+
+## 현재 사용 가능한 Configs
+
+| Config | 설명 | Priority |
+|--------|------|----------|
+| **D7_1_E0_baseline** | No mask, no alpha | P2 |
+| **D7_1_E1_gt** | GT mask only | P3 |
+| **D7_1_E2_gt_alpha** | GT + alpha ⭐ | **P0** |
+| **D7_1_E2_gt_alpha_4v** | 4v ablation | P4 |
+| **D7_1_E2_overfit_1v** | 1v overfit test | P5 |
+| **D7_1_E3_alpha** | Alpha only | P4 |
+| **D7_1_E4_bg_penalty** | BG penalty | P3 |
+
+---
+
+## Quick Commands
+
+```bash
+# 권장 실험
+CUDA_VISIBLE_DEVICES=5 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/D7_1_E2_gt_alpha.yaml
+
+# Baseline 비교
+CUDA_VISIBLE_DEVICES=4 torchrun ... --config configs/mouse/D7_1_E0_baseline.yaml
+
+# 4v ablation
+CUDA_VISIBLE_DEVICES=6 torchrun ... --config configs/mouse/D7_1_E2_gt_alpha_4v.yaml
+```
+
+---
+
+## See Also
+
+- [CONFIG_SCHEMA.md](../config/CONFIG_SCHEMA.md) - Config 구조 상세
+- [configs/README.md](../../../configs/README.md) - Config 시스템 개요
