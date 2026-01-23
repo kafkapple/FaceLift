@@ -1573,7 +1573,26 @@ class GSLRM(nn.Module):
             dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()  # [num_cams, 4, 4]
             dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()  # [num_cams, 4]
             
-            if include_dataset_views:
+            # Check for smooth trajectory mode (interpolate between dataset cameras)
+            smooth_trajectory = turntable_cfg.get("smooth_trajectory", False)
+            camera_order = turntable_cfg.get("camera_order", None)
+            loop_trajectory = turntable_cfg.get("loop", True)
+            
+            if smooth_trajectory:
+                # Use smooth interpolation between dataset cameras
+                turntable_frames, segments = render_dataset_trajectory(
+                    model_results.gaussians[batch_idx],
+                    dataset_c2ws, dataset_fxfycxcy,
+                    rendering_resolution=turntable_resolution,
+                    num_views=turntable_views,
+                    camera_order=camera_order,
+                    loop=loop_trajectory,
+                    show_overlay=True
+                )
+                # turntable_frames: [num_views, H, W, 3]
+                turntable_image = rearrange(turntable_frames, "v h w c -> h (v w) c")
+                
+            elif include_dataset_views:
                 # Render with dataset views included (first 6 are dataset cameras)
                 num_dataset = dataset_c2ws.shape[0]
                 num_turntable = turntable_views - num_dataset
