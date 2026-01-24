@@ -2,8 +2,8 @@
 
 > **Navigation**: [← MoC](../../00_MoC_INDEX.md) | [Theory](../) | [Mask](./)
 
-**Date**: 2026-01-24
-**Purpose**: 3D Gaussian Splatting 논문들의 마스크 처리 방식 조사 및 FaceLift 적용 제안
+**Date**: 2026-01-24 (Updated)
+**Purpose**: 3D Gaussian Splatting 논문들의 마스크 처리 방식 조사 및 FaceLift 적용
 
 ---
 
@@ -13,73 +13,157 @@
 |--------|--------------|-------------------|-----------|
 | Original 3DGS | ❌ None | ❌ None | 전체 이미지 L1+SSIM |
 | GaussianObject | ✅ BCE | ✅ BCE | 명시적 alpha loss |
-| LGM | ✅ MSE | ✅ MSE | Shape 수렴 가속화 |
-| Pose Splatter | ✅ Normalized L1 | - | Mouse 데이터 검증 |
+| **LGM** | ✅ MSE | ✅ **MSE** | Shape 수렴 가속화 |
+| **Pose Splatter** | ✅ Normalized L1 | - | Mouse 데이터 검증 |
 | Object-Centric 2DGS | - | ✅ BG Penalty | 96% 모델 경량화 |
-| GS-LRM/FaceLift | ❌ None | ❌ None | RGB loss only |
+| Splatfacto-W | ✅ Composite | ✅ Strong α | 배경 분리 |
 
 **핵심 발견**:
-- **Intersection (GT ∩ Alpha) 방식을 사용하는 논문 없음**
-- Object-centric 방법들은 **Alpha Supervision Loss**를 별도로 추가
-- Rendered alpha로 loss masking하는 방식은 문헌에서 찾기 어려움
+- **Rendered alpha로 loss masking하는 논문 없음** (확장 위험)
+- Object-centric 방법들은 **GT mask + Alpha Supervision Loss** 조합
+- MSE가 BCE보다 gradient 안정적
 
 ---
 
-## Key Papers
+## 상세 분석
 
-### LGM (ECCV 2024 Oral)
+### 1. LGM (ECCV 2024 Oral) ★
 
+**Loss 구조**:
 ```
 L_rgb = L_MSE(I_rgb, I_rgb^GT) + λ·L_LPIPS(I_rgb, I_rgb^GT)
 L_α = L_MSE(I_α, I_α^GT)  ← Alpha Supervision
 ```
 
-- Alpha Supervision: **MSE** (rendered α vs GT mask)
-- 목적: faster convergence of the shape
-- MSE가 BCE보다 gradient 안정적
+**핵심 인용**:
+> "We use simple MSE loss on both RGB and alpha images for faster convergence of the shape."
 
-### Pose Splatter (NeurIPS 2025)
+**적용**:
+- `alpha_loss_type: mse`
+- `alpha_loss_weight: 1.0` (RGB와 동등)
 
+### 2. Pose Splatter (NeurIPS 2025) ★
+
+**Loss 구조**:
 ```
 L_mask = Σ|pred - gt|·mask / Σmask  (정규화)
 ```
 
-- **Mouse/rat 데이터**에서 검증
-- 마스크 픽셀 수로 정규화 → 작은 전경 편향 방지
+**핵심 인용**:
+> "Normalized by the mask sum to prevent bias towards larger foregrounds."
 
-### Object-Centric 2DGS (2025)
+**적용**:
+- `normalize_by_mask: true` (★ 중요)
+- **Mouse/rat 데이터**에서 검증됨
 
+### 3. Object-Centric 2DGS (2025)
+
+**Loss 구조**:
 ```
 L_bg = mean(rendered_α · (1 - GT_mask))
 ```
 
-- Background penalty: 배경 opacity 억제
-- 결과: 96% 모델 크기 감소, 71% 학습 속도 향상
+**핵심 인용**:
+> "Background penalty results in 96% model size reduction and 71% training speedup."
 
-### Nerfstudio (Composite Loss)
+**적용**:
+- `bg_loss_weight: 0.3~1.0`
+- 배경 Gaussian 생성 억제
 
+### 4. Splatfacto-W (NerfStudio)
+
+**Loss 구조**:
 ```
 pred_composite = pred_rgb · α + bg · (1 - α)
 gt_composite = gt_rgb · mask + bg · (1 - mask)
 L = MSE(pred_composite, gt_composite)
 ```
 
-- 암묵적 alpha supervision
-- White background에 적합
+**적용**:
+- `mask_mode: composite`
+- `background_color: 1.0` (white)
+- `alpha_loss_weight: 0.3` (강화)
 
 ---
 
-## Recommended Configuration (FaceLift Mouse)
+## FaceLift 실험 설정
+
+### 권장 설정 (E2_gt_alpha) ★
 
 ```yaml
-# P0: GT Mask + Alpha Supervision (LGM + Pose Splatter)
 training:
   losses:
-    mask_mode: gt              # GT mask로 RGB loss 제한
-    normalize_by_mask: true    # Pose Splatter: 작은 전경 필수
-    alpha_loss_weight: 0.1     # LGM: alpha supervision
+    mask_mode: gt              # GT mask (안정적)
+    normalize_by_mask: true    # Pose Splatter
+    alpha_loss_weight: 0.1     # LGM (약간 낮춤)
     alpha_loss_type: mse       # BCE보다 안정적
+    bg_loss_weight: 0.0
 ```
+
+### 실험적 설정
+
+| 실험 | 문헌 근거 | 특징 |
+|------|----------|------|
+| E5_composite_strong | Splatfacto-W | composite + α=0.3 |
+| E6_lgm_full | LGM | α=1.0 (동등 가중치) |
+| E6_bg_penalty_strong | 2DGS | bg_loss=1.0 |
+| E6_combined | 다중 | α=0.2 + bg=0.3 |
+
+---
+
+## mask_mode 동작 상세
+
+### gt (권장)
+```python
+# GT 마스크로 RGB loss 제한
+loss = ((pred - gt)**2 * mask).sum() / mask.sum()
+```
+- **장점**: 안정적, 마스크 고정
+- **단점**: 배경 학습 불가
+
+### alpha (비권장)
+```python
+# Rendered alpha로 loss 제한
+mask = (rendered_alpha > threshold).float()
+loss = ((pred - gt)**2 * mask).sum() / mask.sum()
+```
+- **문제**: 학습 중 마스크 확장 가능 → 악순환
+- 문헌에서 사용 사례 없음
+
+### composite
+```python
+# 배경 합성 후 전체 비교
+pred_comp = pred * α + bg * (1 - α)
+gt_comp = gt * mask + bg * (1 - mask)
+loss = (pred_comp - gt_comp)**2
+```
+- **장점**: 배경도 학습
+- **적합**: 흰 배경 데이터
+
+### none
+```python
+# 전체 이미지 비교
+loss = (pred - gt)**2
+```
+- **적합**: 마스크 필요 없는 경우
+
+---
+
+## D7_1 마스크 품질 분석
+
+### Alpha Channel 검증
+| Threshold | IoU vs GT | 결과 |
+|-----------|-----------|------|
+| 0.1 ~ 0.9 | **1.0** | 완벽 일치 |
+
+**결론**: D7_1 알파 채널은 깨끗한 이진값 (0/255)
+
+### RGB Prediction (부적합)
+| Threshold | IoU | Pred Mask % |
+|-----------|-----|-------------|
+| 0.02~0.3 | 0.06~0.08 | 37~50% |
+
+**문제**: False positive 과다 (흰색 기준이 마우스 데이터에 부적합)
 
 ---
 
@@ -91,47 +175,16 @@ training:
 | Pose Splatter | NeurIPS 2025 | [arxiv](https://arxiv.org/html/2505.18342v1) |
 | GaussianObject | SIGGRAPH Asia 2024 | [arxiv](https://arxiv.org/abs/2402.10259) |
 | Object-Centric 2DGS | 2025 | [arxiv](https://arxiv.org/html/2501.08174v2) |
+| Splatfacto-W | NerfStudio | [docs](https://docs.nerf.studio/) |
 
 ---
 
 ## Related Documents
 
-- [ALPHA_MASK_COMPLETE_GUIDE](./ALPHA_MASK_COMPLETE_GUIDE.md) - 기존 마스크 가이드
-- [Mask Experiment Priority](../../practical/experiments/Mask_Experiment_Priority.md) - 실험 우선순위
-- [Config: mask_exp](../../../configs/mouse/mask_exp/) - 실험 설정
+- [VSCode_Debug_Mask_Guide](../../tutorials/VSCode_Debug_Mask_Guide.md)
+- [GHOSTING_DIAGNOSIS](../../analysis/GHOSTING_DIAGNOSIS.md)
+- [Quick Reference](../../practical/MOUSE_QUICK_REFERENCE.md)
 
 ---
 
-*Literature Review v1.0 | 2026-01-24*
-
----
-
-## FaceLift 실험 설정 (구현됨)
-
-### 문헌 기반 실험 configs
-
-| 실험 | 문헌 근거 | 핵심 설정 |
-|------|-----------|-----------|
-| E2_gt_alpha ⭐ | LGM + Pose Splatter | `gt` + α=0.1 + norm |
-| E5_composite_strong | Splatfacto-W | `composite` + α=0.3 |
-| E6_lgm_full | LGM | `gt` + α=1.0 |
-| E6_bg_penalty_strong | Object-Centric 2DGS | bg_loss=1.0 |
-| E6_combined | Multi-literature | `gt` + α=0.2 + bg=0.3 |
-| E6_clean_bg | All combined | `gt` + α=0.2 + bg=0.5 + opacity_reg + ghost_reg |
-
-### Background Gaussian 최소화
-
-```yaml
-# E6_clean_bg: 모든 배경 억제 기법 조합
-training:
-  losses:
-    mask_mode: gt              # Pose Splatter
-    alpha_loss_weight: 0.2     # LGM
-    bg_loss_weight: 0.5        # Object-Centric 2DGS
-    opacity_reg_weight: 0.01   # StableGS
-    ghost_reg_weight: 0.1      # 자체 구현
-```
-
----
-
-*Updated: 2026-01-24*
+*FaceLift Mouse | Mask Literature Review v2.0 | 2026-01-24*

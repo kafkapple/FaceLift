@@ -1,6 +1,6 @@
-# FaceLift Mouse Quick Reference v5.7
+# FaceLift Mouse Quick Reference v5.8
 
-> Last Updated: 2026-01-24 (M3/Split updated) | Modular Mode | D7_1 Verified | Complete Guide
+> Last Updated: 2026-01-24 (M3/Mask/Split updated) | Modular Mode | D7_1 Verified | Complete Guide
 
 ---
 
@@ -528,6 +528,52 @@ kill <PID>
 
 ## Troubleshooting
 
+---
+
+## Mask Experiments
+
+### mask_mode 비교
+
+| Mode | RGB Loss 영역 | 특징 | 권장 |
+|------|--------------|------|------|
+| **gt** | GT mask만 | 안정적, 고정 | ★★★ |
+| alpha | Rendered α | 동적, 확장 위험 | ★☆☆ |
+| composite | 전체 (배경 합성) | 흰 배경 적합 | ★★☆ |
+| none | 전체 이미지 | 마스크 미사용 | ★★☆ |
+
+### 실험 설정 비교
+
+| 실험 | mask_mode | alpha_w | bg_w | 문헌 | 상태 |
+|------|-----------|---------|------|------|------|
+| **E2_gt_alpha** ★ | gt | 0.1 | 0.0 | LGM+PS | ✅ 권장 |
+| E5_composite_strong | composite | 0.3 | 0.0 | Splatfacto-W | 실험적 |
+| E6_lgm_full | gt | 1.0 | 0.0 | LGM | 실험적 |
+| E6_bg_penalty_strong | none | 0.1 | 1.0 | 2DGS | 실험적 |
+| E6_combined | gt | 0.2 | 0.3 | 다중 | 실험적 |
+
+### 마스크 실험 명령어
+
+```bash
+# E2_gt_alpha (권장)
+CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E2_gt_alpha > logs/E2_gt_alpha.log 2>&1 &
+
+# E6_lgm_full (LGM 스타일)
+CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E6_lgm_full > logs/E6_lgm.log 2>&1 &
+
+# E6_combined (다중 문헌)
+CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E6_combined > logs/E6_combined.log 2>&1 &
+```
+
+### 핵심 발견
+
+1. **D7_1 마스크 품질**: 깨끗한 이진값 (0/255), 모든 threshold에서 GT와 IoU=1.0
+2. **rgb_pred 부적합**: IoU 0.06-0.08, false positive 과다
+3. **권장**: `mask_mode: gt` + `alpha_loss_weight: 0.1`
+
+
 ### Config 오류
 
 ```bash
@@ -571,7 +617,7 @@ ls checkpoints/gslrm/ckpt_0000000000021125.pt
 
 ---
 
-*FaceLift Mouse Quick Reference v5.7 | Complete Guide | 2026-01-24*
+*FaceLift Mouse Quick Reference v5.8 | Complete Guide | 2026-01-24*
 
 ---
 
