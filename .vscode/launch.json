@@ -2,53 +2,61 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug: Mask Training (D7_1 E1)",
+            "name": "Debug: Quick Test (10 steps)",
             "type": "debugpy",
             "request": "launch",
-            "program": "train_gslrm.py",
+            "program": "${workspaceFolder}/train_gslrm.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "/home/joon/anaconda3/envs/facelift/bin/python",
             "args": [
-                "--config", "configs/mouse/mask_exp/D7_mask_E1_gt_alpha_sup.yaml"
+                "-d", "D7_1",
+                "-e", "E1_2_gt_alpha",
+                "-s", "training.schedule.max_fwdbwd_passes", "10"
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0"
+                "CUDA_VISIBLE_DEVICES": "0",
+                "WANDB_MODE": "disabled"
             },
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "cwd": "${workspaceFolder}"
+            "justMyCode": false
         },
         {
-            "name": "Debug: Quick Test (5 steps)",
+            "name": "Debug: Mask Mode = GT",
             "type": "debugpy",
             "request": "launch",
-            "program": "train_gslrm.py",
+            "program": "${workspaceFolder}/train_gslrm.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "/home/joon/anaconda3/envs/facelift/bin/python",
             "args": [
-                "--config", "configs/mouse/mask_exp/D7_mask_E1_gt_alpha_sup.yaml",
-                "training.max_steps=5",
-                "training.val_every=2"
+                "-d", "D7_1",
+                "-e", "E1_1_gt",
+                "-s", "training.schedule.max_fwdbwd_passes", "5"
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0"
+                "CUDA_VISIBLE_DEVICES": "0",
+                "WANDB_MODE": "disabled"
             },
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "cwd": "${workspaceFolder}"
+            "justMyCode": false
         },
         {
-            "name": "Debug: Mask Analysis Script",
+            "name": "Debug: M3 Dataset",
             "type": "debugpy",
             "request": "launch",
-            "module": "mouse_extensions.scripts.analysis.mask_mode_analysis",
+            "program": "${workspaceFolder}/train_gslrm.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "/home/joon/anaconda3/envs/facelift/bin/python",
             "args": [
-                "--checkpoint", "checkpoints/gslrm/D7_1_E1/ckpt_step_1000.pt",
-                "--data_dir", "/home/joon/data/preprocessed/FaceLift_mouse/D7_1/val",
-                "--output_dir", "./experiments/analysis/debug_test"
+                "-d", "D10_3",
+                "-e", "E1_2_gt_alpha",
+                "-s", "training.schedule.max_fwdbwd_passes", "10"
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "4"
+                "CUDA_VISIBLE_DEVICES": "0",
+                "WANDB_MODE": "disabled"
             },
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "cwd": "${workspaceFolder}"
+            "justMyCode": false
         }
     ]
 }

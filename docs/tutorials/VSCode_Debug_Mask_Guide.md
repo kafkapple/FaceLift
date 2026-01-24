@@ -57,7 +57,7 @@ Ctrl+Shift+P → "Python: Select Interpreter"
     "configurations": [
         {
             // === 기본 정보 ===
-            "name": "Debug: D7_1 + E1_2_gt_alpha",  // 드롭다운에 표시될 이름
+            "name": "Debug: D7_1 + E1_2_alpha",  // 드롭다운에 표시될 이름
             "type": "debugpy",                       // Python 디버거 타입
             "request": "launch",                     // 새 프로세스 시작 (attach도 가능)
             
@@ -72,7 +72,7 @@ Ctrl+Shift+P → "Python: Select Interpreter"
             // === 핵심: Arguments ===
             "args": [
                 "-d", "D7_1",           // 데이터셋 (Modular mode)
-                "-e", "E1_2_gt_alpha",  // 실험 설정
+                "-e", "E1_2_alpha",  // 실험 설정
                 "-s", "training.schedule.max_fwdbwd_passes", "10"  // Override: 10 step만
             ],
             
@@ -95,7 +95,7 @@ Ctrl+Shift+P → "Python: Select Interpreter"
 
 | 방식 | Arguments | 설명 |
 |------|-----------|------|
-| **Modular (권장)** | `-d D7_1 -e E1_2_gt_alpha` | 데이터셋 + 실험 조합 |
+| **Modular (권장)** | `-d D7_1 -e E1_2_alpha` | 데이터셋 + 실험 조합 |
 | Legacy | `--config configs/mouse/full_config.yaml` | 단일 YAML 파일 |
 
 **왜 Modular 방식을 권장하는가?**
@@ -138,7 +138,7 @@ Ctrl+Shift+P → "Python: Select Interpreter"
             "python": "/home/joon/anaconda3/envs/facelift/bin/python",
             "args": [
                 "-d", "D7_1",
-                "-e", "E1_2_gt_alpha",
+                "-e", "E1_2_alpha",
                 "-s", "training.schedule.max_fwdbwd_passes", "10"
             ],
             "env": {
@@ -157,7 +157,7 @@ Ctrl+Shift+P → "Python: Select Interpreter"
             "python": "/home/joon/anaconda3/envs/facelift/bin/python",
             "args": [
                 "-d", "D7_1",
-                "-e", "E1_1_gt",
+                "-e", "E1_1_base",
                 "-s", "training.schedule.max_fwdbwd_passes", "5"
             ],
             "env": {
@@ -176,7 +176,7 @@ Ctrl+Shift+P → "Python: Select Interpreter"
             "python": "/home/joon/anaconda3/envs/facelift/bin/python",
             "args": [
                 "-d", "D10_3",
-                "-e", "E1_2_gt_alpha",
+                "-e", "E1_2_alpha",
                 "-s", "training.schedule.max_fwdbwd_passes", "10"
             ],
             "env": {

@@ -27,7 +27,7 @@ conda activate facelift
 
 # P0 권장 실험 (D7_1 검증됨)
 CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E1_2_gt_alpha
+    train_gslrm.py -d D7_1 -e E1_2_alpha
 ```
 
 ---
@@ -73,23 +73,23 @@ CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
 
 | Priority | Dataset | Experiment | 특징 | 상태 |
 |----------|---------|------------|------|------|
-| **P0** | **D7_1** | **E1_2_gt_alpha** | Affine + GT mask + α | ✅ Verified |
+| **P0** | **D7_1** | **E1_2_alpha** | Affine + GT mask + α | ✅ Verified |
 | **P1** | D7_1 | E0_1_facelift | 논문 원본 baseline | ✅ Ready |
 | **P1** | D7_1 | E0_2_mouse | 생쥐 finetuning | ✅ Ready |
-| **P2** | D7_1 | E1_2_gt_alpha_3v | 3-view 강건성 | ✅ Ready |
-| **P2** | D7_1 | E1_2_gt_alpha_5v | 5-view 최대 정보 | ✅ Ready |
-| **P3** | D8 | E1_2_gt_alpha | Homography | ⚠️ Test needed |
-| **P4** | D8_1 | E1_2_gt_alpha | 1.3x zoom | ⚠️ Test needed |
+| **P2** | D7_1 | E1_2_alpha_3v | 3-view 강건성 | ✅ Ready |
+| **P2** | D7_1 | E1_2_alpha_5v | 5-view 최대 정보 | ✅ Ready |
+| **P3** | D8 | E1_2_alpha | Homography | ⚠️ Test needed |
+| **P4** | D8_1 | E1_2_alpha | 1.3x zoom | ⚠️ Test needed |
 
 ### 실험 목적별 분류
 
 | 목적 | Dataset | Experiment | 설명 |
 |------|---------|------------|------|
-| **기준선** | D7_1 | E1_2_gt_alpha | 모든 비교의 기준 |
+| **기준선** | D7_1 | E1_2_alpha | 모든 비교의 기준 |
 | **베이스라인 비교** | D7_1 | E0_1_facelift, E0_2_mouse | lr 영향 분석 |
-| **강건성** | D7_1 | E1_2_gt_alpha_3v | 적은 입력에서 성능 |
-| **최대 품질** | D7_1 | E1_2_gt_alpha_5v | 최대 정보 활용 |
-| **기하학 정밀** | D8 | E1_2_gt_alpha | Homography + skew |
+| **강건성** | D7_1 | E1_2_alpha_3v | 적은 입력에서 성능 |
+| **최대 품질** | D7_1 | E1_2_alpha_5v | 최대 정보 활용 |
+| **기하학 정밀** | D8 | E1_2_alpha | Homography + skew |
 
 ---
 
@@ -141,7 +141,7 @@ configs/
 
 **카테고리 정의:**
 - **E0**: Baseline (mask=none)
-- **E1**: GT Mask + Alpha (권장) - E1_1_gt, E1_2_gt_alpha⭐, E1_3_gt_alpha_lgm
+- **E1**: GT Mask + Alpha (권장) - E1_1_base, E1_2_alpha⭐, E1_3_lgm
 - **E2**: Alpha Only (마스크 없이 alpha loss만)
 - **E3**: Advanced (composite, bg penalty 등)
 
@@ -149,8 +149,8 @@ configs/
 |------------|-----------|------------|-----|----------|------|
 | **E0_1_facelift** | none | 0.0 | 1e-4 | P1 | 논문 원본 baseline |
 | **E0_2_mouse** | none | 0.0 | 1e-5 | P1 | 생쥐 finetuning |
-| E1_1_gt | gt | 0.0 | base | P4 | GT mask only |
-| **E1_2_gt_alpha** ⭐ | gt | 0.1 | base | **P0** | GT + alpha supervision |
+| E1_1_base | gt | 0.0 | base | P4 | GT mask only |
+| **E1_2_alpha** ⭐ | gt | 0.1 | base | **P0** | GT + alpha supervision |
 | E2_1_alpha | none | 0.1 | base | P5 | Alpha supervision only |
 | E3_3_bg | none | 0.1+bg | base | P4 | Background penalty |
 | E3_1_composite | composite | 0.05 | base | ⛔ | ~~Nerfstudio~~ (alpha 확장 문제) |
@@ -164,16 +164,16 @@ configs/
 
 | Experiment | Input | Holdout | Loss 계산 | 용도 |
 |------------|-------|---------|-----------|------|
-| E1_2_gt_alpha_3v | 3 | 3 | 3개 평균 | 강건성 테스트 |
-| **E1_2_gt_alpha** | 4 | 2 | 2개 평균 | **기본 (권장)** |
-| E1_2_gt_alpha_5v | 5 | 1 | 1개 | 최대 정보 |
+| E1_2_alpha_3v | 3 | 3 | 3개 평균 | 강건성 테스트 |
+| **E1_2_alpha** | 4 | 2 | 2개 평균 | **기본 (권장)** |
+| E1_2_alpha_5v | 5 | 1 | 1개 | 최대 정보 |
 
 ### View Selection
 
 | Experiment | random_view_selection | 설명 |
 |------------|----------------------|------|
-| E1_2_gt_alpha | true (default) | Random view order |
-| E1_2_gt_alpha_fixed | false | Fixed view order |
+| E1_2_alpha | true (default) | Random view order |
+| E1_2_alpha_fixed | false | Fixed view order |
 
 ---
 
@@ -249,7 +249,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 **M3 실험 실행**:
 ```bash
 CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D10_3 -e E1_2_gt_alpha
+    train_gslrm.py -d D10_3 -e E1_2_alpha
 ```
 
 **D10.3 (M3) 설정 상세:**
@@ -307,9 +307,9 @@ python -m mouse_extensions.preprocessing.split_manager \
 cd /home/joon/dev/FaceLift
 conda activate facelift
 
-# P0: D7_1 + E1_2_gt_alpha (권장, 검증됨)
+# P0: D7_1 + E1_2_alpha (권장, 검증됨)
 CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E1_2_gt_alpha > logs/D7_1_E1_2_gt_alpha.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_alpha > logs/D7_1_E1_2_alpha.log 2>&1 &
 ```
 
 ### 2. 베이스라인 비교 (P1)
@@ -329,11 +329,11 @@ CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # P2: 3-view input (강건성)
 CUDA_VISIBLE_DEVICES=3 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E1_2_gt_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
 
 # P2: 5-view input (최대 정보)
 CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E1_2_gt_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
 ```
 
 ### 4. 기타 Mask Mode (P3-P4)
@@ -341,7 +341,7 @@ CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # P3: GT mask only
 CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E1_1_gt > logs/D7_1_E1_1_gt.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_1_base > logs/D7_1_E1_1_base.log 2>&1 &
 
 # P4: Background penalty
 CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
@@ -353,7 +353,7 @@ CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # P3: D8 (Homography) - 테스트 필요
 CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D8 -e E1_2_gt_alpha > logs/D8_E1_2_gt_alpha.log 2>&1 &
+    train_gslrm.py -d D8 -e E1_2_alpha > logs/D8_E1_2_alpha.log 2>&1 &
 ```
 
 ### 6. 병렬 실행 예시
@@ -361,17 +361,17 @@ CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # GPU 0-5에서 6개 실험 동시 실행 (각 GPU 1개 실험)
 CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E1_2_gt_alpha > logs/D7_1_E2.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_alpha > logs/D7_1_E2.log 2>&1 &
 CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E0_1_facelift > logs/D7_1_E0_paper.log 2>&1 &
 CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E0_2_mouse > logs/D7_1_E0_mouse.log 2>&1 &
 CUDA_VISIBLE_DEVICES=3 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E1_2_gt_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
 CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E1_2_gt_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
 CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D10_3 -e E1_2_gt_alpha > logs/M3_E1_2.log 2>&1 &
+    train_gslrm.py -d D10_3 -e E1_2_alpha > logs/M3_E1_2.log 2>&1 &
 
 # 추가 데이터셋 테스트 (GPU 6-7)
 CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
@@ -389,7 +389,7 @@ CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # 마스크 모드 비교 분석
 python -m mouse_extensions.scripts.analysis.mask_mode_analysis \
-    --checkpoint checkpoints/gslrm/D7_1_E1_2_gt_alpha/latest.pt \
+    --checkpoint checkpoints/gslrm/D7_1_E1_2_alpha/latest.pt \
     --output_dir outputs/mask_analysis
 ```
 
@@ -398,11 +398,11 @@ python -m mouse_extensions.scripts.analysis.mask_mode_analysis \
 ```bash
 # Rendered alpha 분석
 python -m mouse_extensions.scripts.analysis.analyze_rendered_alpha \
-    --checkpoint checkpoints/gslrm/D7_1_E1_2_gt_alpha/latest.pt
+    --checkpoint checkpoints/gslrm/D7_1_E1_2_alpha/latest.pt
 
 # Alpha threshold 분석
 python -m mouse_extensions.scripts.analysis.analyze_alpha_thresholds \
-    --checkpoint checkpoints/gslrm/D7_1_E1_2_gt_alpha/latest.pt
+    --checkpoint checkpoints/gslrm/D7_1_E1_2_alpha/latest.pt
 ```
 
 ### 3. 카메라 시각화
@@ -419,7 +419,7 @@ python -m mouse_extensions.scripts.visualize_camera_setup_v4 \
 ```bash
 # Turntable 동영상 생성
 python -m mouse_extensions.scripts.inference.temporal_turntable \
-    --checkpoint checkpoints/gslrm/D7_1_E1_2_gt_alpha/latest.pt \
+    --checkpoint checkpoints/gslrm/D7_1_E1_2_alpha/latest.pt \
     --output_dir outputs/turntable \
     --num_frames 60
 ```
@@ -429,7 +429,7 @@ python -m mouse_extensions.scripts.inference.temporal_turntable \
 ```bash
 # Checkpoint에서 렌더링
 python -m mouse_extensions.scripts.render_from_checkpoint \
-    --checkpoint checkpoints/gslrm/D7_1_E1_2_gt_alpha/latest.pt \
+    --checkpoint checkpoints/gslrm/D7_1_E1_2_alpha/latest.pt \
     --input_dir /path/to/test/data \
     --output_dir outputs/renders
 ```
@@ -442,13 +442,13 @@ python -m mouse_extensions.scripts.render_from_checkpoint \
 
 ```bash
 # 실시간 로그
-tail -f logs/D7_1_E1_2_gt_alpha.log
+tail -f logs/D7_1_E1_2_alpha.log
 
 # 최근 로그
-tail -100 logs/D7_1_E1_2_gt_alpha.log
+tail -100 logs/D7_1_E1_2_alpha.log
 
 # 에러만 확인
-grep -i error logs/D7_1_E1_2_gt_alpha.log
+grep -i error logs/D7_1_E1_2_alpha.log
 
 # 여러 로그 동시 확인
 tail -f logs/D7_1_*.log
@@ -569,7 +569,7 @@ kill <PID>
 
 | 실험 | mask_mode | alpha_w | bg_w | 문헌 | 상태 |
 |------|-----------|---------|------|------|------|
-| **E1_2_gt_alpha** ★ | gt | 0.1 | 0.0 | LGM+PS | ✅ 권장 |
+| **E1_2_alpha** ★ | gt | 0.1 | 0.0 | LGM+PS | ✅ 권장 |
 | E3_1_composite_strong | composite | 0.3 | 0.0 | Splatfacto-W | 실험적 |
 | E1_3_lgm_full | gt | 1.0 | 0.0 | LGM | 실험적 |
 | E3_4_bg_strong | none | 0.1 | 1.0 | 2DGS | 실험적 |
@@ -578,9 +578,9 @@ kill <PID>
 ### 마스크 실험 명령어
 
 ```bash
-# E1_2_gt_alpha (권장)
+# E1_2_alpha (권장)
 CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E1_2_gt_alpha > logs/E1_2_gt_alpha.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_alpha > logs/E1_2_alpha.log 2>&1 &
 
 # E1_3_lgm_full (LGM 스타일)
 CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
@@ -602,7 +602,7 @@ CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
 
 ```bash
 # Modular mode 권장 (Legacy mode 대신)
-python train_gslrm.py -d D7_1 -e E1_2_gt_alpha    # ✅ Modular
+python train_gslrm.py -d D7_1 -e E1_2_alpha    # ✅ Modular
 python train_gslrm.py --config file.yaml        # ⚠️ Legacy
 ```
 
