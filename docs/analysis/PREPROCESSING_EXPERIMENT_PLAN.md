@@ -268,3 +268,58 @@ python -m mouse_extensions.preprocessing.preprocess \
 ---
 
 *Updated: 2026-01-25 - Added H5 (Per-sample Zoom)*
+
+---
+
+## 9. 최종 데이터셋 비교표 (Summary)
+
+| Dataset | Zoom 방식 | fx | PP | 검증 가설 | 상태 |
+|---------|-----------|-----|-----|-----------|------|
+| D7_1 | 없음 | 549 | 256 | 기준선 | ✅ 존재 |
+| D3_normalized | 알 수 없음 | 549 | 256 | 참조용 | ✅ 존재 |
+| M3 | Global 1.35x | **739** ❌ | 가변 | H2 (버그 상태) | ✅ 존재 |
+| **M3_norm** | Global 1.35x | **549** ✅ | 가변 | H1, H2, H3 | ⏳ 전처리 필요 |
+| **M3_persample** | **Per-sample** | **549** ✅ | 가변 | **H5** | ⏳ 전처리 필요 |
+
+---
+
+## 10. 전처리 명령어 (Quick Reference)
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# M3_norm: Global zoom + fx 정규화 (H1, H2, H3)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M3_norm \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_norm
+
+# M3_persample: Per-sample zoom + fx 정규화 (H5)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M3_persample \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_persample
+```
+
+---
+
+## 11. 학습 명령어
+
+```bash
+# M3_norm 학습
+CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3_norm -e E1_2_gt_alpha
+
+# M3_persample 학습
+CUDA_VISIBLE_DEVICES=1 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3_persample -e E1_2_gt_alpha
+
+# M3 (버그 상태) 학습 - H2 검증용
+CUDA_VISIBLE_DEVICES=2 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3 -e E1_2_gt_alpha
+```
+
+---
+
+*Updated: 2026-01-25 - Added Summary, Commands, H5*
+*Version: v2.1*
