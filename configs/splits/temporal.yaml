@@ -1,0 +1,14 @@
+# Temporal 3분할
+name: temporal
+version_suffix: t  # M3 → M3.t
+
+strategy: temporal  # 시간순 분할
+seed: null  # 셔플 없음
+
+splits:
+  train: 0.7   # 0-70% 시간 구간
+  val: 0.15    # 70-85% 시간 구간
+  test: 0.15   # 85-100% 시간 구간
+
+# Jump frames 제외
+exclude_frames: [5900, 11800, 17700]

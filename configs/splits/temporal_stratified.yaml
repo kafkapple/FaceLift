@@ -1,0 +1,17 @@
+# Temporal Stratified (Pose Splatter style)
+name: temporal_stratified
+version_suffix: s  # M3 → M3.s
+
+strategy: temporal_stratified
+seed: 42
+
+# 시간을 N개 구간으로 나누고, 각 구간에서 균등 샘플링
+num_strata: 10
+
+splits:
+  train: 0.8
+  val: 0.1
+  test: 0.1
+
+# Jump frames 제외
+exclude_frames: [5900, 11800, 17700]

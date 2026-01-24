@@ -1,0 +1,11 @@
+# Random Split (기본)
+name: random
+version_suffix: r  # M3 → M3.r
+
+strategy: random
+seed: 42
+
+splits:
+  train: 0.9
+  val: 0.1
+  # test: 0.0  # 없음
