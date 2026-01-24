@@ -1,4 +1,6 @@
 # GS-LRM Mouse Ghosting 종합 진단 리포트
+> **Navigation**: [← MoC](../00_MoC_INDEX.md) | [Analysis](.)
+
 
 > Created: 2026-01-24 | Updated: 2026-01-24 | Version: 2.0
 

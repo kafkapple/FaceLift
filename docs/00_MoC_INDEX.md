@@ -116,6 +116,15 @@ docs/
 | 5 | [Training](./tutorials/Step5_Training.md) | 학습 |
 | ★ | **[VSCode_Debug_Mask_Guide](./tutorials/VSCode_Debug_Mask_Guide.md)** | **VS Code 마스크 디버깅** |
 
+### Analysis (분석 보고서) ⭐ NEW
+| 문서 | 내용 |
+|------|------|
+| **[GHOSTING_DIAGNOSIS](./analysis/GHOSTING_DIAGNOSIS.md)** | Ghosting 원인 진단 (v2.0) |
+| [GHOSTING_SOLUTION_STRATEGY](./analysis/GHOSTING_SOLUTION_STRATEGY.md) | Ghosting 해결 전략 |
+| **[M3_VERIFICATION_REPORT](./analysis/M3_VERIFICATION_REPORT.md)** | M3 전처리 검증 결과 ⭐ |
+| [PREPROCESSING_ZOOM_COMPARISON](./analysis/PREPROCESSING_ZOOM_COMPARISON.md) | Zoom 방식 비교 분석 |
+
+
 ### Troubleshooting (문제 해결)
 | 문서 | 내용 |
 |------|------|
@@ -222,4 +231,4 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha
 
 ---
 
-*FaceLift Mouse Project | MoC Dashboard v3.5 | 2026-01-24*
+*FaceLift Mouse Project | MoC Dashboard v3.6 | 2026-01-24*
