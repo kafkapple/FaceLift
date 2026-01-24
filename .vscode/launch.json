@@ -11,7 +11,7 @@
             "python": "/home/joon/anaconda3/envs/facelift/bin/python",
             "args": [
                 "-d", "D7_1",
-                "-e", "E1_2_gt_alpha",
+                "-e", "E1_2_alpha",
                 "-s", "training.schedule.max_fwdbwd_passes", "10"
             ],
             "env": {
@@ -49,7 +49,7 @@
             "python": "/home/joon/anaconda3/envs/facelift/bin/python",
             "args": [
                 "-d", "D10_3",
-                "-e", "E1_2_gt_alpha",
+                "-e", "E1_2_alpha",
                 "-s", "training.schedule.max_fwdbwd_passes", "10"
             ],
             "env": {
