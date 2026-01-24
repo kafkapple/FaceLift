@@ -85,7 +85,7 @@
 
 | Alias | Config | Zoom | fx | PP | 가설 | 상태 |
 |-------|--------|------|-----|-----|------|------|
-| M3_raw | `-d M3_raw` | Global 1.35x | **739** ❌ | 가변 | H2 | ⏳ |
+| M3 | `-d M3` | Global 1.35x | **739** ❌ | 가변 | H2 | ✅ 기존 |
 | **M3_norm** | `-d M3_norm` | Global 1.35x | 549 ✅ | 가변 | H1,H3 | ⏳ 전처리 필요 |
 | **M3_persample** | `-d M3_persample` | Per-sample | 549 ✅ | 가변 | **H5** | ⏳ 전처리 필요 |
 
@@ -94,7 +94,7 @@
 | 가설 | 비교 | 검증 내용 |
 |------|------|-----------|
 | **H1** | M1 vs M3_norm | Coverage↑ → PSNR↑ |
-| **H2** | M3_raw vs M3_norm | fx=549 필수성 |
+| **H2** | M3 vs M3_norm | fx=549 필수성 |
 | **H3** | M3_norm (PP가변) | GS-LRM PP 처리 |
 | **H5** | M3_norm vs M3_persample | Per-sample zoom 효과 |
 

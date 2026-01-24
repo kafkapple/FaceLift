@@ -2,7 +2,7 @@
 
 > **목적**: VSCode Remote SSH로 FaceLift 학습 코드를 디버깅하여 mask_mode별 loss 계산 흐름을 분석
 > **난이도**: 중급 (Python 디버깅 경험 필요)
-> **최종 업데이트**: 2026-01-24
+> **최종 업데이트**: 2026-01-25
 
 ---
 
@@ -41,6 +41,26 @@ Ctrl+Shift+P → "Python: Select Interpreter"
 | Python (ms-python) | Python 디버깅 |
 | Remote - SSH | 원격 서버 연결 |
 | Pylance | 코드 분석 (선택) |
+
+### 1.4 GPU 호환성 ⚠️
+
+> **중요**: gpu03의 GPU 0-3 (Blackwell)은 PyTorch 미지원
+
+| GPU | 아키텍처 | 호환성 |
+|-----|----------|--------|
+| 0-3 | Blackwell (12.0) | ❌ 미지원 |
+| 4-7 | A6000 (8.6) | ✅ 사용 가능 |
+
+**launch.json에서 반드시 `CUDA_VISIBLE_DEVICES: "4"` 이상 설정**
+
+### 1.5 디버그 드롭다운이 안 보일 때
+
+1. **워크스페이스 루트 문제**: `/home/joon/dev/FaceLift` 폴더를 직접 열어야 함
+   - `File → Open Folder → /home/joon/dev/FaceLift` 선택
+   - 상위 폴더를 열면 `.vscode/launch.json`이 인식되지 않음
+
+2. **Python Debugger 확장 미설치**: 원격 서버에 확장 설치 필요
+   - `Extensions (Ctrl+Shift+X) → "Python Debugger" → "Install in SSH: gpu03"`
 
 ---
 

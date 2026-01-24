@@ -15,7 +15,7 @@
                 "-s", "training.schedule.max_fwdbwd_passes", "10"
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                "CUDA_VISIBLE_DEVICES": "4",
                 "WANDB_MODE": "disabled"
             },
             "justMyCode": false
@@ -34,7 +34,7 @@
                 "-s", "training.schedule.max_fwdbwd_passes", "5"
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                "CUDA_VISIBLE_DEVICES": "4",
                 "WANDB_MODE": "disabled"
             },
             "justMyCode": false
@@ -53,7 +53,7 @@
                 "-s", "training.schedule.max_fwdbwd_passes", "10"
             ],
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                "CUDA_VISIBLE_DEVICES": "4",
                 "WANDB_MODE": "disabled"
             },
             "justMyCode": false
