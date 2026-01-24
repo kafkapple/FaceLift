@@ -1,0 +1,23 @@
+# Dataset: M3_norm
+# M3 fixed: coverage zoom + fx/PP normalization
+# Generated: 2026-01-24 22:20:42
+
+_name: M3_norm
+_description: "M3 fixed: coverage zoom + fx/PP normalization"
+_category: precision_homography
+_preprocessing:
+  paradigm: precision_homography
+  transform: homography
+  target_fx: 548.9937744140625
+  output_size: 512
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_norm/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_norm/data_mouse_val.txt
+
+_stats:
+  num_train: 3238
+  num_val: 359
