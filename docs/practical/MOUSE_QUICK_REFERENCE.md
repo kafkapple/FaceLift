@@ -1,6 +1,6 @@
-# FaceLift Mouse Quick Reference v5.6
+# FaceLift Mouse Quick Reference v5.7
 
-> Last Updated: 2026-01-24 | Modular Mode | D7_1 Verified | Complete Guide
+> Last Updated: 2026-01-24 (M3/Split updated) | Modular Mode | D7_1 Verified | Complete Guide
 
 ---
 
@@ -171,18 +171,32 @@ configs/
 
 ## Preprocessing
 
-### 통합 전처리
+### 통합 전처리 (Unified Preprocessor)
 
 ```bash
 cd /home/joon/dev/FaceLift
 conda activate facelift
 
-# D7.1 전처리 (권장)
+# D7_1 (기본)
 python -m mouse_extensions.preprocessing.preprocess \
     --preset D7_1 \
     --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
     --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1
+
+# D10.3 / M3 (Coverage-based zoom, 5% target)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset D10.3 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3
 ```
+
+### M-Series (새 명명 체계)
+
+| Alias | Base Preset | 특징 | 권장 |
+|-------|-------------|------|------|
+| **M1** | D7.1 | Affine, individual scale | 검증됨 |
+| **M2** | D8 | Homography + skew | 정밀 기하학 |
+| **M3** | D10.3 | Coverage-based zoom (5%), pretrained 호환 | **★ 신규 권장** |
 
 ### Preset 목록
 
@@ -191,60 +205,68 @@ python -m mouse_extensions.preprocessing.preprocess \
 python -m mouse_extensions.preprocessing.preprocess --list-presets
 ```
 
-### 생쥐 크기 최대화 + Ray 정확도 프리셋 비교
+### Preset 비교표
 
-| Preset | Zoom | Up-Align | Ray Error | Pretrained 호환 | 권장 |
-|--------|------|----------|-----------|-----------------|------|
-| **D8.2** | Adaptive [1.0-1.5], 85% fill | No | ~0 deg | **✅** | **★ 권장** |
-| D8.1 | Fixed 1.3x | No | ~0 deg | ✅ | 대안 |
-| D10.1 | Adaptive [1.2-1.5], 80% fill | Yes | ~0 deg | ❌ | 비권장 |
-| D10.2 | Fixed 1.3x | Yes | ~0 deg | ❌ | 비권장 |
+| Preset | Paradigm | Zoom | Up-Align | Pretrained 호환 | 상태 |
+|--------|----------|------|----------|-----------------|------|
+| **D7_1 (M1)** | up_aligned | None | Yes | ✅ | **검증됨** |
+| **D8 (M2)** | precision_homography | None | No | ✅ | 안정 |
+| **D10.3 (M3)** | up_aligned_zoom | Coverage 5% | Yes | ✅ | **★ 신규** |
 
-**⚠️ D10 계열 문제:**
-- `up_alignment: True` → `vertical_lines.npz`의 up 벡터로 **~93° 좌표 회전**
-- GS-LRM pretrained 모델이 MAMMAL 원본 좌표계 기대 → 호환 불가
-- 증상: 렌더링 품질 저하, PSNR ~18 (D7_1: ~23)
-
-### D8.2 전처리 (권장)
+### M3 / D10.3 전처리
 
 ```bash
-# D8.2: Adaptive zoom + 기하학적 정확도 + Pretrained 호환
+# M3: Coverage-based adaptive zoom (목표 FG 5%)
 python -m mouse_extensions.preprocessing.preprocess \
-    --preset D8.2 \
+    --preset D10.3 \
     --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D8_2
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3
 ```
 
-**D8.2 특징:**
+**D10.3 (M3) 특징:**
 ```yaml
-paradigm: precision_homography
+paradigm: up_aligned_zoom
 adaptive_zoom: true
-zoom_range: [1.0, 1.5]
-zoom_fill_ratio: 0.85      # 생쥐가 프레임의 85% 차지
-up_alignment: false        # ★ Pretrained 호환 핵심
-ray_error: ~0 deg
+zoom_method: coverage_based
+target_fg_coverage: 0.05    # 목표 FG 5% (pretrained 분포 ~5-8%)
+zoom_range: [1.0, 2.5]
+single_folder: true         # 유연한 split 지원
 ```
 
 ### 전처리 검증
 
 ```bash
-# 단일 데이터셋 검증
-python -m mouse_extensions.scripts.validate_preprocessing \
-    --dataset_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1
-
 # 카메라 파라미터 검증
 python -m mouse_extensions.scripts.diagnostics.validate_cameras \
     --dataset_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1
 ```
 
-### Split 생성
+### Split 관리 (Flexible Split System)
 
 ```bash
-# Train/Val split 생성 (8:2)
-python -m mouse_extensions.preprocessing.generate_split \
-    --dataset_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \
-    --train_ratio 0.8
+# Random split (M3 → M3.r)
+python -m mouse_extensions.preprocessing.split_manager \
+    --data-dir /path/to/M3 --preset random
+
+# Temporal stratified (Pose Splatter 방식, M3 → M3.s)
+python -m mouse_extensions.preprocessing.split_manager \
+    --data-dir /path/to/M3 --preset pose_splatter
+
+# Temporal 3-way split (M3 → M3.t)
+python -m mouse_extensions.preprocessing.split_manager \
+    --data-dir /path/to/M3 --preset temporal_3way
+
+# Custom YAML config
+python -m mouse_extensions.preprocessing.split_manager \
+    --data-dir /path/to/M3 --config configs/splits/custom.yaml
 ```
+
+**Split 버전 접미사:**
+| 접미사 | 전략 | 설명 |
+|--------|------|------|
+| `.r` | random | 무작위 셔플 |
+| `.t` | temporal | 시간순 3분할 |
+| `.s` | temporal_stratified | Pose Splatter 방식 |
 
 ---
 
@@ -549,7 +571,7 @@ ls checkpoints/gslrm/ckpt_0000000000021125.pt
 
 ---
 
-*FaceLift Mouse Quick Reference v5.6 | Complete Guide | 2026-01-24*
+*FaceLift Mouse Quick Reference v5.7 | Complete Guide | 2026-01-24*
 
 ---
 
