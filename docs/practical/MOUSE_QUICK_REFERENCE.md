@@ -27,16 +27,16 @@ conda activate facelift
 
 # P0 권장 실험 (D7_1 검증됨)
 CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E2_gt_alpha
+    train_gslrm.py -d D7_1 -e E1_2_gt_alpha
 ```
 
 ---
 
 ## Baseline Comparison
 
-### E0_paper_original vs E0_mouse_baseline
+### E0_1_paper vs E0_2_finetune
 
-| 설정 | E0_paper_original | E0_mouse_baseline | 비고 |
+| 설정 | E0_1_paper | E0_2_finetune | 비고 |
 |------|-------------------|-------------------|------|
 | **lr** | **1e-4** | 1e-5 | 원본 vs finetuning |
 | **grad_clip_norm** | 1.0 | 5.0 | 원본 vs 완화 |
@@ -50,19 +50,19 @@ CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
 
 | 상황 | 권장 설정 |
 |------|----------|
-| 빠른 수렴, 논문 재현 | **E0_paper_original** (lr=1e-4) |
-| 안정적 finetuning | **E0_mouse_baseline** (lr=1e-5) |
+| 빠른 수렴, 논문 재현 | **E0_1_paper** (lr=1e-4) |
+| 안정적 finetuning | **E0_2_finetune** (lr=1e-5) |
 
 ### 베이스라인 비교 실험
 
 ```bash
 # 원본 논문 설정 (lr=1e-4)
 CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_paper_original > logs/D7_1_E0_paper.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E0_1_paper > logs/D7_1_E0_paper.log 2>&1 &
 
 # 생쥐 적응 설정 (lr=1e-5)
 CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_mouse_baseline > logs/D7_1_E0_mouse.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E0_2_finetune > logs/D7_1_E0_mouse.log 2>&1 &
 ```
 
 ---
@@ -73,23 +73,23 @@ CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
 
 | Priority | Dataset | Experiment | 특징 | 상태 |
 |----------|---------|------------|------|------|
-| **P0** | **D7_1** | **E2_gt_alpha** | Affine + GT mask + α | ✅ Verified |
-| **P1** | D7_1 | E0_paper_original | 논문 원본 baseline | ✅ Ready |
-| **P1** | D7_1 | E0_mouse_baseline | 생쥐 finetuning | ✅ Ready |
-| **P2** | D7_1 | E2_gt_alpha_3v | 3-view 강건성 | ✅ Ready |
-| **P2** | D7_1 | E2_gt_alpha_5v | 5-view 최대 정보 | ✅ Ready |
-| **P3** | D8 | E2_gt_alpha | Homography | ⚠️ Test needed |
-| **P4** | D8_1 | E2_gt_alpha | 1.3x zoom | ⚠️ Test needed |
+| **P0** | **D7_1** | **E1_2_gt_alpha** | Affine + GT mask + α | ✅ Verified |
+| **P1** | D7_1 | E0_1_paper | 논문 원본 baseline | ✅ Ready |
+| **P1** | D7_1 | E0_2_finetune | 생쥐 finetuning | ✅ Ready |
+| **P2** | D7_1 | E1_2_gt_alpha_3v | 3-view 강건성 | ✅ Ready |
+| **P2** | D7_1 | E1_2_gt_alpha_5v | 5-view 최대 정보 | ✅ Ready |
+| **P3** | D8 | E1_2_gt_alpha | Homography | ⚠️ Test needed |
+| **P4** | D8_1 | E1_2_gt_alpha | 1.3x zoom | ⚠️ Test needed |
 
 ### 실험 목적별 분류
 
 | 목적 | Dataset | Experiment | 설명 |
 |------|---------|------------|------|
-| **기준선** | D7_1 | E2_gt_alpha | 모든 비교의 기준 |
-| **베이스라인 비교** | D7_1 | E0_paper_original, E0_mouse_baseline | lr 영향 분석 |
-| **강건성** | D7_1 | E2_gt_alpha_3v | 적은 입력에서 성능 |
-| **최대 품질** | D7_1 | E2_gt_alpha_5v | 최대 정보 활용 |
-| **기하학 정밀** | D8 | E2_gt_alpha | Homography + skew |
+| **기준선** | D7_1 | E1_2_gt_alpha | 모든 비교의 기준 |
+| **베이스라인 비교** | D7_1 | E0_1_paper, E0_2_finetune | lr 영향 분석 |
+| **강건성** | D7_1 | E1_2_gt_alpha_3v | 적은 입력에서 성능 |
+| **최대 품질** | D7_1 | E1_2_gt_alpha_5v | 최대 정보 활용 |
+| **기하학 정밀** | D8 | E1_2_gt_alpha | Homography + skew |
 
 ---
 
@@ -135,37 +135,43 @@ configs/
 └── experiments/<EXPERIMENT>.yaml  # 실험 설정
 ```
 
-### Mask Mode 실험 (E0-E5)
+### Mask Mode 실험 (E0-E3)
+
+**카테고리 정의:**
+- **E0**: Baseline (mask=none)
+- **E1**: GT Mask + Alpha (권장) - E1_1_gt, E1_2_gt_alpha⭐, E1_3_gt_alpha_lgm
+- **E2**: Alpha Only (마스크 없이 alpha loss만)
+- **E3**: Advanced (composite, bg penalty 등)
 
 | Experiment | mask_mode | alpha_loss | lr | Priority | 설명 |
 |------------|-----------|------------|-----|----------|------|
-| **E0_paper_original** | none | 0.0 | 1e-4 | P1 | 논문 원본 baseline |
-| **E0_mouse_baseline** | none | 0.0 | 1e-5 | P1 | 생쥐 finetuning |
-| E1_gt | gt | 0.0 | base | P4 | GT mask only |
-| **E2_gt_alpha** ⭐ | gt | 0.1 | base | **P0** | GT + alpha supervision |
-| E3_alpha | none | 0.1 | base | P5 | Alpha supervision only |
-| E4_bg_penalty | none | 0.1+bg | base | P4 | Background penalty |
-| E5_composite | composite | 0.05 | base | ⛔ | ~~Nerfstudio~~ (alpha 확장 문제) |
-| **E5_composite_strong** | composite | 0.3 | base | P3 | Splatfacto-W 스타일 |
-| **E6_lgm_full** | gt | 1.0 | base | P2 | LGM 스타일 (alpha=RGB) |
-| E6_bg_penalty_strong | none | 0.1 | base | P3 | Object-Centric 2DGS |
-| E6_combined | gt | 0.2+bg | base | P3 | 다중 문헌 조합 |
-| **E6_clean_bg** 🆕 | gt | 0.2 | base | **P1** | 배경 Gaussian 최소화 |
+| **E0_1_paper** | none | 0.0 | 1e-4 | P1 | 논문 원본 baseline |
+| **E0_2_finetune** | none | 0.0 | 1e-5 | P1 | 생쥐 finetuning |
+| E1_1_gt | gt | 0.0 | base | P4 | GT mask only |
+| **E1_2_gt_alpha** ⭐ | gt | 0.1 | base | **P0** | GT + alpha supervision |
+| E2_1_alpha | none | 0.1 | base | P5 | Alpha supervision only |
+| E3_3_bg | none | 0.1+bg | base | P4 | Background penalty |
+| E3_1_composite | composite | 0.05 | base | ⛔ | ~~Nerfstudio~~ (alpha 확장 문제) |
+| **E3_1_composite_strong** | composite | 0.3 | base | P3 | Splatfacto-W 스타일 |
+| **E1_3_lgm_full** | gt | 1.0 | base | P2 | LGM 스타일 (alpha=RGB) |
+| E3_4_bg_strong | none | 0.1 | base | P3 | Object-Centric 2DGS |
+| E3_5_combined | gt | 0.2+bg | base | P3 | 다중 문헌 조합 |
+| **E3_6_clean_bg** 🆕 | gt | 0.2 | base | **P1** | 배경 Gaussian 최소화 |
 
 ### View Ablation 실험
 
 | Experiment | Input | Holdout | Loss 계산 | 용도 |
 |------------|-------|---------|-----------|------|
-| E2_gt_alpha_3v | 3 | 3 | 3개 평균 | 강건성 테스트 |
-| **E2_gt_alpha** | 4 | 2 | 2개 평균 | **기본 (권장)** |
-| E2_gt_alpha_5v | 5 | 1 | 1개 | 최대 정보 |
+| E1_2_gt_alpha_3v | 3 | 3 | 3개 평균 | 강건성 테스트 |
+| **E1_2_gt_alpha** | 4 | 2 | 2개 평균 | **기본 (권장)** |
+| E1_2_gt_alpha_5v | 5 | 1 | 1개 | 최대 정보 |
 
 ### View Selection
 
 | Experiment | random_view_selection | 설명 |
 |------------|----------------------|------|
-| E2_gt_alpha | true (default) | Random view order |
-| E2_gt_alpha_fixed | false | Fixed view order |
+| E1_2_gt_alpha | true (default) | Random view order |
+| E1_2_gt_alpha_fixed | false | Fixed view order |
 
 ---
 
@@ -278,9 +284,9 @@ python -m mouse_extensions.preprocessing.split_manager \
 cd /home/joon/dev/FaceLift
 conda activate facelift
 
-# P0: D7_1 + E2_gt_alpha (권장, 검증됨)
+# P0: D7_1 + E1_2_gt_alpha (권장, 검증됨)
 CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E2_gt_alpha > logs/D7_1_E2_gt_alpha.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_gt_alpha > logs/D7_1_E1_2_gt_alpha.log 2>&1 &
 ```
 
 ### 2. 베이스라인 비교 (P1)
@@ -288,11 +294,11 @@ CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # P1: 논문 원본 baseline (lr=1e-4)
 CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_paper_original > logs/D7_1_E0_paper.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E0_1_paper > logs/D7_1_E0_paper.log 2>&1 &
 
 # P1: 생쥐 finetuning baseline (lr=1e-5)
 CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_mouse_baseline > logs/D7_1_E0_mouse.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E0_2_finetune > logs/D7_1_E0_mouse.log 2>&1 &
 ```
 
 ### 3. View Ablation (P2)
@@ -300,11 +306,11 @@ CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # P2: 3-view input (강건성)
 CUDA_VISIBLE_DEVICES=3 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E2_gt_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_gt_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
 
 # P2: 5-view input (최대 정보)
 CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E2_gt_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_gt_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
 ```
 
 ### 4. 기타 Mask Mode (P3-P4)
@@ -312,11 +318,11 @@ CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # P3: GT mask only
 CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E1_gt > logs/D7_1_E1_gt.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_1_gt > logs/D7_1_E1_1_gt.log 2>&1 &
 
 # P4: Background penalty
 CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E4_bg_penalty > logs/D7_1_E4_bg.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E3_3_bg > logs/D7_1_E4_bg.log 2>&1 &
 ```
 
 ### 5. D8 테스트 (미검증)
@@ -324,7 +330,7 @@ CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # P3: D8 (Homography) - 테스트 필요
 CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D8 -e E2_gt_alpha > logs/D8_E2_gt_alpha.log 2>&1 &
+    train_gslrm.py -d D8 -e E1_2_gt_alpha > logs/D8_E1_2_gt_alpha.log 2>&1 &
 ```
 
 ### 6. 병렬 실행 예시
@@ -332,28 +338,28 @@ CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # GPU 0-4에서 5개 실험 동시 실행
 CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E2_gt_alpha > logs/D7_1_E2.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_gt_alpha > logs/D7_1_E2.log 2>&1 &
 CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_paper_original > logs/D7_1_E0_paper.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E0_1_paper > logs/D7_1_E0_paper.log 2>&1 &
 CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_mouse_baseline > logs/D7_1_E0_mouse.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E0_2_finetune > logs/D7_1_E0_mouse.log 2>&1 &
 CUDA_VISIBLE_DEVICES=3 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E2_gt_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_gt_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
 CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E2_gt_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_gt_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
 
 
 CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D8 -e E0_paper_original > logs/D8_E0_paper.log 2>&1 &
+    train_gslrm.py -d D8 -e E0_1_paper > logs/D8_E0_paper.log 2>&1 &
 CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D10 -e E0_paper_original > logs/D10_E0_paper.log 2>&1 &
+    train_gslrm.py -d D10 -e E0_1_paper > logs/D10_E0_paper.log 2>&1 &
 CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D10_1 -e E0_paper_original > logs/D10_1_E0_paper.log 2>&1 &
+    train_gslrm.py -d D10_1 -e E0_1_paper > logs/D10_1_E0_paper.log 2>&1 &
 CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D3_normalized -e E0_paper_original > logs/D3_normalized_E0_paper.log 2>&1 &
+    train_gslrm.py -d D3_normalized -e E0_1_paper > logs/D3_normalized_E0_paper.log 2>&1 &
     
 CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D8_2 -e E0_paper_original > logs/D8_2_E0_paper.log 2>&1 &
+    train_gslrm.py -d D8_2 -e E0_1_paper > logs/D8_2_E0_paper.log 2>&1 &
 ```
 
 ---
@@ -365,7 +371,7 @@ CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # 마스크 모드 비교 분석
 python -m mouse_extensions.scripts.analysis.mask_mode_analysis \
-    --checkpoint checkpoints/gslrm/D7_1_E2_gt_alpha/latest.pt \
+    --checkpoint checkpoints/gslrm/D7_1_E1_2_gt_alpha/latest.pt \
     --output_dir outputs/mask_analysis
 ```
 
@@ -374,11 +380,11 @@ python -m mouse_extensions.scripts.analysis.mask_mode_analysis \
 ```bash
 # Rendered alpha 분석
 python -m mouse_extensions.scripts.analysis.analyze_rendered_alpha \
-    --checkpoint checkpoints/gslrm/D7_1_E2_gt_alpha/latest.pt
+    --checkpoint checkpoints/gslrm/D7_1_E1_2_gt_alpha/latest.pt
 
 # Alpha threshold 분석
 python -m mouse_extensions.scripts.analysis.analyze_alpha_thresholds \
-    --checkpoint checkpoints/gslrm/D7_1_E2_gt_alpha/latest.pt
+    --checkpoint checkpoints/gslrm/D7_1_E1_2_gt_alpha/latest.pt
 ```
 
 ### 3. 카메라 시각화
@@ -395,7 +401,7 @@ python -m mouse_extensions.scripts.visualize_camera_setup_v4 \
 ```bash
 # Turntable 동영상 생성
 python -m mouse_extensions.scripts.inference.temporal_turntable \
-    --checkpoint checkpoints/gslrm/D7_1_E2_gt_alpha/latest.pt \
+    --checkpoint checkpoints/gslrm/D7_1_E1_2_gt_alpha/latest.pt \
     --output_dir outputs/turntable \
     --num_frames 60
 ```
@@ -405,7 +411,7 @@ python -m mouse_extensions.scripts.inference.temporal_turntable \
 ```bash
 # Checkpoint에서 렌더링
 python -m mouse_extensions.scripts.render_from_checkpoint \
-    --checkpoint checkpoints/gslrm/D7_1_E2_gt_alpha/latest.pt \
+    --checkpoint checkpoints/gslrm/D7_1_E1_2_gt_alpha/latest.pt \
     --input_dir /path/to/test/data \
     --output_dir outputs/renders
 ```
@@ -418,13 +424,13 @@ python -m mouse_extensions.scripts.render_from_checkpoint \
 
 ```bash
 # 실시간 로그
-tail -f logs/D7_1_E2_gt_alpha.log
+tail -f logs/D7_1_E1_2_gt_alpha.log
 
 # 최근 로그
-tail -100 logs/D7_1_E2_gt_alpha.log
+tail -100 logs/D7_1_E1_2_gt_alpha.log
 
 # 에러만 확인
-grep -i error logs/D7_1_E2_gt_alpha.log
+grep -i error logs/D7_1_E1_2_gt_alpha.log
 
 # 여러 로그 동시 확인
 tail -f logs/D7_1_*.log
@@ -545,26 +551,26 @@ kill <PID>
 
 | 실험 | mask_mode | alpha_w | bg_w | 문헌 | 상태 |
 |------|-----------|---------|------|------|------|
-| **E2_gt_alpha** ★ | gt | 0.1 | 0.0 | LGM+PS | ✅ 권장 |
-| E5_composite_strong | composite | 0.3 | 0.0 | Splatfacto-W | 실험적 |
-| E6_lgm_full | gt | 1.0 | 0.0 | LGM | 실험적 |
-| E6_bg_penalty_strong | none | 0.1 | 1.0 | 2DGS | 실험적 |
-| E6_combined | gt | 0.2 | 0.3 | 다중 | 실험적 |
+| **E1_2_gt_alpha** ★ | gt | 0.1 | 0.0 | LGM+PS | ✅ 권장 |
+| E3_1_composite_strong | composite | 0.3 | 0.0 | Splatfacto-W | 실험적 |
+| E1_3_lgm_full | gt | 1.0 | 0.0 | LGM | 실험적 |
+| E3_4_bg_strong | none | 0.1 | 1.0 | 2DGS | 실험적 |
+| E3_5_combined | gt | 0.2 | 0.3 | 다중 | 실험적 |
 
 ### 마스크 실험 명령어
 
 ```bash
-# E2_gt_alpha (권장)
+# E1_2_gt_alpha (권장)
 CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E2_gt_alpha > logs/E2_gt_alpha.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_2_gt_alpha > logs/E1_2_gt_alpha.log 2>&1 &
 
-# E6_lgm_full (LGM 스타일)
+# E1_3_lgm_full (LGM 스타일)
 CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E6_lgm_full > logs/E6_lgm.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E1_3_lgm_full > logs/E6_lgm.log 2>&1 &
 
-# E6_combined (다중 문헌)
+# E3_5_combined (다중 문헌)
 CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E6_combined > logs/E6_combined.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E3_5_combined > logs/E3_5_combined.log 2>&1 &
 ```
 
 ### 핵심 발견
@@ -578,7 +584,7 @@ CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
 
 ```bash
 # Modular mode 권장 (Legacy mode 대신)
-python train_gslrm.py -d D7_1 -e E2_gt_alpha    # ✅ Modular
+python train_gslrm.py -d D7_1 -e E1_2_gt_alpha    # ✅ Modular
 python train_gslrm.py --config file.yaml        # ⚠️ Legacy
 ```
 
@@ -663,8 +669,8 @@ Homography H = K' · K⁻¹ (projective transform)
 ```bash
 cd /home/joon/dev/FaceLift
 CUDA_VISIBLE_DEVICES=0 python -m mouse_extensions.scripts.inference.temporal_turntable \
-    --checkpoint checkpoints/gslrm/D7_1_E0_paper_original/iter_XXXXX/model.pt \
-    --config checkpoints/gslrm/D7_1_E0_paper_original/config.yaml \
+    --checkpoint checkpoints/gslrm/D7_1_E0_1_paper/iter_XXXXX/model.pt \
+    --config checkpoints/gslrm/D7_1_E0_1_paper/config.yaml \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1/train \
     --start_frame 0 \
     --end_frame 30 \
@@ -703,10 +709,10 @@ CUDA_VISIBLE_DEVICES=0 python -m mouse_extensions.scripts.inference.temporal_tur
 ### 문제
 GS-LRM은 모든 픽셀에 Gaussian 할당 → 작은 생쥐 주변 흰색 배경에도 Gaussian 생성
 
-### 해결책 1: 학습 중 (E6_clean_bg)
+### 해결책 1: 학습 중 (E3_6_clean_bg)
 
 ```yaml
-# configs/experiments/E6_clean_bg.yaml
+# configs/experiments/E3_6_clean_bg.yaml
 training:
   losses:
     mask_mode: gt              # RGB loss → 전경 영역만
@@ -718,7 +724,7 @@ training:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E6_clean_bg
+    train_gslrm.py -d D7_1 -e E3_6_clean_bg
 ```
 
 ### 해결책 2: 후처리 Pruning

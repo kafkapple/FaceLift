@@ -39,6 +39,7 @@ docs/
 | 문서 | 용도 |
 |------|------|
 | **[MOUSE_QUICK_REFERENCE](./practical/MOUSE_QUICK_REFERENCE.md)** | 빠른 시작, 명령어, 실험 권장 |
+| **[EXPERIMENT_QUICK_REFERENCE](./practical/EXPERIMENT_QUICK_REFERENCE.md)** | 실험 ID 명명규칙, E0-E3 카테고리 |
 
 ### Datasets (데이터셋)
 | 문서 | 용도 |
