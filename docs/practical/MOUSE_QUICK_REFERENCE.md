@@ -1,6 +1,6 @@
-# FaceLift Mouse Quick Reference v5.8
+# FaceLift Mouse Quick Reference v5.9
 
-> Last Updated: 2026-01-24 (M3/Mask/Split updated) | Modular Mode | D7_1 Verified | Complete Guide
+> Last Updated: 2026-01-24 (M3/D10.3 완료, E0 명명 변경) | Modular Mode | D7_1 Verified | Complete Guide
 
 ---
 
@@ -34,9 +34,9 @@ CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
 
 ## Baseline Comparison
 
-### E0_1_paper vs E0_2_finetune
+### E0_1_facelift vs E0_2_mouse
 
-| 설정 | E0_1_paper | E0_2_finetune | 비고 |
+| 설정 | E0_1_facelift | E0_2_mouse | 비고 |
 |------|-------------------|-------------------|------|
 | **lr** | **1e-4** | 1e-5 | 원본 vs finetuning |
 | **grad_clip_norm** | 1.0 | 5.0 | 원본 vs 완화 |
@@ -50,19 +50,19 @@ CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
 
 | 상황 | 권장 설정 |
 |------|----------|
-| 빠른 수렴, 논문 재현 | **E0_1_paper** (lr=1e-4) |
-| 안정적 finetuning | **E0_2_finetune** (lr=1e-5) |
+| 빠른 수렴, 논문 재현 | **E0_1_facelift** (lr=1e-4) |
+| 안정적 finetuning | **E0_2_mouse** (lr=1e-5) |
 
 ### 베이스라인 비교 실험
 
 ```bash
 # 원본 논문 설정 (lr=1e-4)
 CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_1_paper > logs/D7_1_E0_paper.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E0_1_facelift > logs/D7_1_E0_paper.log 2>&1 &
 
 # 생쥐 적응 설정 (lr=1e-5)
 CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_2_finetune > logs/D7_1_E0_mouse.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E0_2_mouse > logs/D7_1_E0_mouse.log 2>&1 &
 ```
 
 ---
@@ -74,8 +74,8 @@ CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
 | Priority | Dataset | Experiment | 특징 | 상태 |
 |----------|---------|------------|------|------|
 | **P0** | **D7_1** | **E1_2_gt_alpha** | Affine + GT mask + α | ✅ Verified |
-| **P1** | D7_1 | E0_1_paper | 논문 원본 baseline | ✅ Ready |
-| **P1** | D7_1 | E0_2_finetune | 생쥐 finetuning | ✅ Ready |
+| **P1** | D7_1 | E0_1_facelift | 논문 원본 baseline | ✅ Ready |
+| **P1** | D7_1 | E0_2_mouse | 생쥐 finetuning | ✅ Ready |
 | **P2** | D7_1 | E1_2_gt_alpha_3v | 3-view 강건성 | ✅ Ready |
 | **P2** | D7_1 | E1_2_gt_alpha_5v | 5-view 최대 정보 | ✅ Ready |
 | **P3** | D8 | E1_2_gt_alpha | Homography | ⚠️ Test needed |
@@ -86,7 +86,7 @@ CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
 | 목적 | Dataset | Experiment | 설명 |
 |------|---------|------------|------|
 | **기준선** | D7_1 | E1_2_gt_alpha | 모든 비교의 기준 |
-| **베이스라인 비교** | D7_1 | E0_1_paper, E0_2_finetune | lr 영향 분석 |
+| **베이스라인 비교** | D7_1 | E0_1_facelift, E0_2_mouse | lr 영향 분석 |
 | **강건성** | D7_1 | E1_2_gt_alpha_3v | 적은 입력에서 성능 |
 | **최대 품질** | D7_1 | E1_2_gt_alpha_5v | 최대 정보 활용 |
 | **기하학 정밀** | D8 | E1_2_gt_alpha | Homography + skew |
@@ -107,6 +107,7 @@ CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
 | D9 | native | None | - | orig | ✅ | ⚠️ 검증 중 |
 | D10 | up_aligned | Homography | 1.0x | 256 | ❌ (93° 회전) | ⛔ 비권장 |
 | D10.1 | up_aligned | Homography | Adaptive | var | ❌ (93° 회전) | ⛔ 비권장 |
+| **D10.3 (M3)** ⭐ | up_aligned_zoom | Homography | Coverage 5% | 256 | ✅ | ✅ **Ready** |
 
 ### 데이터 경로
 
@@ -116,8 +117,9 @@ CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
 ├── D7_2/       ✅ Ready
 ├── D8/         ⚠️ Test needed
 ├── D8_1/       ⚠️ Test needed
-├── D9/        ⚠️ 검증 중
-└── D10/       ⚠️ 전처리 중
+├── D9/         ⚠️ 검증 중
+├── D10/        ⛔ 비권장 (93° 회전)
+└── M3/         ✅ Ready (3597 total: 3238 train, 359 val)
 ```
 
 ---
@@ -145,8 +147,8 @@ configs/
 
 | Experiment | mask_mode | alpha_loss | lr | Priority | 설명 |
 |------------|-----------|------------|-----|----------|------|
-| **E0_1_paper** | none | 0.0 | 1e-4 | P1 | 논문 원본 baseline |
-| **E0_2_finetune** | none | 0.0 | 1e-5 | P1 | 생쥐 finetuning |
+| **E0_1_facelift** | none | 0.0 | 1e-4 | P1 | 논문 원본 baseline |
+| **E0_2_mouse** | none | 0.0 | 1e-5 | P1 | 생쥐 finetuning |
 | E1_1_gt | gt | 0.0 | base | P4 | GT mask only |
 | **E1_2_gt_alpha** ⭐ | gt | 0.1 | base | **P0** | GT + alpha supervision |
 | E2_1_alpha | none | 0.1 | base | P5 | Alpha supervision only |
@@ -219,17 +221,38 @@ python -m mouse_extensions.preprocessing.preprocess --list-presets
 | **D8 (M2)** | precision_homography | None | No | ✅ | 안정 |
 | **D10.3 (M3)** | up_aligned_zoom | Coverage 5% | Yes | ✅ | **★ 신규** |
 
-### M3 / D10.3 전처리
+### M3 (D10.3) - 권장 신규 데이터셋 ⭐
 
+| 항목 | 값 |
+|------|-----|
+| **Preset** | D10.3 (precision_homography + coverage zoom) |
+| **경로** | `/home/joon/data/preprocessed/FaceLift_mouse/M3/` |
+| **샘플 수** | 3597 (Train: 3238, Val: 359) |
+| **Split** | 9:1 (data_mouse_train.txt, data_mouse_val.txt) |
+| **Adaptive Zoom** | 1.35x (목표 coverage 5%, 실제 ~9.7%) |
+| **Config** | `configs/datasets/D10_3.yaml` |
+| **상태** | ✅ 전처리 완료, 실험 대기 |
+
+**D10.3 vs D10/D10.1 차이점**:
+- D10/D10.1: `up_alignment=True` → 93도 좌표 회전 문제 발생
+- **D10.3**: `up_alignment=False` + `zoom_after_transform=True` → 문제 해결
+- D10.3은 **homography 변환 후** adaptive zoom 적용 → 기하학적 정확도 유지
+
+**M3 전처리 명령어**:
 ```bash
-# M3: Coverage-based adaptive zoom (목표 FG 5%)
 python -m mouse_extensions.preprocessing.preprocess \
     --preset D10.3 \
     --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
     --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3
 ```
 
-**D10.3 (M3) 특징:**
+**M3 실험 실행**:
+```bash
+CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D10_3 -e E1_2_gt_alpha
+```
+
+**D10.3 (M3) 설정 상세:**
 ```yaml
 paradigm: up_aligned_zoom
 adaptive_zoom: true
@@ -294,11 +317,11 @@ CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
 ```bash
 # P1: 논문 원본 baseline (lr=1e-4)
 CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_1_paper > logs/D7_1_E0_paper.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E0_1_facelift > logs/D7_1_E0_paper.log 2>&1 &
 
 # P1: 생쥐 finetuning baseline (lr=1e-5)
 CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_2_finetune > logs/D7_1_E0_mouse.log 2>&1 &
+    train_gslrm.py -d D7_1 -e E0_2_mouse > logs/D7_1_E0_mouse.log 2>&1 &
 ```
 
 ### 3. View Ablation (P2)
@@ -336,30 +359,25 @@ CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
 ### 6. 병렬 실행 예시
 
 ```bash
-# GPU 0-4에서 5개 실험 동시 실행
+# GPU 0-5에서 6개 실험 동시 실행 (각 GPU 1개 실험)
 CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E1_2_gt_alpha > logs/D7_1_E2.log 2>&1 &
-CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_1_paper > logs/D7_1_E0_paper.log 2>&1 &
-CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E0_2_finetune > logs/D7_1_E0_mouse.log 2>&1 &
+CUDA_VISIBLE_DEVICES=1 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E0_1_facelift > logs/D7_1_E0_paper.log 2>&1 &
+CUDA_VISIBLE_DEVICES=2 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E0_2_mouse > logs/D7_1_E0_mouse.log 2>&1 &
 CUDA_VISIBLE_DEVICES=3 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E1_2_gt_alpha_3v > logs/D7_1_E2_3v.log 2>&1 &
 CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D7_1 -e E1_2_gt_alpha_5v > logs/D7_1_E2_5v.log 2>&1 &
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D10_3 -e E1_2_gt_alpha > logs/M3_E1_2.log 2>&1 &
 
-
-CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D8 -e E0_1_paper > logs/D8_E0_paper.log 2>&1 &
-CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D10 -e E0_1_paper > logs/D10_E0_paper.log 2>&1 &
-CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D10_1 -e E0_1_paper > logs/D10_1_E0_paper.log 2>&1 &
+# 추가 데이터셋 테스트 (GPU 6-7)
 CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D3_normalized -e E0_1_paper > logs/D3_normalized_E0_paper.log 2>&1 &
-    
+    train_gslrm.py -d D8 -e E0_1_facelift > logs/D8_E0_paper.log 2>&1 &
 CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D8_2 -e E0_1_paper > logs/D8_2_E0_paper.log 2>&1 &
+    train_gslrm.py -d D8_2 -e E0_1_facelift > logs/D8_2_E0_paper.log 2>&1 &
 ```
 
 ---
@@ -623,7 +641,7 @@ ls checkpoints/gslrm/ckpt_0000000000021125.pt
 
 ---
 
-*FaceLift Mouse Quick Reference v5.8 | Complete Guide | 2026-01-24*
+*FaceLift Mouse Quick Reference v5.9 | Complete Guide | 2026-01-24*
 
 ---
 
@@ -669,8 +687,8 @@ Homography H = K' · K⁻¹ (projective transform)
 ```bash
 cd /home/joon/dev/FaceLift
 CUDA_VISIBLE_DEVICES=0 python -m mouse_extensions.scripts.inference.temporal_turntable \
-    --checkpoint checkpoints/gslrm/D7_1_E0_1_paper/iter_XXXXX/model.pt \
-    --config checkpoints/gslrm/D7_1_E0_1_paper/config.yaml \
+    --checkpoint checkpoints/gslrm/D7_1_E0_1_facelift/iter_XXXXX/model.pt \
+    --config checkpoints/gslrm/D7_1_E0_1_facelift/config.yaml \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1/train \
     --start_frame 0 \
     --end_frame 30 \

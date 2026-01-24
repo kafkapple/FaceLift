@@ -38,7 +38,7 @@ CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
 
 ```bash
 # 논문 원본 재현
-torchrun ... train_gslrm.py -d M3 -e E0_1_paper
+torchrun ... train_gslrm.py -d M3 -e E0_1_facelift
 ```
 
 ### View Ablation
@@ -66,8 +66,8 @@ torchrun ... train_gslrm.py -d D7_1_overfit -e E1_2_gt_alpha_overfit
 
 | ID | 파일 | lr | view | 용도 |
 |----|------|-----|------|------|
-| E0_1 | E0_1_paper.yaml | 1e-4 | random | 논문 재현 |
-| E0_2 | E0_2_finetune.yaml | 1e-5 | random | Finetuning |
+| E0_1 | E0_1_facelift.yaml | 1e-4 | random | 논문 재현 |
+| E0_2 | E0_2_mouse.yaml | 1e-5 | random | Finetuning |
 
 ### E1: GT Mask ⭐
 
@@ -125,7 +125,7 @@ torchrun ... train_gslrm.py -d D7_1_overfit -e E1_2_gt_alpha_overfit
 
 | 문헌 | 해당 실험 | 핵심 설정 |
 |------|----------|----------|
-| **GS-LRM Paper** | E0_1_paper | mask=none |
+| **GS-LRM Paper** | E0_1_facelift | mask=none |
 | **LGM (ECCV 2024)** | E1_3_gt_alpha_lgm | α=1.0, MSE |
 | **Pose Splatter** | E1_2_gt_alpha | mask=gt, normalize |
 | **Object-Centric 2DGS** | E3_3_bg | bg_loss=0.5 |

@@ -9,8 +9,8 @@
 
 | ID | 파일명 | 설정 |
 |----|--------|------|
-| E0_1 | E0_1_paper.yaml | 논문 원본, random view |
-| E0_2 | E0_2_finetune.yaml | lr=1e-5, finetuning용 |
+| E0_1 | E0_1_facelift.yaml | 논문 원본, random view |
+| E0_2 | E0_2_mouse.yaml | lr=1e-5, finetuning용 |
 
 ---
 
@@ -59,8 +59,8 @@
 
 | 현재 | 신규 |
 |------|------|
-| E0_paper_original.yaml | E0_1_paper.yaml |
-| E0_mouse_baseline.yaml | E0_2_finetune.yaml |
+| E0_paper_original.yaml | E0_1_facelift.yaml |
+| E0_mouse_baseline.yaml | E0_2_mouse.yaml |
 | E1_gt.yaml | E1_1_gt.yaml |
 | E2_gt_alpha.yaml | **E1_2_gt_alpha.yaml** ⭐ |
 | E2_gt_alpha_3v.yaml | E1_2_gt_alpha_3v.yaml |
