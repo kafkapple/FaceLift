@@ -238,7 +238,7 @@ def main():
     if args.list_presets:
         print("Available presets:")
         for name, cfg in PRESETS.items():
-            print(f"  {name}: {cfg[\"strategy\"]} - {cfg[\"splits\"]}")
+            print(f"  {name}: {cfg['strategy']} - {cfg['splits']}")  # Fixed f-string
         return
     
     if args.config:
