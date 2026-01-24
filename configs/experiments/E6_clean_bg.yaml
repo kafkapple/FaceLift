@@ -1,0 +1,30 @@
+# E6_clean_bg: Background Gaussian 최소화
+# 생쥐 영역만 Gaussian, 배경은 투명하게
+#
+# 조합:
+#   - mask_mode: gt (RGB loss를 전경 영역으로 제한)
+#   - alpha_loss: 0.2 (rendered α → GT mask)
+#   - bg_loss: 0.5 (배경 α → 0)
+#   - opacity_reg: 0.01 (opacity → 0 or 1)
+#   - ghost_reg: 0.1 (배경 영역 α 패널티)
+
+training:
+  losses:
+    # RGB Loss
+    mask_mode: gt
+    normalize_by_mask: true
+    
+    # Alpha Supervision (LGM)
+    alpha_loss_weight: 0.2
+    alpha_loss_type: mse
+    
+    # Background Penalty (Object-Centric 2DGS)
+    bg_loss_weight: 0.5
+    
+    # Opacity Regularization (StableGS)
+    opacity_reg_weight: 0.01
+    opacity_reg_type: entropy
+    
+    # Ghost Gaussian Regularization
+    ghost_reg_weight: 0.1
+    ghost_alpha_threshold: 0.3
