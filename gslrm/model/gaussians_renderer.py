@@ -211,6 +211,7 @@ def get_turntable_cameras(
     elevation_end=None,  # For spiral/arc modes
     trajectory_mode: TrajectoryMode = "turntable",
     up_vector=np.array([0, 0, 1]),
+    center=None,  # Center point for camera orbit (default: origin)
 ):
     """
     Generate camera poses for visualization.
@@ -222,7 +223,14 @@ def get_turntable_cameras(
             - "figure8": Figure-8 pattern for diverse viewpoints
             - "arc": Single arc trajectory, varying elevation only
         elevation_end: End elevation for spiral/arc modes (default: elevation+40 for spiral, 80 for arc)
+        center: 3D point (numpy array) for camera orbit center. If None, uses origin [0,0,0].
     """
+    # Default center to origin if not provided
+    if center is None:
+        center = np.array([0.0, 0.0, 0.0])
+    else:
+        center = np.asarray(center).flatten()[:3]
+    
     fx = w / (2 * np.tan(np.deg2rad(hfov) / 2.0))
     fy = fx
     cx, cy = w / 2.0, h / 2.0
@@ -263,8 +271,12 @@ def get_turntable_cameras(
         base = radius * np.cos(elev)
         x = base * np.cos(azim)
         y = base * np.sin(azim)
-        cam_pos = np.array([x, y, z])
-        forward = -cam_pos / np.linalg.norm(cam_pos)
+        # Camera position relative to center
+        cam_pos_rel = np.array([x, y, z])
+        cam_pos = cam_pos_rel + center
+        # Look-at direction: from camera to center
+        forward = center - cam_pos
+        forward = forward / np.linalg.norm(forward)
         right = np.cross(forward, up_vector)
         right = right / np.linalg.norm(right)
         up = np.cross(right, forward)
@@ -1173,11 +1185,11 @@ deferred_gaussian_render = DeferredGaussianRender.apply
 @torch.no_grad()
 @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
 def render_turntable(pc: GaussianModel, rendering_resolution=384, num_views=8, elevation=20, radius=2.7,
-                     trajectory_mode="turntable", elevation_end=None):
+                     trajectory_mode="turntable", elevation_end=None, center=None):
     w, h, v, fxfycxcy, c2w = get_turntable_cameras(
         h=rendering_resolution, w=rendering_resolution, num_views=num_views,
         elevation=elevation, elevation_end=elevation_end, radius=radius,
-        trajectory_mode=trajectory_mode,
+        trajectory_mode=trajectory_mode, center=center,
     )
 
     device = pc._xyz.device

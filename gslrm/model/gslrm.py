@@ -1629,6 +1629,8 @@ class GSLRM(nn.Module):
                 turntable_image = rearrange(turntable_image, "v h w c -> h (v w) c")
             else:
                 # Standard turntable
+                # Compute Gaussian center for camera orbit
+                gaussian_center = model_results.gaussians[batch_idx]._xyz.mean(dim=0).detach().cpu().numpy()
                 turntable_image = render_turntable(
                     model_results.gaussians[batch_idx],
                     rendering_resolution=turntable_resolution,
@@ -1636,7 +1638,8 @@ class GSLRM(nn.Module):
                     elevation=turntable_elevation,
                     radius=turntable_radius,
                     trajectory_mode=trajectory_mode,
-                    elevation_end=elevation_end
+                    elevation_end=elevation_end,
+                    center=gaussian_center
                 )
             
             # render_turntable returns: h x (views*w) x c
@@ -1878,12 +1881,15 @@ class GSLRM(nn.Module):
             
             # Use configured resolution or default to input resolution
             actual_resolution = turntable_resolution if turntable_resolution else render_resolution
+            # Compute Gaussian center for camera orbit
+            gaussian_center = model_results.gaussians[batch_idx]._xyz.mean(dim=0).detach().cpu().numpy()
             turntable_frames = render_turntable(
                 model_results.gaussians[batch_idx],
                 rendering_resolution=actual_resolution,
                 num_views=num_turntable_views,
                 elevation=turntable_elevation,
-                radius=turntable_radius
+                radius=turntable_radius,
+                center=gaussian_center
             )
             turntable_frames = rearrange(
                 turntable_frames, "height (views width) channels -> views height width channels", views=num_turntable_views
@@ -2062,8 +2068,11 @@ class GSLRM(nn.Module):
                 num_turntable_views = 150
                 render_resolution = input_image.shape[0]
                 
+                # Compute Gaussian center for camera orbit
+                gaussian_center = model_results.gaussians[batch_idx]._xyz.mean(dim=0).detach().cpu().numpy()
                 turntable_frames = render_turntable(
-                    model_results.gaussians[batch_idx], rendering_resolution=render_resolution, num_views=num_turntable_views
+                    model_results.gaussians[batch_idx], rendering_resolution=render_resolution, num_views=num_turntable_views,
+                    center=gaussian_center
                 )
                 turntable_frames = rearrange(
                     turntable_frames, "height (views width) channels -> views height width channels", views=num_turntable_views
