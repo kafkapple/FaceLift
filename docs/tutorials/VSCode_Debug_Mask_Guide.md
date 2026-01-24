@@ -485,3 +485,62 @@ debug_inspect("my_tensor", tensor, "/tmp/debug.png")
 ---
 
 *Updated: 2026-01-25 - 환경변수 기반 자동 브레이크포인트 추가*
+
+### 7.6 디버그 흐름도
+
+```
+train_gslrm.py
+    │
+    ▼
+gslrm.py: forward()
+    │
+    ├─ BP6 (line 1458): loss_calculator 호출 전
+    │
+    ▼
+gslrm.py: _compute_all_losses()
+    │
+    ├─ BP4 (line 382): 진입점
+    │
+    ▼
+loss_extensions.py: compute_mask_from_config()
+    │
+    ├─ BP1 (line 140): mask_mode 체크
+    ├─ BP2 (line 154): GT mask 적용
+    │
+    ▼
+gslrm.py: mask 반환
+    │
+    ├─ BP5 (line 386): mask 텐서 검사 (debug_inspect)
+    │
+    ▼
+mask_losses.py: compute_masked_rgb_loss()
+    │
+    └─ BP3 (line 134): Loss 계산
+```
+
+### 7.7 권장 디버깅 시나리오
+
+| 시나리오 | 환경변수 | 확인할 BP |
+|----------|----------|-----------|
+| mask_mode가 적용되는지 확인 | `DEBUG_MASK=1` | BP1 |
+| GT mask 값이 올바른지 확인 | `DEBUG_MASK=1` | BP2 |
+| Loss 계산 전체 흐름 추적 | `DEBUG_LOSS=1` | BP4→BP5→BP3 |
+| 모든 흐름 상세 추적 | `DEBUG_ALL=1` | 전체 |
+
+### 7.8 Debug Console에서 유용한 명령어
+
+```python
+# BP5에서 mask 검사
+mask.shape                    # [B*V, 1, H, W]
+mask.mean()                   # 마스크 평균 (0~1)
+(mask > 0.5).sum() / mask.numel()  # FG 커버리지
+
+# 텐서 이미지로 저장
+import torchvision
+torchvision.utils.save_image(mask[0], "/tmp/mask_bp5.png")
+torchvision.utils.save_image(rendering[0], "/tmp/render_bp5.png")
+
+# Loss 값 확인 (BP3 이후)
+losses["l2"].item()
+losses["psnr"].item()
+```
