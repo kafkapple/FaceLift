@@ -196,7 +196,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 |-------|-------------|------|------|
 | **M1** | D7.1 | Affine, individual scale | 검증됨 |
 | **M2** | D8 | Homography + skew | 정밀 기하학 |
-| **M3** | D10.3 | Coverage-based zoom (5%), pretrained 호환 | **★ 신규 권장** |
+| **M3** | D10.3 | Coverage 4.55%, offset 48px (검증됨) | **★ 권장** |
 
 ### Preset 목록
 
