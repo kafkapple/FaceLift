@@ -1,0 +1,20 @@
+# =============================================================================
+# Dataset: D7_1_overfit (1 sample for overfitting test)
+# =============================================================================
+
+_dataset:
+  name: D7_1_overfit
+  description: "Single sample for overfit sanity check"
+  path: /home/joon/data/preprocessed/FaceLift_mouse/D7_1
+  split: "1 sample"
+  status: "OVERFIT_TEST"
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_overfit.txt
+
+validation:
+  enabled: false
+
+inference:
+  enabled: false

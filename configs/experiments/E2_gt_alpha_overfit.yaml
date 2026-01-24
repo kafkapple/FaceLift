@@ -1,5 +1,8 @@
-# E2 variant: Overfit test (1 view input)
-# For debugging and sanity check
+# =============================================================================
+# E2_gt_alpha_overfit: Perfect Overfit Test
+# =============================================================================
+# Purpose: Verify model can memorize 1 sample (sanity check)
+# Expected: PSNR → 40+ dB, loss → 0
 
 model:
   num_input_views: 1
@@ -7,6 +10,14 @@ model:
 training:
   dataset:
     num_input_views: 1
+    random_view_selection: false    # Fixed view order
+
+    # Disable all augmentation
+    augmentation:
+      horizontal_flip: false
+      rotation_range: 0.0
+      brightness_range: [1.0, 1.0]
+      contrast_range: [1.0, 1.0]
 
   losses:
     mask_mode: gt
@@ -14,4 +25,7 @@ training:
     alpha_loss_type: mse
 
   schedule:
-    max_fwdbwd_passes: 1000
+    max_fwdbwd_passes: 2000         # Enough for overfit
+
+validation:
+  enabled: false                     # Skip validation
