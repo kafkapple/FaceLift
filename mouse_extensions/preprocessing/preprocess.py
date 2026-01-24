@@ -369,6 +369,9 @@ class PreprocessConfig:
     # Normalization flags
     normalize_fx: bool = True
     normalize_translation: bool = True
+    # P0 Fix: Post-zoom normalization
+    normalize_after_zoom: bool = False
+    force_pp_to_target: bool = False
     
     # M3/D10.3: Coverage-based zoom settings
     zoom_method: str = "bbox"  # "bbox" or "coverage_based"
@@ -423,6 +426,9 @@ class PreprocessConfig:
             config.target_fg_coverage = preset.get("target_fg_coverage", 0.05)
             config.min_fg_coverage = preset.get("min_fg_coverage", 0.0)
             config.zoom_after_transform = preset.get("zoom_after_transform", False)
+            # ★ P0 Fix: Post-zoom normalization options
+            config.normalize_after_zoom = preset.get("normalize_after_zoom", False)
+            config.force_pp_to_target = preset.get("force_pp_to_target", False)
             
         # ====== NATIVE (D9, D9_norm) ======
         elif config.paradigm == Paradigm.NATIVE:
@@ -593,6 +599,19 @@ class UnifiedPreprocessor:
             crop_x, crop_y = crop_offset
             fx, fy = fx * zoom, fy * zoom
             cx, cy = (cx - crop_x) * zoom, (cy - crop_y) * zoom
+        
+        # ★ P0 FIX: Post-zoom normalization for adaptive zoom presets
+        if getattr(cfg, 'normalize_after_zoom', False) and zoom > 1.0:
+            renorm_scale = cfg.target_fx / fx
+            fx = cfg.target_fx
+            fy = fy * renorm_scale
+            # Keep cx/cy scaled (geometric consistency)
+            cx = cx * renorm_scale
+            cy = cy * renorm_scale
+        
+        # Alternative: Force PP to target (for GS-LRM compatibility)
+        if getattr(cfg, 'force_pp_to_target', False):
+            cx, cy = cfg.target_pp
 
         w2c = np.eye(4)
         w2c[:3, :3], w2c[:3, 3] = R, T.flatten()

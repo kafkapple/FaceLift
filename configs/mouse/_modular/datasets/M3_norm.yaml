@@ -1,0 +1,24 @@
+# =============================================================================
+# Dataset: M3_norm (Coverage-based Zoom + fx Normalization)
+# =============================================================================
+# NOTE: This config requires M3_norm preprocessing to be completed first!
+# Run: python -m mouse_extensions.preprocessing.preprocess --preset M3_norm ...
+
+_dataset:
+  name: M3_norm
+  description: "M3 + fx=549 renormalization, PP accurate (variable), Coverage ~80%"
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M3_norm
+  split: "90:10 (train:val)"
+  status: "PENDING"  # Change to VERIFIED after preprocessing
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_norm/data_mouse_train.txt
+
+validation:
+  enabled: true
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_norm/data_mouse_val.txt
+  val_every: 200
+
+inference:
+  enabled: false
