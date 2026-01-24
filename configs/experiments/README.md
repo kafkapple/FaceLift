@@ -93,3 +93,15 @@
 ---
 
 *v2.2 | 2026-01-24*
+
+---
+
+## 관련 문서 (백링크)
+
+| 문서 | 위치 |
+|------|------|
+| **실험 레지스트리** | [`docs/practical/EXPERIMENT_REGISTRY.md`](../../docs/practical/EXPERIMENT_REGISTRY.md) |
+| Quick Reference | [`docs/practical/MOUSE_QUICK_REFERENCE.md`](../../docs/practical/MOUSE_QUICK_REFERENCE.md) |
+
+> ⚠️ 실험 추가/변경 시 위 문서들도 함께 업데이트할 것
+

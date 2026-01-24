@@ -843,3 +843,16 @@ python -m mouse_extensions.scripts.inference.prune_gaussians \
 ---
 
 *v5.6 | 2026-01-24 | E6 실험 추가, Background Gaussian Reduction, Pruning 스크립트*
+
+---
+
+## 중앙 관리 문서 (SSOT)
+
+> **변경 시 반드시 확인할 문서들**
+
+| 문서 | 역할 | 변경 시 |
+|------|------|---------|
+| [`EXPERIMENT_REGISTRY.md`](./EXPERIMENT_REGISTRY.md) | 실험 ID 중앙 관리 | 실험 추가/변경 시 |
+| [`datasets/PREPROCESSING_REGISTRY.md`](./datasets/PREPROCESSING_REGISTRY.md) | 전처리 중앙 관리 | 데이터셋 추가 시 |
+| [`../00_MoC_INDEX.md`](../00_MoC_INDEX.md) | 전체 문서 목차 | 문서 추가 시 |
+
