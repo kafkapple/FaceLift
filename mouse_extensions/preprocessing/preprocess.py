@@ -285,6 +285,37 @@ def compute_adaptive_zoom_coverage(masks: List[np.ndarray], target_coverage: flo
     
     return float(np.clip(zoom, zoom_range[0], zoom_range[1]))
 
+def compute_persample_zoom_coverage(mask: np.ndarray, target_coverage: float = 0.05,
+                                     zoom_range: Tuple[float, float] = (1.0, 2.5)) -> float:
+    """Compute zoom factor for a SINGLE sample based on its coverage.
+    
+    Unlike compute_adaptive_zoom_coverage which uses global average,
+    this computes optimal zoom for each sample individually.
+    
+    Args:
+        mask: Single binary mask (any view from the sample)
+        target_coverage: Target foreground ratio (0.05 = 5%)
+        zoom_range: (min_zoom, max_zoom) clipping range
+    
+    Returns:
+        Zoom factor for this specific sample
+    """
+    if mask is None or mask.size == 0:
+        return 1.0
+    
+    fg_pixels = (mask > 0).sum()
+    total_pixels = mask.size
+    current_coverage = fg_pixels / total_pixels if total_pixels > 0 else 0
+    
+    if current_coverage <= 0:
+        return zoom_range[0]
+    
+    # zoom = sqrt(target / current) because coverage scales with zoom^2
+    zoom = np.sqrt(target_coverage / current_coverage)
+    return float(np.clip(zoom, zoom_range[0], zoom_range[1]))
+
+
+
 
 def compute_fg_coverage_after_zoom(mask: np.ndarray, zoom: float) -> float:
     """Estimate foreground coverage after applying zoom.
@@ -359,6 +390,7 @@ class PreprocessConfig:
     up_alignment: bool = False
     up_source: str = "vertical_lines"  # "vertical_lines" or "camera_y_mean"
     adaptive_zoom: bool = False
+    zoom_scope: str = "global"  # "global" or "per_sample"
     zoom_range: Tuple[float, float] = (1.2, 1.5)
     zoom_fill_ratio: float = 0.8
     
@@ -419,6 +451,7 @@ class PreprocessConfig:
             config.zoom = preset.get('zoom', 1.0)
             # D8.2: Adaptive zoom support
             config.adaptive_zoom = preset.get("adaptive_zoom", False)
+            config.zoom_scope = preset.get("zoom_scope", "global")
             config.zoom_range = tuple(preset.get("zoom_range", [1.0, 1.5]))
             config.zoom_fill_ratio = preset.get("zoom_fill_ratio", 0.85)
             # M3/D10.3: Coverage-based zoom
@@ -898,12 +931,26 @@ class UnifiedPreprocessor:
             return None
 
         proc_images, proc_masks, cam_params = [], [], []
+        
+        # Per-sample zoom calculation
+        zoom_scope = getattr(cfg, 'zoom_scope', 'global')
+        if zoom_scope == 'per_sample' and cfg.adaptive_zoom:
+            # Compute zoom for this specific sample based on its masks
+            from mouse_extensions.preprocessing.preprocess import compute_persample_zoom_coverage
+            # Use first view's mask (or average across views)
+            sample_zoom = compute_persample_zoom_coverage(
+                masks[0], cfg.target_fg_coverage, cfg.zoom_range
+            )
+            frame_zoom = sample_zoom
+        else:
+            frame_zoom = cfg.zoom
+        
         for cam_idx in range(self.num_views):
             img, mask = self.apply_transform(images[cam_idx], masks[cam_idx], transforms[cam_idx])
-            img, mask, crop_offset = self.apply_zoom(img, mask, cfg.zoom)
+            img, mask, crop_offset = self.apply_zoom(img, mask, frame_zoom)
             proc_images.append(img)
             proc_masks.append(mask)
-            params = self.compute_camera_params(self.cameras[cam_idx], cfg.zoom, crop_offset)
+            params = self.compute_camera_params(self.cameras[cam_idx], frame_zoom, crop_offset)
             params['file_path'] = f"images/cam_{cam_idx:03d}.png"
             params['view_id'] = cam_idx
             cam_params.append(params)
@@ -1061,7 +1108,12 @@ _stats:
                 
                 # Choose zoom method
                 if cfg.zoom_method == "coverage_based":
-                    print(f"Computing coverage-based adaptive zoom (target: {cfg.target_fg_coverage*100:.1f}%)")
+                    zoom_scope = getattr(cfg, "zoom_scope", "global")
+                    if zoom_scope == "per_sample":
+                        print(f"  Per-sample adaptive zoom enabled (target: {cfg.target_fg_coverage*100:.1f}%)")
+                        cfg.zoom = 1.0  # Will be computed per-frame
+                    else:
+                        print(f"Computing global coverage-based adaptive zoom (target: {cfg.target_fg_coverage*100:.1f}%)")
                     
                     # M3 fix: Apply transform first, then compute coverage
                     if getattr(cfg, 'zoom_after_transform', False):
@@ -1085,18 +1137,19 @@ _stats:
                         # Compute coverage on transformed masks
                         cfg.zoom = compute_adaptive_zoom_coverage(transformed_masks, cfg.target_fg_coverage, cfg.zoom_range)
                         print(f"  (zoom_after_transform: using post-transform coverage)")
-                    else:
-                        # Original behavior: use raw mask coverage
+                    elif zoom_scope == "global":
+                        # Original behavior: use raw mask coverage (global)
                         cfg.zoom = compute_adaptive_zoom_coverage(first_masks, cfg.target_fg_coverage, cfg.zoom_range)
                     
-                    # Estimate coverage after zoom for all views
-                    est_coverages = [compute_fg_coverage_after_zoom(m, cfg.zoom) for m in first_masks if m is not None]
-                    mean_est_coverage = np.mean(est_coverages) if est_coverages else 0
-                    print(f"  Adaptive zoom: {cfg.zoom:.2f}x (est. coverage: {mean_est_coverage*100:.1f}%)")
-                    
-                    # Warn if below minimum
-                    if cfg.min_fg_coverage > 0 and mean_est_coverage < cfg.min_fg_coverage:
-                        print(f"  WARNING: Estimated coverage {mean_est_coverage*100:.1f}% < min {cfg.min_fg_coverage*100:.1f}%")
+                    if zoom_scope == "global":
+                        # Estimate coverage after zoom for all views
+                        est_coverages = [compute_fg_coverage_after_zoom(m, cfg.zoom) for m in first_masks if m is not None]
+                        mean_est_coverage = np.mean(est_coverages) if est_coverages else 0
+                        print(f"  Global adaptive zoom: {cfg.zoom:.2f}x (est. coverage: {mean_est_coverage*100:.1f}%)")
+                        
+                        # Warn if below minimum
+                        if cfg.min_fg_coverage > 0 and mean_est_coverage < cfg.min_fg_coverage:
+                            print(f"  WARNING: Estimated coverage {mean_est_coverage*100:.1f}% < min {cfg.min_fg_coverage*100:.1f}%")
                 else:
                     print(f"Computing bbox-based adaptive zoom (target fill: {cfg.zoom_fill_ratio})")
                     cfg.zoom = compute_adaptive_zoom(first_masks, cfg.zoom_fill_ratio, cfg.zoom_range)

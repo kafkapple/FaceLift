@@ -1,0 +1,24 @@
+# =============================================================================
+# Dataset: M3_persample (Per-sample Adaptive Zoom + fx Normalization)
+# =============================================================================
+# NOTE: This config requires M3_persample preprocessing to be completed first!
+# Hypothesis H5: Variable zoom improves generalization
+
+_dataset:
+  name: M3_persample
+  description: "Per-sample adaptive zoom, fx=549 normalized, PP accurate"
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M3_persample
+  split: "90:10 (train:val)"
+  status: "PENDING"
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_persample/data_mouse_train.txt
+
+validation:
+  enabled: true
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_persample/data_mouse_val.txt
+  val_every: 200
+
+inference:
+  enabled: false

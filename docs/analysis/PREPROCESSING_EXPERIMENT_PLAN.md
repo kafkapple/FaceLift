@@ -233,3 +233,38 @@ M3_norm: Val PSNR < 22 또는 Ghosting 심각
 
 *Created: 2026-01-25*
 *FaceLift Mouse Preprocessing Experiment Plan v2.0*
+
+---
+
+## 8. 추가 가설: H5 (Per-sample Zoom)
+
+### H5: 샘플별 가변 zoom이 일반화 성능을 높인다
+
+**가설**: 다양한 zoom 레벨로 학습 → 다양한 크기의 생쥐에 대한 일반화 능력 향상
+
+| 설정 | Dataset | Zoom | fx 분포 | 예상 |
+|------|---------|------|---------|------|
+| Global zoom | M3_norm | 1.35 고정 | 549 고정 | 일관적 |
+| **Per-sample zoom** | M3_persample | 1.0~2.5 가변 | 549 고정 | 다양성↑ |
+
+**비교 방법**: M3_norm vs M3_persample
+- 동일 조건: fx=549 (정규화), PP=가변 (정확)
+- 차이점: zoom 범위 (고정 vs 샘플별 적응)
+
+**평가 기준**:
+- Val PSNR: 일반화 성능
+- Variance across samples: 일관성
+- Unseen data 성능: 새로운 영상 테스트 (optional)
+
+**전처리 명령어**:
+```bash
+# M3_persample (per-sample adaptive zoom)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M3_persample \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_persample
+```
+
+---
+
+*Updated: 2026-01-25 - Added H5 (Per-sample Zoom)*

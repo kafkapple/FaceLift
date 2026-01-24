@@ -341,6 +341,30 @@ PRESETS = {
         "description": "D7.1 with original aspect ratio preserved",
         "active": True,
     },
+    
+    # P1-2: Per-sample adaptive zoom (variable fx experiment)
+    "M3_persample": {
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_scope": "per_sample",  # ★ Per-sample zoom (vs global)
+        "target_fg_coverage": 0.05,
+        "min_fg_coverage": 0.03,
+        "zoom_range": [1.0, 2.5],
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,
+        "description": "Per-sample adaptive zoom + fx normalization",
+        "active": True,
+    },
 }
 
 
@@ -429,3 +453,4 @@ def get_recommended() -> str:
 def get_presets_by_paradigm(paradigm: str) -> list:
     """Get all presets for a given paradigm."""
     return [k for k, v in PRESETS.items() if v.get("paradigm") == paradigm]
+
