@@ -86,6 +86,38 @@ def compute_up_from_cameras(extrinsics: np.ndarray) -> np.ndarray:
     up = np.mean(y_axes, axis=0)
     return up / np.linalg.norm(up)
 
+def get_extrinsics_from_cameras(cameras: List[Dict]) -> np.ndarray:
+    """Extract extrinsics array from cameras, handling both formats.
+    
+    Supports:
+    - extrinsic: 4x4 matrix format
+    - R, T: separate rotation and translation format
+    
+    Returns:
+        np.ndarray: shape (num_views, 4, 4)
+    """
+    extrinsics = []
+    for cam in cameras:
+        if "extrinsic" in cam:
+            E = cam["extrinsic"]
+            if E.shape == (3, 4):
+                E_full = np.eye(4)
+                E_full[:3, :] = E
+                extrinsics.append(E_full)
+            else:
+                extrinsics.append(E)
+        elif "R" in cam and "T" in cam:
+            E = np.eye(4)
+            E[:3, :3] = cam["R"]
+            T = cam["T"].flatten() if cam["T"].ndim > 1 else cam["T"]
+            E[:3, 3] = T
+            extrinsics.append(E)
+        else:
+            raise KeyError(f"Camera missing extrinsic data. Keys: {list(cam.keys())}")
+    return np.stack(extrinsics)
+
+
+
 
 def rotation_matrix_from_vectors(vec1: np.ndarray, vec2: np.ndarray) -> np.ndarray:
     """Compute rotation matrix that rotates vec1 to vec2.
@@ -983,10 +1015,10 @@ _stats:
                         print(f"  Loaded up direction: {up}")
                     else:
                         print(f"  Warning: {vertical_lines_path} not found, using camera Y-axis")
-                        extrinsics = np.stack([cam['extrinsic'] for cam in self.cameras])
+                        extrinsics = get_extrinsics_from_cameras(self.cameras)
                         up = compute_up_from_cameras(extrinsics)
                 else:  # camera_y_mean
-                    extrinsics = np.stack([cam['extrinsic'] for cam in self.cameras])
+                    extrinsics = get_extrinsics_from_cameras(self.cameras)
                     up = compute_up_from_cameras(extrinsics)
                     print(f"  Computed up from cameras: {up}")
                 
