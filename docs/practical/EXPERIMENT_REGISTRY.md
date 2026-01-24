@@ -1,7 +1,7 @@
 # Experiment Registry (실험 레지스트리)
 
 > **SSOT (Single Source of Truth)**: 모든 실험 ID, 명령어, 설정의 중앙 관리 문서
-> **최종 업데이트**: 2026-01-24
+> **최종 업데이트**: 2026-01-25
 
 ---
 
@@ -71,13 +71,32 @@
 
 ## 데이터셋 (M-Series)
 
-> 분류: affine (M1) → homography (M2) → homography_zoom (M3)
+> 분류: affine (M1) → homography (M2) → homography_zoom (M3, M3_norm, M3_persample)
 
-| Alias | Config | 카테고리 | 설명 |
-|-------|--------|----------|------|
-| **M1** | `-d M1` (D7_1) | affine | 안정적 기준선 |
-| **M2** | `-d M2` (D8) | homography | 정밀 기하학 |
-| **M3** | `-d M3` (D10_3) | homography_zoom | ⭐ Production |
+### Production 데이터셋
+
+| Alias | Config | 카테고리 | fx | PP | 설명 |
+|-------|--------|----------|-----|-----|------|
+| **M1** | `-d M1` (D7_1) | affine | 549 | 256 | 안정적 기준선 |
+| **M2** | `-d M2` (D8) | homography | 549 | 256 | 정밀 기하학 |
+| **M3** | `-d M3` (D10_3) | homography_zoom | 549 | 256 | ⭐ Production |
+
+### 실험용 데이터셋 (Preprocessing Ablation)
+
+| Alias | Config | Zoom | fx | PP | 가설 | 상태 |
+|-------|--------|------|-----|-----|------|------|
+| M3_raw | `-d M3_raw` | Global 1.35x | **739** ❌ | 가변 | H2 | ⏳ |
+| **M3_norm** | `-d M3_norm` | Global 1.35x | 549 ✅ | 가변 | H1,H3 | ⏳ 전처리 필요 |
+| **M3_persample** | `-d M3_persample` | Per-sample | 549 ✅ | 가변 | **H5** | ⏳ 전처리 필요 |
+
+### 가설 검증 매핑
+
+| 가설 | 비교 | 검증 내용 |
+|------|------|-----------|
+| **H1** | M1 vs M3_norm | Coverage↑ → PSNR↑ |
+| **H2** | M3_raw vs M3_norm | fx=549 필수성 |
+| **H3** | M3_norm (PP가변) | GS-LRM PP 처리 |
+| **H5** | M3_norm vs M3_persample | Per-sample zoom 효과 |
 
 ---
 
@@ -129,6 +148,7 @@ CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
 |------|------|
 | [MOUSE_QUICK_REFERENCE](./MOUSE_QUICK_REFERENCE.md) | 전체 워크플로우 |
 | [PREPROCESSING_REGISTRY](./datasets/PREPROCESSING_REGISTRY.md) | 데이터셋 전처리 |
+| [PREPROCESSING_EXPERIMENT_PLAN](../analysis/PREPROCESSING_EXPERIMENT_PLAN.md) | 전처리 가설 검증 계획 (H1-H5) |
 | [Mask Theory](../theory/mask/) | 마스크 이론/문헌 |
 
 ---
@@ -137,9 +157,10 @@ CUDA_VISIBLE_DEVICES=0 nohup torchrun --standalone --nproc_per_node=1 \
 
 | 날짜 | 버전 | 변경 |
 |------|------|------|
+| 2026-01-25 | v2.1 | M3_norm, M3_persample, H5 가설 추가 |
 | 2026-01-24 | v2.0 | 체계 재설계: gt_ 제거, deprecated 분리 |
 | 2026-01-24 | v1.0 | 초기 생성 |
 
 ---
 
-*Experiment Registry v2.0 | 2026-01-24*
+*Experiment Registry v2.1 | 2026-01-25*
