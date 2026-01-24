@@ -1,125 +1,159 @@
-# Experiment Registry
+# Experiment Registry v2.0
 
-> **Last Updated**: 2026-01-24
-> **Base**: Paper Original Settings (lr=1e-4, grad_clip=1.0)
-
----
-
-## Numbering Convention
-
-```
-E{Category}_{Variant}_{Modifier}
-
-Category (0-9):
-  0 = Baseline (논문 재현)
-  1 = GT Mask Only
-  2 = GT + Alpha ⭐ (권장)
-  3 = Alpha Only
-  4 = BG Penalty
-  5 = Composite
-  6 = Combined/Advanced
-  7 = Alpha Mask (⚠️ 위험)
-  9 = Test/Debug
-
-Variant (1-9): 세부 변형
-Modifier: 추가 특성 (3v, fixed, overfit 등)
-```
+> **Updated**: 2026-01-24
+> **Base**: Paper Original (lr=1e-4, grad_clip=1.0, random_view=true)
 
 ---
 
-## Priority Classification
+## Numbering System
 
-### ⭐ P0: 권장 (Production Ready)
-| ID | Name | 설정 | 문헌 |
-|----|------|------|------|
-| **E2_1** | gt_alpha | mask=gt, α=0.1 | LGM + Pose Splatter |
-| E0_1 | paper_original | mask=none | GS-LRM Paper |
+```
+E{Category}[_{Variant}][_{Modifier}]
 
-### ✅ P1: 검증됨 (Validated)
+Categories:
+  E0 = Baseline (mask=none, 논문 원본)
+  E1 = GT Mask 계열 ⭐
+  E2 = Alpha Only (mask=none, α만)
+  E3 = Advanced (composite, bg penalty)
+
+Modifiers (optional):
+  _3v, _5v     = View 수 (4v 기본, 생략)
+  _fixed       = Fixed view order (vs random)
+  _strong      = 강화 버전
+  _overfit     = 1 sample overfit test
+  _ft          = Finetuning (lr 조정)
+```
+
+---
+
+## E0: Baseline (mask=none)
+
+논문 원본 설정. 마스크 없이 전체 이미지로 학습.
+
 | ID | Name | 설정 | 용도 |
 |----|------|------|------|
-| E1_1 | gt_only | mask=gt, α=0.0 | Ablation |
-| E2_2 | gt_alpha_3v | 3 input views | View ablation |
-| E2_3 | gt_alpha_4v | 4 input views | View ablation |
-| E2_4 | gt_alpha_5v | 5 input views | View ablation |
-| E6_1 | lgm_full | α=1.0 | LGM 원본 재현 |
-
-### ⚪ P2: 실험적 (Experimental)
-| ID | Name | 설정 | 목적 |
-|----|------|------|------|
-| E2_5 | gt_alpha_fixed | random=false | Fixed view order |
-| E3_1 | alpha_only | mask=none, α=0.1 | Alpha supervision 효과 |
-| E4_1 | bg_penalty | bg=0.5 | Object-Centric 2DGS |
-| E5_1 | composite | composite mode | Nerfstudio style |
-| E5_2 | composite_strong | α=0.3 | Splatfacto-W |
-| E6_2 | combined | α=0.2, bg=0.3 | Multi-lit 복합 |
-| E6_3 | clean_bg | +opacity_reg | Gaussian 정리 |
-| E6_4 | bg_penalty_strong | bg=1.0 | 강화 bg penalty |
-
-### ⚠️ P3: 위험 (Use with Caution)
-| ID | Name | 설정 | 위험 |
-|----|------|------|------|
-| E7_1 | alpha_mask | mask=alpha | 확장 위험, 안전장치 필요 |
-
-### 🧪 P9: 테스트/디버그
-| ID | Name | 설정 | 목적 |
-|----|------|------|------|
-| E0_2 | mouse_baseline | lr=1e-5 | Finetuning 테스트 |
-| E2_9 | overfit | 1 sample | Sanity check |
+| **E0** | paper_original | mask=none, random | 논문 재현 기준선 |
+| E0_fixed | paper_fixed | random=false | Ablation |
+| E0_ft | mouse_baseline | lr=1e-5 | Finetuning용 |
 
 ---
 
-## File Mapping (현재 → 신규)
+## E1: GT Mask 계열 ⭐ (권장)
 
-| 현재 파일 | 신규 ID | 상태 |
-|-----------|---------|------|
-| E0_paper_original.yaml | E0_1 | ✅ Active |
-| E0_mouse_baseline.yaml | E0_2 | ✅ Active |
-| E1_gt.yaml | E1_1 | ✅ Active |
-| E2_gt_alpha.yaml | **E2_1** ⭐ | ✅ Active |
-| E2_gt_alpha_3v.yaml | E2_2 | ✅ Active |
-| E2_gt_alpha_4v.yaml | E2_3 | ✅ Active |
-| E2_gt_alpha_5v.yaml | E2_4 | ✅ Active |
-| E2_gt_alpha_fixed.yaml | E2_5 | ✅ Active |
-| E2_gt_alpha_overfit.yaml | E2_9 | 🧪 Test |
-| E3_alpha.yaml | E3_1 | ⚪ Experimental |
-| E4_bg_penalty.yaml | E4_1 | ⚪ Experimental |
-| E5_composite.yaml | E5_1 | ⚪ Experimental |
-| E5_composite_strong.yaml | E5_2 | ⚪ Experimental |
-| E6_lgm_full.yaml | E6_1 | ✅ Validated |
-| E6_combined.yaml | E6_2 | ⚪ Experimental |
-| E6_clean_bg.yaml | E6_3 | ⚪ Experimental |
-| E6_bg_penalty_strong.yaml | E6_4 | ⚪ Experimental |
-| E7_alpha_optimized.yaml | E7_1 | ⚠️ Risky |
+GT 마스크로 loss 영역 제한. Alpha loss로 shape 수렴.
+
+| ID | Name | mask | α loss | 용도 |
+|----|------|------|--------|------|
+| E1 | gt_only | gt | 0.0 | Ablation (α 효과 비교) |
+| **E1_alpha** ⭐ | gt_alpha | gt | **0.1** | **Production 권장** |
+| E1_alpha_lgm | lgm_full | gt | **1.0** | LGM 논문 재현 |
+
+### E1 View Ablation
+| ID | Views | 설정 |
+|----|-------|------|
+| E1_alpha_3v | 3 in / 3 out | Generalization 테스트 |
+| E1_alpha | 4 in / 2 out | 기본 (생략 가능) |
+| E1_alpha_5v | 5 in / 1 out | Maximum information |
+
+### E1 Variants
+| ID | 설정 | 용도 |
+|----|------|------|
+| E1_alpha_fixed | random=false | Reproducibility |
+| E1_alpha_overfit | 1 sample, no aug | Sanity check |
 
 ---
 
-## Quick Reference
+## E2: Alpha Only (mask=none)
+
+마스크 없이 alpha supervision만. 전체 이미지 학습.
+
+| ID | Name | mask | α loss | 상태 |
+|----|------|------|--------|------|
+| E2 | alpha_only | none | 0.1 | ⚪ Experimental |
+| E2_alpha_mask | alpha_optimized | **alpha** | 0.1 | ⚠️ **위험** |
+
+> ⚠️ **E2_alpha_mask**: mask_mode=alpha 사용. 확장 위험. 안전장치(alpha_mask_safety) 필수.
+
+---
+
+## E3: Advanced
+
+Composite, background penalty, 복합 설정.
+
+### E3_composite: Composite Mode
+| ID | Name | α loss | 용도 |
+|----|------|--------|------|
+| E3_composite | composite | 0.05 | Nerfstudio style |
+| E3_composite_strong | composite_strong | **0.3** | Splatfacto-W |
+
+### E3_bg: Background Penalty
+| ID | Name | bg loss | 용도 |
+|----|------|---------|------|
+| E3_bg | bg_penalty | 0.5 | Object-Centric 2DGS |
+| E3_bg_strong | bg_penalty_strong | **1.0** | 강화 |
+
+### E3 Combined
+| ID | Name | α | bg | 특징 |
+|----|------|---|-----|------|
+| E3_combined | combined | 0.2 | 0.3 | Multi-literature |
+| E3_clean | clean_bg | 0.2 | 0.5 | +opacity_reg |
+
+---
+
+## Priority Summary
+
+| Priority | 실험 | 용도 |
+|----------|------|------|
+| ⭐ **P0** | **E1_alpha** | Production (권장) |
+| ✅ P1 | E0, E1, E1_alpha_lgm | Baseline, Ablation |
+| ⚪ P2 | E1_alpha_3v/5v, E2, E3_* | Experimental |
+| ⚠️ P3 | E2_alpha_mask | 위험 (안전장치 필수) |
+| 🧪 P9 | E0_ft, E1_alpha_overfit | Test/Debug |
+
+---
+
+## File Mapping
+
+| 현재 파일명 | 신규 ID | Priority |
+|-------------|---------|----------|
+| E0_paper_original | E0 | ✅ |
+| E0_mouse_baseline | E0_ft | 🧪 |
+| E1_gt | E1 | ✅ |
+| **E2_gt_alpha** | **E1_alpha** ⭐ | ⭐ |
+| E2_gt_alpha_3v | E1_alpha_3v | ⚪ |
+| E2_gt_alpha_4v | E1_alpha | ⚪ |
+| E2_gt_alpha_5v | E1_alpha_5v | ⚪ |
+| E2_gt_alpha_fixed | E1_alpha_fixed | ⚪ |
+| E2_gt_alpha_overfit | E1_alpha_overfit | 🧪 |
+| E3_alpha | E2 | ⚪ |
+| E4_bg_penalty | E3_bg | ⚪ |
+| E5_composite | E3_composite | ⚪ |
+| E5_composite_strong | E3_composite_strong | ⚪ |
+| E6_lgm_full | E1_alpha_lgm | ✅ |
+| E6_combined | E3_combined | ⚪ |
+| E6_clean_bg | E3_clean | ⚪ |
+| E6_bg_penalty_strong | E3_bg_strong | ⚪ |
+| E7_alpha_optimized | E2_alpha_mask | ⚠️ |
+
+---
+
+## Quick Start
 
 ```bash
 # 권장 실험 (M3 데이터셋)
-torchrun ... train_gslrm.py -d M3 -e E2_gt_alpha      # E2_1
+torchrun ... train_gslrm.py -d M3 -e E2_gt_alpha        # = E1_alpha ⭐
 
 # View Ablation
-torchrun ... train_gslrm.py -d M3 -e E2_gt_alpha_3v   # E2_2
-torchrun ... train_gslrm.py -d M3 -e E2_gt_alpha_5v   # E2_4
+torchrun ... train_gslrm.py -d M3 -e E2_gt_alpha_3v     # = E1_alpha_3v
+torchrun ... train_gslrm.py -d M3 -e E2_gt_alpha_5v     # = E1_alpha_5v
+
+# Baseline
+torchrun ... train_gslrm.py -d M3 -e E0_paper_original  # = E0
 
 # Overfit Test
-torchrun ... train_gslrm.py -d D7_1_overfit -e E2_gt_alpha_overfit  # E2_9
+torchrun ... train_gslrm.py -d D7_1_overfit -e E2_gt_alpha_overfit
 ```
 
 ---
 
-## Base Settings (Paper Original)
-
-| 설정 | 값 | 출처 |
-|------|-----|------|
-| lr | **1e-4** | Paper |
-| grad_clip_norm | **1.0** | Paper |
-| random_view_selection | **true** | Paper |
-| maximize_view_overlap | **true** | Paper |
-| augmentation | **false** | Default |
-
----
-
-*FaceLift Mouse Experiments | v2.0 | 2026-01-24*
+*FaceLift Experiment Registry v2.0 | 2026-01-24*
