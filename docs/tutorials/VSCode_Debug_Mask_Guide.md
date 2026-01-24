@@ -437,11 +437,14 @@ VSCode 브레이크포인트는 워크스페이스/세션 변경 시 사라질 �
 
 ### 7.2 설정된 브레이크포인트 위치
 
-| 위치 | 파일 | 라인 | 환경변수 |
-|------|------|------|----------|
-| BP1 | `loss_extensions.py` | ~140 | `DEBUG_MASK=1` |
-| BP2 | `loss_extensions.py` | ~154 | `DEBUG_MASK=1` |
-| BP3 | `mask_losses.py` | ~134 | `DEBUG_LOSS=1` |
+| 위치 | 파일 | 라인 | 환경변수 | 용도 |
+|------|------|------|----------|------|
+| BP1 | `loss_extensions.py` | 140 | `DEBUG_MASK=1` | mask_mode 분기 체크 |
+| BP2 | `loss_extensions.py` | 154 | `DEBUG_MASK=1` | GT mask 적용 시점 |
+| BP3 | `mask_losses.py` | 134 | `DEBUG_LOSS=1` | masked RGB loss 계산 |
+| BP4 | `gslrm.py` | 382 | `DEBUG_LOSS=1` | _compute_all_losses 진입 |
+| BP5 | `gslrm.py` | 386 | `DEBUG_LOSS=1` | mask 계산 직후 (inspect) |
+| BP6 | `gslrm.py` | 1458 | `DEBUG_LOSS=1` | loss_calculator 호출 전 |
 
 ### 7.3 사용법
 

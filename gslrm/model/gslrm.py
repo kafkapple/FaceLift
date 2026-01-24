@@ -54,6 +54,7 @@ from mouse_extensions.model import (
     MaskType,
 )
 # Literature-based mask losses (v2.0)
+from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
 from mouse_extensions.model.mask_losses import (
     compute_alpha_supervision_loss,
     compute_background_penalty_loss,
@@ -378,9 +379,11 @@ class LossComputer(nn.Module):
                            use this instead of GT mask for loss computation.
         """
         losses = {}
+        debug_break("loss")  # BP4: _compute_all_losses entry
         
         # Mask computation using mouse_extensions
         mask, _ = compute_mask_from_config(self.config, rendering, mask, rendered_alpha)
+        if mask is not None: debug_inspect("computed_mask", mask)  # BP5: mask after compute
 
         # L2 (MSE) loss - optionally masked
         losses['l2'] = self._compute_l2_loss(rendering, target, mask)
@@ -1452,6 +1455,7 @@ class GSLRM(nn.Module):
                     # index shape: [B, V, 2] where [:, :, 0] is camera index
                     batch_view_indices = target_data.index[0, :, 0].cpu().numpy().tolist()
                 
+                debug_break("loss")  # BP6: before loss_calculator call
                 loss_metrics = self.loss_calculator(
                     rendered_images,
                     target_data.image,
