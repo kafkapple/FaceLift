@@ -206,6 +206,73 @@ def compute_adaptive_zoom(masks: List[np.ndarray], target_fill: float = 0.8,
     return np.clip(zoom, zoom_range[0], zoom_range[1])
 
 
+def compute_adaptive_zoom_coverage(masks: List[np.ndarray], target_coverage: float = 0.05,
+                                    zoom_range: Tuple[float, float] = (1.0, 2.5)) -> float:
+    """Compute zoom factor based on foreground coverage target.
+    
+    M3/D10.3 method: Instead of bbox-based fill ratio, directly target
+    a specific foreground coverage percentage.
+    
+    Args:
+        masks: List of binary masks for all views
+        target_coverage: Target foreground ratio (0.05 = 5%)
+        zoom_range: (min_zoom, max_zoom) clipping range
+    
+    Returns:
+        Zoom factor to achieve target coverage
+    
+    Rationale:
+        - Current coverage = fg_pixels / total_pixels
+        - Zoom squares the image area, so coverage scales linearly with zoom^2
+        - zoom = sqrt(target_coverage / current_coverage)
+    """
+    # Compute current coverage across all views
+    coverages = []
+    for mask in masks:
+        if mask is None:
+            continue
+        fg_pixels = (mask > 0).sum()
+        total_pixels = mask.size
+        coverage = fg_pixels / total_pixels if total_pixels > 0 else 0
+        if coverage > 0:
+            coverages.append(coverage)
+    
+    if not coverages:
+        return 1.0
+    
+    # Use mean coverage across views
+    current_coverage = np.mean(coverages)
+    
+    if current_coverage < 1e-6:
+        return zoom_range[1]  # Max zoom if no foreground
+    
+    # Compute zoom to achieve target coverage
+    # After zoom, image area scales by zoom^2, but we crop centered,
+    # so foreground coverage increases proportionally to zoom^2
+    zoom = np.sqrt(target_coverage / current_coverage)
+    
+    return float(np.clip(zoom, zoom_range[0], zoom_range[1]))
+
+
+def compute_fg_coverage_after_zoom(mask: np.ndarray, zoom: float) -> float:
+    """Estimate foreground coverage after applying zoom.
+    
+    Args:
+        mask: Binary mask (before zoom)
+        zoom: Zoom factor to apply
+    
+    Returns:
+        Estimated foreground coverage after zoom
+    """
+    if mask is None or mask.size == 0:
+        return 0.0
+    
+    current_coverage = (mask > 0).sum() / mask.size
+    # Coverage scales with zoom^2 (area relationship)
+    return float(current_coverage * zoom ** 2)
+
+
+
 
 # Config generation paths
 FACELIFT_ROOT = Path("/home/joon/dev/FaceLift")
@@ -271,6 +338,11 @@ class PreprocessConfig:
     normalize_fx: bool = True
     normalize_translation: bool = True
     
+    # M3/D10.3: Coverage-based zoom settings
+    zoom_method: str = "bbox"  # "bbox" or "coverage_based"
+    target_fg_coverage: float = 0.05  # 5% foreground coverage target
+    min_fg_coverage: float = 0.0  # Minimum coverage warning threshold
+    
     version: str = "D7.1"
 
     @classmethod
@@ -310,6 +382,10 @@ class PreprocessConfig:
             config.adaptive_zoom = preset.get("adaptive_zoom", False)
             config.zoom_range = tuple(preset.get("zoom_range", [1.0, 1.5]))
             config.zoom_fill_ratio = preset.get("zoom_fill_ratio", 0.85)
+            # M3/D10.3: Coverage-based zoom
+            config.zoom_method = preset.get("zoom_method", "bbox")
+            config.target_fg_coverage = preset.get("target_fg_coverage", 0.05)
+            config.min_fg_coverage = preset.get("min_fg_coverage", 0.0)
             
         # ====== NATIVE (D9, D9_norm) ======
         elif config.paradigm == Paradigm.NATIVE:
@@ -332,6 +408,10 @@ class PreprocessConfig:
             config.adaptive_zoom = preset.get('adaptive_zoom', False)
             config.zoom_range = tuple(preset.get('zoom_range', [1.2, 1.5]))
             config.zoom_fill_ratio = preset.get('zoom_fill_ratio', 0.8)
+            # M3/D10.3: Coverage-based zoom
+            config.zoom_method = preset.get('zoom_method', 'bbox')
+            config.target_fg_coverage = preset.get('target_fg_coverage', 0.05)
+            config.min_fg_coverage = preset.get('min_fg_coverage', 0.0)
 
         # Apply overrides
         for key, value in overrides.items():
@@ -902,7 +982,6 @@ _stats:
             
             # D10.1: Adaptive zoom if enabled
             if cfg.adaptive_zoom:
-                print(f"Computing adaptive zoom (target fill: {cfg.zoom_fill_ratio})")
                 # Load first frame masks to estimate zoom
                 mask_dir = cfg.input_dir / "simpleclick_undist"
                 mask_caps_temp = [cv2.VideoCapture(str(mask_dir / f"{i}.mp4")) for i in range(self.num_views)]
@@ -912,8 +991,24 @@ _stats:
                     if ret:
                         first_masks.append(frame[:, :, 0] > 127)
                     cap.release()
-                cfg.zoom = compute_adaptive_zoom(first_masks, cfg.zoom_fill_ratio, cfg.zoom_range)
-                print(f"  Adaptive zoom: {cfg.zoom:.2f}x")
+                
+                # Choose zoom method
+                if cfg.zoom_method == "coverage_based":
+                    print(f"Computing coverage-based adaptive zoom (target: {cfg.target_fg_coverage*100:.1f}%)")
+                    cfg.zoom = compute_adaptive_zoom_coverage(first_masks, cfg.target_fg_coverage, cfg.zoom_range)
+                    
+                    # Estimate coverage after zoom for all views
+                    est_coverages = [compute_fg_coverage_after_zoom(m, cfg.zoom) for m in first_masks if m is not None]
+                    mean_est_coverage = np.mean(est_coverages) if est_coverages else 0
+                    print(f"  Adaptive zoom: {cfg.zoom:.2f}x (est. coverage: {mean_est_coverage*100:.1f}%)")
+                    
+                    # Warn if below minimum
+                    if cfg.min_fg_coverage > 0 and mean_est_coverage < cfg.min_fg_coverage:
+                        print(f"  WARNING: Estimated coverage {mean_est_coverage*100:.1f}% < min {cfg.min_fg_coverage*100:.1f}%")
+                else:
+                    print(f"Computing bbox-based adaptive zoom (target fill: {cfg.zoom_fill_ratio})")
+                    cfg.zoom = compute_adaptive_zoom(first_masks, cfg.zoom_fill_ratio, cfg.zoom_range)
+                    print(f"  Adaptive zoom: {cfg.zoom:.2f}x")
 
             video_dir = cfg.input_dir / "videos_undist"
             mask_dir = cfg.input_dir / "simpleclick_undist"

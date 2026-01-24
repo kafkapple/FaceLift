@@ -277,6 +277,27 @@ PRESETS = {
         "active": True,
         "note": "Fallback: uses camera Y-axis mean as up. No vertical_lines.npz needed.",
     },
+    "D10.3": {
+        "paradigm": "up_aligned_zoom",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": True,
+        "up_source": "camera_y_mean",  # Fallback (vertical_lines not always available)
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",  # NEW: Coverage-based instead of bbox-based
+        "target_fg_coverage": 0.05,        # NEW: 5% foreground coverage target
+        "min_fg_coverage": 0.03,           # NEW: Minimum 3% coverage warning
+        "zoom_range": [1.0, 2.5],
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "description": "M3 equivalent - Object-centered zoom for optimal foreground coverage",
+        "ray_error": "~0 deg",
+        "active": True,
+        "experimental": True,
+        "note": "Coverage-based adaptive zoom. Target 5% fg coverage for optimal reconstruction.",
+    },
 }
 
 
@@ -287,15 +308,30 @@ VERSION_HIERARCHY = {
     "pp_centered": ["D7", "D7.1", "D7.2"],
     "precision": ["D8", "D8.1", "D8.2"],
     "native": ["D9", "D9_norm", "D9_resized"],
-    "up_aligned": ["D10", "D10.1", "D10.2"],
+    "up_aligned": ["D10", "D10.1", "D10.2", "D10.3"],
     "recommended": "D7.1",
     "precision_recommended": "D8",
     "experimental_recommended": "D10",
 }
 
 
+
+
+# Alias mapping for M-series to D-series
+ALIASES = {
+    "M1": "D7.1",
+    "M2": "D8",
+    "M3": "D10.3",
+}
+
+
+def resolve_alias(name: str) -> str:
+    """Resolve preset alias (e.g., M3 -> D10.3)."""
+    return ALIASES.get(name, name)
+
 def get_preset(name: str) -> dict:
     """Get preset configuration by name."""
+    name = resolve_alias(name)
     if name not in PRESETS:
         available = list(PRESETS.keys())
         raise ValueError(f"Unknown preset: {name}. Available: {available}")
