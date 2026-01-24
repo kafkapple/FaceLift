@@ -374,6 +374,7 @@ class PreprocessConfig:
     zoom_method: str = "bbox"  # "bbox" or "coverage_based"
     target_fg_coverage: float = 0.05  # 5% foreground coverage target
     min_fg_coverage: float = 0.0  # Minimum coverage warning threshold
+    zoom_after_transform: bool = False  # If True, compute coverage after applying transform
     
     # Output structure
     single_folder: bool = False  # If True, save all to samples/ instead of train/val
@@ -421,6 +422,7 @@ class PreprocessConfig:
             config.zoom_method = preset.get("zoom_method", "bbox")
             config.target_fg_coverage = preset.get("target_fg_coverage", 0.05)
             config.min_fg_coverage = preset.get("min_fg_coverage", 0.0)
+            config.zoom_after_transform = preset.get("zoom_after_transform", False)
             
         # ====== NATIVE (D9, D9_norm) ======
         elif config.paradigm == Paradigm.NATIVE:
@@ -447,6 +449,7 @@ class PreprocessConfig:
             config.zoom_method = preset.get('zoom_method', 'bbox')
             config.target_fg_coverage = preset.get('target_fg_coverage', 0.05)
             config.min_fg_coverage = preset.get('min_fg_coverage', 0.0)
+            config.zoom_after_transform = preset.get('zoom_after_transform', False)
 
         # Output structure
         config.single_folder = preset.get('single_folder', False)
@@ -1025,7 +1028,7 @@ _stats:
                 self.cameras = apply_up_alignment_to_cameras(self.cameras, up)
                 print(f"  Cameras aligned to up direction")
             
-            # D10.1: Adaptive zoom if enabled
+            # D10.1/M3: Adaptive zoom if enabled
             if cfg.adaptive_zoom:
                 # Load first frame masks to estimate zoom
                 mask_dir = cfg.input_dir / "simpleclick_undist"
@@ -1040,7 +1043,32 @@ _stats:
                 # Choose zoom method
                 if cfg.zoom_method == "coverage_based":
                     print(f"Computing coverage-based adaptive zoom (target: {cfg.target_fg_coverage*100:.1f}%)")
-                    cfg.zoom = compute_adaptive_zoom_coverage(first_masks, cfg.target_fg_coverage, cfg.zoom_range)
+                    
+                    # M3 fix: Apply transform first, then compute coverage
+                    if getattr(cfg, 'zoom_after_transform', False):
+                        # Compute transforms (without zoom initially)
+                        temp_transforms = [self.compute_transform(cam['K']) for cam in self.cameras]
+                        
+                        # Apply transform to masks to get post-transform coverage
+                        transformed_masks = []
+                        for i, (mask, M) in enumerate(zip(first_masks, temp_transforms)):
+                            if mask is None:
+                                continue
+                            # Apply same warp that will be used on images
+                            if cfg.transform.value == "homography":
+                                warped = cv2.warpPerspective(mask.astype(np.uint8) * 255, M, 
+                                                            (cfg.output_size, cfg.output_size))
+                            else:
+                                warped = cv2.warpAffine(mask.astype(np.uint8) * 255, M[:2], 
+                                                       (cfg.output_size, cfg.output_size))
+                            transformed_masks.append(warped > 127)
+                        
+                        # Compute coverage on transformed masks
+                        cfg.zoom = compute_adaptive_zoom_coverage(transformed_masks, cfg.target_fg_coverage, cfg.zoom_range)
+                        print(f"  (zoom_after_transform: using post-transform coverage)")
+                    else:
+                        # Original behavior: use raw mask coverage
+                        cfg.zoom = compute_adaptive_zoom_coverage(first_masks, cfg.target_fg_coverage, cfg.zoom_range)
                     
                     # Estimate coverage after zoom for all views
                     est_coverages = [compute_fg_coverage_after_zoom(m, cfg.zoom) for m in first_masks if m is not None]

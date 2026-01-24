@@ -278,26 +278,26 @@ PRESETS = {
         "note": "Fallback: uses camera Y-axis mean as up. No vertical_lines.npz needed.",
     },
     "D10.3": {
-        "paradigm": "up_aligned_zoom",
-        "transform": "homography",
+        "paradigm": "precision_homography",      # Based on D7_1, NOT up_aligned
+        "transform": "homography",         # Skew correction (D8 style)
         "scale_mode": "individual",
         "pp_method": "shift_to_256",
         "skew_correction": True,
-        "up_alignment": True,
-        "up_source": "camera_y_mean",  # Fallback (vertical_lines not always available)
+        "up_alignment": False,              # ★ Disabled (not verified)
         "adaptive_zoom": True,
-        "zoom_method": "coverage_based",  # NEW: Coverage-based instead of bbox-based
-        "target_fg_coverage": 0.05,        # NEW: 5% foreground coverage target
-        "min_fg_coverage": 0.03,           # NEW: Minimum 3% coverage warning
+        "zoom_method": "coverage_based",
+        "target_fg_coverage": 0.05,         # Target 5% after transform
+        "min_fg_coverage": 0.03,
         "zoom_range": [1.0, 2.5],
+        "zoom_after_transform": True,       # ★ NEW: Calculate coverage AFTER transform
         "target_fx": 548.9937744140625,
         "output_size": 512,
-        "single_folder": True,             # Use samples/ folder for flexible splits
-        "description": "M3 equivalent - Object-centered zoom for optimal foreground coverage",
+        "single_folder": True,
+        "description": "M3: D7_1 + Homography + Adaptive Zoom (5% FG target)",
         "ray_error": "~0 deg",
         "active": True,
         "experimental": True,
-        "note": "Coverage-based adaptive zoom. Target 5% fg coverage for optimal reconstruction.",
+        "note": "Based on verified D7_1. Adds skew correction and coverage-based zoom.",
     },
 }
 
