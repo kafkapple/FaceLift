@@ -73,6 +73,8 @@
 
 ### M-Series (권장)
 
+> **분류**: affine (M1) → homography (M2) → homography_zoom (M3)
+
 | Alias | ID | Preset | 특징 | 상태 |
 |-------|-----|--------|------|------|
 | M1 | D7_1 | D7.1 | Affine, PP-centered | ✅ 검증됨 |

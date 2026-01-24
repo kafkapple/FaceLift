@@ -1,177 +1,87 @@
-> **Navigation**: [← MoC](../../00_MoC_INDEX.md) | [Practical](../) | [Theory](../../theory/)
+# Preprocessing Registry (전처리 레지스트리)
 
-# FaceLift Mouse Preprocessing Registry
-
-> **Version**: v4.2 (2026-01-24)
-> **Single Source of Truth** for all preprocessing configurations
+> **SSOT**: 데이터셋 전처리 설정 중앙 관리
+> **최종 업데이트**: 2026-01-24
 
 ---
 
-## 권장 순위 (Quick Reference)
+## 분류 체계
 
-| 순위 | Dataset | 용도 | PP | Ray Error | 상태 |
-|------|---------|------|-----|-----------|------|
-| **P0** ⭐ | **D7_1** | 표준 (기하학 정확) | 256 shift | ~0° | ✅ 검증됨 |
-| **P1** | **D8** | 최고 정밀도 (Homography) | 256 shift | ~0° | ✅ 검증됨 |
-| P2 | v13 | Legacy 비교용 (pixel scaling) | 256 강제 | ~5-13° | ⚠️ Ghosting |
-| P3 | D4 | PP=256 강제 비교용 (centering) | 256 강제 | ~5-13° | ⚠️ Ray error |
+### 기하학적 변환 기준
 
-> **비교 실험용 Legacy 데이터셋**:
-> - **v13**: 단순 pixel-based scaling, PP=256 강제 → Ghosting 원인 분석용
-> - **D4**: Object-centered crop + PP=256 강제 → PP 버그 영향 분석용
+| 카테고리 | 변환 | 특징 | 권장 |
+|----------|------|------|------|
+| **affine** | Affine | 회전, 스케일, 이동 | M1 (D7.1) |
+| **homography** | Homography | affine + skew 보정 | M2 (D8) |
+| **homography_zoom** | Homography + Zoom | + coverage 최적화 | M3 (D10.3) ⭐ |
 
+### 기타
 
-## 전처리 패러다임 개요
-
-| 패러다임 | 프리셋 | PP 처리 | 이미지 변환 | Ray Error | 상태 |
-|----------|--------|---------|-------------|-----------|------|
-| **pp_centered_shift** | D7, D7.1, D7.2 | 256으로 shift | 이미지도 shift | ~0° | ⭐ 권장 |
-| geometry_preserving | D6-1, D6-2, D6-3 | 정확한 값 유지 | 최소 변환 | 0° | 실험적 |
-| precision_homography | D8, D8.1 | 256으로 shift | Homography+skew | ~0° | 실험적 |
-| native | D9, D9_norm | 원본 유지 | 없음 | 0° | 고해상도용 |
-| object_centered | D1-D4 | 256 강제 | Crop | 5-13° | ❌ DEPRECATED |
+| 카테고리 | 설명 | 상태 |
+|----------|------|------|
+| **experimental** | up_alignment 시도 (93도 회전 문제) | ⚠️ |
+| **native** | 변환 없음, 원본 유지 | 특수 용도 |
+| **geometry_broken** | centering만, PP 미보정 | ❌ 사용 금지 |
 
 ---
 
-## 원본 데이터 분석 (MAMMAL → FaceLift)
+## M-Series (권장)
 
-### 해상도 및 FOV 변환
+| Alias | Preset | 카테고리 | 샘플 수 | 경로 |
+|-------|--------|----------|---------|------|
+| **M1** | D7.1 | affine | ~1600 | `/home/joon/data/preprocessed/FaceLift_mouse/D7_1/` |
+| **M2** | D8 | homography | ~1600 | `/home/joon/data/preprocessed/FaceLift_mouse/D8/` |
+| **M3** | D10.3 | homography_zoom | 3597 | `/home/joon/data/preprocessed/FaceLift_mouse/M3/` |
 
-| 항목 | 원본 (MAMMAL) | 타겟 (FaceLift) | 변환 영향 |
-|------|--------------|-----------------|-----------|
-| **해상도** | 1152×1024 | 512×512 | 2.25× 축소 |
-| **종횡비** | 1.125 (가로 긴) | 1.0 (정방형) | ~12.5% 세로 찌그러짐 |
-| **FOV** | 38.9°×34.7° | 50°×50° | 생쥐 상대 크기 감소 |
-| **fx/fy** | 1632/1639 | 549/549 | 비등방성 ~0.4% |
+### M3 (D10.3) 상세
 
-### 변환 문제점
-
-1. **종횡비 변환** (1.125 → 1.0): 정방형 출력 시 ~12.5% 세로 방향 찌그러짐
-2. **FOV 확대** (39° → 50°): 동일 거리에서 생쥐가 더 작아 보임
-3. **fx/fy 비등방성**: 원본의 fx≠fy (~0.4% 차이) → 정규화 시 fx=fy=549로 통일
-
-> **Note**: 현재 전처리는 종횡비 왜곡을 허용하고 정방형 출력 생성. 왜곡 최소화가 필요하면 padding 방식 고려.
-
----
-
-## D7.1 vs D8 상세 비교
-
-### 변환 방식
-
-| 항목 | D7.1 (Affine) | D8 (Homography) |
-|------|---------------|-----------------|
-| **출력 크기** | 512×512 | 512×512 |
-| **Scale 방식** | scale_x, scale_y 개별 적용 | H 행렬 내부에 포함 |
-| **Skew 보정** | ❌ 무시 (~0.9px) | ✅ Homography로 제거 |
-| **비등방성** | ~0.6% (fx≠fy 유지) | 동일 |
-| **보간법** | `INTER_LINEAR` | `INTER_LANCZOS4` |
-
-### Skew 영향
-
-```
-원본 카메라 skew: -5.89 ~ +1.39 pixels (카메라별 상이)
-
-D7.1: skew 무시 → 미세한 기울어짐 유지 (실용적 무시 가능)
-D8:   skew 제거 → 완벽한 직교 좌표계
-```
-
-### 권장 사용
-
-| 상황 | 권장 |
-|------|------|
-| 일반 학습 | **D7.1** (충분히 정확, 검증됨) |
-| 정밀 기하학 연구 | D8 (skew 보정 포함) |
-| 이미지 품질 우선 | D7.1 (LINEAR 보간, 빠름) |
+| 항목 | 값 |
+|------|-----|
+| Transform | homography (skew 보정) |
+| Coverage | adaptive zoom (목표 5%, 실제 ~9.7%) |
+| Zoom Factor | 1.35x |
+| Split | Train 3238, Val 359 (9:1) |
+| up_alignment | **False** (문제 해결됨) |
 
 ---
 
-## 상세 프리셋 비교
+## 프리셋별 설정
 
-### 이미지 처리
+### affine 계열 (M1)
 
-| 프리셋 | 입력 해상도 | 출력 해상도 | Crop | Shift | 파일 크기 |
-|--------|-------------|-------------|------|-------|-----------|
-| **D7.1** | 1152×1024 | **512×512** | ❌ | ✅ | ~22% |
-| D6-2 | 1152×1024 | **512×512** | ❌ | ❌ | ~22% |
-| D4 | 1152×1024 | 512×512 | ✅ | - | ~22% |
-| D9 | 1152×1024 | **1152×1024** | ❌ | ❌ | 100% |
-| D9_resized | 1152×1024 | **512×512** | ❌ | ✅ | ~22% |
+| Preset | transform | scale_mode | pp_method | 비고 |
+|--------|-----------|------------|-----------|------|
+| D7 | affine | fx_only | shift_to_256 | 기본 |
+| **D7.1** | affine | individual | shift_to_256 | ✅ 권장 |
+| D7.2 | affine | average | shift_to_256 | 평균 스케일 |
 
-### 카메라 파라미터
+### homography 계열 (M2)
 
-| 프리셋 | fx | fy | cx | cy | translation |
-|--------|-----|-----|-----|-----|-------------|
-| **D7.1** | **549** | **549** | **256** | **256** | **2.7** |
-| D6-2 | 549 | 549 | **가변** | **가변** | 2.7 |
-| D4 | 원본 | 원본 | **256 (강제)** | **256 (강제)** | 원본 |
-| D9 | 1632 | 1607 | 576 | 512 | 246 |
-| D9_norm | 1632 | 1607 | 576 | 512 | **2.7** |
-| D9_resized | **549** | **549** | **256** | **256** | **2.7** |
+| Preset | transform | skew_correction | pp_method | 비고 |
+|--------|-----------|-----------------|-----------|------|
+| **D8** | homography | ✅ | shift_to_256 | ✅ 권장 |
+| D8.1 | homography | ✅ | shift_to_256 | + 1.3x zoom |
+| D8.2 | homography | ✅ | shift_to_256 | 특수 용도 |
 
-### Pretrained 호환성
+### homography_zoom 계열 (M3)
 
-| 프리셋 | fx 일치 | trans 일치 | 호환성 | 권장 용도 |
-|--------|---------|------------|--------|-----------|
-| **D7.1** | ✅ 549 | ✅ 2.7 | **완벽** | 일반 학습 |
-| D6-2 | ✅ 549 | ✅ 2.7 | 좋음 | 기하학 연구 |
-| D4 | ❌ | ❌ | **불가** | DEPRECATED |
-| D9 | ❌ 1632 | ❌ 246 | **불가** | - |
-| D9_norm | ❌ 1632 | ✅ 2.7 | 실험적 | 고해상도 연구 |
-| D9_resized | ✅ 549 | ✅ 2.7 | **완벽** | D7.1과 동일 |
+| Preset | transform | adaptive_zoom | zoom_method | 비고 |
+|--------|-----------|---------------|-------------|------|
+| **D10.3** | homography | ✅ | coverage_based | ⭐ Production |
 
----
+### geometry_broken (❌ 사용 금지)
 
-## D7.1 vs D9_resized
-
-**결론: 사실상 동일**
-
-| 항목 | D7.1 | D9_resized |
-|------|------|------------|
-| 패러다임 | pp_centered_shift | pp_centered_shift |
-| 출력 해상도 | 512×512 | 512×512 |
-| fx, fy | 549, 549 | 549, 549 |
-| cx, cy | 256, 256 | 256, 256 |
-| translation | 2.7 | 2.7 |
-| **차이점** | - | 없음 |
-
-→ **D9_resized는 불필요**. D7.1 사용 권장.
-
----
-
-## D6-2 vs D7.1 핵심 차이
-
-| 항목 | D6-2 | D7.1 |
-|------|------|------|
-| **PP 처리** | 가상 shift (이미지 그대로) | 실제 shift (이미지 이동) |
-| **cx, cy 값** | 실제 값 유지 (가변) | 256 고정 |
-| **이미지 품질** | 100% 보존 | 가장자리 ~50px 손실 가능 |
-| **기하학 정확도** | 완벽 (0°) | 거의 완벽 (~0°) |
-| **Pretrained 호환** | 좋음 | 완벽 |
-
----
-
-## GPU 메모리 요구사항
-
-| 프리셋 | 해상도 | 픽셀 수 | 상대 메모리 |
-|--------|--------|---------|-------------|
-| D7.1/D6-2/D9_resized | 512×512 | 262K | **1x** (~16GB) |
-| D9/D9_norm | 1152×1024 | 1.18M | **4.5x** (~72GB) |
-
----
-
-## 권장 프리셋
-
-| 목적 | 권장 프리셋 | 이유 |
-|------|-------------|------|
-| **일반 학습** | **D7.1** | Pretrained 완벽 호환, 검증됨 |
-| 기하학 연구 | D6-2 | 정확한 PP, 이미지 품질 보존 |
-| 고해상도 실험 | D9_norm | 원본 해상도 (메모리 4.5x 필요) |
+| Preset | 문제점 |
+|--------|--------|
+| D1 | centering만, PP 미보정 → ray error |
+| D4 | PP=256 강제 → 37px 오차 |
+| D6-1~3 | 다양한 PP 문제 |
 
 ---
 
 ## 전처리 명령어
 
-### D7.1 (권장)
+### M1 (D7.1)
 ```bash
 python -m mouse_extensions.preprocessing.preprocess \
     --preset D7.1 \
@@ -179,69 +89,32 @@ python -m mouse_extensions.preprocessing.preprocess \
     --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1
 ```
 
-### D6-2 (기하학 정확)
+### M2 (D8)
 ```bash
 python -m mouse_extensions.preprocessing.preprocess \
-    --preset D6-2 \
+    --preset D8 \
     --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D6-2
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D8
 ```
 
-### D9 (원본 해상도)
+### M3 (D10.3)
 ```bash
 python -m mouse_extensions.preprocessing.preprocess \
-    --preset D9 \
+    --preset D10.3 \
     --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D9
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3
 ```
 
 ---
 
-## 데이터 위치
+## 관련 문서
 
-### 전처리 완료
-```
-/home/joon/data/preprocessed/FaceLift_mouse/
-├── D7_1/      # 3238 train, 359 val (권장)
-├── D9/        # 3238 train, 359 val (고해상도, 미정규화)
-└── ...
-```
-
-### Raw 데이터
-```
-/home/joon/data/raw/markerless_mouse_1_nerf/
-├── raw_videos/           # 6개 MP4
-├── simpleclick_undist/   # 마스크 MP4
-└── new_cam.pkl           # 카메라 파라미터
-```
+| 문서 | 위치 |
+|------|------|
+| 실험 레지스트리 | [`../EXPERIMENT_REGISTRY.md`](../EXPERIMENT_REGISTRY.md) |
+| Quick Reference | [`../MOUSE_QUICK_REFERENCE.md`](../MOUSE_QUICK_REFERENCE.md) |
+| 전처리 분석 | [`../../analysis/preprocessing/`](../../analysis/preprocessing/) |
 
 ---
 
-## DEPRECATED 프리셋
-
-| 프리셋 | 문제점 |
-|--------|--------|
-| D1-D4 | PP=256 강제 → Ray error 5-13° |
-| D5 | 실험적, 미완성 |
-
----
-
-## Changelog
-
-### v4.1 (2026-01-22)
-- 원본 데이터 분석 (MAMMAL vs FaceLift) 섹션 추가
-- D7.1 vs D8 상세 비교 섹션 추가
-- 종횡비, FOV, 보간법 차이 문서화
-
-### v4.0 (2026-01-22)
-- D9, D9_norm, D9_resized 추가
-- 상세 프리셋 비교표 추가
-- D7.1 vs D9_resized 동일성 확인
-
-### v3.0 (2026-01-20)
-- D7.1, D7.2 추가
-- 모듈화 config 시스템
-
----
-
-*Last updated: 2026-01-22*
+*Preprocessing Registry v5.0 | 2026-01-24*

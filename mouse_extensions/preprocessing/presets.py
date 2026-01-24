@@ -304,16 +304,45 @@ PRESETS = {
 
 # Version hierarchy for organization
 VERSION_HIERARCHY = {
-    "deprecated": ["D1", "D4"],
-    "geometry_preserving": ["D6-1", "D6-2", "D6-3"],
-    "pp_centered": ["D7", "D7.1", "D7.2"],
-    "precision": ["D8", "D8.1", "D8.2", "D10.3"],
+    # === 기하학적 변환 기준 분류 ===
+    
+    # Affine 변환: 회전, 스케일, 이동 (M1 계열)
+    "affine": ["D7", "D7.1", "D7.2"],
+    
+    # Homography 변환: affine + skew 보정 (M2 계열)
+    "homography": ["D8", "D8.1", "D8.2"],
+    
+    # Homography + Adaptive Coverage Zoom (M3 계열)
+    "homography_zoom": ["D10.3"],
+    
+    # === 특수/실험적 ===
+    
+    # Up-alignment 실험 (93도 회전 문제 있음)
+    "experimental": ["D10", "D10.1", "D10.2"],
+    
+    # Native: 변환 없음, 원본 유지
     "native": ["D9", "D9_norm", "D9_resized"],
-    "up_aligned": ["D10", "D10.1", "D10.2"],
-    "recommended": "D7.1",
-    "precision_recommended": "D8",
-    "experimental_recommended": "D10",
+    
+    # === 사용 금지 ===
+    
+    # Geometry Broken: centering/scaling만, PP 미보정 (ray error 심각)
+    "geometry_broken": ["D1", "D4", "D6-1", "D6-2", "D6-3"],
 }
+
+# M-Series 권장 매핑
+M_SERIES = {
+    "M1": "D7.1",      # affine, 안정적 기준선
+    "M2": "D8",        # homography, 정밀 기하학
+    "M3": "D10.3",     # homography_zoom, coverage 최적화
+}
+
+# 권장 설정
+RECOMMENDED = {
+    "stable": "D7.1",       # M1: 검증된 안정적 설정
+    "precision": "D8",      # M2: 정밀 기하학
+    "production": "D10.3",  # M3: 최신 권장 (coverage 최적화)
+}
+
 
 
 
