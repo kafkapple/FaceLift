@@ -343,6 +343,9 @@ class PreprocessConfig:
     target_fg_coverage: float = 0.05  # 5% foreground coverage target
     min_fg_coverage: float = 0.0  # Minimum coverage warning threshold
     
+    # Output structure
+    single_folder: bool = False  # If True, save all to samples/ instead of train/val
+    
     version: str = "D7.1"
 
     @classmethod
@@ -413,6 +416,9 @@ class PreprocessConfig:
             config.target_fg_coverage = preset.get('target_fg_coverage', 0.05)
             config.min_fg_coverage = preset.get('min_fg_coverage', 0.0)
 
+        # Output structure
+        config.single_folder = preset.get('single_folder', False)
+        
         # Apply overrides
         for key, value in overrides.items():
             if hasattr(config, key) and value is not None:
@@ -946,11 +952,18 @@ _stats:
             cfg.output_dir.mkdir(parents=True, exist_ok=True)
             saved_count = 0
             all_paths = []
+            
+            # Determine save directory based on single_folder mode
+            if cfg.single_folder:
+                samples_dir = cfg.output_dir / "samples"
+                samples_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                samples_dir = cfg.output_dir
 
             for frame_idx in tqdm(frame_indices, desc="Processing"):
                 sample = process_fn(frame_idx)
                 if sample:
-                    sample_dir = cfg.output_dir / f"{saved_count:06d}"
+                    sample_dir = samples_dir / f"{saved_count:06d}"
                     self.save_sample(sample, sample_dir)
                     all_paths.append(str(sample_dir) + '/')
                     saved_count += 1
@@ -1028,11 +1041,18 @@ _stats:
             cfg.output_dir.mkdir(parents=True, exist_ok=True)
             saved_count = 0
             all_paths = []
+            
+            # Determine save directory based on single_folder mode
+            if cfg.single_folder:
+                samples_dir = cfg.output_dir / "samples"
+                samples_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                samples_dir = cfg.output_dir
 
             for frame_idx in tqdm(frame_indices, desc="Processing"):
                 sample = self.process_frame_d7d8(frame_idx, video_caps, mask_caps, transforms)
                 if sample:
-                    sample_dir = cfg.output_dir / f"{saved_count:06d}"
+                    sample_dir = samples_dir / f"{saved_count:06d}"
                     self.save_sample(sample, sample_dir)
                     all_paths.append(str(sample_dir) + '/')
                     saved_count += 1
@@ -1040,28 +1060,50 @@ _stats:
             for cap in video_caps + mask_caps:
                 cap.release()
 
-        # Generate split files (separate step - allows reusing same preprocessing with different splits)
-        if cfg.val_ratio > 0:
-            np.random.seed(42)
-            indices = list(range(len(all_paths)))
-            np.random.shuffle(indices)
-            num_val = int(len(all_paths) * cfg.val_ratio)
-            val_indices = set(indices[:num_val])
-
-            train_paths = [all_paths[i] for i in range(len(all_paths)) if i not in val_indices]
-            val_paths = [all_paths[i] for i in range(len(all_paths)) if i in val_indices]
-        else:
-            train_paths = all_paths
-            val_paths = []
-
-        for split, paths in [('train', train_paths), ('val', val_paths)]:
-            if paths:
-                with open(cfg.output_dir / f"data_mouse_{split}.txt", 'w') as f:
-                    f.write('\n'.join(sorted(paths)))
-
-        # Also save all paths for later split regeneration
+        # Generate split files
+        # Always save all paths first
         with open(cfg.output_dir / "data_mouse_all.txt", 'w') as f:
             f.write('\n'.join(sorted(all_paths)))
+        
+        if cfg.single_folder:
+            # Single folder mode: all samples in samples/, generate default split
+            train_paths = []
+            val_paths = []
+            
+            if cfg.val_ratio > 0:
+                # Generate default 90/10 split using create_split logic
+                np.random.seed(42)
+                indices = list(range(len(all_paths)))
+                np.random.shuffle(indices)
+                num_val = int(len(all_paths) * cfg.val_ratio)
+                val_indices = set(indices[:num_val])
+
+                train_paths = [all_paths[i] for i in range(len(all_paths)) if i not in val_indices]
+                val_paths = [all_paths[i] for i in range(len(all_paths)) if i in val_indices]
+                
+                for split, paths in [('train', train_paths), ('val', val_paths)]:
+                    if paths:
+                        with open(cfg.output_dir / f"data_mouse_{split}.txt", 'w') as f:
+                            f.write('\n'.join(sorted(paths)))
+        else:
+            # Traditional mode: generate train/val splits
+            if cfg.val_ratio > 0:
+                np.random.seed(42)
+                indices = list(range(len(all_paths)))
+                np.random.shuffle(indices)
+                num_val = int(len(all_paths) * cfg.val_ratio)
+                val_indices = set(indices[:num_val])
+
+                train_paths = [all_paths[i] for i in range(len(all_paths)) if i not in val_indices]
+                val_paths = [all_paths[i] for i in range(len(all_paths)) if i in val_indices]
+            else:
+                train_paths = all_paths
+                val_paths = []
+
+            for split, paths in [('train', train_paths), ('val', val_paths)]:
+                if paths:
+                    with open(cfg.output_dir / f"data_mouse_{split}.txt", 'w') as f:
+                        f.write('\n'.join(sorted(paths)))
 
         with open(cfg.output_dir / "metadata.json", 'w') as f:
             json.dump({
@@ -1071,14 +1113,17 @@ _stats:
                 "num_train": len(train_paths),
                 "num_val": len(val_paths),
                 "val_ratio": cfg.val_ratio,
+                "single_folder": cfg.single_folder,
             }, f, indent=2)
 
         self.generate_dataset_config(len(train_paths), len(val_paths))
 
         print(f"\n{'='*60}")
         print(f"Complete: {cfg.output_dir}")
+        if cfg.single_folder:
+            print(f"Mode: single_folder (all samples in samples/)")
         print(f"Total: {len(all_paths)}, Train: {len(train_paths)}, Val: {len(val_paths)}")
-        print(f"Split files: data_mouse_train.txt, data_mouse_val.txt, data_mouse_all.txt")
+        print(f"Split files: data_mouse_all.txt" + (f", data_mouse_train.txt, data_mouse_val.txt" if train_paths else ""))
         print(f"{'='*60}")
 
 

@@ -292,6 +292,7 @@ PRESETS = {
         "zoom_range": [1.0, 2.5],
         "target_fx": 548.9937744140625,
         "output_size": 512,
+        "single_folder": True,             # Use samples/ folder for flexible splits
         "description": "M3 equivalent - Object-centered zoom for optimal foreground coverage",
         "ray_error": "~0 deg",
         "active": True,
