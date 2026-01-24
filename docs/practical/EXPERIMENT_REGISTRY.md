@@ -150,3 +150,31 @@ CUDA_VISIBLE_DEVICES=3 nohup torchrun ... -d D10_3 -e E1_3_gt_alpha_lgm > logs/D
 ---
 
 *FaceLift Experiment Registry v1.0 | 2026-01-24*
+
+---
+
+## M-Series ↔ D-Series 매핑
+
+> **중요**: M-Series는 사용자 친화적 alias, D-Series는 전처리 preset 이름
+
+| M-Series | D-Series | Config 파일 | 카테고리 |
+|----------|----------|-------------|----------|
+| **M1** | D7.1 | `M1.yaml` → `D7_1.yaml` | affine |
+| **M2** | D8 | `M2.yaml` → `D8.yaml` | homography |
+| **M3** | D10.3 | `M3.yaml` → `D10_3.yaml` | homography_zoom |
+
+### 사용 방법
+
+```bash
+# 둘 다 동일하게 동작
+train_gslrm.py -d M3 -e E1_2_gt_alpha   # M-Series (권장)
+train_gslrm.py -d D10_3 -e E1_2_gt_alpha  # D-Series
+```
+
+### 새 데이터셋 추가 시 체크리스트
+
+1. [ ] 전처리 실행: `--preset D{X}.{Y}`
+2. [ ] Config 생성 확인: `configs/datasets/D{X}_{Y}.yaml`
+3. [ ] **심볼릭 링크 생성**: `ln -sf D{X}_{Y}.yaml M{N}.yaml`
+4. [ ] 문서 업데이트: 이 매핑 테이블에 추가
+

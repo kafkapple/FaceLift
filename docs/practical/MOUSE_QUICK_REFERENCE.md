@@ -856,3 +856,16 @@ python -m mouse_extensions.scripts.inference.prune_gaussians \
 | [`datasets/PREPROCESSING_REGISTRY.md`](./datasets/PREPROCESSING_REGISTRY.md) | 전처리 중앙 관리 | 데이터셋 추가 시 |
 | [`../00_MoC_INDEX.md`](../00_MoC_INDEX.md) | 전체 문서 목차 | 문서 추가 시 |
 
+
+---
+
+## M-Series ↔ D-Series 매핑
+
+| 사용 | 실제 | 비고 |
+|------|------|------|
+| `-d M1` | D7_1.yaml | affine |
+| `-d M2` | D8.yaml | homography |
+| `-d M3` | D10_3.yaml | homography_zoom |
+
+> 심볼릭 링크로 연결됨. 상세: [`EXPERIMENT_REGISTRY.md`](./EXPERIMENT_REGISTRY.md)
+
