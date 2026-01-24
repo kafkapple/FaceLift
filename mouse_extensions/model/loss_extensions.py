@@ -9,6 +9,10 @@ from enum import Enum
 from typing import Dict, Optional, Tuple
 from dataclasses import dataclass
 
+# Debug utilities
+from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
+
+
 
 class MaskType(Enum):
     """Mask types for loss computation and visualization."""
@@ -133,6 +137,7 @@ def compute_mask_from_config(
     
     if mask_mode is not None:
         # Debug: only log once per session (controlled by env var DEBUG_MASK)
+        debug_break("mask")  # BP1: mask_mode check
         pass  # Use DEBUG_MASK=1 env var to enable debug logging
         # Explicit mask_mode takes priority
         alpha_threshold = losses_config.get("alpha_mask_threshold", 0.5)
@@ -146,6 +151,7 @@ def compute_mask_from_config(
         elif mask_mode == "gt":
             if gt_mask is not None:
                 return gt_mask, MaskType.GT
+                debug_inspect("gt_mask", gt_mask)  # BP2: GT mask applied
             else:
                 print("[WARNING] mask_mode=gt but gt_mask is None, falling back to NONE")
                 return None, MaskType.NONE

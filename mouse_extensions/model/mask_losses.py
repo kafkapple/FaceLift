@@ -21,6 +21,10 @@ from typing import Dict, Optional, Tuple, Union
 from dataclasses import dataclass, field
 
 
+# Debug utilities
+from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
+
+
 # =============================================================================
 # Enums and Configuration
 # =============================================================================
@@ -127,6 +131,7 @@ def compute_masked_rgb_loss(
         Pose Splatter: "L1 loss normalized by mask pixels to avoid
         bias toward small objects"
     """
+    debug_break("loss")  # BP3: compute_masked_rgb_loss entry
     # Expand mask to RGB channels
     if mask.shape[1] == 1 and pred.shape[1] == 3:
         mask_expanded = mask.expand_as(pred)

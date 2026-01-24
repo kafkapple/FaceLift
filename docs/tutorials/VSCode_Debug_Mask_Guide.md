@@ -425,3 +425,60 @@ class LossTracker:
 ---
 
 *FaceLift Debug Guide v2.0 | 2026-01-24*
+
+---
+
+## 7. 환경변수 기반 자동 브레이크포인트 (NEW)
+
+### 7.1 개요
+
+VSCode 브레이크포인트는 워크스페이스/세션 변경 시 사라질 수 있습니다.
+**해결책**: 코드에 조건부 `debug_break()` 삽입
+
+### 7.2 설정된 브레이크포인트 위치
+
+| 위치 | 파일 | 라인 | 환경변수 |
+|------|------|------|----------|
+| BP1 | `loss_extensions.py` | ~140 | `DEBUG_MASK=1` |
+| BP2 | `loss_extensions.py` | ~154 | `DEBUG_MASK=1` |
+| BP3 | `mask_losses.py` | ~134 | `DEBUG_LOSS=1` |
+
+### 7.3 사용법
+
+```bash
+# 마스크 관련 디버깅
+DEBUG_MASK=1 python train_gslrm.py -d D7_1 -e E1_2_gt_alpha
+
+# Loss 관련 디버깅
+DEBUG_LOSS=1 python train_gslrm.py -d D7_1 -e E1_2_gt_alpha
+
+# 전체 디버깅
+DEBUG_ALL=1 python train_gslrm.py -d D7_1 -e E1_2_gt_alpha
+```
+
+### 7.4 launch.json 설정
+
+이미 구성된 디버그 프로필:
+
+| 프로필 | 환경변수 | 용도 |
+|--------|----------|------|
+| `Debug: Quick Test` | - | 일반 테스트 |
+| `Debug: Mask Mode` | `DEBUG_MASK=1` | 마스크 흐름 |
+| `Debug: Loss` | `DEBUG_LOSS=1` | Loss 계산 |
+| `Debug: All` | `DEBUG_ALL=1` | 전체 추적 |
+
+### 7.5 커스텀 브레이크포인트 추가
+
+```python
+from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
+
+# 조건부 브레이크포인트
+debug_break("mask")  # DEBUG_MASK=1일 때만 멈춤
+
+# 텐서 검사 + 이미지 저장
+debug_inspect("my_tensor", tensor, "/tmp/debug.png")
+```
+
+---
+
+*Updated: 2026-01-25 - 환경변수 기반 자동 브레이크포인트 추가*
