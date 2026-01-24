@@ -1,4 +1,4 @@
-# FaceLift Mouse Quick Reference v5.5
+# FaceLift Mouse Quick Reference v5.6
 
 > Last Updated: 2026-01-24 | Modular Mode | D7_1 Verified | Complete Guide
 
@@ -145,6 +145,12 @@ configs/
 | **E2_gt_alpha** ⭐ | gt | 0.1 | base | **P0** | GT + alpha supervision |
 | E3_alpha | none | 0.1 | base | P5 | Alpha supervision only |
 | E4_bg_penalty | none | 0.1+bg | base | P4 | Background penalty |
+| E5_composite | composite | 0.05 | base | ⛔ | ~~Nerfstudio~~ (alpha 확장 문제) |
+| **E5_composite_strong** | composite | 0.3 | base | P3 | Splatfacto-W 스타일 |
+| **E6_lgm_full** | gt | 1.0 | base | P2 | LGM 스타일 (alpha=RGB) |
+| E6_bg_penalty_strong | none | 0.1 | base | P3 | Object-Centric 2DGS |
+| E6_combined | gt | 0.2+bg | base | P3 | 다중 문헌 조합 |
+| **E6_clean_bg** 🆕 | gt | 0.2 | base | **P1** | 배경 Gaussian 최소화 |
 
 ### View Ablation 실험
 
@@ -324,6 +330,8 @@ CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
 CUDA_VISIBLE_DEVICES=6 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d D3_normalized -e E0_paper_original > logs/D3_normalized_E0_paper.log 2>&1 &
     
+CUDA_VISIBLE_DEVICES=7 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D8_2 -e E0_paper_original > logs/D8_2_E0_paper.log 2>&1 &
 ```
 
 ---
@@ -541,7 +549,7 @@ ls checkpoints/gslrm/ckpt_0000000000021125.pt
 
 ---
 
-*FaceLift Mouse Quick Reference v5.5 | Complete Guide | 2026-01-24*
+*FaceLift Mouse Quick Reference v5.6 | Complete Guide | 2026-01-24*
 
 ---
 
@@ -619,6 +627,57 @@ CUDA_VISIBLE_DEVICES=0 python -m mouse_extensions.scripts.inference.temporal_tur
 
 ---
 
+
+---
+
+## Background Gaussian Reduction
+
+### 문제
+GS-LRM은 모든 픽셀에 Gaussian 할당 → 작은 생쥐 주변 흰색 배경에도 Gaussian 생성
+
+### 해결책 1: 학습 중 (E6_clean_bg)
+
+```yaml
+# configs/experiments/E6_clean_bg.yaml
+training:
+  losses:
+    mask_mode: gt              # RGB loss → 전경 영역만
+    alpha_loss_weight: 0.2     # rendered α → GT mask
+    bg_loss_weight: 0.5        # 배경 α → 0
+    opacity_reg_weight: 0.01   # opacity → 0 or 1
+    ghost_reg_weight: 0.1      # 배경 영역 α 패널티
+```
+
+```bash
+CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d D7_1 -e E6_clean_bg
+```
+
+### 해결책 2: 후처리 Pruning
+
+```bash
+# Low-opacity Gaussian 제거
+python -m mouse_extensions.scripts.inference.prune_gaussians \
+    --input gaussians.ply \
+    --output gaussians_pruned.ply \
+    --opacity_threshold 0.1
+```
+
+| Threshold | 효과 |
+|-----------|------|
+| 0.05 | 보수적 |
+| 0.1 | 권장 |
+| 0.2 | 적극적 |
+
+### 문헌 근거
+
+| 방법 | 논문 | 설정 |
+|------|------|------|
+| Alpha Supervision | LGM (ECCV 2024) | `alpha_loss_weight` |
+| Background Penalty | Object-Centric 2DGS | `bg_loss_weight` |
+| Opacity Regularization | StableGS | `opacity_reg_weight` |
+| Ghost Regularization | (자체 구현) | `ghost_reg_weight` |
+
 ## Known Issues & Solutions
 
 ### D10 렌더링 실패
@@ -627,6 +686,13 @@ CUDA_VISIBLE_DEVICES=0 python -m mouse_extensions.scripts.inference.temporal_tur
 | 증상 | PSNR ~18 (D7_1: ~23), 렌더링 왜곡 |
 | 원인 | vertical_lines.npz의 up 벡터가 X축 방향 |
 | 해결 | **D8.2 사용** (up-alignment 없음) |
+### GSLRM.train() 반환값 버그 (수정됨)
+| 문제 | `model.to(device).eval()` 시 `None` 반환 |
+|------|------------------------------------------|
+| 원인 | `GSLRM.train()` 메서드가 `return self` 누락 |
+| 해결 | `return self` 추가 (commit `aec73ff`) |
+
+
 
 ### D8.2 Adaptive Zoom 미작동 (수정됨)
 | 문제 | zoom=1.0으로 고정 |
@@ -684,4 +750,4 @@ CUDA_VISIBLE_DEVICES=0 python -m mouse_extensions.scripts.inference.temporal_tur
 
 ---
 
-*v5.5 | 2026-01-24 | D8.2 권장, D10 비권장 명시, Dataset Selection Guide 개선*
+*v5.6 | 2026-01-24 | E6 실험 추가, Background Gaussian Reduction, Pruning 스크립트*
