@@ -103,3 +103,35 @@ training:
 ---
 
 *Literature Review v1.0 | 2026-01-24*
+
+---
+
+## FaceLift 실험 설정 (구현됨)
+
+### 문헌 기반 실험 configs
+
+| 실험 | 문헌 근거 | 핵심 설정 |
+|------|-----------|-----------|
+| E2_gt_alpha ⭐ | LGM + Pose Splatter | `gt` + α=0.1 + norm |
+| E5_composite_strong | Splatfacto-W | `composite` + α=0.3 |
+| E6_lgm_full | LGM | `gt` + α=1.0 |
+| E6_bg_penalty_strong | Object-Centric 2DGS | bg_loss=1.0 |
+| E6_combined | Multi-literature | `gt` + α=0.2 + bg=0.3 |
+| E6_clean_bg | All combined | `gt` + α=0.2 + bg=0.5 + opacity_reg + ghost_reg |
+
+### Background Gaussian 최소화
+
+```yaml
+# E6_clean_bg: 모든 배경 억제 기법 조합
+training:
+  losses:
+    mask_mode: gt              # Pose Splatter
+    alpha_loss_weight: 0.2     # LGM
+    bg_loss_weight: 0.5        # Object-Centric 2DGS
+    opacity_reg_weight: 0.01   # StableGS
+    ghost_reg_weight: 0.1      # 자체 구현
+```
+
+---
+
+*Updated: 2026-01-24*
