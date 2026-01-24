@@ -71,9 +71,9 @@ def debug_inspect(name: str, tensor, save_path: str = None):
     
     import torch
     
-    print(f"\n{=*50}")
+    print(f"\n{'='*50}")
     print(f"🔍 DEBUG INSPECT: {name}")
-    print(f"{=*50}")
+    print(f"{'='*50}")
     print(f"  Shape: {tensor.shape}")
     print(f"  Dtype: {tensor.dtype}")
     print(f"  Device: {tensor.device}")
@@ -110,7 +110,7 @@ def debug_inspect(name: str, tensor, save_path: str = None):
         except Exception as e:
             print(f"  ❌ Save failed: {e}")
     
-    print(f"{=*50}\n")
+    print(f"{'='*50}\n")
 
 
 # Decorator for function entry/exit debugging
