@@ -1,0 +1,14 @@
+# E6_lgm_full: Pure LGM Style
+# GT mask + Full alpha supervision (1:1 ratio with RGB)
+# Reference: LGM (ECCV 2024 Oral) - "MSE loss on both RGB and alpha images"
+#
+# LGM 원본: alpha와 RGB를 동등하게 취급 (weight 1.0)
+# 목적: Shape convergence 가속화
+
+training:
+  losses:
+    mask_mode: gt
+    normalize_by_mask: true
+    alpha_loss_weight: 1.0      # LGM: equal weight with RGB
+    alpha_loss_type: mse        # LGM: MSE for stable gradients
+    bg_loss_weight: 0.0

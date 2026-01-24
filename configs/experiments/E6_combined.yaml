@@ -1,0 +1,17 @@
+# E6_combined: Multi-Literature Combined
+# GT mask + Alpha supervision + Background penalty
+# Reference: LGM + Pose Splatter + Object-Centric 2DGS combined
+#
+# 조합:
+#   - mask_mode: gt (Pose Splatter)
+#   - normalize_by_mask: true (Pose Splatter) 
+#   - alpha_loss_weight: 0.2 (LGM, 약간 낮춤)
+#   - bg_loss_weight: 0.3 (Object-Centric 2DGS, 추가)
+
+training:
+  losses:
+    mask_mode: gt
+    normalize_by_mask: true
+    alpha_loss_weight: 0.2      # LGM style (moderate)
+    alpha_loss_type: mse
+    bg_loss_weight: 0.3         # Object-Centric 2DGS style

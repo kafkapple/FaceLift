@@ -1,0 +1,18 @@
+# E5_composite_strong: Splatfacto-W Style
+# Composite background + Strong alpha supervision
+# Reference: Splatfacto-W (2024) - "alpha loss to prevent gaussians occupying background"
+#
+# 차이점 vs E5_composite:
+#   - alpha_loss_weight: 0.05 → 0.3 (6x 강화)
+#   - normalize_by_mask: false → true
+#
+# 예상: Composite 유지하면서 alpha 확장 억제
+
+training:
+  losses:
+    mask_mode: composite
+    normalize_by_mask: true
+    alpha_loss_weight: 0.3      # Splatfacto-W: strong alpha supervision
+    alpha_loss_type: mse
+    bg_loss_weight: 0.0
+    background_color: 1.0       # white background

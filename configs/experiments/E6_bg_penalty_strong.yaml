@@ -1,0 +1,14 @@
+# E6_bg_penalty_strong: Object-Centric 2DGS Style
+# Alpha supervision + Strong background penalty
+# Reference: Object-Centric 2DGS (2025) - "background penalty for 96% model reduction"
+#
+# 방식: 배경 영역에서 rendered_alpha 억제
+# L_bg = mean(rendered_α × (1 - GT_mask))
+
+training:
+  losses:
+    mask_mode: none             # RGB loss: 전체 이미지
+    normalize_by_mask: false
+    alpha_loss_weight: 0.1      # Alpha supervision
+    alpha_loss_type: mse
+    bg_loss_weight: 1.0         # Strong background penalty
