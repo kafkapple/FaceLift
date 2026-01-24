@@ -1,59 +1,189 @@
-# VS Code Debug Guide: Mask/Loss 시스템 디버깅
+# VSCode Remote Debug Guide: Mask & Loss Analysis
 
-**Version**: 2.0
-**Updated**: 2026-01-24
-**Purpose**: 마스크/알파/Loss 시스템 디버깅을 위한 VS Code 사용법
+> **목적**: VSCode Remote SSH로 FaceLift 학습 코드를 디버깅하여 mask_mode별 loss 계산 흐름을 분석
+> **난이도**: 중급 (Python 디버깅 경험 필요)
+> **최종 업데이트**: 2026-01-24
 
 ---
 
 ## 목차
-
 1. [환경 설정](#1-환경-설정)
-2. [핵심 브레이크포인트](#2-핵심-브레이크포인트)
-3. [디버깅 체크리스트](#3-디버깅-체크리스트)
-4. [mask_mode 비교표](#4-mask_mode-비교표)
-5. [유용한 디버그 코드](#5-유용한-디버그-코드)
+2. [launch.json 설정 상세](#2-launchjson-설정-상세)
+3. [디버그 실행 방법](#3-디버그-실행-방법)
+4. [핵심 브레이크포인트](#4-핵심-브레이크포인트)
+5. [디버깅 체크리스트](#5-디버깅-체크리스트)
+6. [디버그 유틸리티](#6-디버그-유틸리티)
 
 ---
 
 ## 1. 환경 설정
 
-### 1.1 VS Code Remote SSH
+### 1.1 VSCode Remote SSH 연결
+
 ```
-1. Ctrl+Shift+P → "Remote-SSH: Connect to Host"
-2. "gpu03" 선택
-3. /home/joon/dev/FaceLift 폴더 열기
-4. Ctrl+Shift+P → "Python: Select Interpreter"
-   → /home/joon/anaconda3/envs/facelift/bin/python
+1. VSCode 좌측 하단 녹색 버튼 클릭
+2. "Connect to Host..." 선택
+3. gpu03 선택 (또는 ssh gpu03)
+4. /home/joon/dev/FaceLift 폴더 열기
 ```
 
-### 1.2 launch.json 설정
-```json
-// .vscode/launch.json
+### 1.2 Python Interpreter 선택
+
+```
+Ctrl+Shift+P → "Python: Select Interpreter"
+→ /home/joon/anaconda3/envs/facelift/bin/python
+```
+
+### 1.3 필수 VSCode 확장
+
+| 확장 | 용도 |
+|------|------|
+| Python (ms-python) | Python 디버깅 |
+| Remote - SSH | 원격 서버 연결 |
+| Pylance | 코드 분석 (선택) |
+
+---
+
+## 2. launch.json 설정 상세
+
+### 2.1 파일 위치
+`.vscode/launch.json` (프로젝트 루트)
+
+### 2.2 설정 구조 설명
+
+```jsonc
 {
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug: D7_1 E2_gt_alpha",
+            // === 기본 정보 ===
+            "name": "Debug: D7_1 + E1_2_gt_alpha",  // 드롭다운에 표시될 이름
+            "type": "debugpy",                       // Python 디버거 타입
+            "request": "launch",                     // 새 프로세스 시작 (attach도 가능)
+            
+            // === 실행 대상 ===
+            "program": "${workspaceFolder}/train_gslrm.py",  // 디버그할 Python 파일
+            "console": "integratedTerminal",                  // 출력 터미널
+            "cwd": "${workspaceFolder}",                      // 작업 디렉토리
+            
+            // === Python 환경 ===
+            "python": "/home/joon/anaconda3/envs/facelift/bin/python",
+            
+            // === 핵심: Arguments ===
+            "args": [
+                "-d", "D7_1",           // 데이터셋 (Modular mode)
+                "-e", "E1_2_gt_alpha",  // 실험 설정
+                "-s", "training.schedule.max_fwdbwd_passes", "10"  // Override: 10 step만
+            ],
+            
+            // === 환경 변수 ===
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",  // GPU 선택
+                "WANDB_MODE": "disabled"       // WandB 비활성화 (디버그 시)
+            },
+            
+            // === 디버거 옵션 ===
+            "justMyCode": false  // 라이브러리 코드도 디버깅 (중요!)
+        }
+    ]
+}
+```
+
+### 2.3 Arguments 상세 설명
+
+#### 필수 Arguments (택일)
+
+| 방식 | Arguments | 설명 |
+|------|-----------|------|
+| **Modular (권장)** | `-d D7_1 -e E1_2_gt_alpha` | 데이터셋 + 실험 조합 |
+| Legacy | `--config configs/mouse/full_config.yaml` | 단일 YAML 파일 |
+
+**왜 Modular 방식을 권장하는가?**
+- base + dataset + experiment 3단계 자동 merge
+- 실험 조합 변경이 쉬움 (args만 수정)
+- 설정 누락 방지 (base에 기본값 포함)
+
+#### Override Arguments (`-s`)
+
+```bash
+# 형식: -s KEY VALUE (공백으로 구분)
+-s training.schedule.max_fwdbwd_passes 10   # 10 step만 실행
+-s training.losses.mask_mode gt             # mask_mode 강제 변경
+-s validation.val_every 5                   # 5 step마다 validation
+```
+
+**자주 사용하는 Override:**
+
+| Key | 값 예시 | 용도 |
+|-----|---------|------|
+| `training.schedule.max_fwdbwd_passes` | 10 | Quick test (10 step) |
+| `training.losses.mask_mode` | gt/alpha/none | mask 방식 변경 |
+| `training.losses.alpha_loss_weight` | 0.1 | alpha loss 가중치 |
+| `validation.val_every` | 5 | validation 주기 |
+| `data.batch_size` | 1 | 메모리 절약 |
+
+### 2.4 권장 launch.json 설정 (복사용)
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug: Quick Test (10 steps)",
             "type": "debugpy",
             "request": "launch",
-            "program": "train_gslrm.py",
-            "args": ["-d", "D7_1", "-e", "E2_gt_alpha"],
-            "env": {"CUDA_VISIBLE_DEVICES": "0"},
+            "program": "${workspaceFolder}/train_gslrm.py",
             "console": "integratedTerminal",
-            "justMyCode": false,
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "python": "/home/joon/anaconda3/envs/facelift/bin/python",
+            "args": [
+                "-d", "D7_1",
+                "-e", "E1_2_gt_alpha",
+                "-s", "training.schedule.max_fwdbwd_passes", "10"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "WANDB_MODE": "disabled"
+            },
+            "justMyCode": false
         },
         {
-            "name": "Debug: Quick 5 Steps",
+            "name": "Debug: Mask Mode = GT",
             "type": "debugpy",
             "request": "launch",
-            "program": "train_gslrm.py",
-            "args": ["-d", "D7_1", "-e", "E2_gt_alpha", "--max_steps", "5"],
-            "env": {"CUDA_VISIBLE_DEVICES": "0"},
+            "program": "${workspaceFolder}/train_gslrm.py",
             "console": "integratedTerminal",
-            "justMyCode": false,
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "python": "/home/joon/anaconda3/envs/facelift/bin/python",
+            "args": [
+                "-d", "D7_1",
+                "-e", "E1_1_gt",
+                "-s", "training.schedule.max_fwdbwd_passes", "5"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "WANDB_MODE": "disabled"
+            },
+            "justMyCode": false
+        },
+        {
+            "name": "Debug: M3 Dataset",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/train_gslrm.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "/home/joon/anaconda3/envs/facelift/bin/python",
+            "args": [
+                "-d", "D10_3",
+                "-e", "E1_2_gt_alpha",
+                "-s", "training.schedule.max_fwdbwd_passes", "10"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "WANDB_MODE": "disabled"
+            },
+            "justMyCode": false
         }
     ]
 }
@@ -61,193 +191,217 @@
 
 ---
 
-## 2. 핵심 브레이크포인트
+## 3. 디버그 실행 방법
 
-### 2.1 Loss 계산 흐름 (gslrm/model/gslrm.py)
+### 3.1 실행 파일
 
-| 라인 | 코드 | 목적 |
-|------|------|------|
-| **347** | `mask = None` | GT 마스크 초기화 |
-| **349** | `target_flat, mask = target_flat.split([3, 1], dim=1)` | RGBA → RGB + Mask 분리 |
-| **427-428** | `alpha_loss_weight = ...` | Alpha supervision loss 시작 |
-| **436-437** | `bg_loss_weight = ...` | Background penalty 시작 |
+**항상 `train_gslrm.py`에서 실행** (프로젝트 루트)
 
-### 2.2 Masked Loss 함수 (mouse_extensions/model/mask_losses.py)
+```
+train_gslrm.py (Entry Point)
+    │
+    ├─ Config 로딩 (ModularConfigLoader)
+    ├─ 데이터 로딩 (MouseDataset)
+    ├─ 모델 초기화 (GSLRM)
+    └─ Training Loop
+        ├─ Forward pass
+        ├─ Loss 계산 ← 핵심 디버깅 포인트
+        └─ Backward pass
+```
 
-| 라인 | 함수명 | 용도 |
-|------|--------|------|
-| **100** | `compute_masked_rgb_loss()` | Masked RGB loss 계산 |
-| **158** | `compute_alpha_supervision_loss()` | Alpha supervision loss |
-| **457, 479, 492** | (호출부) | mask_mode별 분기 |
-| **503** | `alpha_loss = compute_alpha_supervision_loss(...)` | Alpha loss 호출 |
+### 3.2 실행 단계
 
-### 2.3 단축키 필수
-| 키 | 동작 |
-|----|------|
-| **F5** | 디버깅 시작 |
-| **F9** | 브레이크포인트 토글 |
-| **F10** | Step Over |
-| **F11** | Step Into |
+```
+1. F5 또는 Run → Start Debugging
+2. 좌측 상단 드롭다운에서 설정 선택
+3. 브레이크포인트에서 멈춤
+4. Debug Console에서 변수 검사
+```
+
+### 3.3 주요 단축키
+
+| 단축키 | 기능 |
+|--------|------|
+| F5 | 디버깅 시작/계속 |
+| F10 | Step Over (다음 줄) |
+| F11 | Step Into (함수 내부로) |
+| Shift+F11 | Step Out (함수 밖으로) |
+| F9 | 브레이크포인트 토글 |
+| Ctrl+Shift+Y | Debug Console 열기 |
 
 ---
 
-## 3. 디버깅 체크리스트
+## 4. 핵심 브레이크포인트
 
-### Step 1: 데이터 로딩 확인 (Line 349)
+### 4.1 Loss 계산 흐름
 
-```python
-# Debug Console에서 실행
-print(f"target_flat shape: {target_flat.shape}")  # [B*V, 4, H, W]
-print(f"mask shape: {mask.shape}")                 # [B*V, 1, H, W]
-print(f"mask range: [{mask.min():.3f}, {mask.max():.3f}]")  # [0, 1]
-print(f"FG ratio: {(mask > 0.5).float().mean():.4f}")       # ~0.02-0.05
-
-# ★ D7_1 정상 값: FG ratio ~0.024 (2.4%)
+```
+gslrm.py: forward()
+    │
+    ├─ Line ~347: images, masks 로딩
+    │   → images.shape, masks 값 확인
+    │
+    ├─ Line ~427: compute_loss() 호출
+    │   → 여기서 Step Into (F11)
+    │
+    └─ loss_extensions.py: compute_loss()
+        │
+        ├─ Line ~89: mask_mode 분기
+        │   → config의 mask_mode 값 확인
+        │
+        ├─ Line ~120: compute_mask_from_config()
+        │   → 실제 마스크 생성 로직
+        │
+        └─ Line ~180: masked_l2_loss 계산
+            → loss 값, mask 적용 영역 확인
 ```
 
-### Step 2: Mask Mode 확인
+### 4.2 권장 브레이크포인트 위치
+
+| 파일 | 라인 | 변수 확인 |
+|------|------|-----------|
+| `gslrm.py` | ~347 | `images.shape`, `masks.shape` |
+| `gslrm.py` | ~427 | `loss_dict` 반환값 |
+| `loss_extensions.py` | ~89 | `mask_mode` 값 |
+| `loss_extensions.py` | ~120 | `mask` tensor |
+| `loss_extensions.py` | ~180 | `l2_loss`, `masked_pixels` |
+| `mask_losses.py` | ~45 | `alpha_loss` 계산 |
+
+### 4.3 Debug Console 명령어
 
 ```python
-# mask_losses.py의 분기 확인
-mask_mode = config.training.losses.mask_mode
-print(f"mask_mode: {mask_mode}")  # "gt", "alpha", "composite", "none"
+# 브레이크포인트에서 실행 가능
+images.shape          # torch.Size([B, V, 3, H, W])
+masks.mean()          # 마스크 평균 (0~1)
+masks.sum() / masks.numel()  # 마스크 커버리지
 
-# gt: GT mask 사용 (권장)
-# alpha: rendered alpha 사용 (확장 위험)
-# composite: 배경 합성
-# none: 마스크 미적용
-```
-
-### Step 3: Alpha/BG Loss 확인 (Line 427-440)
-
-```python
-# Alpha loss
-print(f"alpha_loss_weight: {alpha_loss_weight}")  # 0.1 권장
-print(f"alpha_loss: {losses[alpha_loss].item():.6f}")
-
-# Background loss  
-print(f"bg_loss_weight: {bg_loss_weight}")        # 0.0 or 0.3
-print(f"bg_loss: {losses.get(bg_loss, 0)}")
-
-# IoU 확인 (shape 수렴도)
-iou = ((mask > 0.5) & (rendered_alpha_flat > 0.5)).sum() / \
-      ((mask > 0.5) | (rendered_alpha_flat > 0.5)).sum()
-print(f"Mask IoU: {iou:.4f}")  # 0.5+ 양호, <0.3 문제
-```
-
-### Step 4: 시각화 저장
-
-```python
+# 시각화 저장
 import torchvision
-torchvision.utils.save_image(mask[0], /tmp/gt_mask.png)
-torchvision.utils.save_image(rendered_alpha_flat[0], /tmp/rendered_alpha.png)
-torchvision.utils.save_image(pred_flat[0], /tmp/pred_rgb.png)
-torchvision.utils.save_image(target_flat[0,:3], /tmp/gt_rgb.png)
+torchvision.utils.save_image(masks[0], '/tmp/mask_debug.png')
 ```
 
 ---
 
-## 4. mask_mode 비교표
+## 5. 디버깅 체크리스트
 
-### 4.1 설정별 동작
+### 5.1 mask_mode별 예상 동작
 
-| mask_mode | RGB Loss 영역 | 특징 | 권장도 |
-|-----------|--------------|------|--------|
-| **gt** | GT mask 영역만 | 안정적, 고정 | ★★★ |
-| **alpha** | Rendered α > threshold | 동적, 확장 위험 | ★☆☆ |
-| **composite** | 전체 (배경 합성) | 흰 배경에 적합 | ★★☆ |
-| **none** | 전체 이미지 | 마스크 미사용 | ★★☆ |
+| mask_mode | RGB Loss 영역 | Alpha Loss | 배경 처리 |
+|-----------|---------------|------------|-----------|
+| `none` | 전체 이미지 | 없음 | 함께 학습 |
+| `gt` | GT mask 영역만 | 선택적 | 제외 |
+| `alpha` | Rendered α 영역 | 자동 | ⚠️ 확장 위험 |
+| `composite` | GT × α 혼합 | 있음 | 가중 제외 |
 
-### 4.2 D7_1 마스크 분석 결과
+### 5.2 단계별 체크
 
-| 방법 | Threshold | IoU vs GT | 비고 |
-|------|-----------|-----------|------|
-| GT alpha | 0.1-0.9 | **1.0** | 완벽 (이진 마스크) |
-| rgb_pred | 0.02-0.3 | 0.06-0.08 | ❌ 부적합 |
+```
+□ Step 1: 데이터 로딩 확인
+  - images.shape == [B, num_views, 3, 512, 512]
+  - masks는 GT mask (0 또는 1)
 
-**결론**: D7_1의 알파 채널은 깨끗한 이진값(0/255). `mask_mode: gt` 권장.
+□ Step 2: mask_mode 확인
+  - config['training']['losses']['mask_mode'] 값
 
-### 4.3 실험 설정 비교
+□ Step 3: 마스크 적용 확인
+  - compute_mask_from_config() 반환값
+  - mask.sum() / mask.numel() → 예상 커버리지 (0.05 정도)
 
-| 실험 | mask_mode | alpha_w | bg_w | 문헌 근거 |
-|------|-----------|---------|------|-----------|
-| **E2_gt_alpha** ★ | gt | 0.1 | 0.0 | LGM+PS |
-| E5_composite_strong | composite | 0.3 | 0.0 | Splatfacto-W |
-| E6_lgm_full | gt | 1.0 | 0.0 | LGM |
-| E6_bg_penalty_strong | none | 0.1 | 1.0 | 2DGS |
-| E6_combined | gt | 0.2 | 0.3 | 다중 문헌 |
+□ Step 4: Loss 값 확인
+  - l2_loss: 정상 범위 (0.01 ~ 0.1)
+  - alpha_loss: 설정된 경우 확인
+  - perceptual_loss: 전체 이미지 기준
+```
+
+### 5.3 문제 진단
+
+| 증상 | 가능한 원인 | 확인 방법 |
+|------|-------------|-----------|
+| Loss NaN | bf16 + log 연산 | `opacity.dtype` 확인 |
+| 마스크 전체 1 | mask_mode 미적용 | `mask.mean()` 확인 |
+| 커버리지 증가 | alpha mask 악순환 | `fg_coverage` 로그 확인 |
+| PSNR 낮음 | 데이터/설정 문제 | validation 이미지 확인 |
 
 ---
 
-## 5. 유용한 디버그 코드
+## 6. 디버그 유틸리티
 
-### 5.1 텐서 정보 출력
+### 6.1 텐서 디버그 함수
 
 ```python
-def debug_tensor(name, t):
-    if t is None:
-        print(f"{name}: None")
-        return
-    print(f"{name}: shape={t.shape}, dtype={t.dtype}, "
-          f"range=[{t.min():.3f}, {t.max():.3f}], mean={t.mean():.3f}")
-
-# 사용
-debug_tensor("mask", mask)
-debug_tensor("rendered_alpha", rendered_alpha_flat)
-debug_tensor("pred", pred_flat)
+def debug_tensor(name: str, tensor: torch.Tensor):
+    """텐서 상태 출력"""
+    print(f"[DEBUG] {name}:")
+    print(f"  shape: {tensor.shape}")
+    print(f"  dtype: {tensor.dtype}")
+    print(f"  range: [{tensor.min():.4f}, {tensor.max():.4f}]")
+    print(f"  mean: {tensor.mean():.4f}, std: {tensor.std():.4f}")
+    if tensor.isnan().any():
+        print(f"  ⚠️ Contains NaN!")
+    if tensor.isinf().any():
+        print(f"  ⚠️ Contains Inf!")
 ```
 
-### 5.2 Loss 분해 분석
+### 6.2 마스크 시각화 저장
 
 ```python
-import torch.nn.functional as F
-
-# Masked vs Unmasked 비교
-unmasked = F.mse_loss(pred_flat, target_flat[:,:3])
-masked = (F.mse_loss(pred_flat, target_flat[:,:3], reduction=none) * mask).sum() / mask.sum()
-print(f"Unmasked L2: {unmasked:.6f}")
-print(f"Masked L2: {masked:.6f}")
-
-# FG/BG 분리
-diff = (pred_flat - target_flat[:,:3]).abs()
-fg_err = (diff * mask).sum() / mask.sum()
-bg_err = (diff * (1 - mask)).sum() / (1 - mask).sum()
-print(f"FG error: {fg_err:.6f}, BG error: {bg_err:.6f}")
+def save_debug_masks(masks: torch.Tensor, rendered_alpha: torch.Tensor, 
+                     step: int, output_dir: str = "/tmp/debug"):
+    """GT mask와 rendered alpha 비교 저장"""
+    import os
+    os.makedirs(output_dir, exist_ok=True)
+    
+    import torchvision
+    # GT mask
+    torchvision.utils.save_image(
+        masks[0], f"{output_dir}/step{step:04d}_gt_mask.png"
+    )
+    # Rendered alpha
+    torchvision.utils.save_image(
+        rendered_alpha[0], f"{output_dir}/step{step:04d}_rendered_alpha.png"
+    )
+    # Difference
+    diff = (masks[0] - rendered_alpha[0]).abs()
+    torchvision.utils.save_image(
+        diff, f"{output_dir}/step{step:04d}_diff.png"
+    )
 ```
 
-### 5.3 시각화 그리드 저장
+### 6.3 Loss 히스토리 추적
 
 ```python
-import torchvision
-
-def save_debug_grid(tensors, names, path=/tmp/debug_grid.png):
-    """여러 텐서를 그리드로 저장"""
-    grids = []
-    for t, n in zip(tensors, names):
-        if t.dim() == 4:
-            t = t[0]
-        if t.size(0) == 1:
-            t = t.repeat(3, 1, 1)
-        grids.append(t.cpu())
-    grid = torchvision.utils.make_grid(grids, nrow=len(grids), padding=2)
-    torchvision.utils.save_image(grid, path)
-    print(f"Saved: {path}")
-
-# 사용
-save_debug_grid(
-    [mask, rendered_alpha_flat, pred_flat, target_flat[:,:3]],
-    [mask, alpha, pred, gt]
-)
+class LossTracker:
+    def __init__(self):
+        self.history = {'l2': [], 'alpha': [], 'perceptual': []}
+    
+    def update(self, loss_dict):
+        for key in self.history:
+            if key in loss_dict:
+                self.history[key].append(loss_dict[key].item())
+    
+    def plot(self, save_path="/tmp/loss_history.png"):
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        for key, values in self.history.items():
+            if values:
+                ax.plot(values, label=key)
+        ax.legend()
+        ax.set_xlabel('Step')
+        ax.set_ylabel('Loss')
+        fig.savefig(save_path)
+        print(f"Saved: {save_path}")
 ```
 
 ---
 
 ## 관련 문서
 
-- [Mask_Literature_Review](../theory/mask/Mask_Literature_Review.md)
-- [GHOSTING_DIAGNOSIS](../analysis/GHOSTING_DIAGNOSIS.md)
-- [Quick Reference](../practical/MOUSE_QUICK_REFERENCE.md)
+| 문서 | 위치 | 내용 |
+|------|------|------|
+| EXPERIMENT_QUICK_REFERENCE | `docs/practical/` | 실험 ID 및 설정 |
+| MOUSE_QUICK_REFERENCE | `docs/practical/` | 전체 워크플로우 |
+| MASK_SYSTEM_GUIDE | `docs/practical/config/` | 마스크 설정 상세 |
 
 ---
 
-*FaceLift Mouse | VS Code Debug Guide v2.0 | 2026-01-24*
+*FaceLift Debug Guide v2.0 | 2026-01-24*
