@@ -1,6 +1,6 @@
 # FaceLift Mouse Documentation Map of Content (MoC)
 
-> **최종 업데이트**: 2026-01-25
+> **최종 업데이트**: 2026-01-26
 > **목적**: 모든 핵심 문서의 중앙 네비게이션 허브
 
 ---
@@ -17,6 +17,7 @@ docs/
 |   +-- TRAIN_VAL_GAP_ANALYSIS.md
 |
 +-- datasets/                     # 데이터셋 명세
+|   +-- VERSION_SCHEMA.md          # 버전 체계 설명 ★NEW
 |   +-- M3_SERIES_SPEC.md         # M3 시리즈 상세
 |
 +-- theory/                       # 이론 문서
