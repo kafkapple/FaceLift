@@ -1272,6 +1272,8 @@ if __name__ == "__main__":
     print(f"Saved {out_dir}/render.mp4")
 
 
+@torch.no_grad()
+@torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
 def render_dataset_trajectory(
     pc,  # GaussianModel
     dataset_c2ws: np.ndarray,  # [num_cams, 4, 4]

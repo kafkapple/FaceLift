@@ -1,33 +1,34 @@
-# E_debug.yaml - Fast Debug Mode for Testing
+# E_debug.yaml - Minimal Debug (1 step)
 # Usage: torchrun ... -d M1 -e E_debug
-# Expected runtime: ~2-3 minutes
+# Expected runtime: ~30 seconds
 
 training:
-  # ★ Correct path for max steps
   schedule:
-    max_fwdbwd_passes: 50
-    warmup: 5
+    max_fwdbwd_passes: 1
+    warmup: 0
   
-  # Frequent validation (every 10 steps)
-  val_every: 10
+  val_every: 1
+  vis_every: 1
   
-  # Frequent visualization
-  vis_every: 10
-  
-  # Fast iteration
   dataloader:
     batch_size_per_gpu: 1
     num_workers: 2
   
-  # Enable alpha loss to test visualization
   losses:
     alpha_loss_weight: 0.1
-    alpha_loss_type: "mse"
-    l2_loss_weight: 1.0
-    perceptual_loss_weight: 0.5
     mask_mode: "gt"
 
-# Smaller validation for speed
 validation:
   batch_size: 1
-  num_samples: 2
+  num_samples: 1
+
+visualization:
+  turntable:
+    smooth_trajectory: true
+    camera_order: [1, 3, 5, 0, 4, 2]  # 시계방향 360도 순회
+    loop: true
+    fps: 15
+    save_video: true
+    num_views: 60          # 부드러운 보간을 위해 증가
+    grid_rows: 6
+    grid_cols: 10          # 6x10 = 60

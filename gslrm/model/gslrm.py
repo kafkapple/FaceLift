@@ -2114,24 +2114,47 @@ class GSLRM(nn.Module):
                 ).save_ply(os.path.join(item_output_dir, "gaussians.ply"))
                 
                 # Create turntable visualization
-                num_turntable_views = 150
-                render_resolution = input_image.shape[0]
-                
-                # Compute Gaussian center for camera orbit
-                gaussian_center = model_results.gaussians[batch_idx]._xyz.mean(dim=0).detach().cpu().numpy()
-                turntable_frames = render_turntable(
-                    model_results.gaussians[batch_idx], rendering_resolution=render_resolution, num_views=num_turntable_views,
-                    center=gaussian_center
-                )
-                turntable_frames = rearrange(
-                    turntable_frames, "height (views width) channels -> views height width channels", views=num_turntable_views
-                )
-                turntable_frames = np.ascontiguousarray(turntable_frames)
-                
-                imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=15)
-                
-                # Also save 6x6 grid image for quick inspection
                 turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
+                render_resolution = input_image.shape[0]
+                smooth_trajectory = turntable_cfg.get("smooth_trajectory", False)
+                camera_order = turntable_cfg.get("camera_order", None)
+                loop_trajectory = turntable_cfg.get("loop", True)
+                turntable_fps = turntable_cfg.get("fps", 15)
+                num_turntable_views = turntable_cfg.get("num_views", 60)
+                
+                # Get dataset camera poses
+                dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()
+                dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()
+                
+                if smooth_trajectory:
+                    # Use smooth interpolation between dataset cameras
+                    turntable_frames, segments = render_dataset_trajectory(
+                        model_results.gaussians[batch_idx],
+                        dataset_c2ws, dataset_fxfycxcy,
+                        rendering_resolution=render_resolution,
+                        num_views=num_turntable_views,
+                        camera_order=camera_order,
+                        loop=loop_trajectory,
+                        show_overlay=False
+                    )
+                else:
+                    # Standard 360 turntable
+                    gaussian_center = model_results.gaussians[batch_idx]._xyz.mean(dim=0).detach().cpu().numpy()
+                    turntable_image = render_turntable(
+                        model_results.gaussians[batch_idx], 
+                        rendering_resolution=render_resolution, 
+                        num_views=num_turntable_views,
+                        center=gaussian_center
+                    )
+                    turntable_frames = rearrange(
+                        turntable_image, "height (views width) channels -> views height width channels", 
+                        views=num_turntable_views
+                    )
+                
+                turntable_frames = np.ascontiguousarray(turntable_frames)
+                imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=turntable_fps)
+                
+                # Also save grid image for quick inspection
                 grid_rows = turntable_cfg.get("grid_rows", 6)
                 grid_cols = turntable_cfg.get("grid_cols", 6)
                 grid_views = grid_rows * grid_cols
