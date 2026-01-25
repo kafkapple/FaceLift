@@ -1,0 +1,19 @@
+# =============================================================================
+# E_overfit_6v: 6개 뷰 모두 학습 (Overfitting 테스트)
+# =============================================================================
+# 목적: 모든 뷰에서 제대로 학습되는지 확인 (일반화 무시)
+# 예상: 모든 뷰 PSNR 25+ 달성, Ghosting 해소
+
+model:
+  num_views: 6
+  num_input_views: 6      # ★ 모든 뷰를 input으로
+
+training:
+  dataset:
+    random_view_selection: false  # 고정 (항상 6개 모두)
+    target_has_input: true        # target도 동일 뷰 (자기 자신 재구성)
+
+  losses:
+    mask_mode: gt
+    alpha_loss_weight: 0.1
+    bg_loss_weight: 0.0
