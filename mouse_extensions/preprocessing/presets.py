@@ -353,9 +353,10 @@ PRESETS = {
         "adaptive_zoom": True,
         "zoom_method": "coverage_based",
         "zoom_scope": "per_sample",  # ★ Per-sample zoom (vs global)
+        "zoom_center_mode": "image",  # ★ MVG-correct: PP=256 guaranteed
         "target_fg_coverage": 0.05,
         "min_fg_coverage": 0.03,
-        "zoom_range": [1.0, 2.5],
+        "zoom_range": [1.0, 1.8],  # ★ Reduced to prevent clipping
         "zoom_after_transform": True,
         "target_fx": 548.9937744140625,
         "output_size": 512,
@@ -380,7 +381,7 @@ PRESETS = {
         "zoom_center_mode": "image",  # MVG-correct: center-aligned zoom
         "target_fg_coverage": 0.05,
         "min_fg_coverage": 0.03,
-        "zoom_range": [1.0, 2.5],
+        "zoom_range": [1.0, 1.8],  # ★ Reduced to prevent clipping
         "zoom_after_transform": True,
         "target_fx": 548.9937744140625,
         "output_size": 512,
@@ -404,7 +405,7 @@ PRESETS = {
         "zoom_center_mode": "image",  # ★ MVG-correct: center-aligned zoom
         "target_fg_coverage": 0.05,
         "min_fg_coverage": 0.03,
-        "zoom_range": [1.0, 2.5],
+        "zoom_range": [1.0, 1.8],  # ★ Reduced to prevent clipping
         "zoom_after_transform": True,
         "target_fx": 548.9937744140625,
         "output_size": 512,
