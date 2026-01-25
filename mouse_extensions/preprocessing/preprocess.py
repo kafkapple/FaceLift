@@ -407,6 +407,7 @@ class PreprocessConfig:
     
     # M3/D10.3: Coverage-based zoom settings
     zoom_method: str = "bbox"  # "bbox" or "coverage_based"
+    zoom_center_mode: str = "object"  # "object" or "image" (MVG-correct)
     target_fg_coverage: float = 0.05  # 5% foreground coverage target
     min_fg_coverage: float = 0.0  # Minimum coverage warning threshold
     zoom_after_transform: bool = False  # If True, compute coverage after applying transform
@@ -456,6 +457,7 @@ class PreprocessConfig:
             config.zoom_fill_ratio = preset.get("zoom_fill_ratio", 0.85)
             # M3/D10.3: Coverage-based zoom
             config.zoom_method = preset.get("zoom_method", "bbox")
+            config.zoom_center_mode = preset.get("zoom_center_mode", "object")
             config.target_fg_coverage = preset.get("target_fg_coverage", 0.05)
             config.min_fg_coverage = preset.get("min_fg_coverage", 0.0)
             config.zoom_after_transform = preset.get("zoom_after_transform", False)
@@ -587,20 +589,33 @@ class UnifiedPreprocessor:
                 flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
 
         return img_out, mask_out
-
     def apply_zoom(self, image: np.ndarray, mask: np.ndarray, zoom: float):
+        """Apply zoom with configurable center mode.
+        
+        zoom_center_mode:
+            - 'object': Crop centered on object (current behavior, PP varies)
+            - 'image': Crop centered on image center (PP=256 preserved)
+        """
         if zoom <= 1.0:
             return image, mask, (0, 0)
 
         size = self.config.output_size
         crop_size = int(size / zoom)
-
-        ys, xs = np.where(mask > 127)
-        cx = (xs.min() + xs.max()) / 2 if len(xs) > 0 else size / 2
-        cy = (ys.min() + ys.max()) / 2 if len(ys) > 0 else size / 2
-
-        crop_x = max(0, min(int(cx - crop_size/2), size - crop_size))
-        crop_y = max(0, min(int(cy - crop_size/2), size - crop_size))
+        
+        # Get zoom center mode from config (default: object for backward compat)
+        center_mode = getattr(self.config, 'zoom_center_mode', 'object')
+        
+        if center_mode == 'image':
+            # ★ MVG-correct: Center-aligned crop (PP automatically 256)
+            crop_x = (size - crop_size) // 2
+            crop_y = (size - crop_size) // 2
+        else:
+            # Original: Object-centered crop (PP varies)
+            ys, xs = np.where(mask > 127)
+            cx = (xs.min() + xs.max()) / 2 if len(xs) > 0 else size / 2
+            cy = (ys.min() + ys.max()) / 2 if len(ys) > 0 else size / 2
+            crop_x = max(0, min(int(cx - crop_size/2), size - crop_size))
+            crop_y = max(0, min(int(cy - crop_size/2), size - crop_size))
 
         cropped_img = image[crop_y:crop_y+crop_size, crop_x:crop_x+crop_size]
         cropped_mask = mask[crop_y:crop_y+crop_size, crop_x:crop_x+crop_size]
@@ -638,9 +653,14 @@ class UnifiedPreprocessor:
             renorm_scale = cfg.target_fx / fx
             fx = cfg.target_fx
             fy = fy * renorm_scale
-            # Keep cx/cy scaled (geometric consistency)
-            cx = cx * renorm_scale
-            cy = cy * renorm_scale
+            # ★ BUG FIX (2026-01-25): Center-aligned zoom preserves PP at 256
+            # Only scale PP for object-centered zoom
+            if getattr(cfg, 'zoom_center_mode', 'object') != 'image':
+                cx = cx * renorm_scale
+                cy = cy * renorm_scale
+            else:
+                # For center-aligned zoom, PP should remain at target (256)
+                cx, cy = cfg.target_pp
         
         # Alternative: Force PP to target (for GS-LRM compatibility)
         if getattr(cfg, 'force_pp_to_target', False):

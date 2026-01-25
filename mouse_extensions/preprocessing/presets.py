@@ -365,11 +365,62 @@ PRESETS = {
         "description": "Per-sample adaptive zoom + fx normalization",
         "active": True,
     },
+    
+    # P0 FIX: M3 with MVG-correct center-aligned zoom (PP=256 guaranteed)
+    # MVG-correct version of M3_norm (global zoom, center-aligned)
+    "M3_1": {
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_center_mode": "image",  # MVG-correct: center-aligned zoom
+        "target_fg_coverage": 0.05,
+        "min_fg_coverage": 0.03,
+        "zoom_range": [1.0, 2.5],
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,
+        "description": "MVG-correct global zoom (PP=256). Docs: M3_SERIES_SPEC.md",
+        "active": True,
+    },
+
+    "M3_2": {
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_scope": "per_sample",
+        "zoom_center_mode": "image",  # ★ MVG-correct: center-aligned zoom
+        "target_fg_coverage": 0.05,
+        "min_fg_coverage": 0.03,
+        "zoom_range": [1.0, 2.5],
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,  # Not needed with center-aligned zoom
+        "description": "MVG-correct per-sample zoom (PP=256). Docs: M3_SERIES_SPEC.md",
+        "active": True,
+    },
 }
 
 
 # Version hierarchy for organization
 VERSION_HIERARCHY = {
+    "recommended": "M3_2",  # MVG-correct preset
+
     # === 기하학적 변환 기준 분류 ===
     
     # Affine 변환: 회전, 스케일, 이동 (M1 계열)
