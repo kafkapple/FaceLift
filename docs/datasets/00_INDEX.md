@@ -32,11 +32,13 @@
 
 | 문서 | 내용 |
 |------|------|
-| [[VERSION_SCHEMA]] | 버전 계층, M-Series, Split 방식 |
+| [[EXPERIMENT_NAMING]] | 실험 명명규칙, E1-E5 시리즈, 21개 설정 |
+| [[EXPERIMENT_RESULTS]] | 실험 결과 비교표, PSNR 분석 |
+| [[HYPOTHESIS_VERIFICATION]] | H1-H6 가설 검증 매트릭스 |
+| [[VIEW_SELECTION_ANALYSIS]] | Ghosting 분석, Novel view synthesis |
 | [[PREPROCESSING_REGISTRY]] | 프리셋 정의, 전처리 명령어 |
+| [[VERSION_SCHEMA]] | 버전 계층, M-Series, Split 방식 |
 | [[M3_SERIES_SPEC]] | M3 시리즈 상세 명세 |
-| [[EXPERIMENT_RESULTS]] | 실험 결과 비교표 |
-| [[HYPOTHESIS_VERIFICATION]] | H1-H5 가설 검증 매트릭스 |
 
 ### Reference Documents
 
@@ -80,6 +82,72 @@ Center-aligned zoom + PP=256 자동 → **MVG 정합**
 
 ---
 
+## 가설 검증 요약
+
+| ID | 가설 | 상태 | 상세 |
+|----|------|------|------|
+| H1 | Coverage↑ → PSNR↑ | ✅ | +6 PSNR (50%→74%) |
+| H2 | fx=549 필수 | ⚠️ | PP가 더 중요 |
+| H3 | PP=256 필수 | ✅ | +7 PSNR 효과 |
+| H4 | Aspect Ratio | 🔲 | 미검증 |
+| H5 | Per-sample zoom | 🔄 | 진행 중 |
+| H6 | View Quality | ✅ | Novel view 한계 |
+
+상세: [[HYPOTHESIS_VERIFICATION]]
+
+---
+
+## 실험 결과 요약
+
+| Dataset | Val PSNR | Coverage | 상세 |
+|---------|----------|----------|------|
+| [[presets/D3_normalized]] | **27.09** | 74% | ⭐ 최고 |
+| [[presets/D7_1]] | 20.93 | 50% | 기준선 |
+| [[presets/D8]] | 20.21 | 50% | 정밀 |
+| [[presets/M3_1]] | TBD | 78%+ | 검증 완료 |
+| [[presets/M3_2]] | TBD | 78%+ | **권장** |
+
+상세: [[EXPERIMENT_RESULTS]]
+
+---
+
+## Quick Start
+
+### 전처리 실행 (권장: M3_2)
+```bash
+cd /home/joon/dev/FaceLift
+
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M3_2 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
+```
+
+### 학습 실행 (권장: E2_1_gt_alpha)
+```bash
+CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3_2 -e E2_1_gt_alpha
+```
+
+### 대안 실험
+```bash
+# M3_1 (Global zoom) 비교
+CUDA_VISIBLE_DEVICES=1 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3_1 -e E2_1_gt_alpha
+
+# Random view selection (H6 검증)
+CUDA_VISIBLE_DEVICES=2 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3_2 -e E1_2_random_baseline
+```
+
+### 검증
+```bash
+python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
+    --datasets M3_2 --verbose
+```
+
+---
+
 ## D7 계열 관계도
 
 ```
@@ -94,44 +162,6 @@ D7 (기본: random split, fx_only scale)
 
 ---
 
-## 실험 결과 요약
-
-| Dataset | Val PSNR | Coverage | 상세 |
-|---------|----------|----------|------|
-| [[presets/D3_normalized]] | **27.09** | 84.3% | ⭐ 최고 |
-| [[presets/D7_1]] | 20.93 | 50.5% | 기준선 |
-| [[presets/D8]] | 20.21 | 50.5% | 정밀 |
-| [[presets/M3_1]] | TBD | 78%+ | 검증 완료 |
-| [[presets/M3_2]] | TBD | 78%+ | **권장** |
-
-상세: [[EXPERIMENT_RESULTS]]
-
----
-
-## Quick Start
-
-### 전처리 실행 (권장: M3_2)
-```bash
-python -m mouse_extensions.preprocessing.preprocess \
-    --preset M3_2 \
-    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
-```
-
-### 학습 실행
-```bash
-CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_2 -e E1_2_gt_alpha
-```
-
-### 검증
-```bash
-python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
-    --datasets M3_2 --verbose
-```
-
----
-
 ## 관련 문서
 
 - [[../00_MoC_INDEX]] - 프로젝트 문서 허브
@@ -140,4 +170,4 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
 
 ---
 
-*Dataset Documentation v2.0 | 2026-01-26 | Individual Dataset Specs Added*
+*Dataset Documentation v3.0 | 2026-01-26 | Experiments & Hypothesis Docs Added*
