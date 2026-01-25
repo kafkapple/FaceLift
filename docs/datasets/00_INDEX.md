@@ -7,25 +7,36 @@
 
 ## Quick Reference
 
-| 분류 | 권장 | 설명 |
+| 분류 | 권장 | 상세 |
 |------|------|------|
-| **기준선** | M1 (D7.1) | Affine, PP=256, fx=549 |
-| **정밀** | M2 (D8) | Homography, skew 보정 |
-| **최적** | M3_2 | Per-sample zoom, MVG-correct ⭐ |
+| **기준선** | [[presets/D7_1\|M1 (D7.1)]] | Affine, PP=256, fx=549 |
+| **정밀** | [[presets/D8\|M2 (D8)]] | Homography, skew 보정 |
+| **최적** | [[presets/M3_2\|M3_2]] ⭐ | Per-sample zoom, MVG-correct |
 
 ---
 
 ## 문서 구조
 
+### Individual Dataset Specs (presets/)
+
+| 데이터셋 | Alias | 상태 | 상세 |
+|----------|-------|------|------|
+| [[presets/D7_1]] | M1 | ✅ 기준선 | Affine, PSNR 20.93 |
+| [[presets/D8]] | M2 | ✅ 정밀 | Homography, PSNR 20.21 |
+| [[presets/M3]] | D10.3 | ⚠️ H2 검증용 | fx=739 미정규화 |
+| [[presets/M3_1]] | - | ✅ MVG-correct | Global zoom |
+| [[presets/M3_2]] | - | ⭐ **권장** | Per-sample zoom |
+| [[presets/D3_normalized]] | - | 📊 Reference | PSNR 27.09 최고 |
+
 ### Core Documents
 
-| 문서 | 내용 | 상태 |
-|------|------|------|
-| [[VERSION_SCHEMA]] | 버전 계층, M-Series, Split 방식 | ✅ |
-| [[PREPROCESSING_REGISTRY]] | 프리셋 정의, 전처리 명령어 | ✅ |
-| [[M3_SERIES_SPEC]] | M3 시리즈 상세 명세 | ✅ |
-| [[EXPERIMENT_RESULTS]] | 실험 결과 비교표 | ✅ |
-| [[HYPOTHESIS_VERIFICATION]] | H1-H5 가설 검증 매트릭스 | ✅ |
+| 문서 | 내용 |
+|------|------|
+| [[VERSION_SCHEMA]] | 버전 계층, M-Series, Split 방식 |
+| [[PREPROCESSING_REGISTRY]] | 프리셋 정의, 전처리 명령어 |
+| [[M3_SERIES_SPEC]] | M3 시리즈 상세 명세 |
+| [[EXPERIMENT_RESULTS]] | 실험 결과 비교표 |
+| [[HYPOTHESIS_VERIFICATION]] | H1-H5 가설 검증 매트릭스 |
 
 ### Reference Documents
 
@@ -33,13 +44,6 @@
 |------|------|
 | [[RAW_DATA]] | 원본 데이터 출처, 샘플링 전략 |
 | [[CAMERA_CONFIG]] | 6카메라 배치, View 선택 |
-
-### Theory (→ ../theory/)
-
-| 문서 | 내용 |
-|------|------|
-| [[../theory/PP_FX_MVG_ANALYSIS]] | PP/fx 이론, MVG 정합성 |
-| [[../theory/RAY_ERROR_THEORY]] | Ray Error 계산 공식 |
 
 ---
 
@@ -51,28 +55,28 @@ Object-centered crop + PP 미보정 → **geometry_broken**
 
 ### Category 2: Object-Centered Zoom (⚠️ Deprecated)
 Adaptive zoom + Object-centered → **PP 가변 → ray error**
-- M3, M3_norm, M3_persample
+- [[presets/M3]], M3_norm, M3_persample
 
 ### Category 3: PP-Centered Shift (✅ Stable)
 PP를 256으로 shift → **pretrained 호환**
-- M1 (D7.1), M2 (D8), D7_1_t
+- [[presets/D7_1\|M1 (D7.1)]], [[presets/D8\|M2 (D8)]], D7_1_t
 
 ### Category 4: Precision Homography + MVG (⭐ Recommended)
 Center-aligned zoom + PP=256 자동 → **MVG 정합**
-- M3_1 (Global zoom)
-- M3_2 (Per-sample zoom) ⭐
+- [[presets/M3_1]] (Global zoom)
+- [[presets/M3_2]] (Per-sample zoom) ⭐
 
 ---
 
 ## M-Series 요약
 
-| Alias | Preset | 변환 | PP | fx | Coverage | 상태 |
+| Alias | Preset | 변환 | PP | fx | Coverage | 상세 |
 |-------|--------|------|-----|-----|----------|------|
-| M1 | D7.1 | Affine | 256 | 549 | ~50% | ✅ 기준선 |
-| M2 | D8 | Homography | 256 | 549 | ~50% | ✅ 정밀 |
-| M3 | D10.3 | Homo+Zoom | 가변 | 739 | ~78% | ⚠️ H2 검증용 |
-| M3_1 | M3_1 | Global Zoom | 256 | 549 | ~78% | ✅ MVG-correct |
-| M3_2 | M3_2 | Per-sample | 256 | 549 | ~78% | ✅ **권장** ⭐ |
+| M1 | D7.1 | Affine | 256 | 549 | ~50% | [[presets/D7_1]] |
+| M2 | D8 | Homography | 256 | 549 | ~50% | [[presets/D8]] |
+| M3 | D10.3 | Homo+Zoom | 가변 | 739 | ~78% | [[presets/M3]] |
+| M3_1 | M3_1 | Global Zoom | 256 | 549 | ~78% | [[presets/M3_1]] |
+| **M3_2** | M3_2 | Per-sample | 256 | 549 | ~78% | [[presets/M3_2]] ⭐ |
 
 ---
 
@@ -80,9 +84,9 @@ Center-aligned zoom + PP=256 자동 → **MVG 정합**
 
 ```
 D7 (기본: random split, fx_only scale)
-├── D7_1: individual scale (별도 scale_x, scale_y)
-│   └── D7_1_t: D7_1 + temporal split (★ 공정 평가)
-├── D7_2: average scale (동일 scale_x = scale_y)
+├── D7_1 (M1): individual scale ← [[presets/D7_1]]
+│   └── D7_1_t: D7_1 + temporal split
+├── D7_2: average scale
 ├── D7_5: optimal scale
 │   └── D7_5b: object-aware optimal
 └── D7_t: D7 + temporal split
@@ -90,11 +94,24 @@ D7 (기본: random split, fx_only scale)
 
 ---
 
+## 실험 결과 요약
+
+| Dataset | Val PSNR | Coverage | 상세 |
+|---------|----------|----------|------|
+| [[presets/D3_normalized]] | **27.09** | 84.3% | ⭐ 최고 |
+| [[presets/D7_1]] | 20.93 | 50.5% | 기준선 |
+| [[presets/D8]] | 20.21 | 50.5% | 정밀 |
+| [[presets/M3_1]] | TBD | 78%+ | 검증 완료 |
+| [[presets/M3_2]] | TBD | 78%+ | **권장** |
+
+상세: [[EXPERIMENT_RESULTS]]
+
+---
+
 ## Quick Start
 
-### 전처리 실행
+### 전처리 실행 (권장: M3_2)
 ```bash
-# 권장: M3_2
 python -m mouse_extensions.preprocessing.preprocess \
     --preset M3_2 \
     --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
@@ -123,4 +140,4 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
 
 ---
 
-*Dataset Documentation v1.0 | 2026-01-26*
+*Dataset Documentation v2.0 | 2026-01-26 | Individual Dataset Specs Added*
