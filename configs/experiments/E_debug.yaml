@@ -1,6 +1,5 @@
 # E_debug.yaml - Minimal Debug (1 step)
 # Usage: torchrun ... -d M1 -e E_debug
-# Expected runtime: ~30 seconds
 
 training:
   schedule:
@@ -24,11 +23,21 @@ validation:
 
 visualization:
   turntable:
+    # Smooth trajectory between cameras
     smooth_trajectory: true
-    camera_order: [1, 3, 5, 0, 4, 2]  # 시계방향 360도 순회
+    camera_order: [1, 3, 5, 0, 4, 2]
     loop: true
-    fps: 15
-    save_video: true
-    num_views: 60          # 부드러운 보간을 위해 증가
+    
+    # Video settings - 20초 이상, 천천히
+    num_views: 360             # 6 transitions × 60 frames = ~4초/transition
+    fps: 10                    # 360/10 = 36초 총 길이
+    
+    # Grid settings
     grid_rows: 6
-    grid_cols: 10          # 6x10 = 60
+    grid_cols: 10              # 60 views for grid image
+    resolution: 384
+    
+    # Save both videos
+    save_video: true
+    save_dataset_views_video: true  # NEW: 각 카메라 정적 뷰 영상
+    dataset_views_fps: 2            # 카메라당 0.5초

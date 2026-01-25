@@ -57,6 +57,7 @@ from mouse_extensions.model import (
 from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
 # Alpha visualization
 from mouse_extensions.visualization import (
+    create_dataset_views_video,
     visualize_alpha_comparison,
     should_visualize_alpha,
     compute_alpha_metrics,
@@ -1702,7 +1703,7 @@ class GSLRM(nn.Module):
             
             # Add row labels if enabled (e.g., "Cam 1 -> 3")
             if turntable_cfg.get("add_row_labels", False):
-                camera_order = turntable_cfg.get("camera_order", [0, 4, 2, 1, 3, 5])
+                camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
                 turntable_grid = add_row_labels_to_grid(
                     turntable_grid, camera_order, grid_rows, grid_cols, h_img
                 )
@@ -1733,6 +1734,15 @@ class GSLRM(nn.Module):
                 Image.fromarray(dataset_strip).save(
                     os.path.join(output_directory, f"dataset_views_{item_uid}.jpg")
                 )
+                
+                # Save dataset views video (static view from each camera, cycling)
+                if turntable_cfg.get("save_dataset_views_video", False):
+                    create_dataset_views_video(
+                        dataset_views,
+                        os.path.join(output_directory, f"dataset_views_{item_uid}.mp4"),
+                        turntable_cfg,
+                        imageseq2video,
+                    )
 
             # Save individual input images during inference
             if self.config.inference:
@@ -1979,7 +1989,7 @@ class GSLRM(nn.Module):
             input_sequence = np.tile(bordered_input[None], (turntable_frames.shape[0], 1, 1, 1))
             combined_frames = np.concatenate((turntable_frames, input_sequence), axis=1)
             
-            imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=15)
+            imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=turntable_fps)
     
     @torch.no_grad()
     def save_evaluations(self, out_dir: str, result: edict, batch: edict, dataset) -> None:
@@ -2166,7 +2176,7 @@ class GSLRM(nn.Module):
                 
                 # Add row labels if enabled
                 if turntable_cfg.get("add_row_labels", False):
-                    camera_order = turntable_cfg.get("camera_order", [0, 4, 2, 1, 3, 5])
+                    camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
                     grid_image = add_row_labels_to_grid(
                         grid_image, camera_order, grid_rows, grid_cols, h_img
                     )
@@ -2189,7 +2199,7 @@ class GSLRM(nn.Module):
                 input_sequence = np.tile(bordered_input[None], (turntable_frames.shape[0], 1, 1, 1))
                 combined_frames = np.concatenate((turntable_frames, input_sequence), axis=1)
                 
-                imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=15)
+                imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=turntable_fps)
                 
                 # Save dataset views (actual camera viewpoints for comparison)
                 try:
@@ -2205,6 +2215,15 @@ class GSLRM(nn.Module):
                     Image.fromarray(dataset_strip).save(
                         os.path.join(item_output_dir, f"dataset_views_{item_uid}.jpg")
                     )
+                    
+                    # Save dataset views video (static view from each camera, cycling)
+                    if turntable_cfg.get("save_dataset_views_video", False):
+                        create_dataset_views_video(
+                            dataset_views,
+                            os.path.join(item_output_dir, f"dataset_views_{item_uid}.mp4"),
+                            turntable_cfg,
+                            imageseq2video,
+                        )
                 except Exception as e:
                     print(f"Warning: Could not save dataset_views: {e}")
         
