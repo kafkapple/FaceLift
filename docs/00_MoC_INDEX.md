@@ -9,105 +9,126 @@
 
 ```
 docs/
-+-- 00_MoC_INDEX.md (이 문서)
-|
-+-- analysis/                     # 분석 보고서
-|   +-- COMPREHENSIVE_ANALYSIS_260125.md
-|   +-- PP_MVG_COMPREHENSIVE_ANALYSIS.md
-|   +-- TRAIN_VAL_GAP_ANALYSIS.md
-|
-+-- datasets/                     # 데이터셋 명세
-|   +-- VERSION_SCHEMA.md          # 버전 체계 설명 ★NEW
-|   +-- M3_SERIES_SPEC.md         # M3 시리즈 상세
-|
-+-- theory/                       # 이론 문서
-|   +-- PP_FX_MVG_ANALYSIS.md     # PP/fx 종합 분석 (v2.1) ⭐
-|   +-- PREPROCESSING_METHODS_COMPARISON.md  # 전처리 방식 비교 ★NEW
-|   +-- camera/
-|       +-- (legacy)
-|
-+-- PREPROCESSING_REGISTRY.md     # 전처리 레지스트리
-+-- EXPERIMENT_REGISTRY.md        # 실험 레지스트리
-+-- HYPOTHESIS_EXPERIMENT_PLAN.md # 가설 검증 계획
-+-- MOUSE_QUICK_REFERENCE.md      # 빠른 참조
+├── 00_MoC_INDEX.md (이 문서)
+│
+├── datasets/                     # 데이터셋 문서 (SSOT) ⭐
+│   ├── 00_INDEX.md               # Dataset Hub ★NEW
+│   ├── VERSION_SCHEMA.md         # 버전 체계
+│   ├── M3_SERIES_SPEC.md         # M3 시리즈 상세
+│   ├── PREPROCESSING_REGISTRY.md # 전처리 레지스트리 (통합) ★UPDATED
+│   ├── EXPERIMENT_RESULTS.md     # 실험 결과표 ★NEW
+│   ├── HYPOTHESIS_VERIFICATION.md# 가설 검증 매트릭스 ★NEW
+│   ├── RAW_DATA.md               # 원본 데이터 출처 ★NEW
+│   └── CAMERA_CONFIG.md          # 카메라 배치 ★NEW
+│
+├── theory/                       # 이론 문서
+│   ├── PP_FX_MVG_ANALYSIS.md     # PP/fx 종합 분석 ⭐
+│   ├── PREPROCESSING_METHODS_COMPARISON.md
+│   └── camera/ (legacy)
+│
+├── analysis/                     # 분석 보고서
+│   ├── COMPREHENSIVE_ANALYSIS_260125.md
+│   ├── PP_MVG_COMPREHENSIVE_ANALYSIS.md
+│   └── TRAIN_VAL_GAP_ANALYSIS.md
+│
+├── practical/                    # 실무 가이드
+│   ├── MOUSE_QUICK_REFERENCE.md  # 빠른 참조
+│   └── datasets/ (→ ../datasets/ 리다이렉트)
+│
+├── EXPERIMENT_REGISTRY.md        # 실험 레지스트리
+├── HYPOTHESIS_EXPERIMENT_PLAN.md # 가설 검증 계획
+└── PREPROCESSING_REGISTRY.md     # (→ datasets/ 리다이렉트)
 ```
 
 ---
 
 ## 2. 데이터셋 Quick Reference
 
-### 2.1 MVG-Correct 데이터셋 (권장)
+### 2.1 M-Series (권장)
 
-| ID | 설명 | PP | fx | 상세 |
-|----|------|-----|-----|------|
-| D3_normalized | PP shift, no zoom | 256 | 549 | PSNR 27.09 |
-| D7_1 | Affine transform | 256 | 549 | PSNR 20.93 |
-| D8 | Homography + skew | 256 | 549 | PSNR 20.21 |
-| **M3_1** | Global zoom + MVG | 256 | 549 | [[M3_SERIES_SPEC]] |
-| **M3_2** | Per-sample zoom + MVG | 256 | 549 | [[M3_SERIES_SPEC]] (권장) |
+| Alias | Preset | PP | fx | Coverage | 상태 |
+|-------|--------|-----|-----|----------|------|
+| M1 | D7.1 | 256 | 549 | ~50% | ✅ 기준선 |
+| M2 | D8 | 256 | 549 | ~50% | ✅ 정밀 |
+| M3 | D10.3 | 가변 | 739 | ~78% | ⚠️ H2 검증용 |
+| **M3_1** | M3_1 | 256 | 549 | ~78% | ✅ MVG-correct |
+| **M3_2** | M3_2 | 256 | 549 | ~78% | ⭐ **권장** |
 
-### 2.2 Deprecated 데이터셋 (MVG 부정합)
+**상세**: [[datasets/00_INDEX]]
 
-| ID | 문제점 | Ray Error | 대체 |
-|----|--------|-----------|------|
-| M3 | fx=739 미정규화 | 6.96도 | M3_1 |
-| M3_norm | PP 가변 | 13.62도 | M3_1 |
-| M3_persample | PP 가변 | 16.15도 | M3_2 |
+### 2.2 실험 결과 요약
+
+| Dataset | Val PSNR | Coverage | 비고 |
+|---------|----------|----------|------|
+| D3_normalized | **27.09** | 84.3% | 최고 성능 |
+| D7_1 | 20.93 | 50.5% | 기준선 |
+| M3_norm | 17.09 | 78.5% | PP 문제 |
+| **M3_1/M3_2** | TBD | 78%+ | 검증 완료 |
+
+**상세**: [[datasets/EXPERIMENT_RESULTS]]
 
 ---
 
 ## 3. 문서 관계도 (Backlinks)
 
-### 3.1 PP/MVG 정합성 문서 체인
+### 3.1 데이터셋 문서 체인 (SSOT)
 
 ```
-PP_FIX_MVG_THEORY.md (이론)
-    |-- PP_MVG_COMPREHENSIVE_ANALYSIS.md (분석)
-    |-- M3_SERIES_SPEC.md (구현)
-    +-- PREPROCESSING_REGISTRY.md (프리셋)
+datasets/00_INDEX.md (Hub)
+    ├── VERSION_SCHEMA.md (버전 체계)
+    ├── M3_SERIES_SPEC.md (M3 상세)
+    ├── PREPROCESSING_REGISTRY.md (프리셋)
+    ├── EXPERIMENT_RESULTS.md (결과)
+    ├── HYPOTHESIS_VERIFICATION.md (가설)
+    ├── RAW_DATA.md (원본)
+    └── CAMERA_CONFIG.md (카메라)
 ```
 
-### 3.2 실험 분석 문서 체인
+### 3.2 PP/MVG 이론 체인
+
+```
+theory/PP_FX_MVG_ANALYSIS.md (이론)
+    ├── analysis/PP_MVG_COMPREHENSIVE_ANALYSIS.md (분석)
+    ├── datasets/M3_SERIES_SPEC.md (구현)
+    └── datasets/PREPROCESSING_REGISTRY.md (프리셋)
+```
+
+### 3.3 실험 분석 체인
 
 ```
 HYPOTHESIS_EXPERIMENT_PLAN.md (가설)
-    |-- EXPERIMENT_REGISTRY.md (실험)
-    |-- TRAIN_VAL_GAP_ANALYSIS.md (Gap)
-    +-- PP_MVG_COMPREHENSIVE_ANALYSIS.md (PP)
+    ├── EXPERIMENT_REGISTRY.md (실험)
+    ├── datasets/EXPERIMENT_RESULTS.md (결과)
+    └── analysis/TRAIN_VAL_GAP_ANALYSIS.md (Gap)
 ```
-
-### 3.3 전체 Backlink Matrix
-
-| From \ To | MoC | PP_Theory | PP_Analysis | M3_Spec | PreReg | ExpReg | Gap |
-|------------|-----|-----------|-------------|---------|--------|--------|-----|
-| **00_MoC_INDEX** | - | O | O | O | O | O | O |
-| **PP_FIX_MVG_THEORY** | O | - | O | - | O | - | - |
-| **PP_MVG_COMPREHENSIVE** | O | O | - | - | O | O | O |
-| **M3_SERIES_SPEC** | O | - | O | - | O | O | O |
-| **PREPROCESSING_REG** | O | O | O | O | - | O | - |
-| **EXPERIMENT_REG** | O | - | - | - | O | - | O |
-| **TRAIN_VAL_GAP** | O | - | O | - | - | O | - |
 
 ---
 
 ## 4. 주제별 빠른 참조
 
-### 4.1 PP (Principal Point) 문제
+### 4.1 데이터셋 선택
 
 | 질문 | 참조 문서 |
 |------|-----------|
-| PP 정합성이란? | [[PP_FIX_MVG_THEORY]] |
-| 데이터셋별 PP 현황은? | [[PP_MVG_COMPREHENSIVE_ANALYSIS]] |
-| M3 시리즈 어떤 걸 써야? | [[M3_SERIES_SPEC]] |
-| 새 프리셋 추가는? | [[PREPROCESSING_REGISTRY]] |
+| 어떤 데이터셋 써야? | [[datasets/00_INDEX]] |
+| M3 시리즈 차이는? | [[datasets/M3_SERIES_SPEC]] |
+| 실험 결과 비교? | [[datasets/EXPERIMENT_RESULTS]] |
+| 가설 검증 현황? | [[datasets/HYPOTHESIS_VERIFICATION]] |
 
-### 4.2 실험 설정
+### 4.2 전처리
 
 | 질문 | 참조 문서 |
 |------|-----------|
-| 어떤 실험 설정 써야? | [[EXPERIMENT_REGISTRY]] |
-| Train-Val Gap 의미는? | [[TRAIN_VAL_GAP_ANALYSIS]] |
-| 가설 검증 계획은? | [[HYPOTHESIS_EXPERIMENT_PLAN]] |
+| 프리셋 정의는? | [[datasets/PREPROCESSING_REGISTRY]] |
+| 원본 데이터는? | [[datasets/RAW_DATA]] |
+| 카메라 배치는? | [[datasets/CAMERA_CONFIG]] |
+
+### 4.3 PP/MVG 이론
+
+| 질문 | 참조 문서 |
+|------|-----------|
+| PP 정합성이란? | [[theory/PP_FX_MVG_ANALYSIS]] |
+| Ray Error 공식? | [[datasets/HYPOTHESIS_VERIFICATION#ray-error]] |
 
 ---
 
@@ -119,22 +140,36 @@ HYPOTHESIS_EXPERIMENT_PLAN.md (가설)
 
 ```bash
 cd /home/joon/dev/FaceLift
-/home/joon/anaconda3/envs/facelift/bin/python \
-    mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py --verbose
+python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
+    --datasets M3_1,M3_2 --verbose
 ```
 
 ---
 
 ## 6. 권장 워크플로우
 
-### 새 실험 시작 시
+### 새 실험 시작
 
-1. [[M3_SERIES_SPEC]] 확인 -> M3_1 또는 M3_2 선택
-2. 전처리 실행
-3. verify_pp_mvg_consistency.py 로 PP 검증
-4. [[EXPERIMENT_REGISTRY]] 참조 -> 실험 설정 선택
-5. 학습 실행
-6. [[TRAIN_VAL_GAP_ANALYSIS]] 와 결과 비교
+1. [[datasets/00_INDEX]] 확인 → M3_2 권장
+2. 전처리 실행 (--preset M3_2)
+3. verify_pp_mvg_consistency.py 검증
+4. [[EXPERIMENT_REGISTRY]] → E1_2_gt_alpha 선택
+5. 학습 실행 (`-d M3_2 -e E1_2_gt_alpha`)
+6. [[datasets/EXPERIMENT_RESULTS]] 와 비교
+
+### Quick Command
+
+```bash
+# M3_2 전처리
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M3_2 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
+
+# 학습 (권장)
+CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3_2 -e E1_2_gt_alpha
+```
 
 ---
 
@@ -142,11 +177,12 @@ cd /home/joon/dev/FaceLift
 
 | 날짜 | 변경 |
 |------|------|
-| 2026-01-25 | M3_1, M3_2 도입 (M3_norm_centered, M3_persample_centered에서 이름 변경) |
-| 2026-01-25 | M3_SERIES_SPEC.md 신규 생성 |
-| 2026-01-25 | PP_MVG_COMPREHENSIVE_ANALYSIS.md 신규 생성 |
-| 2026-01-25 | verify_pp_mvg_consistency.py 신규 생성 |
+| **2026-01-26** | **datasets/ 문서 통합 (SSOT 단일화)** ★ |
+| 2026-01-26 | 00_INDEX, EXPERIMENT_RESULTS, HYPOTHESIS_VERIFICATION, RAW_DATA, CAMERA_CONFIG 신규 |
+| 2026-01-26 | practical/datasets, preprocessing → datasets 리다이렉트 |
+| 2026-01-25 | M3_1, M3_2 도입 |
+| 2026-01-25 | M3_SERIES_SPEC.md 신규 |
 
 ---
 
-*MoC Index v2.1 | 2026-01-25*
+*MoC Index v3.0 | 2026-01-26 | Dataset Documentation Unified*
