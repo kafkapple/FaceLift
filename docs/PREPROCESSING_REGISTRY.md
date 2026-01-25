@@ -62,3 +62,32 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py --verbo
 **재전처리 필요**: M3_1, M3_2 데이터셋 삭제 후 재생성
 
 **상세**: [[theory/PP_FX_MVG_ANALYSIS#11-버그-발견-및-수정-2026-01-25]]
+
+---
+
+## Raw Data Notes: markerless_mouse_1_nerf
+
+### Frame Discontinuity
+원본 비디오에서 일부 위치에 프레임 불연속(갭)이 존재합니다:
+
+```python
+DISCONTINUITY_FRAMES = {5900, 11800, 17700}
+```
+
+**중요**: 
+- 이 프레임들 자체는 **정상**이며 학습에서 **제외하지 않음**
+- 단지 해당 위치에서 원본 녹화가 끊겼음을 표시
+- Temporal 연속성을 가정하는 알고리즘 사용 시 주의 필요
+
+### 샘플 수 계산
+- Raw: 18,000 frames
+- frame_interval=5 → **3,600 샘플** (전체 사용)
+
+### 검증 도구
+```bash
+# 특정 프레임 주변 슬로우모션 추출
+python mouse_extensions/scripts/extract_frame_context.py \
+    --video /path/to/video.mp4 \
+    --frames 5900,11800,17700 \
+    --speed 0.1
+```

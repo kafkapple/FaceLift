@@ -54,7 +54,12 @@ from .presets import PRESETS, get_preset, get_recommended, list_presets as list_
 
 # Constants
 GSLRM_EXACT_FX = 548.9937744140625
-JUMP_FRAMES = {5900, 11800, 17700}
+
+# Frame discontinuity markers (markerless_mouse_1_nerf dataset)
+# These frames mark positions where temporal discontinuity occurs (some frames missing in raw data)
+# Note: These frames themselves are valid and should NOT be excluded from training.
+# They only indicate where the video has gaps in the original recording.
+DISCONTINUITY_FRAMES = {5900, 11800, 17700}  # For documentation only, not used for exclusion
 
 # Up-alignment utilities
 def load_up_direction(vertical_lines_path: Path) -> np.ndarray:
@@ -1067,7 +1072,7 @@ _stats:
                 self._init_center_estimator()
             
             total_frames = len(self.data_loader)
-            frame_indices = [i for i in range(0, total_frames, cfg.frame_interval) if i not in JUMP_FRAMES]
+            frame_indices = list(range(0, total_frames, cfg.frame_interval))
             if cfg.max_samples:
                 frame_indices = frame_indices[:cfg.max_samples]
             
@@ -1195,7 +1200,7 @@ _stats:
             mask_caps = [cv2.VideoCapture(str(mask_dir / f"{i}.mp4")) for i in range(self.num_views)]
 
             total_frames = int(video_caps[0].get(cv2.CAP_PROP_FRAME_COUNT))
-            frame_indices = [i for i in range(0, total_frames, cfg.frame_interval) if i not in JUMP_FRAMES]
+            frame_indices = list(range(0, total_frames, cfg.frame_interval))
             if cfg.max_samples:
                 frame_indices = frame_indices[:cfg.max_samples]
 
