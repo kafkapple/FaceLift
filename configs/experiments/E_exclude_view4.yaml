@@ -10,9 +10,9 @@ model:
 
 training:
   dataset:
-    # View 4 제외 (index 4)
+    # View 4 제외 (camera index 4)
     # 실제 사용 뷰: [0, 1, 2, 3, 5]
-    exclude_views: [4]
+    exclude_camera_indices: [4]
     random_view_selection: true
     target_has_input: true
 
