@@ -392,7 +392,13 @@ class MouseViewDataset(Dataset):
                     intrinsics *= resize_ratio
 
                 # Extract camera pose (w2c -> c2w)
-                c2w = np.linalg.inv(np.array(camera["w2c"]))
+                # Use explicit R.T and -R.T @ t instead of np.linalg.inv() to avoid
+                # numerical precision issues in the last row [0,0,0,1]
+                w2c = np.array(camera["w2c"])
+                R, t = w2c[:3, :3], w2c[:3, 3]
+                c2w = np.eye(4)
+                c2w[:3, :3] = R.T
+                c2w[:3, 3] = -R.T @ t
 
                 # Convert image to tensor
                 image_np = pil_to_np(image).astype(np.float32) / 255.0
@@ -629,7 +635,12 @@ class MouseSingleViewDataset(Dataset):
                 camera["cy"] * resize_ratio
             ])
 
-        c2w = np.linalg.inv(np.array(camera["w2c"]))
+        # Use explicit R.T and -R.T @ t instead of np.linalg.inv()
+        w2c = np.array(camera["w2c"])
+        R, t = w2c[:3, :3], w2c[:3, 3]
+        c2w = np.eye(4)
+        c2w[:3, :3] = R.T
+        c2w[:3, 3] = -R.T @ t
 
         # Normalize camera to Z-up (matches human data / GS-LRM pretrained)
         c2w_array = np.array([c2w])
