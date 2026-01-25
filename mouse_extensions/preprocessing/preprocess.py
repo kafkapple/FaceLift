@@ -955,12 +955,26 @@ class UnifiedPreprocessor:
         # Per-sample zoom calculation
         zoom_scope = getattr(cfg, 'zoom_scope', 'global')
         if zoom_scope == 'per_sample' and cfg.adaptive_zoom:
-            # Compute zoom for this specific sample based on its masks
+            # ★ BUG FIX (2026-01-25): Apply transform first if zoom_after_transform is True
             from mouse_extensions.preprocessing.preprocess import compute_persample_zoom_coverage
-            # Use first view's mask (or average across views)
-            sample_zoom = compute_persample_zoom_coverage(
-                masks[0], cfg.target_fg_coverage, cfg.zoom_range
-            )
+            
+            if getattr(cfg, 'zoom_after_transform', False):
+                # Compute coverage on TRANSFORMED mask (not original)
+                temp_mask = masks[0].copy()
+                M = transforms[0]
+                if cfg.transform == TransformType.HOMOGRAPHY:
+                    temp_mask = cv2.warpPerspective(
+                        (temp_mask > 0).astype(np.uint8) * 255, M,
+                        (cfg.output_size, cfg.output_size), flags=cv2.INTER_NEAREST)
+                else:
+                    temp_mask = cv2.warpAffine(
+                        (temp_mask > 0).astype(np.uint8) * 255, M[:2],
+                        (cfg.output_size, cfg.output_size), flags=cv2.INTER_NEAREST)
+                sample_zoom = compute_persample_zoom_coverage(
+                    temp_mask, cfg.target_fg_coverage, cfg.zoom_range)
+            else:
+                sample_zoom = compute_persample_zoom_coverage(
+                    masks[0], cfg.target_fg_coverage, cfg.zoom_range)
             frame_zoom = sample_zoom
         else:
             frame_zoom = cfg.zoom

@@ -374,3 +374,33 @@ print(f"cx: mean={np.mean(cx_list):.1f}, std={np.std(cx_list):.1f}")
 ---
 
 *Bug Fix Log: 2026-01-25 | Author: Claude Code*
+
+### 11.8 Per-sample Zoom 버그 (2026-01-25 추가 발견)
+
+**문제**: `zoom_after_transform: True`가 per-sample zoom에서 무시됨
+
+**영향 데이터셋**: M3_2, M3_persample
+
+**증상**:
+```
+원본 마스크 coverage: ~5% → zoom ≈ 1.0 계산
+Homography 적용 후: coverage ~2.77% (감소)
+결과: 목표 5% 미달, zoom 거의 없음
+```
+
+**수정 코드** (`preprocess.py:955-980`):
+```python
+if getattr(cfg, "zoom_after_transform", False):
+    # Compute coverage on TRANSFORMED mask (not original)
+    temp_mask = masks[0].copy()
+    M = transforms[0]
+    temp_mask = cv2.warpPerspective(...)  # Transform first
+    sample_zoom = compute_persample_zoom_coverage(temp_mask, ...)
+```
+
+**수정 후 동작**:
+```
+Transform 후 마스크 coverage: ~2.77%
+zoom = sqrt(5% / 2.77%) ≈ 1.34x
+결과: 목표 5% 달성
+```

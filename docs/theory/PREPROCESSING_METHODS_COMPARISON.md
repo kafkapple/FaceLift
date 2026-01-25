@@ -288,3 +288,17 @@ python -m mouse_extensions.preprocessing.preprocess \
 ---
 
 *PREPROCESSING_METHODS_COMPARISON v1.0 | 2026-01-25*
+
+---
+
+## 10. 버그 수정 이력
+
+### 2026-01-25: Per-sample zoom_after_transform 버그
+
+**문제**: Per-sample zoom이 원본 마스크로 계산됨 (transform 전)
+
+**영향**: M3_2, M3_persample (zoom ≈ 1.0으로 거의 효과 없음)
+
+**수정**: `preprocess.py:955-980` - transform 후 마스크로 coverage 계산
+
+**관련**: [[PP_FX_MVG_ANALYSIS#11-8-per-sample-zoom-버그]]
