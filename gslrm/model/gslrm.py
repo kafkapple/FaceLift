@@ -1638,7 +1638,8 @@ class GSLRM(nn.Module):
                     num_views=turntable_views,
                     camera_order=camera_order,
                     loop=loop_trajectory,
-                    show_overlay=False
+                    show_overlay=False,
+                    original_resolution=input_resolution,
                 )
                 # turntable_frames: [num_views, H, W, 3]
                 turntable_image = rearrange(turntable_frames, "v h w c -> h (v w) c")
@@ -1723,11 +1724,14 @@ class GSLRM(nn.Module):
             
             # Additionally save dataset camera views for direct GT comparison
             if turntable_cfg.get("save_dataset_views", True):
+                # Get original resolution from input data (already scaled by dataset)
+                input_resolution = input_data.image.size(3)
                 dataset_views = render_dataset_views(
                     model_results.gaussians[batch_idx],
                     dataset_c2ws, dataset_fxfycxcy,
                     rendering_resolution=turntable_resolution,
-                    show_overlay=False
+                    show_overlay=False,
+                    original_resolution=input_resolution,
                 )
                 # Arrange as horizontal strip
                 dataset_strip = rearrange(dataset_views, "v h w c -> h (v w) c")
@@ -2145,7 +2149,8 @@ class GSLRM(nn.Module):
                         num_views=num_turntable_views,
                         camera_order=camera_order,
                         loop=loop_trajectory,
-                        show_overlay=False
+                        show_overlay=False,
+                    original_resolution=input_resolution,
                     )
                 else:
                     # Standard 360 turntable
@@ -2205,11 +2210,14 @@ class GSLRM(nn.Module):
                 try:
                     dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()
                     dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()
+                    # Get input resolution for intrinsics scaling
+                    input_resolution = input_data.image.size(3)
                     dataset_views = render_dataset_views(
                         model_results.gaussians[batch_idx],
                         dataset_c2ws, dataset_fxfycxcy,
                         rendering_resolution=render_resolution,
-                        show_overlay=False
+                        show_overlay=False,
+                        original_resolution=input_resolution,
                     )
                     dataset_strip = rearrange(dataset_views, "v h w c -> h (v w) c")
                     Image.fromarray(dataset_strip).save(

@@ -1343,9 +1343,15 @@ def render_dataset_views(
     dataset_fxfycxcy: np.ndarray,  # [num_cams, 4]
     rendering_resolution: int = 384,
     show_overlay: bool = True,
+    original_resolution: int = None,  # Original image resolution for intrinsics scaling
 ):
     """
     Render from exact dataset camera positions for GT comparison.
+    
+    Args:
+        original_resolution: If provided and different from rendering_resolution,
+            intrinsics will be scaled accordingly. If None, assumes intrinsics
+            are already scaled for rendering_resolution.
     
     Returns:
         frames: [num_cams, H, W, 3] uint8
@@ -1356,6 +1362,12 @@ def render_dataset_views(
     
     fxfycxcy = torch.from_numpy(dataset_fxfycxcy).float().to(device)
     c2ws = torch.from_numpy(dataset_c2ws).float().to(device)
+    
+    # Scale intrinsics if rendering at different resolution than original
+    if original_resolution is not None and original_resolution != rendering_resolution:
+        scale = rendering_resolution / original_resolution
+        # Scale fx, fy, cx, cy
+        fxfycxcy = fxfycxcy * scale
     
     frames = []
     for j in range(num_cams):
