@@ -1333,6 +1333,8 @@ def render_dataset_trajectory(
     return frames, segments
 
 
+@torch.no_grad()
+@torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
 def render_dataset_views(
     pc,  # GaussianModel
     dataset_c2ws: np.ndarray,  # [num_cams, 4, 4]

@@ -971,6 +971,21 @@ class GSLRMTrainer:
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
 
+        # Find dataset_views images (actual camera viewpoints)
+        dataset_views_files = glob.glob(os.path.join(vis_dir, "**/dataset_views_*.jpg"), recursive=True)
+        for i, f in enumerate(dataset_views_files[:1]):  # Limit to 1 image
+            try:
+                img = PILImage.open(f)
+                filename = os.path.basename(f)
+                uid_info = filename.replace("dataset_views_", "").replace(".jpg", "")
+                caption = (
+                    f"Step {self.fwdbwd_pass_step} | UID: {uid_info}\n"
+                    f"Dataset camera views ({num_views} views) | Camera: {norm_status}"
+                )
+                wandb_images[f"{img_prefix}/dataset_views_{i}"] = wandb.Image(img, caption=caption)
+            except Exception as e:
+                print(f"Warning: Could not load image {f}: {e}")
+
         # Find gt_vs_pred images in subdirectories
         gt_pred_files = glob.glob(os.path.join(vis_dir, "**/gt_vs_pred.png"), recursive=True)
         for i, f in enumerate(gt_pred_files[:2]):  # Limit to 2 images
@@ -1001,6 +1016,22 @@ class GSLRMTrainer:
                 wandb_images[f"{img_prefix}/gaussian_vis_{i}"] = wandb.Image(img, caption=caption)
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
+
+        # Find alpha comparison images (when alpha_loss_weight > 0)
+        alpha_files = glob.glob(os.path.join(vis_dir, "alpha_comparison_*.jpg"))
+        for i, f in enumerate(alpha_files[:1]):  # Limit to 1 image
+            try:
+                img = PILImage.open(f)
+                filename = os.path.basename(f)
+                uid_info = filename.replace("alpha_comparison_", "").replace(".jpg", "")
+                caption = (
+                    f"Step {self.fwdbwd_pass_step} | UIDs: {uid_info}\n"
+                    f"Row 0: GT Mask | Row 1: Rendered Alpha | Row 2: Alpha>0.5 | Row 3: Diff\n"
+                    f"Diff Colors: Green=TP, Red=FP, Blue=FN"
+                )
+                wandb_images[f"{img_prefix}/alpha_comparison_{i}"] = wandb.Image(img, caption=caption)
+            except Exception as e:
+                print(f"Warning: Could not load alpha comparison image {f}: {e}")
 
         if wandb_images:
             wandb.log(wandb_images, step=self.fwdbwd_pass_step)

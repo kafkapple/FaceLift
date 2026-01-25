@@ -55,6 +55,15 @@ from mouse_extensions.model import (
 )
 # Literature-based mask losses (v2.0)
 from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
+# Alpha visualization
+from mouse_extensions.visualization import (
+    visualize_alpha_comparison,
+    should_visualize_alpha,
+    compute_alpha_metrics,
+    MOUSE_CAMERA_ORDER,
+    DEFAULT_TURNTABLE_CONFIG,
+)
+
 from mouse_extensions.model.mask_losses import (
     compute_alpha_supervision_loss,
     compute_background_penalty_loss,
@@ -1556,6 +1565,42 @@ class GSLRM(nn.Module):
                 os.path.join(output_directory, f"input_{uid_range}.jpg")
             )
 
+            # Save alpha comparison if alpha loss is enabled
+            if should_visualize_alpha(self.config):
+                try:
+                    # Get GT mask and rendered alpha
+                    if hasattr(model_results, 'rendered_alpha') and model_results.rendered_alpha is not None:
+                        # Extract GT mask from RGBA image (alpha channel)
+                        if target_data.image.size(2) == 4:
+                            gt_mask = target_data.image[:, :, 3:4, :, :]  # [B, V, 1, H, W]
+                        else:
+                            print("Warning: No mask in RGBA format")
+                            return
+
+                        rendered_alpha = model_results.rendered_alpha  # [B, V, 1, H, W]
+                        
+                        # Use first batch item
+                        gt_mask_vis = gt_mask[0]  # [V, 1, H, W]
+                        alpha_vis = rendered_alpha[0]  # [V, 1, H, W]
+                        
+                        # Create comparison visualization
+                        alpha_comparison = visualize_alpha_comparison(
+                            gt_mask_vis, alpha_vis,
+                            num_views=gt_mask_vis.size(0),
+                            threshold=0.5
+                        )
+                        Image.fromarray(alpha_comparison).save(
+                            os.path.join(output_directory, f"alpha_comparison_{uid_range}.jpg")
+                        )
+                        
+                        # Compute and log metrics
+                        metrics = compute_alpha_metrics(gt_mask_vis, alpha_vis)
+                        with open(os.path.join(output_directory, f"alpha_metrics_{uid_range}.txt"), "w") as f:
+                            for k, v in metrics.items():
+                                f.write(f"{k}: {v:.4f}\n")
+                except Exception as e:
+                    print(f"Warning: Could not save alpha comparison: {e}")
+
         # Process each batch item individually
         batch_size = input_data.image.size(0)
         for batch_idx in range(batch_size):
@@ -1657,7 +1702,7 @@ class GSLRM(nn.Module):
             
             # Add row labels if enabled (e.g., "Cam 1 -> 3")
             if turntable_cfg.get("add_row_labels", False):
-                camera_order = turntable_cfg.get("camera_order", [1, 3, 5, 0, 4, 2])
+                camera_order = turntable_cfg.get("camera_order", [0, 4, 2, 1, 3, 5])
                 turntable_grid = add_row_labels_to_grid(
                     turntable_grid, camera_order, grid_rows, grid_cols, h_img
                 )
@@ -1672,7 +1717,7 @@ class GSLRM(nn.Module):
                 turntable_frames = turntable_image.reshape(h_img, turntable_views, w_per_view, 3)
                 turntable_frames = rearrange(turntable_frames, "h v w c -> v h w c")
                 turntable_frames = np.ascontiguousarray(turntable_frames)
-                turntable_fps = turntable_cfg.get("fps", 30)
+                turntable_fps = turntable_cfg.get("fps", 15)
                 imageseq2video(turntable_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=turntable_fps)
             
             # Additionally save dataset camera views for direct GT comparison
@@ -1901,7 +1946,7 @@ class GSLRM(nn.Module):
             turntable_frames = np.ascontiguousarray(turntable_frames)
             
             # Save basic turntable video
-            turntable_fps = turntable_cfg.get("fps", 30)
+            turntable_fps = turntable_cfg.get("fps", 15)
             imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=turntable_fps)
             
             # Save description and preview if available
@@ -1934,7 +1979,7 @@ class GSLRM(nn.Module):
             input_sequence = np.tile(bordered_input[None], (turntable_frames.shape[0], 1, 1, 1))
             combined_frames = np.concatenate((turntable_frames, input_sequence), axis=1)
             
-            imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=30)
+            imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=15)
     
     @torch.no_grad()
     def save_evaluations(self, out_dir: str, result: edict, batch: edict, dataset) -> None:
@@ -2083,7 +2128,7 @@ class GSLRM(nn.Module):
                 )
                 turntable_frames = np.ascontiguousarray(turntable_frames)
                 
-                imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=30)
+                imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=15)
                 
                 # Also save 6x6 grid image for quick inspection
                 turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
@@ -2098,12 +2143,12 @@ class GSLRM(nn.Module):
                 
                 # Add row labels if enabled
                 if turntable_cfg.get("add_row_labels", False):
-                    camera_order = turntable_cfg.get("camera_order", [1, 3, 5, 0, 4, 2])
+                    camera_order = turntable_cfg.get("camera_order", [0, 4, 2, 1, 3, 5])
                     grid_image = add_row_labels_to_grid(
                         grid_image, camera_order, grid_rows, grid_cols, h_img
                     )
                 
-                Image.fromarray(grid_image).save(os.path.join(item_output_dir, "turntable_grid.jpg"))
+                Image.fromarray(grid_image).save(os.path.join(item_output_dir, f"turntable_{item_uid}.jpg"))
                 
                 # Create turntable with input overlay
                 border_width = 2
@@ -2121,7 +2166,24 @@ class GSLRM(nn.Module):
                 input_sequence = np.tile(bordered_input[None], (turntable_frames.shape[0], 1, 1, 1))
                 combined_frames = np.concatenate((turntable_frames, input_sequence), axis=1)
                 
-                imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=30)
+                imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=15)
+                
+                # Save dataset views (actual camera viewpoints for comparison)
+                try:
+                    dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()
+                    dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()
+                    dataset_views = render_dataset_views(
+                        model_results.gaussians[batch_idx],
+                        dataset_c2ws, dataset_fxfycxcy,
+                        rendering_resolution=render_resolution,
+                        show_overlay=False
+                    )
+                    dataset_strip = rearrange(dataset_views, "v h w c -> h (v w) c")
+                    Image.fromarray(dataset_strip).save(
+                        os.path.join(item_output_dir, f"dataset_views_{item_uid}.jpg")
+                    )
+                except Exception as e:
+                    print(f"Warning: Could not save dataset_views: {e}")
         
         # Return averaged metrics with per-view breakdown
         result = {
