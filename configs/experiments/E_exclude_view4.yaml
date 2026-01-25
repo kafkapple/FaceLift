@@ -1,0 +1,21 @@
+# =============================================================================
+# E_exclude_view4: View 4 제외 실험 (5뷰)
+# =============================================================================
+# 목적: View 4 데이터 자체가 문제인지 격리 테스트
+# 가설: View 4의 낮은 coverage/밝기가 학습 방해
+
+model:
+  num_views: 5
+  num_input_views: 4
+
+training:
+  dataset:
+    # View 4 제외 (index 4)
+    # 실제 사용 뷰: [0, 1, 2, 3, 5]
+    exclude_views: [4]
+    random_view_selection: true
+    target_has_input: true
+
+  losses:
+    mask_mode: gt
+    alpha_loss_weight: 0.1
