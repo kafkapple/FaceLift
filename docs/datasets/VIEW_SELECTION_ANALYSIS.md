@@ -179,7 +179,7 @@ python mouse_extensions/scripts/diagnostics/analyze_per_view_psnr.py \
 
 | Priority | 실험 | 목적 |
 |----------|------|------|
-| P0 | M3_2 + E2_1_gt_alpha | 기본 검증 |
+| P0 | M3_2 + E1_2_alpha | 기본 검증 |
 | P1 | M3_2 + E1_2_random | H6 검증 |
 | P2 | M3_2 + E3_3_6v | Novel view 제거 |
 

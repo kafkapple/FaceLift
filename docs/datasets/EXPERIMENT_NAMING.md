@@ -5,142 +5,109 @@
 
 ---
 
-## 1. 명명 원칙
-
-### Core Principle: "random=1"
+## 1. 실제 실험 파일 목록
 
 ```
-기준선(baseline) = random view selection
-→ 실험 번호 1번으로 지정
+configs/experiments/
+├── E0_1_facelift.yaml          # FaceLift 원본 설정
+├── E0_1_1_facelift_alpha.yaml  # + alpha loss
+├── E0_1_2_facelift_fixed.yaml  # + fixed view
+├── E0_1_3_facelift_alpha_fixed.yaml
+├── E0_2_mouse.yaml             # Mouse 특화
+├── E1_1_base.yaml              # 기본 설정
+├── E1_2_alpha.yaml             # ⭐ GT mask + alpha (권장)
+├── E1_2_1_alpha_3v.yaml        # 3 view
+├── E1_2_2_alpha_5v.yaml        # 5 view
+├── E1_2_3_alpha_fixed.yaml     # fixed view
+├── E1_2_4_alpha_overfit.yaml   # overfit 테스트
+├── E1_3_lgm.yaml               # LGM 설정 (alpha=1.0)
+├── E2_1_alpha.yaml             # Alpha only (no mask)
+├── E_debug.yaml                # 디버깅용
+├── E_exclude_view4.yaml        # View 4 제외
+└── E_overfit_6v.yaml           # 6 view overfit
 ```
 
-**이유**: Random view selection이 가장 일반적인 설정이므로 기준선으로 사용
+---
 
-### 명명 형식
+## 2. 명명 규칙
 
+### 형식
 ```
-E{시리즈}_{번호}_{설명}
+E{카테고리}_{번호}_{설명}.yaml
 
 예시:
-- E1_1_paper_baseline  → E1 시리즈, 1번, 원본 논문 설정
-- E2_1_gt_alpha        → E2 시리즈, 1번, GT mask + alpha loss
+- E1_2_alpha  → E1 카테고리, 2번, alpha 관련
+- E0_1_facelift → E0 카테고리, 1번, facelift 원본
+```
+
+### 카테고리
+
+| 카테고리 | 의미 | 대표 실험 |
+|----------|------|-----------|
+| **E0** | Baseline (원본 설정) | E0_1_facelift |
+| **E1** | GT Mask 계열 | **E1_2_alpha** ⭐ |
+| **E2** | Alpha Only 계열 | E2_1_alpha |
+| **E_** | 특수 목적 | E_debug, E_overfit_6v |
+
+---
+
+## 3. 핵심 실험 비교
+
+| Config | mask_mode | alpha_loss | 설명 |
+|--------|-----------|------------|------|
+| **E1_2_alpha** | **gt** | 0.1 | ⭐ **권장** |
+| E2_1_alpha | none | 0.1 | Alpha만 |
+| E1_3_lgm | gt | 1.0 | LGM 설정 |
+| E0_1_facelift | none | 0.0 | 원본 |
+
+### E1_2_alpha.yaml (권장)
+```yaml
+training:
+  losses:
+    mask_mode: gt              # RGB loss → GT mask 영역
+    normalize_by_mask: true    # 작은 전경 보정
+    alpha_loss_weight: 0.1     # alpha 수렴 유도
 ```
 
 ---
 
-## 2. 실험 시리즈 계층
+## 4. 우선순위
 
-| 시리즈 | 주제 | 변수 | 설정 수 |
-|--------|------|------|---------|
-| **E1** | Paper Baseline | view selection | 2 |
-| **E2** | Mask Mode | gt / alpha / none | 3 |
-| **E3** | View Count | 4v / 5v / 6v | 3 |
-| **E4** | Alpha Tuning | weight 조절 | 3 |
-| **E5** | Loss Ablation | perceptual / bg | 3 |
-
----
-
-## 3. 상세 설정
-
-### E1: Paper Baseline
-
-| Config | 설명 | 핵심 설정 |
-|--------|------|-----------|
-| **E1_1_paper_baseline** | 원본 논문 설정 | fixed view [0,1,2,3] |
-| **E1_2_random_baseline** | Random view | random 4-view selection |
-
-### E2: Mask Mode
-
-| Config | 설명 | mask_mode | alpha_loss |
-|--------|------|-----------|------------|
-| **E2_1_gt_alpha** | GT mask + alpha | gt | 0.1 |
-| **E2_2_alpha_only** | Alpha mask only | alpha | 0.1 |
-| **E2_3_no_mask** | No masking | none | 0.0 |
-
-**권장**: E2_1_gt_alpha (GT mask가 가장 안정적)
-
-### E3: View Count
-
-| Config | 설명 | input_views | target_views |
-|--------|------|-------------|--------------|
-| **E3_1_4v** | 4 view | 4 | 2 |
-| **E3_2_5v** | 5 view | 5 | 1 |
-| **E3_3_6v** | 6 view | 6 | 0 (self) |
-
-### E4: Alpha Tuning
-
-| Config | 설명 | alpha_loss_weight |
-|--------|------|-------------------|
-| **E4_1_alpha_005** | Low alpha | 0.05 |
-| **E4_2_alpha_010** | Medium (기본) | 0.10 |
-| **E4_3_alpha_020** | High alpha | 0.20 |
-
-### E5: Loss Ablation
-
-| Config | 설명 | perceptual | background |
-|--------|------|------------|------------|
-| **E5_1_no_perceptual** | No perceptual | 0.0 | 0.1 |
-| **E5_2_no_background** | No background | 0.1 | 0.0 |
-| **E5_3_both** | Both enabled | 0.1 | 0.1 |
+| Priority | 데이터셋 | 실험 | 목적 |
+|----------|---------|------|------|
+| **P0** | M3_2 | **E1_2_alpha** | 27+ PSNR 목표 ⭐ |
+| **P1** | M3_1 | E1_2_alpha | Global zoom 비교 |
+| **P2** | D7_1 | E1_2_alpha | Affine baseline |
+| **P3** | D8 | E1_2_alpha | Homography 검증 |
 
 ---
 
-## 4. 우선순위 체계
+## 5. 실행 명령어
 
-| Priority | 의미 | 실험 예시 |
-|----------|------|-----------|
-| **P0** | 즉시 실행 | M3_2 + E2_1_gt_alpha |
-| **P1** | 높은 우선순위 | M3_1 + E2_1_gt_alpha |
-| **P2** | 중간 | View count 비교 |
-| **P3** | 낮음 | Alpha tuning |
-| **P4** | 선택적 | Loss ablation |
-
----
-
-## 5. 데이터셋 × 실험 매트릭스
-
-### 권장 조합
-
-| Dataset | 권장 실험 | 우선순위 | 목적 |
-|---------|-----------|----------|------|
-| **M3_2** | E2_1_gt_alpha | P0 | 27+ PSNR 목표 |
-| **M3_1** | E2_1_gt_alpha | P1 | Global zoom 비교 |
-| **D7_1** | E1_1_paper | P2 | Affine baseline |
-| **D8** | E2_1_gt_alpha | P2 | Homography 검증 |
-
-### 실행 명령어
-
+### P0: 권장 실험
 ```bash
 cd /home/joon/dev/FaceLift
 
-# P0: 권장 실험
 CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_2 -e E2_1_gt_alpha
+    train_gslrm.py -d M3_2 -e E1_2_alpha
+```
 
-# P1: 대안 실험
+### P1: 대안 실험
+```bash
 CUDA_VISIBLE_DEVICES=1 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_1 -e E2_1_gt_alpha
+    train_gslrm.py -d M3_1 -e E1_2_alpha
 ```
 
 ---
 
-## 6. 설정 파일 위치
+## 6. View Count 변형
 
-```
-configs/
-├── datasets/
-│   ├── D7_1.yaml
-│   ├── D8.yaml
-│   ├── M3_1.yaml
-│   └── M3_2.yaml
-└── experiments/
-    ├── E1_1_paper_baseline.yaml
-    ├── E1_2_random_baseline.yaml
-    ├── E2_1_gt_alpha.yaml
-    ├── E2_2_alpha_only.yaml
-    ├── E2_3_no_mask.yaml
-    └── ...
-```
+| Config | Input Views | Target Views |
+|--------|-------------|--------------|
+| E1_2_alpha | 4 | 2 |
+| E1_2_1_alpha_3v | 3 | 3 |
+| E1_2_2_alpha_5v | 5 | 1 |
+| E_overfit_6v | 6 | 0 |
 
 ---
 
@@ -153,4 +120,4 @@ configs/
 
 ---
 
-*Experiment Naming Convention v1.0 | 2026-01-26*
+*Experiment Naming Convention v1.1 | 2026-01-26 | Fixed to match actual files*

@@ -123,17 +123,17 @@ python -m mouse_extensions.preprocessing.preprocess \
     --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
 ```
 
-### 학습 실행 (권장: E2_1_gt_alpha)
+### 학습 실행 (권장: E1_2_alpha)
 ```bash
 CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_2 -e E2_1_gt_alpha
+    train_gslrm.py -d M3_2 -e E1_2_alpha
 ```
 
 ### 대안 실험
 ```bash
 # M3_1 (Global zoom) 비교
 CUDA_VISIBLE_DEVICES=1 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_1 -e E2_1_gt_alpha
+    train_gslrm.py -d M3_1 -e E1_2_alpha
 
 # Random view selection (H6 검증)
 CUDA_VISIBLE_DEVICES=2 torchrun --standalone --nproc_per_node=1 \

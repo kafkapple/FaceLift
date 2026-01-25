@@ -83,8 +83,8 @@ M3_2로 D3_normalized 수준 (PSNR 27+) 달성
 
 | Priority | Dataset | Experiment | 목표 |
 |----------|---------|------------|------|
-| **P0** | M3_2 | E1_2_gt_alpha | 27+ 목표 ⭐ |
-| P1 | M3_1 | E1_2_gt_alpha | Global zoom 비교 |
+| **P0** | M3_2 | E1_2_alpha | 27+ 목표 ⭐ |
+| P1 | M3_1 | E1_2_alpha | Global zoom 비교 |
 | P2 | M3_2 | E0_1_facelift | 원본 설정 비교 |
 
 ### 예상 시나리오

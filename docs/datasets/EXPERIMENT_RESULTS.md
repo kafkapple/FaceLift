@@ -14,8 +14,8 @@
 | D8 | E0 | 20.21 | 50% | 256 | 549 | Homography |
 | M3 | E0 | ~17 | 78% | 가변 | **739** | fx 미정규화 |
 | M3_norm | E0 | 17.09 | 78% | **가변** | 549 | PP 불일치 |
-| **M3_1** | E2_1_gt_alpha | TBD | 78%+ | 256 | 549 | ✅ 검증 완료 |
-| **M3_2** | E2_1_gt_alpha | TBD | 78%+ | 256 | 549 | ✅ 검증 완료 ⭐ |
+| **M3_1** | E1_2_alpha | TBD | 78%+ | 256 | 549 | ✅ 검증 완료 |
+| **M3_2** | E1_2_alpha | TBD | 78%+ | 256 | 549 | ✅ 검증 완료 ⭐ |
 
 ---
 
@@ -116,13 +116,13 @@ D3_normalized PSNR 27.09 = Coverage 74% + PP=256 + fx=549
 ### P0 (최우선) - D3_normalized 재현
 | Dataset | Experiment | 목표 |
 |---------|------------|------|
-| **M3_2** | E2_1_gt_alpha | Coverage↑ + PP=256 + fx=549 ⭐ |
-| M3_1 | E2_1_gt_alpha | Global zoom 대안 |
+| **M3_2** | E1_2_alpha | Coverage↑ + PP=256 + fx=549 ⭐ |
+| M3_1 | E1_2_alpha | Global zoom 대안 |
 
 ### P1 (기준선)
 | Dataset | Experiment | 목표 |
 |---------|------------|------|
-| D7_1 | E2_1_gt_alpha | 검증된 기준선 |
+| D7_1 | E1_2_alpha | 검증된 기준선 |
 
 ### P2 (가설 검증)
 | Dataset | Experiment | 검증 가설 |
@@ -134,13 +134,13 @@ D3_normalized PSNR 27.09 = Coverage 74% + PP=256 + fx=549
 
 ## 7. 실험 명령어
 
-### 7.1 M3_2 + E2_1_gt_alpha (권장)
+### 7.1 M3_2 + E1_2_alpha (권장)
 
 ```bash
 cd /home/joon/dev/FaceLift
 
 CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_2 -e E2_1_gt_alpha
+    train_gslrm.py -d M3_2 -e E1_2_alpha
 ```
 
 ### 7.2 H6 검증 (Random view)
@@ -154,7 +154,7 @@ CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d D7_1 -e E2_1_gt_alpha
+    train_gslrm.py -d D7_1 -e E1_2_alpha
 ```
 
 ---
