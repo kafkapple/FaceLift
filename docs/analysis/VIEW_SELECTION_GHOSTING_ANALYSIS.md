@@ -167,3 +167,79 @@ training:
 ---
 
 *FaceLift Mouse Extension Analysis | 2026-01-25*
+
+---
+
+## 7. 추가 분석 (2026-01-25 업데이트)
+
+### 7.1 View 각도 분석
+
+| View | Azimuth | Elevation | Input과 거리 |
+|------|---------|-----------|-------------|
+| 0 | -72.4° | -31.7° | (input) |
+| 1 | 65.6° | 31.5° | (input) |
+| 2 | 18.7° | 78.1° | (input) |
+| 3 | 79.1° | -11.1° | (input) |
+| **4** | -58.3° | 31.7° | **14°, 0.2°** |
+| **5** | 36.2° | -50.6° | **17.5°, 18.9°** |
+
+**발견**: 14-18° 차이로 PSNR 30→10 급락은 과도함
+
+### 7.2 View 특이사항
+
+| View | Coverage | Brightness | 상태 |
+|------|----------|------------|------|
+| 0-3 | 6.7-9.2% | 36-42 | 정상 |
+| **4** | **5.37%** | **27.9** | ⚠️ 작고 어두움 |
+| 5 | 8.99% | 59.2 | 밝지만 novel |
+
+### 7.3 뷰 밀도 비교
+
+```
+FaceLift 원본: 360°/32 = 11.25° 간격 (밀집)
+Mouse 6뷰:    360°/6  = 60° 간격 (희소)
+→ Novel view interpolation 거리 5배 이상
+```
+
+---
+
+## 8. 추가 해결 방안
+
+### Option D: Validation도 random input
+
+```python
+# mouse_dataset.py 수정
+if random_view_selection:  # split 조건 제거
+    input_indices = sorted(random.sample(all_indices, num_input_views))
+```
+
+**효과**: 모든 뷰가 train/val에서 동등하게 input 경험
+
+### Option E: 다른 고정 뷰 조합 테스트
+
+현재 [0,1,2,3] 대신:
+- [0,2,4,5]: View 4 포함
+- [1,3,4,5]: View 4,5 포함
+
+### Option F: Epoch별 뷰 순환
+
+```python
+# Epoch마다 input 뷰 순환
+epoch_offset = epoch % 6
+input_indices = [(i + epoch_offset) % 6 for i in range(4)]
+```
+
+### Option G: View 4 데이터 보강
+
+View 4가 어둡고 coverage 낮음:
+- 밝기 정규화 적용
+- 또는 View 4 제외 후 5뷰로 실험
+
+---
+
+## 9. 권장 실험 순서
+
+1. **E_overfit_6v** → 모든 뷰 학습 가능 확인
+2. **Validation random** → Train/Val 일관성 확보
+3. **5뷰 (View 4 제외)** → 문제 뷰 격리 테스트
+

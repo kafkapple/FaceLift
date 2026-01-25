@@ -470,6 +470,11 @@ DEBUG_ALL=1 python train_gslrm.py -d D7_1 -e E1_2_gt_alpha
 | `Debug: Loss` | `DEBUG_LOSS=1` | Loss 계산 |
 | `Debug: All` | `DEBUG_ALL=1` | 전체 추적 |
 
+  VSCode Debug 드롭다운에서 선택:                                                                                                                                                  
+  Debug: Mask Mode (DEBUG_MASK=1)  → BP1, BP2에서 멈춤                                                                                                                             
+  Debug: Loss (DEBUG_LOSS=1)       → BP3, BP4, BP5, BP6에서 멈춤                                                                                                                   
+  Debug: All (DEBUG_ALL=1)         → 모든 BP에서 멈춤           
+
 ### 7.5 커스텀 브레이크포인트 추가
 
 ```python
@@ -544,3 +549,112 @@ torchvision.utils.save_image(rendering[0], "/tmp/render_bp5.png")
 losses["l2"].item()
 losses["psnr"].item()
 ```
+
+---
+
+## 8. 최신 업데이트 (2026-01-25)
+
+### 8.1 새로운 데이터셋
+
+| Dataset | 특징 | 용도 |
+|---------|------|------|
+| D3_normalized | PP=256 고정, fx=549 | 기존 실험 |
+| M3 | D10.3 preset, adaptive zoom | 신규 권장 |
+| M3_1 | Center-aligned, PP=256 | M3 변형 |
+
+### 8.2 새로운 실험 Config
+
+| Config | 용도 | 특징 |
+|--------|------|------|
+| **E_debug** | 빠른 테스트 | 36 views, 18초 영상 |
+| **E_vis_quality** | 고품질 영상 | 180 views, 36초 영상 |
+| **E_overfit_6v** | Overfitting 테스트 | 6개 뷰 모두 input |
+
+### 8.3 View Selection 이슈 (중요!)
+
+**문제**: Validation에서 View 4, 5가 항상 novel view → PSNR 10-13
+
+**원인**: `mouse_dataset.py:276-279`
+```python
+# Validation에서 고정 input [0,1,2,3]
+if split != "train":
+    input_indices = list(range(4))  # View 4,5 항상 novel
+```
+
+**디버깅 시 확인**:
+```python
+# BP에서 확인
+print(f"split: {self.split}")
+print(f"input_indices: {input_indices}")
+print(f"target views: {[i for i in range(6) if i not in input_indices]}")
+```
+
+### 8.4 Per-View PSNR 디버깅
+
+```python
+# Validation 후 per-view metrics 확인
+# experiments/validation/{dataset}_{exp}/iter_*/*/perview_metrics.txt
+
+# 패턴 확인 스크립트
+import glob
+files = glob.glob("experiments/validation/*/iter_*/*/perview_metrics.txt")
+for f in files[-1:]:
+    with open(f) as fp:
+        print(fp.read())
+```
+
+---
+
+## 9. 관련 문서 (백링크)
+
+### 9.1 분석 문서
+
+| 문서 | 경로 | 내용 |
+|------|------|------|
+| **View Selection 분석** | `docs/analysis/VIEW_SELECTION_GHOSTING_ANALYSIS.md` | Ghosting 원인, 해결방안 |
+| PP/MVG 분석 | `docs/analysis/PP_MVG_COMPREHENSIVE_ANALYSIS.md` | Principal Point 이론 |
+
+### 9.2 실험 문서
+
+| 문서 | 경로 | 내용 |
+|------|------|------|
+| Quick Reference | `docs/practical/MOUSE_QUICK_REFERENCE.md` | 전체 워크플로우 |
+| Experiment Registry | `docs/practical/EXPERIMENT_REGISTRY.md` | 실험 ID 목록 |
+
+### 9.3 전처리 문서
+
+| 문서 | 경로 | 내용 |
+|------|------|------|
+| M3 Series Spec | `docs/datasets/M3_SERIES_SPEC.md` | M3 데이터셋 상세 |
+| Preprocessing Registry | `docs/PREPROCESSING_REGISTRY.md` | 전처리 방식 목록 |
+
+### 9.4 시각화 모듈
+
+| 파일 | 경로 | 내용 |
+|------|------|------|
+| video_generator | `mouse_extensions/visualization/video_generator.py` | 통합 비디오 생성 |
+| turntable_config | `mouse_extensions/visualization/turntable_config.py` | 카메라 순서 [1,3,5,0,4,2] |
+
+---
+
+## 10. 문서 업데이트 체크리스트
+
+이 문서 수정 시 함께 확인할 파일:
+
+```
+□ docs/analysis/VIEW_SELECTION_GHOSTING_ANALYSIS.md
+  - View selection 로직 변경 시
+  
+□ docs/practical/EXPERIMENT_REGISTRY.md
+  - 새 실험 config 추가 시
+  
+□ mouse_extensions/visualization/turntable_config.py
+  - 카메라 순서 변경 시
+  
+□ configs/experiments/E_*.yaml
+  - 실험 설정 변경 시
+```
+
+---
+
+*Updated: 2026-01-25 - 최신 데이터셋, View Selection 이슈, 백링크 추가*
