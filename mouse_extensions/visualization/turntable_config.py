@@ -306,3 +306,87 @@ def create_grid_from_video(
                           rows=grid_rows, cols=grid_cols)
     
     return grid_image, all_frames, h_img
+
+
+# =============================================================================
+# Angle-Proportional Frame Distribution
+# =============================================================================
+
+# Camera azimuth angles (degrees) - measured from physical setup
+MOUSE_CAMERA_AZIMUTHS = {
+    0: -147.0,
+    1: 34.0,
+    2: 86.1,
+    3: -11.3,
+    4: 144.0,
+    5: -64.1,
+}
+
+
+def get_angle_proportional_frames(camera_order: List[int], total_frames: int = 180) -> List[int]:
+    """
+    Calculate frame counts proportional to angular gaps between cameras.
+    
+    This provides smoother visual rotation by allocating more frames to
+    larger angular gaps between cameras.
+    
+    Args:
+        camera_order: Camera traversal order (e.g., [0, 5, 3, 1, 2, 4])
+        total_frames: Total number of frames to distribute
+        
+    Returns:
+        List of frame counts for each segment (same length as camera_order)
+        
+    Example:
+        >>> get_angle_proportional_frames([0, 5, 3, 1, 2, 4], total_frames=180)
+        [25, 16, 16, 31, 17, 75]  # More frames for larger angular gaps
+    """
+    # Calculate angular gap for each segment
+    angle_gaps = []
+    for i in range(len(camera_order)):
+        curr_cam = camera_order[i]
+        next_cam = camera_order[(i + 1) % len(camera_order)]
+        
+        curr_az = MOUSE_CAMERA_AZIMUTHS[curr_cam]
+        next_az = MOUSE_CAMERA_AZIMUTHS[next_cam]
+        
+        # Compute shortest angular difference
+        diff = next_az - curr_az
+        if diff > 180:
+            diff -= 360
+        elif diff < -180:
+            diff += 360
+        angle_gaps.append(abs(diff))
+    
+    # Proportional distribution
+    total_angle = sum(angle_gaps)
+    frames_per_segment = [int(total_frames * gap / total_angle) for gap in angle_gaps]
+    
+    # Distribute rounding remainder
+    remainder = total_frames - sum(frames_per_segment)
+    for i in range(remainder):
+        frames_per_segment[i % len(frames_per_segment)] += 1
+    
+    return frames_per_segment
+
+
+def get_uniform_frames(camera_order: List[int], total_frames: int = 180) -> List[int]:
+    """
+    Calculate uniform frame counts (equal frames per segment).
+    
+    Args:
+        camera_order: Camera traversal order
+        total_frames: Total number of frames
+        
+    Returns:
+        List of frame counts (all equal or nearly equal)
+    """
+    n_segments = len(camera_order)
+    base_frames = total_frames // n_segments
+    remainder = total_frames % n_segments
+    
+    frames_per_segment = [base_frames] * n_segments
+    for i in range(remainder):
+        frames_per_segment[i] += 1
+    
+    return frames_per_segment

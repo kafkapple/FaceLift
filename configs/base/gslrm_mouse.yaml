@@ -142,6 +142,7 @@ visualization:
     # Dataset camera trajectory mode
     smooth_trajectory: true   # Interpolate between dataset cameras
     camera_order: [0, 5, 3, 1, 2, 4]  # 360° rotation order
+    angle_proportional_frames: false  # true = allocate frames proportional to angular gaps
     loop: true                # Return to first camera
     hold_frames: 15           # Frames to pause at each camera (~1.5s at 10fps)
     trajectory_fps: 10        # Slower FPS for trajectory video (more time to see each view)
