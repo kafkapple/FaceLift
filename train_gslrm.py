@@ -198,7 +198,7 @@ class GSLRMTrainer:
         # - Plücker coordinates: per-pixel ray encoding, order-independent (always correct)
         # - View type embeddings: first view = "reference", rest = "source"
         #   → Random order changes which view is "reference" each step
-        #   → For mouse data with non-uniform cameras, fixed order recommended
+        #   → Original GS-LRM uses random order successfully
         use_mouse_dataset = self.config.get("mouse", {}).get("use_mouse_dataset", False)
 
         if use_mouse_dataset:
