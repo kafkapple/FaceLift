@@ -17,12 +17,12 @@ from scipy.spatial.transform import Rotation, Slerp
 
 
 # Physical camera arrangement (clockwise from front view)
-MOUSE_CAMERA_ORDER = [0, 5, 3, 1, 2, 4]
+MOUSE_CAMERA_ORDER = [0, 4, 2, 1, 3, 5]  # CCW order by actual azimuth
 
 # Default turntable settings
 DEFAULT_TURNTABLE_CONFIG = {
     "camera_order": MOUSE_CAMERA_ORDER,
-    "fps": 30,  # 2x faster turntable rotation
+    "fps": 15,  # Slower rotation (was 30)
     "interpolation_steps": 6,  # Steps between each camera pair
     "grid_rows": 6,
     "grid_cols": 6,
@@ -313,13 +313,14 @@ def create_grid_from_video(
 # =============================================================================
 
 # Camera azimuth angles (degrees) - measured from physical setup
+# Actual camera azimuths from dataset (computed from extrinsics)
 MOUSE_CAMERA_AZIMUTHS = {
-    0: -147.0,
-    1: 34.0,
-    2: 86.1,
-    3: -11.3,
-    4: 144.0,
-    5: -64.1,
+    0: -123.0,  # Back-left
+    1: +56.0,   # Right-front
+    2: +3.9,    # Front (almost center)
+    3: +101.3,  # Right
+    4: -54.0,   # Left
+    5: +154.1,  # Back-right
 }
 
 
@@ -390,3 +391,71 @@ def get_uniform_frames(camera_order: List[int], total_frames: int = 180) -> List
         frames_per_segment[i] += 1
     
     return frames_per_segment
+
+# =============================================================================
+# Dynamic Camera Order Computation
+# =============================================================================
+
+def compute_camera_order_from_extrinsics(c2ws: np.ndarray, direction: str = 'ccw') -> List[int]:
+    """
+    Compute camera traversal order from actual camera extrinsics.
+    
+    This replaces hardcoded MOUSE_CAMERA_ORDER with dynamic computation
+    based on actual camera positions in the dataset.
+    
+    Args:
+        c2ws: Camera-to-world matrices [num_cams, 4, 4]
+        direction: 'ccw' for counter-clockwise, 'cw' for clockwise
+        
+    Returns:
+        List of camera indices sorted by azimuth angle
+        
+    Example:
+        >>> c2ws = batch['c2w'].cpu().numpy()
+        >>> order = compute_camera_order_from_extrinsics(c2ws)
+        >>> # Use order instead of MOUSE_CAMERA_ORDER
+    """
+    num_cams = c2ws.shape[0]
+    
+    # Extract camera positions (translation from c2w)
+    positions = c2ws[:, :3, 3]  # [num_cams, 3]
+    
+    # Compute azimuth angles (angle from +Y axis in XY plane)
+    # azimuth = atan2(x, y) for top-down view where +Y is forward
+    azimuths = np.degrees(np.arctan2(positions[:, 0], positions[:, 1]))
+    
+    # Sort by azimuth (ascending = CCW from most negative to positive)
+    sorted_indices = np.argsort(azimuths)
+    
+    if direction == 'cw':
+        sorted_indices = sorted_indices[::-1]
+    
+    return sorted_indices.tolist()
+
+
+def get_dynamic_camera_order(c2ws: np.ndarray, config: dict = None) -> List[int]:
+    """
+    Get camera order, preferring dynamic computation over hardcoded values.
+    
+    Args:
+        c2ws: Camera-to-world matrices [num_cams, 4, 4]
+        config: Optional config dict with turntable settings
+        
+    Returns:
+        Camera order list
+    """
+    if config is not None:
+        turntable_cfg = config.get('visualization', {}).get('turntable', {})
+        
+        # If explicit camera_order is specified and not 'auto', use it
+        explicit_order = turntable_cfg.get('camera_order', None)
+        if explicit_order is not None and explicit_order != 'auto':
+            return explicit_order
+        
+        # Get direction preference
+        direction = turntable_cfg.get('rotation_direction', 'ccw')
+    else:
+        direction = 'ccw'
+    
+    # Compute dynamically from extrinsics
+    return compute_camera_order_from_extrinsics(c2ws, direction)

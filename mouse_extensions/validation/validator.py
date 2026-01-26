@@ -275,7 +275,52 @@ class ValidationRunner:
         # Dataset views
         if cfg.get("save_dataset_views", False):
             self._save_dataset_views(gaussians, c2ws, fxfycxcy, render_res, input_res, cfg, item_uid, output_dir)
+        
+        # Orbit turntable (standard 360-degree rotation)
+        if cfg.get("save_orbit_turntable", True):
+            self._save_orbit_turntable(gaussians, render_res, fps, cfg, item_uid, output_dir, input_np)
     
+
+    def _save_orbit_turntable(self, gaussians, render_res, fps, cfg, item_uid, output_dir, input_np):
+        """Save standard 360-degree orbit turntable video."""
+        try:
+            orbit_views = cfg.get("orbit_views", 120)
+            orbit_elevation = cfg.get("elevation", 20)
+            
+            # Use opacity-weighted center for better focus
+            xyz = gaussians._xyz.detach()
+            opacity = gaussians.get_opacity.detach().squeeze()
+            weights = opacity / (opacity.sum() + 1e-8)
+            center = (xyz * weights.unsqueeze(-1)).sum(dim=0).cpu().numpy()
+            
+            # Use same radius as normalized data (~2.7)
+            orbit_radius = cfg.get("orbit_radius", cfg.get("radius", 2.7))
+            
+            orbit_img = render_turntable(
+                gaussians,
+                rendering_resolution=render_res,
+                num_views=orbit_views,
+                elevation=orbit_elevation,
+                radius=orbit_radius,
+                center=center,
+            )
+            orbit_frames = rearrange(orbit_img, "h (v w) c -> v h w c", v=orbit_views)
+            orbit_frames = np.ascontiguousarray(orbit_frames)
+            
+            # Save orbit video
+            imageseq2video(orbit_frames, os.path.join(output_dir, f"turntable_orbit_{item_uid}.mp4"), fps=fps)
+            
+            # Save orbit with input strip
+            border = 2
+            target_h = int(input_np.shape[0] / input_np.shape[1] * render_res)
+            resized = cv2.resize(input_np, (render_res - border * 2, target_h - border * 2), interpolation=cv2.INTER_AREA)
+            bordered = np.pad(resized, ((border, border), (border, border), (0, 0)), mode="constant", constant_values=200)
+            input_seq = np.tile(bordered[None], (orbit_frames.shape[0], 1, 1, 1))
+            combined = np.concatenate((orbit_frames, input_seq), axis=1)
+            imageseq2video(combined, os.path.join(output_dir, f"turntable_orbit_with_input_{item_uid}.mp4"), fps=fps)
+        except Exception as e:
+            print(f"Warning: Could not save orbit turntable: {e}")
+
     def _save_grid(self, frames, cfg, item_uid, output_dir):
         """Create and save turntable grid."""
         rows = cfg.get("grid_rows", 6)
