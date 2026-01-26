@@ -450,7 +450,7 @@ class PreprocessConfig:
             config.target_fx = preset.get('target_fx', 549.0)
             
         # ====== PRECISION_HOMOGRAPHY (D8) ======
-        elif config.paradigm == Paradigm.PRECISION_HOMOGRAPHY:
+        elif config.paradigm in [Paradigm.PRECISION_HOMOGRAPHY, Paradigm.OBJECT_CENTERED_MVG]:
             config.transform = TransformType.HOMOGRAPHY
             config.skew_correction = preset.get('skew_correction', True)
             config.scale_mode = ScaleMode(preset.get('scale_mode', 'individual'))
@@ -470,6 +470,9 @@ class PreprocessConfig:
             # ★ P0 Fix: Post-zoom normalization options
             config.normalize_after_zoom = preset.get("normalize_after_zoom", False)
             config.force_pp_to_target = preset.get("force_pp_to_target", False)
+            # M3_3/M4: Safe zoom and PP correction
+            config.safe_zoom = preset.get("safe_zoom", False)
+            config.pp_correction = preset.get("pp_correction", False)
             
         # ====== NATIVE (D9, D9_norm) ======
         elif config.paradigm == Paradigm.NATIVE:
@@ -1152,7 +1155,7 @@ _stats:
                     saved_count += 1
 
         # ====== D7/D8/D10: Use video captures ======
-        elif cfg.paradigm in [Paradigm.PP_CENTERED_SHIFT, Paradigm.PRECISION_HOMOGRAPHY, Paradigm.UP_ALIGNED_ZOOM]:
+        elif cfg.paradigm in [Paradigm.PP_CENTERED_SHIFT, Paradigm.PRECISION_HOMOGRAPHY, Paradigm.UP_ALIGNED_ZOOM, Paradigm.OBJECT_CENTERED_MVG]:
             print(f"Loading cameras: {cfg.camera_pkl}")
             self.load_cameras(cfg.camera_pkl)
             
