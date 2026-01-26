@@ -22,6 +22,7 @@ from .turntable_config import (
     get_camera_pairs,
     interpolate_camera_extrinsics,
     create_turntable_trajectory,
+    compute_camera_convergence_center,
     get_grid_row_labels,
     subsample_frames_for_grid,
     create_grid_from_video,
