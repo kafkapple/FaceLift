@@ -48,3 +48,78 @@ DISCONTINUITY_FRAMES = {5900, 11800, 17700}
 - 해당 프레임 자체는 **정상** (제외 불필요)
 - temporal smoothness 가정하는 알고리즘 사용 시 주의
 - 현재 전처리: **모든 프레임 사용** (제외 없음)
+
+---
+
+## 실험 명령어 Quick Reference
+
+### 전처리 (Preprocessing)
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# 권장: M3_2
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M3_2 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
+
+# H2 실험용
+python -m mouse_extensions.preprocessing.preprocess --preset M3_2b ...
+python -m mouse_extensions.preprocessing.preprocess --preset M3_3 ...
+
+# H1 실험용
+python -m mouse_extensions.preprocessing.preprocess --preset M4 ...
+```
+
+### 학습 (Training)
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# 기본 (권장)
+CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3_2 -e E1_2_alpha
+
+# 가설 검증
+CUDA_VISIBLE_DEVICES=1 torchrun ... -d M3_2b -e E1_2_alpha  # H2 baseline
+CUDA_VISIBLE_DEVICES=2 torchrun ... -d M3_3 -e E1_2_alpha   # H2 test
+CUDA_VISIBLE_DEVICES=3 torchrun ... -d M4 -e E1_2_alpha     # H1 test
+```
+
+### 검증 (Validation)
+
+```bash
+# PP/MVG 일관성 검증
+python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
+    --datasets M3_2 --verbose
+
+# 클리핑 분석
+python mouse_extensions/scripts/analysis/clipping_analyzer.py \
+    /home/joon/data/preprocessed/FaceLift_mouse/M3_2 -r 50 -m 10
+```
+
+---
+
+## 데이터셋 요약
+
+| Preset | PP | fx | zoom_range | 용도 |
+|--------|-----|-----|------------|------|
+| D7.1 (M1) | 256 | 549 | - | 기준선 |
+| D8 (M2) | 256 | 549 | - | 정밀 기준선 |
+| **M3_2** | 256 | 549 | [1.0,1.8] | ⭐ **권장** |
+| M3_2b | 256 | 549 | [1.0,1.5] | H2 baseline |
+| M3_3 | 256 | 549 | [1.0,2.5] | H2 test |
+| M4 | 가변 | 549 | [1.0,2.5] | H1 test |
+
+---
+
+## 실험 설정 요약
+
+| 설정 | mask_mode | alpha_loss | 용도 |
+|------|-----------|------------|------|
+| E0_1_facelift | none | 0.0 | 마스크 없음 |
+| **E1_2_alpha** | gt | 0.1 | ⭐ **권장** |
+| E1_3_lgm | gt | 1.0 | 강한 alpha |
+| E2_1_alpha | none | 0.1 | alpha만 |
+

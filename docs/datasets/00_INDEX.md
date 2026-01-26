@@ -71,16 +71,16 @@ Center-aligned zoom + PP=256 자동 → **MVG 정합**
 
 ## M-Series 요약
 
-| Alias | Preset | 변환 | PP | fx | Coverage | 상세 |
-|-------|--------|------|-----|-----|----------|------|
-| M1 | D7.1 | Affine | 256 | 549 | ~50% | [[presets/D7_1]] |
-| M2 | D8 | Homography | 256 | 549 | ~50% | [[presets/D8]] |
-| M3 | D10.3 | Homo+Zoom | 가변 | 739 | ~78% | [[presets/M3]] |
-| M3_1 | M3_1 | Global Zoom | 256 | 549 | ~78% | [[presets/M3_1]] |
-| **M3_2** | M3_2 | Per-sample | 256 | 549 | ~78% | [[presets/M3_2]] ⭐ |
-| M3_2b | M3_2b | Conservative | 256 | 549 | ~60% | H2 baseline |
-| M3_3 | M3_3 | Safe Zoom | 256 | 549 | ~78% | H2 test (0% clip) |
-| M4 | M4 | Object-centered | 가변 | 549 | ~78% | H1 test (PP correction) |
+| Alias | Preset | 변환 | PP | fx | zoom_range | Coverage | 용도 |
+|-------|--------|------|-----|-----|------------|----------|------|
+| M1 | D7.1 | Affine | 256 | 549 | - | ~50% | 기준선 |
+| M2 | D8 | Homography | 256 | 549 | - | ~50% | 정밀 기준선 |
+| M3 | D10.3 | Homo+Zoom | **가변** | **739** | [1.0,2.5] | ~78% | ⚠️ fx 버그 |
+| M3_1 | M3_1 | Global Zoom | 256 | 549 | [1.0,1.8] | ~78% | Per-sample 비교용 |
+| **M3_2** | M3_2 | Per-sample | 256 | 549 | [1.0,1.8] | ~78% | ⭐ **권장** |
+| M3_2b | M3_2b | Conservative | 256 | 549 | **[1.0,1.5]** | ~60% | 🔬 H2 baseline |
+| M3_3 | M3_3 | Safe Zoom | 256 | 549 | [1.0,2.5] | ~78% | 🔬 H2 test |
+| M4 | M4 | Object-centered | **가변** | 549 | [1.0,2.5] | ~78% | 🔬 H1 test |
 
 ---
 
@@ -211,4 +211,4 @@ D7 (기본: random split, fx_only scale)
 
 ---
 
-*Dataset Documentation v3.1 | 2026-01-26 | M3 Variants Added*
+*Dataset Documentation v3.2 | 2026-01-26 | Comprehensive Comparison Added*
