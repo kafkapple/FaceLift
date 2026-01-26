@@ -1,30 +1,31 @@
 # =============================================================================
 # Dataset: D8
 # =============================================================================
-# [RECOMMENDED] Precision homography with skew correction
-# Generated: 2026-01-21
+# Homography precision baseline (M2)
+# Category: baseline
+# Status: ACTIVE
 # =============================================================================
 
 _name: D8
-_description: "Precision homography with skew correction"
-_category: precision_homography
-_status: RECOMMENDED
-_split_type: random
-_preprocessing:
-  transform: homography
-  scale_mode: individual
-  target_fx: 548.9937744140625
-  zoom: 1.0
-  skew_correction: true
+_description: "Homography precision baseline (M2)"
+_category: baseline
+_status: ACTIVE
 
+# Preprocessing info (reference only, actual preprocessing uses presets.py)
+_preprocessing:
+  preset: D8
+  transform: homography
+  pp: 256
+  fx: 549
+  zoom_scope: -
+  zoom_range: -
+  safe_zoom: false
+  pp_correction: false
+
+# Dataset paths
 training:
   dataset:
     dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D8/data_mouse_train.txt
 
 validation:
   dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D8/data_mouse_val.txt
-
-# Statistics
-_stats:
-  num_train: 3238
-  num_val: 359

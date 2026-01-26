@@ -1,23 +1,31 @@
+# =============================================================================
 # Dataset: M3_1
-# MVG-correct global zoom (PP=256). Docs: M3_SERIES_SPEC.md
-# Generated: 2026-01-25 18:26:55
+# =============================================================================
+# Global zoom, PP=256 (stable)
+# Category: production
+# Status: ACTIVE
+# =============================================================================
 
 _name: M3_1
-_description: "MVG-correct global zoom (PP=256). Docs: M3_SERIES_SPEC.md"
-_category: precision_homography
-_preprocessing:
-  paradigm: precision_homography
-  transform: homography
-  target_fx: 548.9937744140625
-  output_size: 512
+_description: "Global zoom, PP=256 (stable)"
+_category: production
+_status: ACTIVE
 
+# Preprocessing info (reference only, actual preprocessing uses presets.py)
+_preprocessing:
+  preset: M3_1
+  transform: homography
+  pp: 256
+  fx: 549
+  zoom_scope: global
+  zoom_range: [1.0, 1.8]
+  safe_zoom: false
+  pp_correction: false
+
+# Dataset paths
 training:
   dataset:
     dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_1/data_mouse_train.txt
 
 validation:
   dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_1/data_mouse_val.txt
-
-_stats:
-  num_train: 3238
-  num_val: 359

@@ -1,0 +1,6 @@
+view 000000, psnr: 29.6114, lpips: 0.0111, ssim: 0.9926
+view 000001, psnr: 20.7748, lpips: 0.0210, ssim: 0.9883
+view 000002, psnr: 29.9553, lpips: 0.0080, ssim: 0.9950
+view 000003, psnr: 29.6165, lpips: 0.0111, ssim: 0.9927
+view 000004, psnr: 9.1422, lpips: 0.0588, ssim: 0.9360
+view 000005, psnr: 11.0265, lpips: 0.0261, ssim: 0.9749

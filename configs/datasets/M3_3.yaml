@@ -1,26 +1,23 @@
-# =============================================================================
-# M3_3 Dataset: Safe Zoom (Clipping-Free M3_2)
-# =============================================================================
-# M3_2 + safe_zoom: Per-sample adaptive zoom with clipping prevention
-# - PP: 256 (fixed, MVG-correct)
-# - fx: 549 (normalized)
-# - Clipping: 0% (safe_zoom constraint)
+# Dataset: M3_3
+# M3_2 + safe zoom (0% clipping, PP=256)
+# Generated: 2026-01-26 15:57:26
 
-dataset:
-  name: FaceLift_mouse_M3_3
-  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_3
-  train_list: data_mouse_train.txt
-  val_list: data_mouse_val.txt
-  image_size: 512
-
-preprocessing:
-  preset: M3_3
+_name: M3_3
+_description: "M3_2 + safe zoom (0% clipping, PP=256)"
+_category: precision_homography
+_preprocessing:
+  paradigm: precision_homography
   transform: homography
-  pp: 256
-  fx: 549
-  zoom_method: coverage_based
-  zoom_scope: per_sample
-  safe_zoom: true
-  target_fg_coverage: 0.05
-  zoom_range: [1.0, 2.5]
-  clipping_rate: 0%
+  target_fx: 548.9937744140625
+  output_size: 512
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_3/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_3/data_mouse_val.txt
+
+_stats:
+  num_train: 3240
+  num_val: 360

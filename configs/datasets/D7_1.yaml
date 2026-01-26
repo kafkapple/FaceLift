@@ -1,13 +1,28 @@
 # =============================================================================
 # Dataset: D7_1
 # =============================================================================
-# Individual scale, geometrically correct (Non-temporal split)
+# Affine transform baseline (M1)
+# Category: baseline
+# Status: ACTIVE
 # =============================================================================
 
 _name: D7_1
-_description: "Individual scale preprocessing with geometric correction"
-_split_type: random  # Not temporal
+_description: "Affine transform baseline (M1)"
+_category: baseline
+_status: ACTIVE
 
+# Preprocessing info (reference only, actual preprocessing uses presets.py)
+_preprocessing:
+  preset: D7.1
+  transform: affine
+  pp: 256
+  fx: 549
+  zoom_scope: -
+  zoom_range: -
+  safe_zoom: false
+  pp_correction: false
+
+# Dataset paths
 training:
   dataset:
     dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D7_1/data_mouse_train.txt

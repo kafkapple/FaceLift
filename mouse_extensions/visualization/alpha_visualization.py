@@ -27,7 +27,7 @@ def visualize_alpha_comparison(
     - Row 0: GT Mask (binary)
     - Row 1: Rendered Alpha (continuous)
     - Row 2: Rendered Alpha > threshold (binary)
-    - Row 3: Difference (FP=Red, FN=Blue, TP=Green, TN=Black)
+    - Row 3: Difference (FN=Red/GT only, FP=Blue/Alpha only, TP=Green, TN=Black)
 
     Args:
         gt_mask: GT mask tensor [B*V, 1, H, W]
@@ -67,13 +67,13 @@ def visualize_alpha_comparison(
     tp = (gt_binary * alpha_binary).bool()
     diff_vis[..., 1][tp] = 1.0
 
-    # False Positive (pred=1, gt=0): Red
-    fp = ((1 - gt_binary) * alpha_binary).bool()
-    diff_vis[..., 0][fp] = 1.0
-
-    # False Negative (pred=0, gt=1): Blue
+    # False Negative (pred=0, gt=1): Red (GT only)
     fn = (gt_binary * (1 - alpha_binary)).bool()
-    diff_vis[..., 2][fn] = 1.0
+    diff_vis[..., 0][fn] = 1.0
+
+    # False Positive (pred=1, gt=0): Blue (Alpha only)
+    fp = ((1 - gt_binary) * alpha_binary).bool()
+    diff_vis[..., 2][fp] = 1.0
 
     # Stack rows
     rows = torch.stack([gt_vis, alpha_vis, alpha_binary_vis, diff_vis], dim=0)  # [4, V, H, W, 3]
@@ -104,7 +104,7 @@ def _add_row_labels_alpha(image: np.ndarray, row_height: int) -> np.ndarray:
         except:
             font = ImageFont.load_default()
 
-        labels = ["GT Mask", "Rendered Alpha", "Alpha > 0.5", "Diff (G=TP, R=FP, B=FN)"]
+        labels = ["GT Mask", "Rendered Alpha", "Alpha > 0.5", "Diff (R=FN, B=FP, G=TP)"]
 
         for i, label in enumerate(labels):
             y = i * row_height + 5

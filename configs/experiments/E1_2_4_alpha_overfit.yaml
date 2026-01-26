@@ -1,0 +1,26 @@
+# =============================================================================
+# E1_2_4_alpha_overfit: E1_2_alpha + Overfit Test
+# =============================================================================
+# E1_2_alpha 변형: 1 sample overfit 테스트
+# Expected: PSNR → 40+ dB
+
+model:
+  num_views: 6
+  num_input_views: 1
+
+training:
+  dataset:
+    random_view_selection: false
+
+  losses:
+    mask_mode: gt
+    normalize_by_mask: true
+    alpha_loss_weight: 0.1
+    alpha_loss_type: mse
+    bg_loss_weight: 0.0
+
+  schedule:
+    max_fwdbwd_passes: 2000
+
+validation:
+  enabled: false

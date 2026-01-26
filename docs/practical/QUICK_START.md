@@ -1,7 +1,8 @@
 # FaceLift Mouse Quick Start
 
-> **Version**: v6.0 | **Updated**: 2026-01-25
+> **Version**: v7.0 | **Updated**: 2026-01-25
 > **목적**: 실험 실행에 필요한 최소 명령어
+> **중요**: M3_norm, M3_persample은 PP 문제로 **폐기**. M3_1, M3_2 사용 필수!
 
 ---
 
@@ -13,89 +14,106 @@
 cd /home/joon/dev/FaceLift
 conda activate facelift
 
-# ⭐ M3 + GT mask + Alpha (권장)
+# ⭐ M3_2 + E0_1_facelift (권장 - MVG-correct)
 CUDA_VISIBLE_DEVICES=4 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3 -e E1_2_alpha
+    train_gslrm.py -d M3_2 -e E0_1_facelift
 
-# M3_norm (H1/H3 검증용)
+# M3_1 (Global zoom 버전)
 CUDA_VISIBLE_DEVICES=5 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_norm -e E1_2_alpha
+    train_gslrm.py -d M3_1 -e E0_1_facelift
 
-# M3_persample (H5 검증용)
+# D3_normalized (현재 최고 PSNR 27.09)
 CUDA_VISIBLE_DEVICES=6 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_persample -e E1_2_alpha
+    train_gslrm.py -d D3_normalized -e E0_1_facelift
 ```
 
 ### Background 실행
 
 ```bash
 CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_norm -e E1_2_alpha > logs/M3_norm_E1_2.log 2>&1 &
+    train_gslrm.py -d M3_2 -e E0_1_facelift > logs/M3_2_E0_1.log 2>&1 &
 ```
 
 ---
 
-## 2. GPU 사용 현황
+## 2. 데이터셋 (중요!)
+
+### MVG-Correct 데이터셋 (사용 권장)
+
+| ID | PP | Ray Error | Val PSNR | 설명 |
+|----|-----|-----------|----------|------|
+| D3_normalized | 256 | 0° | **27.09** | 최고 성능 |
+| D7_1 | 256 | 0° | 20.93 | 안정적 기준선 |
+| D8 | 256 | 0° | 20.21 | Homography |
+| **M3_1** | 256 | 0° | TBD | Global zoom + MVG |
+| **M3_2** | 256 | 0° | TBD | Per-sample zoom + MVG ⭐ |
+
+### 폐기 데이터셋 (사용 금지!)
+
+| ID | 문제점 | Ray Error |
+|----|--------|-----------|
+| ~~M3~~ | fx=739 미정규화 | 6.96° |
+| ~~M3_norm~~ | PP 가변 | **13.62°** |
+| ~~M3_persample~~ | PP 가변 | **16.15°** |
+
+---
+
+## 3. 전처리 명령어
 
 ```bash
-# GPU 상태 확인
-nvidia-smi
+# M3_2 전처리 (권장)
+/home/joon/anaconda3/envs/facelift/bin/python \
+    -m mouse_extensions.preprocessing.preprocess \
+    --preset M3_2 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
 
-# 실험 프로세스 확인
-ps aux | grep train_gslrm
+/home/joon/anaconda3/envs/facelift/bin/python \
+    -m mouse_extensions.preprocessing.preprocess \
+    --preset M3_persample \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_persample
+
+# PP 검증
+/home/joon/anaconda3/envs/facelift/bin/python \
+    mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
+    --datasets M3_1,M3_2 --verbose
 ```
+
+---
+
+## 4. 실험 설정
+
+| 실험 | mask_mode | alpha_loss | 현재 권장 |
+|------|-----------|------------|-----------|
+| **E0_1_facelift** | none | 0.0 | ⭐ **권장** |
+| E0_2_mouse | none | 0.0 | 안정적 |
+| E1_2_alpha | gt | 0.1 | 실험적 |
+
+---
+
+## 5. GPU 사용
 
 | GPU | 아키텍처 | 사용 가능 |
 |-----|----------|-----------|
-| 0-3 | Blackwell | ❌ PyTorch 미지원 |
-| 4-7 | A6000 | ✅ 사용 |
-
----
-
-## 3. 데이터셋 요약
-
-| 데이터셋 | Coverage | fx | 용도 |
-|----------|----------|-----|------|
-| M1 (D7_1) | 50% | 549 | Baseline |
-| M3 (D10_3) | 80% | 739 | H2 검증 |
-| **M3_norm** | 80% | 549 | ⭐ 권장 |
-| M3_persample | 80% | 549 | H5 검증 |
-
----
-
-## 4. 실험 설정 요약
-
-| 실험 | mask_mode | alpha_loss | 용도 |
-|------|-----------|------------|------|
-| E0_1_facelift | none | 0.0 | 원본 논문 |
-| E1_1_gt | gt | 0.0 | GT mask만 |
-| **E1_2_alpha** | gt | 0.1 | ⭐ 권장 |
-| E1_3_lgm | gt | 1.0 | 강한 alpha |
-
----
-
-## 5. 모니터링
+| 0-3 | Blackwell | X PyTorch 미지원 |
+| 4-7 | A6000 | O 사용 |
 
 ```bash
-# WandB 대시보드
-# https://wandb.ai/{username}/facelift-mouse
-
-# 로그 실시간 확인
-tail -f logs/M3_norm_E1_2.log
-
-# Validation 결과
-ls experiments/validation/M3_norm_E1_2_alpha/
+nvidia-smi
+ps aux | grep train_gslrm
 ```
 
 ---
 
-## 6. 관련 문서
+## 6. 핵심 문서
 
-| 문서 | 내용 |
+| 문서 | 위치 |
 |------|------|
-| [EXPERIMENT_REGISTRY](./EXPERIMENT_REGISTRY.md) | 전체 실험/데이터셋 목록 |
-| [Debug Guide](../tutorials/VSCode_Debug_Mask_Guide.md) | 디버깅 가이드 |
+| M3 시리즈 상세 | docs/datasets/M3_SERIES_SPEC.md |
+| PP 분석 | docs/analysis/PP_MVG_COMPREHENSIVE_ANALYSIS.md |
+| MoC Index | docs/00_MoC_INDEX.md |
 
 ---
 
-*FaceLift Mouse Quick Start v6.0 | 2026-01-25*
+*Quick Start v7.0 | 2026-01-25*

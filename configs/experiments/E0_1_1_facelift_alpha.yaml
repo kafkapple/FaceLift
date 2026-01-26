@@ -1,0 +1,20 @@
+# =============================================================================
+# E0_1_1_facelift_alpha: FaceLift + Alpha Supervision
+# =============================================================================
+# E0_1_facelift 변형: alpha loss 추가
+# - mask_mode: none (FaceLift 원본)
+# - alpha_loss: 0.1 (LGM에서 차용)
+
+model:
+  num_views: 6
+  num_input_views: 4
+
+training:
+  dataset:
+    random_view_selection: true
+
+  losses:
+    mask_mode: none
+    alpha_loss_weight: 0.1
+    alpha_loss_type: mse
+    bg_loss_weight: 0.0

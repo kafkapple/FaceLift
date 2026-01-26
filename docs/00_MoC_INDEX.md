@@ -3,6 +3,9 @@
 > **최종 업데이트**: 2026-01-26
 > **목적**: 모든 핵심 문서의 중앙 네비게이션 허브
 
+
+**See [SYNC_GUIDE.md](SYNC_GUIDE.md) for documentation management workflow.**
+
 ---
 
 ## 1. 문서 계층 구조

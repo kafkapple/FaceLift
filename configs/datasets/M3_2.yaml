@@ -1,23 +1,31 @@
+# =============================================================================
 # Dataset: M3_2
-# MVG-correct per-sample zoom (PP=256). Docs: M3_SERIES_SPEC.md
-# Generated: 2026-01-25 19:03:25
+# =============================================================================
+# Per-sample zoom, PP=256 (RECOMMENDED)
+# Category: production
+# Status: RECOMMENDED
+# =============================================================================
 
 _name: M3_2
-_description: "MVG-correct per-sample zoom (PP=256). Docs: M3_SERIES_SPEC.md"
-_category: precision_homography
-_preprocessing:
-  paradigm: precision_homography
-  transform: homography
-  target_fx: 548.9937744140625
-  output_size: 512
+_description: "Per-sample zoom, PP=256 (RECOMMENDED)"
+_category: production
+_status: RECOMMENDED
 
+# Preprocessing info (reference only, actual preprocessing uses presets.py)
+_preprocessing:
+  preset: M3_2
+  transform: homography
+  pp: 256
+  fx: 549
+  zoom_scope: per_sample
+  zoom_range: [1.0, 1.8]
+  safe_zoom: false
+  pp_correction: false
+
+# Dataset paths
 training:
   dataset:
     dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_2/data_mouse_train.txt
 
 validation:
   dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_2/data_mouse_val.txt
-
-_stats:
-  num_train: 3238
-  num_val: 359

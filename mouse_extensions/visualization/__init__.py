@@ -40,10 +40,6 @@ from .error_annotation import (
     compute_pred_mask_for_visualization,
 )
 
-from .unified_visualization import (
-    UnifiedVisualizer,
-)
-
 __all__ = [
     # Alpha visualization
     "visualize_alpha_comparison",
@@ -68,6 +64,5 @@ __all__ = [
     "compute_pred_mask_for_visualization",
     # Unified visualization (recommended)
     "TurntableConfig",
-    "UnifiedVisualizer",
     "create_unified_visualizer",
 ]

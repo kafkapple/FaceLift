@@ -892,6 +892,10 @@ class GSLRM(nn.Module):
             pixel_gaussian_decoder=count_trainable_params(self.pixel_gaussian_decoder),
         )
     
+    def get_overview(self) -> edict:
+        """Backward compatibility wrapper for get_parameter_overview."""
+        return self.get_parameter_overview()
+    
     def _create_transformer_layer_runner(self, start_layer: int, end_layer: int):
         """
         Create a function to run a subset of transformer layers.

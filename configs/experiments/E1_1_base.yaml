@@ -1,8 +1,17 @@
-# E1: GT Mask Only - Pose Splatter Style
+# =============================================================================
+# E1_1_base: GT Mask Only (Pose Splatter Style)
+# =============================================================================
 # mask_mode: gt, normalize_by_mask for small foreground
 # Reference: Pose Splatter (normalized masked loss)
 
+model:
+  num_views: 6
+  num_input_views: 4
+
 training:
+  dataset:
+    random_view_selection: true
+
   losses:
     mask_mode: gt
     normalize_by_mask: true
