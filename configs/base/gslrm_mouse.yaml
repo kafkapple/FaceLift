@@ -164,8 +164,8 @@ visualization:
     
     # Output options
     save_video: true         # Save turntable mp4 during training
-    save_dataset_views: true        # Save dataset camera views image
-    save_dataset_views_video: true  # Save dataset views video (with cross-fade)
+    save_dataset_views: false        # Save dataset camera views image
+    save_dataset_views_video: false  # Save dataset views video (with cross-fade)
 
     # Inference (video)
     inference_views: 150    # Frames for turntable video

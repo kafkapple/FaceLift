@@ -60,7 +60,6 @@ from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
 from mouse_extensions.visualization import (
     add_error_scale_annotation,
     compute_pred_mask_for_visualization,
-    create_dataset_views_video,
     visualize_alpha_comparison,
     should_visualize_alpha,
     compute_alpha_metrics,
@@ -84,7 +83,6 @@ from .gaussians_renderer import (
     imageseq2video,
     render_opencv_cam,
     render_turntable,
-    render_dataset_views,
     render_dataset_trajectory,
     get_turntable_with_dataset_views,
     add_camera_overlay,
@@ -1581,18 +1579,31 @@ class GSLRM(nn.Module):
                 
                 # Also save standard 360-degree orbit turntable (smooth rotation)
                 if turntable_cfg.get("save_orbit_turntable", True):
-                    # Compute Gaussian center for camera orbit
-                    gaussian_center = model_results.gaussians[batch_idx]._xyz.mean(dim=0).detach().cpu().numpy()
-                    orbit_views = turntable_cfg.get("orbit_views", 120)  # Smooth 360 rotation
+                    # Compute weighted center by opacity for better object centering
+                    gaussians = model_results.gaussians[batch_idx]
+                    xyz = gaussians._xyz.detach()
+                    opacity = gaussians.get_opacity.detach().squeeze()
+                    # Use opacity-weighted center for better focus on visible parts
+                    weights = opacity / (opacity.sum() + 1e-8)
+                    weighted_center = (xyz * weights.unsqueeze(-1)).sum(dim=0).cpu().numpy()
+                    
+                    # Compute appropriate radius from Gaussian spread
+                    xyz_np = xyz.cpu().numpy()
+                    bbox_size = xyz_np.max(axis=0) - xyz_np.min(axis=0)
+                    object_size = np.linalg.norm(bbox_size)
+                    # Radius should be ~2x object size for good framing
+                    orbit_radius = turntable_cfg.get("orbit_radius", max(turntable_radius, object_size * 2.0))
+                    
+                    orbit_views = turntable_cfg.get("orbit_views", 120)
                     orbit_fps = turntable_cfg.get("orbit_fps", 30)
                     orbit_frames = render_turntable(
-                        model_results.gaussians[batch_idx],
+                        gaussians,
                         rendering_resolution=turntable_resolution,
                         num_views=orbit_views,
                         elevation=turntable_elevation,
-                        radius=turntable_radius,
+                        radius=orbit_radius,
                         trajectory_mode="turntable",
-                        center=gaussian_center,
+                        center=weighted_center,
                     )
                     # orbit_frames is [H, V*W, 3], need to reshape to [V, H, W, 3]
                     orbit_h = orbit_frames.shape[0]
@@ -1605,30 +1616,7 @@ class GSLRM(nn.Module):
                         os.path.join(output_directory, f"turntable_orbit_{item_uid}.mp4"), 
                         fps=orbit_fps
                     )
-            # Additionally save dataset camera views for direct GT comparison
-            if turntable_cfg.get("save_dataset_views", False):
-                # Get original resolution from input data (already scaled by dataset)
-                dataset_views = render_dataset_views(
-                    model_results.gaussians[batch_idx],
-                    dataset_c2ws, dataset_fxfycxcy,
-                    rendering_resolution=turntable_resolution,
-                    show_overlay=False,
-                    original_resolution=input_resolution,
-                )
-                # Arrange as horizontal strip
-                dataset_strip = rearrange(dataset_views, "v h w c -> h (v w) c")
-                Image.fromarray(dataset_strip).save(
-                    os.path.join(output_directory, f"dataset_views_{item_uid}.jpg")
-                )
-                
-                # Save dataset views video (static view from each camera, cycling)
-                if turntable_cfg.get("save_dataset_views_video", False):
-                    create_dataset_views_video(
-                        dataset_views,
-                        os.path.join(output_directory, f"dataset_views_{item_uid}.mp4"),
-                        turntable_cfg,
-                        imageseq2video,
-                    )
+
 
             # Save individual input images during inference
             if self.config.inference:
