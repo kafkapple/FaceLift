@@ -975,11 +975,53 @@ class UnifiedPreprocessor:
                     temp_mask = cv2.warpAffine(
                         (temp_mask > 0).astype(np.uint8) * 255, M[:2],
                         (cfg.output_size, cfg.output_size), flags=cv2.INTER_NEAREST)
-                sample_zoom = compute_persample_zoom_coverage(
-                    temp_mask, cfg.target_fg_coverage, cfg.zoom_range)
+                # Compute zoom with optional safe_zoom constraint
+                zoom_center_mode = getattr(cfg, 'zoom_center_mode', 'object')
+                use_safe_zoom = getattr(cfg, "safe_zoom", False) or getattr(cfg, 'pp_correction', False)
+                
+                if use_safe_zoom:
+                    from mouse_extensions.preprocessing.preprocess import (
+                        compute_clipping_safe_zoom, compute_object_centered_safe_zoom
+                    )
+                    if zoom_center_mode == 'object':
+                        # M4: Object-centered safe zoom
+                        coverage_zoom = compute_persample_zoom_coverage(
+                            temp_mask, cfg.target_fg_coverage, cfg.zoom_range)
+                        safe_zoom = compute_object_centered_safe_zoom(temp_mask, cfg.output_size)
+                        sample_zoom = min(coverage_zoom, safe_zoom)
+                        sample_zoom = float(np.clip(sample_zoom, cfg.zoom_range[0], cfg.zoom_range[1]))
+                    else:
+                        # M3_3: Center-aligned safe zoom
+                        sample_zoom = compute_clipping_safe_zoom(
+                            temp_mask, cfg.target_fg_coverage, cfg.zoom_range, cfg.output_size)
+                else:
+                    sample_zoom = compute_persample_zoom_coverage(
+                        temp_mask, cfg.target_fg_coverage, cfg.zoom_range)
             else:
-                sample_zoom = compute_persample_zoom_coverage(
-                    masks[0], cfg.target_fg_coverage, cfg.zoom_range)
+                # Use original mask (no transform)
+                target_mask = masks[0]
+                # Compute zoom with optional safe_zoom constraint
+                zoom_center_mode = getattr(cfg, 'zoom_center_mode', 'object')
+                use_safe_zoom = getattr(cfg, "safe_zoom", False) or getattr(cfg, 'pp_correction', False)
+                
+                if use_safe_zoom:
+                    from mouse_extensions.preprocessing.preprocess import (
+                        compute_clipping_safe_zoom, compute_object_centered_safe_zoom
+                    )
+                    if zoom_center_mode == 'object':
+                        # M4: Object-centered safe zoom
+                        coverage_zoom = compute_persample_zoom_coverage(
+                            target_mask, cfg.target_fg_coverage, cfg.zoom_range)
+                        safe_zoom = compute_object_centered_safe_zoom(target_mask, cfg.output_size)
+                        sample_zoom = min(coverage_zoom, safe_zoom)
+                        sample_zoom = float(np.clip(sample_zoom, cfg.zoom_range[0], cfg.zoom_range[1]))
+                    else:
+                        # M3_3: Center-aligned safe zoom
+                        sample_zoom = compute_clipping_safe_zoom(
+                            target_mask, cfg.target_fg_coverage, cfg.zoom_range, cfg.output_size)
+                else:
+                    sample_zoom = compute_persample_zoom_coverage(
+                        target_mask, cfg.target_fg_coverage, cfg.zoom_range)
             frame_zoom = sample_zoom
         else:
             frame_zoom = cfg.zoom
@@ -1349,3 +1391,124 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def compute_safe_zoom(mask: np.ndarray, output_size: int = 512, margin: int = 5) -> float:
+    """Compute maximum zoom that won't clip the foreground.
+    
+    For center-aligned zoom, calculates the maximum zoom factor such that
+    the entire foreground remains within the cropped region.
+    
+    Args:
+        mask: Binary mask (H, W)
+        output_size: Image size (assumes square)
+        margin: Safety margin in pixels
+    
+    Returns:
+        Maximum safe zoom factor
+    
+    Math:
+        - Crop size at zoom z: crop_size = output_size / z
+        - Crop region (center-aligned): [(S-C)/2, (S+C)/2]
+        - For object at [x_min, x_max], need:
+          x_min >= (S-C)/2  and  x_max <= (S+C)/2
+        - Solving: z <= S / (2 * max_dist_from_center)
+    """
+    if mask is None or mask.size == 0:
+        return 1.0
+    
+    ys, xs = np.where(mask > 127)
+    if len(xs) == 0:
+        return 1.0
+    
+    # Object bounding box
+    x_min, x_max = xs.min(), xs.max()
+    y_min, y_max = ys.min(), ys.max()
+    
+    # Distance from image center to furthest object edge
+    center = output_size / 2
+    max_dist_x = max(center - x_min, x_max - center) + margin
+    max_dist_y = max(center - y_min, y_max - center) + margin
+    max_dist = max(max_dist_x, max_dist_y)
+    
+    if max_dist <= 0:
+        return float('inf')
+    
+    # Safe zoom: crop_half >= max_dist
+    # crop_half = output_size / (2 * zoom)
+    # => zoom <= output_size / (2 * max_dist)
+    safe_zoom = output_size / (2 * max_dist)
+    
+    return float(safe_zoom)
+
+
+def compute_clipping_safe_zoom(
+    mask: np.ndarray,
+    target_coverage: float = 0.05,
+    zoom_range: tuple = (1.0, 2.5),
+    output_size: int = 512,
+) -> float:
+    """Compute zoom that achieves target coverage without clipping.
+    
+    Combines coverage-based zoom with safe zoom constraint.
+    
+    Args:
+        mask: Binary mask
+        target_coverage: Target foreground ratio (0.05 = 5%)
+        zoom_range: (min_zoom, max_zoom) range
+        output_size: Image size
+    
+    Returns:
+        Zoom factor: min(coverage_zoom, safe_zoom), clipped to range
+    """
+    # Target coverage zoom
+    coverage_zoom = compute_persample_zoom_coverage(mask, target_coverage, zoom_range)
+    
+    # Safe zoom (no clipping)
+    safe_zoom = compute_safe_zoom(mask, output_size)
+    
+    # Take minimum to prevent clipping
+    final_zoom = min(coverage_zoom, safe_zoom)
+    
+    return float(np.clip(final_zoom, zoom_range[0], zoom_range[1]))
+
+
+def compute_object_centered_safe_zoom(
+    mask: np.ndarray,
+    output_size: int = 512,
+    margin: int = 10,
+) -> float:
+    """Compute maximum zoom for object-centered crop without clipping.
+    
+    For object-centered mode, the object is always at the center of the crop.
+    Safe zoom = output_size / (object_bbox_max_dim + 2*margin)
+    
+    Args:
+        mask: Binary mask
+        output_size: Output image size
+        margin: Safety margin in pixels
+    
+    Returns:
+        Maximum safe zoom factor
+    """
+    if mask is None or mask.size == 0:
+        return 1.0
+    
+    ys, xs = np.where(mask > 127)
+    if len(xs) == 0:
+        return 1.0
+    
+    # Object bounding box dimensions
+    bbox_w = xs.max() - xs.min()
+    bbox_h = ys.max() - ys.min()
+    bbox_max = max(bbox_w, bbox_h) + 2 * margin
+    
+    if bbox_max <= 0:
+        return float('inf')
+    
+    # For object-centered: crop_size must be >= object_size
+    # crop_size = output_size / zoom
+    # => zoom <= output_size / bbox_max
+    safe_zoom = output_size / bbox_max
+    
+    return float(safe_zoom)

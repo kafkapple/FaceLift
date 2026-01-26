@@ -1,0 +1,25 @@
+# =============================================================================
+# M3_2b Dataset: Conservative Zoom Range
+# =============================================================================
+# M3_2 with more conservative zoom_range [1.0, 1.5]
+# - PP: 256 (fixed, MVG-correct)
+# - fx: 549 (normalized)
+# - Clipping: ~0% (statistical, from conservative range)
+
+dataset:
+  name: FaceLift_mouse_M3_2b
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_2b
+  train_list: data_mouse_train.txt
+  val_list: data_mouse_val.txt
+  image_size: 512
+
+preprocessing:
+  preset: M3_2b
+  transform: homography
+  pp: 256
+  fx: 549
+  zoom_method: coverage_based
+  zoom_scope: per_sample
+  target_fg_coverage: 0.05
+  zoom_range: [1.0, 1.5]
+  clipping_rate: ~0%

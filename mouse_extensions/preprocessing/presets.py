@@ -416,6 +416,80 @@ PRESETS = {
         "description": "MVG-correct per-sample zoom (PP=256). Docs: M3_SERIES_SPEC.md",
         "active": True,
     },
+
+    # M3 Variants for Hypothesis Testing (2026-01-26)
+    "M3_3": {
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_scope": "per_sample",
+        "zoom_center_mode": "image",
+        "target_fg_coverage": 0.05,
+        "min_fg_coverage": 0.03,
+        "zoom_range": [1.0, 2.5],
+        "safe_zoom": True,
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,
+        "description": "M3_2 + safe zoom (0% clipping, PP=256)",
+        "active": True,
+    },
+    "M3_2b": {
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_scope": "per_sample",
+        "zoom_center_mode": "image",
+        "target_fg_coverage": 0.05,
+        "min_fg_coverage": 0.03,
+        "zoom_range": [1.0, 1.5],
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,
+        "description": "M3_2 + conservative zoom",
+        "active": True,
+    },
+    "M4": {
+        "paradigm": "object_centered_mvg",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "pp_correction",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_scope": "per_sample",
+        "zoom_center_mode": "object",
+        "pp_correction": True,
+        "target_fg_coverage": 0.05,
+        "min_fg_coverage": 0.03,
+        "zoom_range": [1.0, 2.5],
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,
+        "description": "Object-centered + PP correction (max coverage)",
+        "active": True,
+    },
+
 }
 
 
@@ -432,7 +506,10 @@ VERSION_HIERARCHY = {
     "homography": ["D8", "D8.1", "D8.2"],
     
     # Homography + Adaptive Coverage Zoom (M3 계열)
-    "homography_zoom": ["D10.3"],
+    "homography_zoom": ["D10.3", "M3_1", "M3_2", "M3_2b", "M3_3"],
+
+    # Object-centered + PP correction (M4 계열)
+    "object_centered": ["M4"],
     
     # === 특수/실험적 ===
     
@@ -453,7 +530,6 @@ M_SERIES = {
     "M1": "D7.1",       # affine, 안정적 기준선
     "M2": "D8",         # homography, 정밀 기하학
     "M3": "D10.3",      # homography_zoom (⚠️ fx=739 버그)
-    "M4": "M3_norm",    # ★ M3 fixed: fx=549, PP=256
     "M1a": "D7_1_aspect",  # M1 + aspect ratio preserved
 }
 
@@ -473,7 +549,6 @@ ALIASES = {
     "M1": "D7.1",
     "M2": "D8",
     "M3": "D10.3",      # Legacy (has fx bug)
-    "M4": "M3_norm",    # ★ Recommended
     "M1a": "D7_1_aspect",
 }
 

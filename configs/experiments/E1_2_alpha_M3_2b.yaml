@@ -1,0 +1,21 @@
+# =============================================================================
+# E1_2_alpha + M3_2b: GT Mask + Alpha + Conservative Zoom
+# =============================================================================
+# Combines:
+# - E1_2_alpha: GT mask loss + alpha supervision
+# - M3_2b: Conservative zoom range (1.0-1.5)
+
+model:
+  num_views: 6
+  num_input_views: 4
+
+training:
+  dataset:
+    random_view_selection: true
+
+  losses:
+    mask_mode: gt
+    normalize_by_mask: true
+    alpha_loss_weight: 0.1
+    alpha_loss_type: mse
+    bg_loss_weight: 0.0

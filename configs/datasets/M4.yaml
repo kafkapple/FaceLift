@@ -1,0 +1,26 @@
+# =============================================================================
+# M4 Dataset: Object-Centered + PP Correction (Maximum Coverage)
+# =============================================================================
+# Object-centered crop with dynamic PP correction
+# - PP: Variable (corrected based on crop offset)
+# - fx: 549 (normalized)
+# - Clipping: 0% (object always centered)
+# - Coverage: Maximum (object fills frame)
+
+dataset:
+  name: FaceLift_mouse_M4
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M4
+  train_list: data_mouse_train.txt
+  val_list: data_mouse_val.txt
+  image_size: 512
+
+preprocessing:
+  preset: M4
+  transform: homography
+  pp: variable  # Corrected per crop offset
+  fx: 549
+  zoom_center_mode: object
+  pp_correction: true
+  target_fg_coverage: 0.05
+  zoom_range: [1.0, 2.5]
+  clipping_rate: 0%

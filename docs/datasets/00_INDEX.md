@@ -78,6 +78,9 @@ Center-aligned zoom + PP=256 자동 → **MVG 정합**
 | M3 | D10.3 | Homo+Zoom | 가변 | 739 | ~78% | [[presets/M3]] |
 | M3_1 | M3_1 | Global Zoom | 256 | 549 | ~78% | [[presets/M3_1]] |
 | **M3_2** | M3_2 | Per-sample | 256 | 549 | ~78% | [[presets/M3_2]] ⭐ |
+| M3_2b | M3_2b | Conservative | 256 | 549 | ~60% | H2 baseline |
+| M3_3 | M3_3 | Safe Zoom | 256 | 549 | ~78% | H2 test (0% clip) |
+| M4 | M4 | Object-centered | 가변 | 549 | ~78% | H1 test (PP correction) |
 
 ---
 
@@ -145,6 +148,45 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
     --datasets M3_2 --verbose
 ```
 
+### 가설 검증 실험 (M3 Variants)
+
+상세 계획: [[../experiments/HYPOTHESIS_VERIFICATION_PLAN]]
+
+**전처리:**
+```bash
+# M3_2b (H2 baseline: conservative zoom)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M3_2b \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2b
+
+# M3_3 (H2 test: safe zoom, 0% clipping)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M3_3 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_3
+
+# M4 (H1 test: object-centered + PP correction)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M4 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M4
+```
+
+**학습:**
+```bash
+# H2: M3_2b vs M3_3 (Coverage 영향, PP 동일)
+CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3_2b -e E1_2_alpha
+
+CUDA_VISIBLE_DEVICES=1 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3_3 -e E1_2_alpha
+
+# H1: M3_3 vs M4 (PP 영향, Coverage 유사)
+CUDA_VISIBLE_DEVICES=2 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M4 -e E1_2_alpha
+```
+
 ---
 
 ## D7 계열 관계도
@@ -169,4 +211,4 @@ D7 (기본: random split, fx_only scale)
 
 ---
 
-*Dataset Documentation v3.0 | 2026-01-26 | Experiments & Hypothesis Docs Added*
+*Dataset Documentation v3.1 | 2026-01-26 | M3 Variants Added*
