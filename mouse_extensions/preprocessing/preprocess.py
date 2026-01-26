@@ -352,6 +352,7 @@ class Paradigm(Enum):
     GEOMETRY_PRESERVING = "geometry_preserving"
     PP_CENTERED_SHIFT = "pp_centered_shift"
     PRECISION_HOMOGRAPHY = "precision_homography"
+    OBJECT_CENTERED_MVG = "object_centered_mvg"
     NATIVE = "native"
     UP_ALIGNED_ZOOM = "up_aligned_zoom"
 
