@@ -596,7 +596,10 @@ class GSLRMTrainer:
               )):
             for batch in self.dataloader:
                 batch = {k: v.to(self.device) for k, v in batch.items()}
-                result = self.model(batch, create_visual=False)
+                # Create visual for first batch only (turntable etc.)
+                create_visual_first = self.config.get("validation", {}).get("visual_first_batch", True)
+                create_visual = create_visual_first and (idx == 0)
+                result = self.model(batch, create_visual=create_visual)
                 self.model_module.save_evaluations(
                     self.config.evaluation_out_dir, result, batch, self.dataset
                 )
@@ -1083,7 +1086,10 @@ class GSLRMTrainer:
 
             for idx, batch in enumerate(self.val_dataloader):
                 batch = {k: v.to(self.device) for k, v in batch.items()}
-                result = self.model(batch, create_visual=False)
+                # Create visual for first batch only (turntable etc.)
+                create_visual_first = self.config.get("validation", {}).get("visual_first_batch", True)
+                create_visual = create_visual_first and (idx == 0)
+                result = self.model(batch, create_visual=create_visual)
 
                 try:
                     val_metrics = self.model_module.save_validations(

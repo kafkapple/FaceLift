@@ -179,6 +179,7 @@ visualization:
 validation:
   enabled: true
   val_every: 200
+  visual_first_batch: true  # Generate turntable for first validation batch
 
 # -----------------------------------------------------------------------------
 # Inference defaults
