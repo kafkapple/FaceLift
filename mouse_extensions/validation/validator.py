@@ -39,6 +39,56 @@ from gslrm.model.gaussians_renderer import (
 )
 
 
+
+
+def _safe_video_save(frames: np.ndarray, filename: str, fps: int = 24) -> bool:
+    """
+    Safely save video with fallback to OpenCV VideoWriter.
+    
+    Returns True if successful, False otherwise.
+    """
+    try:
+        # Try original videoio method first
+        imageseq2video(frames, filename, fps=fps)
+        return True
+    except BrokenPipeError as e:
+        print(f"Warning: videoio failed with BrokenPipeError, trying cv2 fallback: {e}")
+    except Exception as e:
+        print(f"Warning: videoio failed ({type(e).__name__}), trying cv2 fallback: {e}")
+    
+    # Fallback to cv2.VideoWriter
+    try:
+        h, w = frames.shape[1], frames.shape[2]
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(filename, fourcc, fps, (w, h))
+        
+        if not out.isOpened():
+            print(f"Warning: Could not open video writer for {filename}")
+            return False
+        
+        for frame in frames:
+            # Convert to uint8 if needed
+            if frame.dtype == np.float32 or frame.dtype == np.float64:
+                frame_uint8 = (np.clip(frame, 0, 1) * 255).astype(np.uint8)
+            else:
+                frame_uint8 = frame
+            
+            # Convert RGB to BGR for cv2
+            if len(frame_uint8.shape) == 3 and frame_uint8.shape[2] == 3:
+                frame_bgr = cv2.cvtColor(frame_uint8, cv2.COLOR_RGB2BGR)
+            else:
+                frame_bgr = frame_uint8
+            
+            out.write(frame_bgr)
+        
+        out.release()
+        print(f"Successfully saved video using cv2 fallback: {filename}")
+        return True
+    except Exception as e2:
+        print(f"Warning: cv2 fallback also failed for {filename}: {e2}")
+        return False
+
+
 class ValidationRunner:
     """Handles validation logic extracted from GSLRM model."""
     
@@ -264,7 +314,7 @@ class ValidationRunner:
         frames = np.ascontiguousarray(frames)
         
         # Save video
-        imageseq2video(frames, os.path.join(output_dir, "turntable.mp4"), fps=fps)
+        _safe_video_save(frames, os.path.join(output_dir, "turntable.mp4"), fps=fps)
         
         # Save grid
         self._save_grid(frames, cfg, item_uid, output_dir)
@@ -308,7 +358,7 @@ class ValidationRunner:
             orbit_frames = np.ascontiguousarray(orbit_frames)
             
             # Save orbit video
-            imageseq2video(orbit_frames, os.path.join(output_dir, f"turntable_orbit_{item_uid}.mp4"), fps=fps)
+            _safe_video_save(orbit_frames, os.path.join(output_dir, f"turntable_orbit_{item_uid}.mp4"), fps=fps)
             
             # Save orbit with input strip
             border = 2
@@ -317,7 +367,7 @@ class ValidationRunner:
             bordered = np.pad(resized, ((border, border), (border, border), (0, 0)), mode="constant", constant_values=200)
             input_seq = np.tile(bordered[None], (orbit_frames.shape[0], 1, 1, 1))
             combined = np.concatenate((orbit_frames, input_seq), axis=1)
-            imageseq2video(combined, os.path.join(output_dir, f"turntable_orbit_with_input_{item_uid}.mp4"), fps=fps)
+            _safe_video_save(combined, os.path.join(output_dir, f"turntable_orbit_with_input_{item_uid}.mp4"), fps=fps)
         except Exception as e:
             print(f"Warning: Could not save orbit turntable: {e}")
 
@@ -357,7 +407,7 @@ class ValidationRunner:
         input_seq = np.tile(bordered[None], (frames.shape[0], 1, 1, 1))
         combined = np.concatenate((frames, input_seq), axis=1)
         
-        imageseq2video(combined, os.path.join(output_dir, "turntable_with_input.mp4"), fps=fps)
+        _safe_video_save(combined, os.path.join(output_dir, "turntable_with_input.mp4"), fps=fps)
     
     def _save_dataset_views(self, gaussians, c2ws, fxfycxcy, render_res, input_res, cfg, item_uid, output_dir):
         """Save rendered dataset camera views."""
@@ -371,7 +421,7 @@ class ValidationRunner:
             Image.fromarray(strip).save(os.path.join(output_dir, f"dataset_views_{item_uid}.jpg"))
             
             if cfg.get("save_dataset_views_video", False):
-                create_dataset_views_video(views, os.path.join(output_dir, f"dataset_views_{item_uid}.mp4"), cfg, imageseq2video)
+                create_dataset_views_video(views, os.path.join(output_dir, f"dataset_views_{item_uid}.mp4"), cfg, _safe_video_save)
         except Exception as e:
             print(f"Warning: Could not save dataset_views: {e}")
     
