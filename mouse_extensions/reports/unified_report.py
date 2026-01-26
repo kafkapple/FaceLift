@@ -217,13 +217,19 @@ class UnifiedReportGenerator:
     def analyze_datasets(self):
         """Analyze PP distribution for all datasets."""
         for dataset in self.datasets:
+            # Try main folder first, then archive
             dataset_path = PREPROCESSED_DIR / dataset
+            if not dataset_path.exists():
+                dataset_path = PREPROCESSED_DIR / '_archive' / dataset
+            
             if dataset_path.exists():
                 try:
                     self.pp_analysis.analyze_dataset(dataset_path, dataset)
                     print(f"  Analyzed: {dataset}")
                 except Exception as e:
                     print(f"  Skip {dataset}: {e}")
+            else:
+                print(f"  Not found: {dataset}")
     
     def generate_visualizations(self):
         """Generate all visualization images."""
