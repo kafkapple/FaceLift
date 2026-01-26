@@ -32,26 +32,36 @@
 
 ## 데이터셋 종합 비교표
 
-| Setting | D7.1 (M1) | D8 (M2) | M3_1 | M3_2 | M3_2b | M3_3 | M4 | D10.3 |
-|---------|-----------|---------|------|------|-------|------|-----|-------|
-| **paradigm** | pp_centered | precision_homo | precision_homo | precision_homo | precision_homo | precision_homo | **object_centered** | precision_homo |
-| **transform** | affine | homography | homography | homography | homography | homography | homography | homography |
-| **pp_method** | shift_to_256 | shift_to_256 | shift_to_256 | shift_to_256 | shift_to_256 | shift_to_256 | **pp_correction** | shift_to_256 |
-| **skew_correction** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **adaptive_zoom** | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **zoom_scope** | - | - | global | **per_sample** | per_sample | per_sample | per_sample | global |
-| **zoom_center_mode** | - | - | image | image | image | image | **object** | object |
-| **zoom_range** | - | - | [1.0,1.8] | [1.0,1.8] | **[1.0,1.5]** | **[1.0,2.5]** | [1.0,2.5] | [1.0,2.5] |
-| **safe_zoom** | - | - | ❌ | ❌ | ❌ | **✅** | ✅ | ❌ |
-| **pp_correction** | - | - | ❌ | ❌ | ❌ | ❌ | **✅** | ❌ |
-| **normalize_after_zoom** | - | - | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **target_fx** | 549 | 549 | 549 | 549 | 549 | 549 | 549 | **739** |
-| **PP 결과** | 256 | 256 | 256 | 256 | 256 | 256 | **가변** | **가변** |
-| **Coverage** | ~50% | ~50% | ~78% | ~78% | ~60% | ~78% | ~78% | ~78% |
-| **Clipping** | 0% | 0% | 0% | 0% | 0% | **0%** | 0% | ~6% |
-| **상태** | ✅ 기준선 | ✅ 정밀 | ✅ 안정 | ⭐ **권장** | 🔬 H2 baseline | 🔬 H2 test | 🔬 H1 test | ⚠️ fx 버그 |
+| Preset | transform | pp_method | zoom | zoom_scope | zoom_range | safe_zoom | PP | fx | Coverage | 상태 |
+|--------|-----------|-----------|------|------------|------------|-----------|-----|-----|----------|------|
+| **D7.1 (M1)** | affine | shift_256 | ❌ | - | - | - | 256 | 549 | ~50% | ✅ 기준선 |
+| **D8 (M2)** | homography | shift_256 | ❌ | - | - | - | 256 | 549 | ~50% | ✅ 정밀 |
+| M3_1 | homography | shift_256 | ✅ | **global** | [1.0,1.8] | ❌ | 256 | 549 | ~78% | ✅ 안정 |
+| **M3_2** | homography | shift_256 | ✅ | **per_sample** | [1.0,1.8] | ❌ | 256 | 549 | ~78% | ⭐ **권장** |
+| M3_2b | homography | shift_256 | ✅ | per_sample | **[1.0,1.5]** | ❌ | 256 | 549 | ~60% | 🔬 H2 baseline |
+| M3_3 | homography | shift_256 | ✅ | per_sample | [1.0,2.5] | **✅** | 256 | 549 | ~78% | 🔬 H2 test |
+| M4 | homography | **pp_correction** | ✅ | per_sample | [1.0,2.5] | ✅ | **가변** | 549 | ~78% | 🔬 H1 test |
+| ~~D10.3~~ | homography | shift_256 | ✅ | global | [1.0,2.5] | ❌ | 가변 | **739** | ~78% | ⛔ **Deprecated** |
 
----
+### 핵심 차이 설명
+
+| 설정 | 설명 |
+|------|------|
+| **zoom=❌** | 전체 이미지 scale (M1/M2), Coverage ~50% |
+| **zoom=✅ global** | 전체 데이터셋에 동일 zoom 적용 |
+| **zoom=✅ per_sample** | 샘플별 coverage 기반 zoom 계산 |
+| **safe_zoom=✅** | 클리핑 방지 zoom 제한 |
+| **pp_correction** | Object-centered crop 후 PP 보정 (MVG 정확) |
+
+### D10.3 Deprecated 사유
+
+```
+문제: normalize_after_zoom=false → fx=739 (target 549 대비 35% 오차)
+영향: Pretrained 모델(fx=549)과 불일치 → 학습 불안정
+대체: M3_1/M3_2 사용 (동일 coverage, 정확한 fx=549)
+```
+
+
 
 ## M3 Variants 핵심 차이
 

@@ -277,7 +277,7 @@ PRESETS = {
         "active": True,
         "note": "Fallback: uses camera Y-axis mean as up. No vertical_lines.npz needed.",
     },
-    "D10.3": {
+    "D10.3": {  # ⛔ DEPRECATED: fx=739 bug, use M3_1/M3_2 instead
         "paradigm": "precision_homography",      # Based on D7_1, NOT up_aligned
         "transform": "homography",         # Skew correction (D8 style)
         "scale_mode": "individual",
@@ -506,7 +506,10 @@ VERSION_HIERARCHY = {
     "homography": ["D8", "D8.1", "D8.2"],
     
     # Homography + Adaptive Coverage Zoom (M3 계열)
-    "homography_zoom": ["D10.3", "M3_1", "M3_2", "M3_2b", "M3_3"],
+    "homography_zoom": ["M3_1", "M3_2", "M3_2b", "M3_3"],
+
+    # Deprecated (fx=739 bug)
+    "deprecated": ["D10.3"],
 
     # Object-centered + PP correction (M4 계열)
     "object_centered": ["M4"],
