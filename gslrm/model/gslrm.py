@@ -58,8 +58,6 @@ from mouse_extensions.model import (
 from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
 # Alpha visualization
 from mouse_extensions.visualization import (
-    create_unified_visualizer,
-    TurntableConfig,
     add_error_scale_annotation,
     compute_pred_mask_for_visualization,
     create_dataset_views_video,
