@@ -1587,12 +1587,9 @@ class GSLRM(nn.Module):
                     weights = opacity / (opacity.sum() + 1e-8)
                     weighted_center = (xyz * weights.unsqueeze(-1)).sum(dim=0).cpu().numpy()
                     
-                    # Compute appropriate radius from Gaussian spread
-                    xyz_np = xyz.cpu().numpy()
-                    bbox_size = xyz_np.max(axis=0) - xyz_np.min(axis=0)
-                    object_size = np.linalg.norm(bbox_size)
-                    # Radius should be ~2x object size for good framing
-                    orbit_radius = turntable_cfg.get("orbit_radius", max(turntable_radius, object_size * 2.0))
+                    # Use same radius as dataset cameras (already normalized to ~2.7)
+                    # Don't auto-scale based on object size - trust the normalization
+                    orbit_radius = turntable_cfg.get("orbit_radius", turntable_radius)
                     
                     orbit_views = turntable_cfg.get("orbit_views", 120)
                     orbit_fps = turntable_cfg.get("orbit_fps", 30)
