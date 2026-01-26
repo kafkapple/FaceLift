@@ -203,6 +203,29 @@ D7 (기본: random split, fx_only scale)
 
 ---
 
+
+---
+
+## 프리셋 분류 체계
+
+### ✅ Active (Production)
+
+| 카테고리 | 프리셋 | 용도 |
+|----------|--------|------|
+| **baseline** | D7.1 (M1), D8 (M2) | 기준선 (zoom 없음) |
+| **production** | M3_1, M3_2 | 운영용 (권장: M3_2) |
+| **hypothesis_test** | M3_2b, M3_3, M4 | 가설 검증용 |
+
+### ⛔ Archived (Reference Only)
+
+| 카테고리 | 프리셋 | 사유 |
+|----------|--------|------|
+| **geometry_broken** | D1, D4, D6-1, D6-2, D6-3 | PP 미보정 → ray error |
+| **superseded** | D7, D7.2, D8.1, D8.2 | D7.1/D8로 대체 |
+| **native** | D9, D9_norm, D9_resized | 변환 없음, 거의 미사용 |
+| **experimental** | D10, D10.1, D10.2 | up_alignment 문제 |
+| **deprecated** | D10.3, M3, M3_norm, M3_persample | fx 버그 또는 중복 |
+
 ## 관련 문서
 
 - [[../00_MoC_INDEX]] - 프로젝트 문서 허브
@@ -211,4 +234,4 @@ D7 (기본: random split, fx_only scale)
 
 ---
 
-*Dataset Documentation v3.2 | 2026-01-26 | Comprehensive Comparison Added*
+*Dataset Documentation v4.0 | 2026-01-26 | Archive System Added*

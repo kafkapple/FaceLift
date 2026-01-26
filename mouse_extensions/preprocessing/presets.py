@@ -24,7 +24,7 @@ PRESETS = {
     # ==========================================================================
     # DEPRECATED: Object-Centered Paradigm (D1-D4)
     # ==========================================================================
-    "D1": {
+    "D1": {  # ⛔ ARCHIVED
         "paradigm": "object_centered",
         "center_method": "per_view_2d",
         "pp_method": "force_256",
@@ -32,7 +32,7 @@ PRESETS = {
         "deprecated": True,
         "reason": "Per-view center causes cross-view inconsistency",
     },
-    "D4": {
+    "D4": {  # ⛔ ARCHIVED
         "paradigm": "object_centered",
         "center_method": "triangulation",
         "pp_method": "force_256",
@@ -44,7 +44,7 @@ PRESETS = {
     # ==========================================================================
     # GEOMETRY-PRESERVING: D6 Methods (Accurate PP)
     # ==========================================================================
-    "D6-1": {
+    "D6-1": {  # ⛔ ARCHIVED
         "paradigm": "geometry_preserving",
         "method": "resize_only",
         "crop": False,
@@ -56,7 +56,7 @@ PRESETS = {
         "ray_error": "0 deg",
         "active": True,
     },
-    "D6-2": {
+    "D6-2": {  # ⛔ ARCHIVED
         "paradigm": "geometry_preserving",
         "method": "virtual_shift",
         "crop": False,
@@ -68,7 +68,7 @@ PRESETS = {
         "ray_error": "0 deg",
         "active": True,
     },
-    "D6-3": {
+    "D6-3": {  # ⛔ ARCHIVED
         "paradigm": "geometry_preserving",
         "method": "pp_correct_crop",
         "crop": True,
@@ -84,7 +84,7 @@ PRESETS = {
     # ==========================================================================
     # PP-CENTERED SHIFT: D7 Methods
     # ==========================================================================
-    "D7": {
+    "D7": {  # ⛔ ARCHIVED
         "paradigm": "pp_centered_shift",
         "transform": "affine",
         "scale_mode": "fx_only",
@@ -97,7 +97,7 @@ PRESETS = {
         "active": True,
         "note": "Legacy. fy=549 forced despite actual ~551.5",
     },
-    "D7.1": {
+    "D7.1": {  # ✅ ACTIVE
         "paradigm": "pp_centered_shift",
         "transform": "affine",
         "scale_mode": "individual",
@@ -111,7 +111,7 @@ PRESETS = {
         "recommended": True,
         "note": "Geometrically correct. ~0.6% anisotropic scaling. Ignores skew.",
     },
-    "D7.2": {
+    "D7.2": {  # ⛔ ARCHIVED
         "paradigm": "pp_centered_shift",
         "transform": "affine",
         "scale_mode": "average",
@@ -128,7 +128,7 @@ PRESETS = {
     # ==========================================================================
     # PRECISION HOMOGRAPHY: D8 Methods
     # ==========================================================================
-    "D8": {
+    "D8": {  # ✅ ACTIVE
         "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
@@ -141,7 +141,7 @@ PRESETS = {
         "active": True,
         "note": "D7.1 + skew correction + exact fx (548.9937744140625)",
     },
-    "D8.1": {
+    "D8.1": {  # ⛔ ARCHIVED
         "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
@@ -154,7 +154,7 @@ PRESETS = {
         "ray_error": "~0 deg",
         "active": True,
     },
-    "D8.2": {
+    "D8.2": {  # ⛔ ARCHIVED
         "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
@@ -175,7 +175,7 @@ PRESETS = {
     # ==========================================================================
     # NATIVE: D9 (Original Resolution)
     # ==========================================================================
-    "D9": {
+    "D9": {  # ⛔ ARCHIVED
         "paradigm": "native",
         "transform": "none",
         "crop": False,
@@ -189,7 +189,7 @@ PRESETS = {
         "note": "Requires ~4.5x more memory. For A6000+ GPUs.",
         "memory_factor": 4.5,
     },
-    "D9_norm": {
+    "D9_norm": {  # ⛔ ARCHIVED
         "paradigm": "native",
         "transform": "none",
         "crop": False,
@@ -205,7 +205,7 @@ PRESETS = {
         "note": "Experimental: fx unchanged (1632), translation normalized to 2.7",
         "memory_factor": 4.5,
     },
-    "D9_resized": {
+    "D9_resized": {  # ⛔ ARCHIVED
         "paradigm": "pp_centered_shift",
         "transform": "affine",
         "scale_mode": "individual",
@@ -223,7 +223,7 @@ PRESETS = {
     # ==========================================================================
     # UP-ALIGNED + ADAPTIVE ZOOM: D10 Methods (PROPOSED)
     # ==========================================================================
-    "D10": {
+    "D10": {  # ⛔ ARCHIVED
         "paradigm": "up_aligned_zoom",
         "transform": "homography",
         "scale_mode": "individual",
@@ -241,7 +241,7 @@ PRESETS = {
         "experimental": True,
         "note": "Aligns world Z-axis to up direction. Good for turntable consistency.",
     },
-    "D10.1": {
+    "D10.1": {  # ⛔ ARCHIVED
         "paradigm": "up_aligned_zoom",
         "transform": "homography",
         "scale_mode": "individual",
@@ -260,7 +260,7 @@ PRESETS = {
         "experimental": True,
         "note": "Auto-adjusts zoom per frame. Mouse fills 80% of frame.",
     },
-    "D10.2": {
+    "D10.2": {  # ⛔ ARCHIVED
         "paradigm": "up_aligned_zoom",
         "transform": "homography",
         "scale_mode": "individual",
@@ -304,7 +304,7 @@ PRESETS = {
     # ============================================================
     
     # P0: M3 with post-zoom normalization (fx=549, PP=256)
-    "M3_norm": {
+    "M3_norm": {  # ⛔ ARCHIVED
         "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
@@ -343,7 +343,7 @@ PRESETS = {
     },
     
     # P1-2: Per-sample adaptive zoom (variable fx experiment)
-    "M3_persample": {  # ⛔ DEPRECATED: Identical to M3_2, use M3_2 instead
+    "M3_persample": {  # ⛔ ARCHIVED  # ⛔ DEPRECATED: Identical to M3_2, use M3_2 instead
         "deprecated": True,  # 260126: Merged into M3_2
         "paradigm": "precision_homography",
         "transform": "homography",
@@ -370,7 +370,7 @@ PRESETS = {
     
     # P0 FIX: M3 with MVG-correct center-aligned zoom (PP=256 guaranteed)
     # MVG-correct version of M3_norm (global zoom, center-aligned)
-    "M3_1": {
+    "M3_1": {  # ✅ ACTIVE
         "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
@@ -393,7 +393,7 @@ PRESETS = {
         "active": True,
     },
 
-    "M3_2": {
+    "M3_2": {  # ✅ ACTIVE
         "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
@@ -418,7 +418,7 @@ PRESETS = {
     },
 
     # M3 Variants for Hypothesis Testing (2026-01-26)
-    "M3_3": {
+    "M3_3": {  # ✅ ACTIVE
         "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
@@ -442,7 +442,7 @@ PRESETS = {
         "description": "M3_2 + safe zoom (0% clipping, PP=256)",
         "active": True,
     },
-    "M3_2b": {
+    "M3_2b": {  # ✅ ACTIVE
         "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
@@ -465,7 +465,7 @@ PRESETS = {
         "description": "M3_2 + conservative zoom",
         "active": True,
     },
-    "M4": {
+    "M4": {  # ✅ ACTIVE
         "paradigm": "object_centered_mvg",
         "transform": "homography",
         "scale_mode": "individual",
@@ -495,37 +495,39 @@ PRESETS = {
 
 # Version hierarchy for organization
 VERSION_HIERARCHY = {
-    "recommended": "M3_2",  # MVG-correct preset
+    # ==========================================================================
+    # ACTIVE PRESETS (Production Use)
+    # ==========================================================================
+    "recommended": "M3_2",  # Best overall: per-sample zoom, PP=256, fx=549
 
-    # === 기하학적 변환 기준 분류 ===
-    
-    # Affine 변환: 회전, 스케일, 이동 (M1 계열)
-    "affine": ["D7", "D7.1", "D7.2"],
-    
-    # Homography 변환: affine + skew 보정 (M2 계열)
-    "homography": ["D8", "D8.1", "D8.2"],
-    
-    # Homography + Adaptive Coverage Zoom (M3 계열)
-    "homography_zoom": ["M3_1", "M3_2", "M3_2b", "M3_3"],
+    # Baseline (no zoom)
+    "baseline": ["D7.1", "D8"],  # M1, M2
 
-    # Deprecated (fx=739 bug)
-    "deprecated": ["D10.3"],
+    # Adaptive Zoom (production)
+    "production": ["M3_1", "M3_2"],  # Global/Per-sample zoom, PP=256
 
-    # Object-centered + PP correction (M4 계열)
+    # Hypothesis Testing
+    "hypothesis_test": ["M3_2b", "M3_3", "M4"],  # H1/H2 verification
+
+    # Object-centered with PP correction
     "object_centered": ["M4"],
-    
-    # === 특수/실험적 ===
-    
-    # Up-alignment 실험 (93도 회전 문제 있음)
-    "experimental": ["D10", "D10.1", "D10.2"],
-    
-    # Native: 변환 없음, 원본 유지
-    "native": ["D9", "D9_norm", "D9_resized"],
-    
-    # === 사용 금지 ===
-    
-    # Geometry Broken: centering/scaling만, PP 미보정 (ray error 심각)
-    "geometry_broken": ["D1", "D4", "D6-1", "D6-2", "D6-3"],
+
+    # ==========================================================================
+    # ARCHIVED PRESETS (Reference Only - Do Not Use)
+    # ==========================================================================
+
+    # Geometry Broken: PP not corrected after object-centered crop
+    "archived_geometry_broken": ["D1", "D4", "D6-1", "D6-2", "D6-3"],
+
+    # Superseded by D7.1/D8
+    "archived_superseded": ["D7", "D7.2", "D8.1", "D8.2"],
+
+    # Native (no transform) - rarely used
+    "archived_native": ["D9", "D9_norm", "D9_resized"],
+
+    # Experimental/Deprecated
+    "archived_experimental": ["D10", "D10.1", "D10.2"],
+    "archived_deprecated": ["D10.3", "M3", "M3_norm", "M3_persample"],
 }
 
 # M-Series 권장 매핑

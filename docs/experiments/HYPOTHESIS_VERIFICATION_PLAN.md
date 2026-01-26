@@ -89,6 +89,18 @@ M4 (H1 test - PP correction)
 └── Coverage: ~78% (최대)
 ```
 
+
+### ⛔ Archived Presets (참고용, 사용 금지)
+
+| 카테고리 | 프리셋 | 사유 |
+|----------|--------|------|
+| geometry_broken | D1, D4, D6-* | PP 미보정 |
+| superseded | D7, D7.2, D8.1, D8.2 | 대체됨 |
+| deprecated | D10.3, M3, M3_norm | fx 버그/중복 |
+
+상세: `mouse_extensions/preprocessing/presets.py` → `VERSION_HIERARCHY`
+
+
 ---
 
 ## E 실험 설정 비교
