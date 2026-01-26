@@ -459,3 +459,50 @@ def get_dynamic_camera_order(c2ws: np.ndarray, config: dict = None) -> List[int]
     
     # Compute dynamically from extrinsics
     return compute_camera_order_from_extrinsics(c2ws, direction)
+
+
+def compute_camera_convergence_center(c2ws: np.ndarray) -> np.ndarray:
+    """
+    Compute the convergence center from multiple camera c2w matrices.
+    
+    This finds the point that minimizes the sum of squared distances
+    to all camera viewing rays (least squares intersection).
+    
+    Args:
+        c2ws: [N, 4, 4] camera-to-world matrices
+    
+    Returns:
+        center: [3,] the convergence center point
+    """
+    N = c2ws.shape[0]
+    
+    # Extract camera positions and viewing directions
+    cam_positions = c2ws[:, :3, 3]  # [N, 3] - camera positions
+    
+    # Forward direction is -Z in camera space (OpenCV convention)
+    forward_dirs = -c2ws[:, :3, 2]  # [N, 3] - viewing directions
+    forward_dirs = forward_dirs / np.linalg.norm(forward_dirs, axis=1, keepdims=True)
+    
+    # Least squares intersection of rays
+    # For each ray: P = origin + t * direction
+    # Find point closest to all rays: A @ center = b
+    # where A = sum(I - d*d^T), b = sum((I - d*d^T) @ origin)
+    
+    A = np.zeros((3, 3))
+    b = np.zeros(3)
+    
+    for i in range(N):
+        origin = cam_positions[i]
+        d = forward_dirs[i]
+        I_minus_ddT = np.eye(3) - np.outer(d, d)
+        A += I_minus_ddT
+        b += I_minus_ddT @ origin
+    
+    # Solve for center
+    try:
+        center = np.linalg.solve(A, b)
+    except np.linalg.LinAlgError:
+        # Fallback to average camera position
+        center = cam_positions.mean(axis=0)
+    
+    return center

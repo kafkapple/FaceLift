@@ -58,6 +58,7 @@ from mouse_extensions.model import (
 from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
 # Alpha visualization
 from mouse_extensions.visualization import (
+    compute_camera_convergence_center,
     add_error_scale_annotation,
     compute_pred_mask_for_visualization,
     visualize_alpha_comparison,
@@ -1579,13 +1580,20 @@ class GSLRM(nn.Module):
                 
                 # Also save standard 360-degree orbit turntable (smooth rotation)
                 if turntable_cfg.get("save_orbit_turntable", True):
-                    # Compute weighted center by opacity for better object centering
+                    # Compute center from camera convergence (where all cameras look at)
+                    # This is more robust than using Gaussian positions
+                    orbit_center = compute_camera_convergence_center(dataset_c2ws)
+                    
+                    # Fallback to opacity-weighted Gaussian center if needed
                     gaussians = model_results.gaussians[batch_idx]
                     xyz = gaussians._xyz.detach()
                     opacity = gaussians.get_opacity.detach().squeeze()
-                    # Use opacity-weighted center for better focus on visible parts
                     weights = opacity / (opacity.sum() + 1e-8)
-                    weighted_center = (xyz * weights.unsqueeze(-1)).sum(dim=0).cpu().numpy()
+                    gaussian_center = (xyz * weights.unsqueeze(-1)).sum(dim=0).cpu().numpy()
+                    
+                    # Use camera convergence center (more stable)
+                    # Can switch to gaussian_center if camera convergence fails
+                    weighted_center = orbit_center
                     
                     # Use same radius as dataset cameras (already normalized to ~2.7)
                     # Don't auto-scale based on object size - trust the normalization
