@@ -1250,7 +1250,18 @@ _stats:
             if cfg.max_samples:
                 frame_indices = frame_indices[:cfg.max_samples]
 
-            print(f"Transform: {cfg.transform.value}, Scale: {cfg.scale_mode.value}, Zoom: {cfg.zoom}x")
+            # Print detailed preprocessing configuration
+            zoom_scope = getattr(cfg, 'zoom_scope', 'global')
+            zoom_center_mode = getattr(cfg, 'zoom_center_mode', 'object')
+            safe_zoom = getattr(cfg, 'safe_zoom', False)
+            pp_correction = getattr(cfg, 'pp_correction', False)
+
+            print(f"Transform: {cfg.transform.value}, Scale: {cfg.scale_mode.value}")
+            if cfg.adaptive_zoom:
+                print(f"  Adaptive Zoom: range={cfg.zoom_range}, scope={zoom_scope}, center_mode={zoom_center_mode}")
+                print(f"  safe_zoom={safe_zoom}, pp_correction={pp_correction}, target_coverage={cfg.target_fg_coverage}")
+            else:
+                print(f"  Zoom: {cfg.zoom}x")
 
             transforms = [self.compute_transform(cam['K']) for cam in self.cameras]
 
