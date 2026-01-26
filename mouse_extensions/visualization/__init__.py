@@ -6,6 +6,7 @@ Provides:
 - Turntable configuration and trajectory generation
 - Unified video generation for train/val
 - Error annotation utilities
+- Unified visualization (train/val consistent)
 """
 
 from .alpha_visualization import (
@@ -22,6 +23,8 @@ from .turntable_config import (
     interpolate_camera_extrinsics,
     create_turntable_trajectory,
     get_grid_row_labels,
+    subsample_frames_for_grid,
+    create_grid_from_video,
 )
 
 from .video_generator import (
@@ -37,6 +40,12 @@ from .error_annotation import (
     compute_pred_mask_for_visualization,
 )
 
+from .unified_visualization import (
+    TurntableConfig,
+    UnifiedVisualizer,
+    create_unified_visualizer,
+)
+
 __all__ = [
     # Alpha visualization
     "visualize_alpha_comparison",
@@ -50,7 +59,7 @@ __all__ = [
     "interpolate_camera_extrinsics",
     "create_turntable_trajectory",
     "get_grid_row_labels",
-    # Video generation
+    # Video generation (legacy)
     "create_dataset_views_video",
     "create_turntable_video",
     "create_grid_image",
@@ -59,4 +68,8 @@ __all__ = [
     # Error annotation
     "add_error_scale_annotation",
     "compute_pred_mask_for_visualization",
+    # Unified visualization (recommended)
+    "TurntableConfig",
+    "UnifiedVisualizer",
+    "create_unified_visualizer",
 ]

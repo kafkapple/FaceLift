@@ -68,6 +68,7 @@ from mouse_extensions.visualization import (
     compute_alpha_metrics,
     MOUSE_CAMERA_ORDER,
     DEFAULT_TURNTABLE_CONFIG,
+    create_grid_from_video,
 )
 
 from mouse_extensions.model.mask_losses import (
@@ -1461,7 +1462,9 @@ class GSLRM(nn.Module):
             # Render turntable visualization (8x8 = 64 views for comprehensive coverage)
             # Get turntable config
             turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
-            turntable_views = turntable_cfg.get("num_views", 36)
+            video_views = turntable_cfg.get("video_views", 144)  # Smooth video
+            grid_views = turntable_cfg.get("grid_views", 36)  # Grid (6x6)
+            turntable_views = video_views  # Use video_views for rendering
             turntable_resolution = turntable_cfg.get("resolution", 384)
             turntable_elevation = turntable_cfg.get("elevation", 20)
             turntable_radius = turntable_cfg.get("radius", 2.7)
@@ -1548,14 +1551,12 @@ class GSLRM(nn.Module):
                     center=gaussian_center
                 )
             
-            # render_turntable returns: h x (views*w) x c
-            # Reshape to 6x6 grid layout (default)
-            h_img = turntable_image.shape[0]
-            w_per_view = turntable_image.shape[1] // turntable_views
-            turntable_grid = turntable_image.reshape(h_img, turntable_views, w_per_view, 3)
-            grid_rows = turntable_cfg.get("grid_rows", 6)  # Default 6x6 grid (36 views)
+            # Create grid from turntable frames (subsample 144 -> 36 for 6x6 grid)
+            grid_rows = turntable_cfg.get("grid_rows", 6)
             grid_cols = turntable_cfg.get("grid_cols", 6)
-            turntable_grid = rearrange(turntable_grid, "h (rows cols) w c -> (rows h) (cols w) c", rows=grid_rows, cols=grid_cols)
+            turntable_grid, all_frames, h_img = create_grid_from_video(
+                turntable_image, turntable_views, grid_rows, grid_cols
+            )
             
             # Add row labels if enabled (e.g., "Cam 1 -> 3")
             if turntable_cfg.get("add_row_labels", True):
@@ -1574,14 +1575,13 @@ class GSLRM(nn.Module):
                 os.path.join(output_directory, f"turntable_{item_uid}.jpg")
             )
             
-            # Optionally save turntable video during training
-            if turntable_cfg.get("save_video", False):
-                # Reshape back to individual frames for video
-                turntable_frames = turntable_image.reshape(h_img, turntable_views, w_per_view, 3)
-                turntable_frames = rearrange(turntable_frames, "h v w c -> v h w c")
-                turntable_frames = np.ascontiguousarray(turntable_frames)
+            # Save turntable video (enabled by default)
+            if turntable_cfg.get("save_video", True):
+                # Use all_frames for smooth 144-frame video
+                video_frames = rearrange(all_frames, "h v w c -> v h w c")
+                video_frames = np.ascontiguousarray(video_frames)
                 turntable_fps = turntable_cfg.get("fps", 15)
-                imageseq2video(turntable_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=turntable_fps)
+                imageseq2video(video_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=turntable_fps)
             
             # Additionally save dataset camera views for direct GT comparison
             if turntable_cfg.get("save_dataset_views", False):
@@ -2020,7 +2020,8 @@ class GSLRM(nn.Module):
                 camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
                 loop_trajectory = turntable_cfg.get("loop", True)
                 turntable_fps = turntable_cfg.get("fps", 15)
-                num_turntable_views = turntable_cfg.get("num_views", 36)
+                video_views = turntable_cfg.get("video_views", 144)  # Smooth video
+                num_turntable_views = video_views
                 
                 # Get dataset camera poses
                 dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()
@@ -2055,13 +2056,18 @@ class GSLRM(nn.Module):
                 turntable_frames = np.ascontiguousarray(turntable_frames)
                 imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=turntable_fps)
                 
-                # Also save grid image for quick inspection
+                # Create grid image (subsample 144 -> 36 for 6x6 grid)
                 grid_rows = turntable_cfg.get("grid_rows", 6)
                 grid_cols = turntable_cfg.get("grid_cols", 6)
-                grid_views = grid_rows * grid_cols
+                target_grid_views = grid_rows * grid_cols  # 36
                 
-                # Use first grid_views frames for grid image
-                grid_frames = turntable_frames[:grid_views]  # (V, H, W, C)
+                # Subsample evenly spaced frames
+                if num_turntable_views > target_grid_views:
+                    indices = np.linspace(0, num_turntable_views - 1, target_grid_views, dtype=int)
+                    grid_frames = turntable_frames[indices]
+                else:
+                    grid_frames = turntable_frames[:target_grid_views]
+                
                 h_img = grid_frames.shape[1]
                 grid_image = rearrange(grid_frames, "(rows cols) h w c -> (rows h) (cols w) c", rows=grid_rows, cols=grid_cols)
                 
