@@ -1456,9 +1456,15 @@ class GSLRM(nn.Module):
             if smooth_trajectory:
                 # Use smooth interpolation between dataset cameras
                 hold_frames = turntable_cfg.get("hold_frames", 15)  # ~1.5s at 10fps
+                # Optional FOV scale to zoom out (< 1.0) or zoom in (> 1.0)
+                fov_scale = turntable_cfg.get("trajectory_fov_scale", 1.0)
+                scaled_fxfycxcy = dataset_fxfycxcy.copy()
+                if fov_scale != 1.0:
+                    # Scale fx, fy (indices 0, 1) to adjust FOV
+                    scaled_fxfycxcy[:, :2] *= fov_scale
                 turntable_frames, segments = render_dataset_trajectory(
                     model_results.gaussians[batch_idx],
-                    dataset_c2ws, dataset_fxfycxcy,
+                    dataset_c2ws, scaled_fxfycxcy,
                     rendering_resolution=turntable_resolution,
                     num_views=turntable_views,
                     camera_order=camera_order,
@@ -1548,14 +1554,18 @@ class GSLRM(nn.Module):
                 turntable_fps = turntable_cfg.get("fps", 30)
                 imageseq2video(video_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=trajectory_fps)
                 # Save turntable with input overlay (like validation)
-                # Create labeled input strip in camera traversal order
+                # Create labeled input strip showing all views in camera order
+                # Mark which were inputs vs predicted
                 input_strip_h = turntable_resolution // 4  # Height for input strip
+                num_input_views = input_data.image.shape[1]
+                input_indices = list(range(num_input_views))  # Assume sorted order
                 labeled_input = create_labeled_input_strip(
-                    input_data.image[batch_idx],
+                    target_data.image[batch_idx],  # All 6 views
                     camera_order=camera_order,
                     target_h=input_strip_h,
                     target_w=turntable_resolution,
-                    border=2
+                    border=2,
+                    input_indices=input_indices,  # Mark input vs predicted
                 )
                 
                 # Combine turntable frames with labeled input
@@ -1607,11 +1617,12 @@ class GSLRM(nn.Module):
                     # Also save orbit turntable with input views at bottom
                     orbit_input_h = turntable_resolution // 4
                     orbit_labeled_input = create_labeled_input_strip(
-                        input_data.image[batch_idx],
+                        target_data.image[batch_idx],  # All 6 views
                         camera_order=camera_order,
                         target_h=orbit_input_h,
                         target_w=turntable_resolution,
-                        border=2
+                        border=2,
+                        input_indices=input_indices,  # Mark input vs predicted
                     )
                     orbit_input_seq = np.tile(orbit_labeled_input[None], (orbit_frames.shape[0], 1, 1, 1))
                     orbit_combined = np.concatenate((orbit_frames, orbit_input_seq), axis=1)

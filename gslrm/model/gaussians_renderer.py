@@ -1476,35 +1476,41 @@ def get_turntable_with_dataset_views(
 
 
 def create_labeled_input_strip(
-    input_images: torch.Tensor,
+    all_images: torch.Tensor,
     camera_order: list,
     target_h: int,
     target_w: int,
-    border: int = 2
+    border: int = 2,
+    input_indices: list = None,  # Which views were inputs (e.g., [0,1,2,3])
 ) -> np.ndarray:
     """
-    Create input image strip with camera labels, ordered by camera_order.
+    Create image strip with camera labels, ordered by camera_order.
+    Shows all views (input + predicted) with different labels.
 
     Args:
-        input_images: [V, C, H, W] tensor of input images
+        all_images: [V, C, H, W] tensor of all images (input + target views)
         camera_order: List of camera indices in traversal order (e.g., [1, 3, 5, 0, 4, 2])
         target_h: Target height for the strip (including labels)
         target_w: Target width for the entire strip
         border: Border width between images
+        input_indices: List of indices that were input views (others are predicted)
 
     Returns:
-        np.ndarray [H, W, 3] uint8 - labeled input strip with camera labels
+        np.ndarray [H, W, 3] uint8 - labeled image strip
     """
-    num_views = input_images.shape[0]
+    num_views = all_images.shape[0]
+    if input_indices is None:
+        input_indices = list(range(num_views))  # All are inputs
 
     # Reorder images according to camera_order
     reordered_images = []
     for cam_idx in camera_order:
         if cam_idx < num_views:
-            img = input_images[cam_idx, :3, ...]  # [C, H, W]
+            img = all_images[cam_idx, :3, ...]  # [C, H, W]
             img = rearrange(img, 'c h w -> h w c')
             img = (img.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
-            reordered_images.append((cam_idx, img))
+            is_input = cam_idx in input_indices
+            reordered_images.append((cam_idx, img, is_input))
 
     if not reordered_images:
         return None
@@ -1519,10 +1525,10 @@ def create_labeled_input_strip(
     strip = np.ones((target_h, target_w, 3), dtype=np.uint8) * 200
 
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.6
-    font_thick = 2
+    font_scale = 0.5
+    font_thick = 1
 
-    for i, (cam_idx, img) in enumerate(reordered_images):
+    for i, (cam_idx, img, is_input) in enumerate(reordered_images):
         x_start = border + i * (per_img_w + border)
 
         # Resize image maintaining aspect ratio
@@ -1532,6 +1538,17 @@ def create_labeled_input_strip(
         new_h = int(orig_h * scale)
         resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
+        # Add colored border for input vs predicted
+        if is_input:
+            # Green border for input views
+            border_color = (0, 200, 0)
+        else:
+            # Blue border for predicted views
+            border_color = (200, 100, 0)
+
+        # Draw border
+        cv2.rectangle(resized, (0, 0), (new_w-1, new_h-1), border_color, 2)
+
         # Center the image in its slot
         y_offset = border + (per_img_h - new_h) // 2
         x_offset = x_start + (per_img_w - new_w) // 2
@@ -1540,14 +1557,17 @@ def create_labeled_input_strip(
         strip[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
 
         # Add camera label below
-        label = f'Cam {cam_idx}'
+        label = f'{cam_idx}'
+        if is_input:
+            label += ' (In)'
+        else:
+            label += ' (Pred)'
         (tw, th), _ = cv2.getTextSize(label, font, font_scale, font_thick)
         label_x = x_start + (per_img_w - tw) // 2
-        label_y = border + per_img_h + 18
+        label_y = border + per_img_h + 16
         cv2.putText(strip, label, (label_x, label_y), font, font_scale, (0, 0, 0), font_thick)
 
     return strip
-
 
 def add_left_row_labels(
     grid_image: np.ndarray,
