@@ -1453,8 +1453,10 @@ class GSLRM(nn.Module):
             smooth_trajectory = turntable_cfg.get("smooth_trajectory", True)
             camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
             loop_trajectory = turntable_cfg.get("loop", True)
+            trajectory_fps = turntable_cfg.get("trajectory_fps", 10)  # FPS for trajectory video
             if smooth_trajectory:
                 # Use smooth interpolation between dataset cameras
+                hold_frames = turntable_cfg.get("hold_frames", 15)  # ~1.5s at 10fps
                 turntable_frames, segments = render_dataset_trajectory(
                     model_results.gaussians[batch_idx],
                     dataset_c2ws, dataset_fxfycxcy,
@@ -1464,6 +1466,7 @@ class GSLRM(nn.Module):
                     loop=loop_trajectory,
                     show_overlay=True,
                     original_resolution=input_resolution,
+                    hold_frames=hold_frames,
                 )
                 # turntable_frames: [num_views, H, W, 3]
                 turntable_image = rearrange(turntable_frames, "v h w c -> h (v w) c")
@@ -1544,7 +1547,7 @@ class GSLRM(nn.Module):
                 video_frames = rearrange(all_frames, "h v w c -> v h w c")
                 video_frames = np.ascontiguousarray(video_frames)
                 turntable_fps = turntable_cfg.get("fps", 30)
-                imageseq2video(video_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=turntable_fps)
+                imageseq2video(video_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=trajectory_fps)
                 # Save turntable with input overlay (like validation)
                 # Create input image strip
                 input_image = rearrange(
@@ -1573,8 +1576,35 @@ class GSLRM(nn.Module):
                 imageseq2video(
                     combined_frames, 
                     os.path.join(output_directory, f"turntable_with_input_{item_uid}.mp4"), 
-                    fps=turntable_fps
+                    fps=trajectory_fps  # Use slower fps for trajectory video
                 )
+                
+                # Also save standard 360-degree orbit turntable (smooth rotation)
+                if turntable_cfg.get("save_orbit_turntable", True):
+                    # Compute Gaussian center for camera orbit
+                    gaussian_center = model_results.gaussians[batch_idx]._xyz.mean(dim=0).detach().cpu().numpy()
+                    orbit_views = turntable_cfg.get("orbit_views", 120)  # Smooth 360 rotation
+                    orbit_fps = turntable_cfg.get("orbit_fps", 30)
+                    orbit_frames = render_turntable(
+                        model_results.gaussians[batch_idx],
+                        rendering_resolution=turntable_resolution,
+                        num_views=orbit_views,
+                        elevation=turntable_elevation,
+                        radius=turntable_radius,
+                        trajectory_mode="turntable",
+                        center=gaussian_center,
+                    )
+                    # orbit_frames is [H, V*W, 3], need to reshape to [V, H, W, 3]
+                    orbit_h = orbit_frames.shape[0]
+                    orbit_w = orbit_frames.shape[1] // orbit_views
+                    orbit_frames = orbit_frames.reshape(orbit_h, orbit_views, orbit_w, 3)
+                    orbit_frames = np.transpose(orbit_frames, (1, 0, 2, 3))  # [V, H, W, 3]
+                    orbit_frames = np.ascontiguousarray(orbit_frames)
+                    imageseq2video(
+                        orbit_frames, 
+                        os.path.join(output_directory, f"turntable_orbit_{item_uid}.mp4"), 
+                        fps=orbit_fps
+                    )
             # Additionally save dataset camera views for direct GT comparison
             if turntable_cfg.get("save_dataset_views", False):
                 # Get original resolution from input data (already scaled by dataset)

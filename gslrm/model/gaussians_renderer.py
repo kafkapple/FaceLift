@@ -64,31 +64,55 @@ def get_dataset_camera_trajectory(
     num_views: int = 150,
     camera_order: list = None,
     loop: bool = True,
+    hold_frames: int = 0,  # Frames to hold at each camera position
 ):
     """
     Generate smooth camera trajectory through dataset cameras.
     
+    Args:
+        hold_frames: Number of frames to pause at each camera position (default: 0)
+                    If > 0, pauses at each camera before transitioning to next
+    
     Returns:
         fxfycxcy: [num_views, 4]
         c2ws: [num_views, 4, 4]
-        segments: List of (start_frame, end_frame, from_cam, to_cam)
+        segments: List of (start_frame, end_frame, from_cam, to_cam, is_hold)
     """
     num_cams = dataset_c2ws.shape[0]
     if camera_order is None:
         camera_order = list(range(num_cams))
     if loop:
-        camera_order = camera_order + [camera_order[0]]
+        full_camera_order = camera_order + [camera_order[0]]
+    else:
+        full_camera_order = camera_order
     
-    num_segments = len(camera_order) - 1
-    frames_per_segment = num_views // num_segments
+    num_segments = len(full_camera_order) - 1
+    
+    # Calculate frames: hold + transition for each segment
+    if hold_frames > 0:
+        # Total frames = (hold + transition) * num_segments
+        transition_frames = max(1, (num_views - hold_frames * num_segments) // num_segments)
+    else:
+        transition_frames = num_views // num_segments
     
     c2ws, fxfycxcys, segments = [], [], []
     frame_idx = 0
     
     for seg_idx in range(num_segments):
-        from_cam, to_cam = camera_order[seg_idx], camera_order[seg_idx + 1]
-        seg_frames = num_views - frame_idx if seg_idx == num_segments - 1 else frames_per_segment
-        segments.append((frame_idx, frame_idx + seg_frames, from_cam, to_cam))
+        from_cam = full_camera_order[seg_idx]
+        to_cam = full_camera_order[seg_idx + 1]
+        
+        # Hold frames at from_cam position
+        if hold_frames > 0:
+            segments.append((frame_idx, frame_idx + hold_frames, from_cam, from_cam, True))
+            for _ in range(hold_frames):
+                c2ws.append(dataset_c2ws[from_cam])
+                fxfycxcys.append(dataset_fxfycxcy[from_cam])
+                frame_idx += 1
+        
+        # Transition frames
+        seg_frames = transition_frames if seg_idx < num_segments - 1 else max(1, num_views - frame_idx)
+        segments.append((frame_idx, frame_idx + seg_frames, from_cam, to_cam, False))
         
         for i in range(seg_frames):
             t = i / seg_frames
@@ -1284,6 +1308,7 @@ def render_dataset_trajectory(
     loop: bool = True,
     show_overlay: bool = True,
     original_resolution: int = None,  # Original image resolution for intrinsics scaling
+    hold_frames: int = 0,  # Frames to hold at each camera position
 ):
     """
     Render video traversing through dataset camera positions.
@@ -1297,10 +1322,11 @@ def render_dataset_trajectory(
         camera_order: Order to visit cameras (default: sequential)
         loop: Return to first camera at end
         show_overlay: Show camera transition text
+        hold_frames: Frames to pause at each camera position (0 = no pause)
     
     Returns:
         frames: [num_views, H, W, 3] uint8
-        segments: List of (start_frame, end_frame, from_cam, to_cam)
+        segments: List of (start_frame, end_frame, from_cam, to_cam, is_hold)
     """
     device = pc._xyz.device
     h = w = rendering_resolution
@@ -1311,16 +1337,17 @@ def render_dataset_trajectory(
         scale = rendering_resolution / original_resolution
         scaled_fxfycxcy = dataset_fxfycxcy * scale
     
-    # Generate trajectory
+    # Generate trajectory with optional hold frames
     fxfycxcy, c2ws, segments = get_dataset_camera_trajectory(
-        dataset_c2ws, scaled_fxfycxcy, num_views, camera_order, loop
+        dataset_c2ws, scaled_fxfycxcy, num_views, camera_order, loop, hold_frames
     )
     
     fxfycxcy = torch.from_numpy(fxfycxcy).float().to(device)
     c2ws = torch.from_numpy(c2ws).float().to(device)
     
+    actual_num_views = len(c2ws)
     frames = []
-    for j in range(num_views):
+    for j in range(actual_num_views):
         render_result = render_opencv_cam(pc, h, w, c2ws[j], fxfycxcy[j])
         frame = render_result["render"].detach().cpu().numpy()
         frame = (frame * 255).clip(0, 255).astype(np.uint8)
@@ -1328,9 +1355,16 @@ def render_dataset_trajectory(
         
         if show_overlay:
             # Find which segment this frame belongs to
-            for seg_start, seg_end, from_cam, to_cam in segments:
+            for seg_info in segments:
+                seg_start, seg_end, from_cam, to_cam = seg_info[:4]
+                is_hold = seg_info[4] if len(seg_info) > 4 else False
                 if seg_start <= j < seg_end:
-                    text = f"Cam {from_cam} -> Cam {to_cam}"
+                    if is_hold:
+                        text = f"Cam {from_cam} [HOLD]"
+                    elif from_cam == to_cam:
+                        text = f"Cam {from_cam}"
+                    else:
+                        text = f"Cam {from_cam} -> Cam {to_cam}"
                     frame = add_camera_overlay(frame, text)
                     break
         
