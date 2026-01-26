@@ -102,7 +102,7 @@ def get_dataset_camera_trajectory(
 def add_camera_overlay(image: np.ndarray, text: str) -> np.ndarray:
     """Add camera transition text overlay (e.g., Cam 0 -> Cam 1)."""
     img = image.copy()
-    font, scale, thick = cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2
+    font, scale, thick = cv2.FONT_HERSHEY_SIMPLEX, 1.5, 3
     (tw, th), _ = cv2.getTextSize(text, font, scale, thick)
     cv2.rectangle(img, (5, 5), (tw + 15, th + 15), (0, 0, 0), -1)
     cv2.putText(img, text, (10, th + 10), font, scale, (255, 255, 255), thick)

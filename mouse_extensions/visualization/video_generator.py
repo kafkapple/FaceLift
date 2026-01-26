@@ -24,40 +24,100 @@ def create_dataset_views_video(
     imageseq2video_fn,  # Function to convert image sequence to video
 ) -> str:
     """
-    Create video cycling through dataset camera views.
+    Create video cycling through dataset camera views with smooth transitions.
     
     Args:
         dataset_views: Rendered views from each camera [num_cams, H, W, 3]
         output_path: Full path for output video
         config: Turntable config dict with keys:
             - camera_order: List of camera indices (default: MOUSE_CAMERA_ORDER)
-            - dataset_views_fps: FPS for the video (default: 2)
+            - dataset_views_fps: FPS for the video (default: 10)
         imageseq2video_fn: Function(frames, path, fps) to save video
     
     Returns:
         Output path
     """
-    fps = config.get("dataset_views_fps", 4)
-    camera_order = config.get("camera_order", MOUSE_CAMERA_ORDER)
+    import cv2
     
-    # 각 카메라에서 1초 유지 (더 천천히)
-    frames_per_cam = max(2, int(fps * 1.0))
+    fps = config.get("dataset_views_fps", 10)
+    camera_order = config.get("camera_order", MOUSE_CAMERA_ORDER)
+    loop = config.get("loop", True)
     
     # camera_order에 따라 재정렬
     ordered_views = dataset_views[camera_order]  # [num_cams_ordered, H, W, 3]
+    num_cams = len(ordered_views)
     
-    # 각 뷰를 frames_per_cam 만큼 반복
-    video_frames = np.repeat(ordered_views, frames_per_cam, axis=0)
+    # Loop: 처음으로 돌아오는 전환 추가
+    if loop:
+        full_order = list(range(num_cams)) + [0]
+    else:
+        full_order = list(range(num_cams))
     
-    # Loop: 마지막에 첫 프레임 추가
-    if config.get("loop", True):
-        video_frames = np.concatenate([
-            video_frames, 
-            np.repeat(ordered_views[:1], frames_per_cam, axis=0)
-        ], axis=0)
+    # 전환당 프레임 수
+    transition_frames = fps  # 1초에 다음 카메라로 전환
+    hold_frames = fps // 2   # 각 카메라에서 0.5초 유지
     
+    video_frames = []
+    
+    for seg_idx in range(len(full_order) - 1):
+        from_idx = full_order[seg_idx]
+        to_idx = full_order[seg_idx + 1]
+        from_cam = camera_order[from_idx]
+        to_cam = camera_order[to_idx]
+        from_view = ordered_views[from_idx].astype(np.float32)
+        to_view = ordered_views[to_idx].astype(np.float32)
+        
+        # 시작 카메라에서 잠시 유지
+        for _ in range(hold_frames):
+            frame = from_view.astype(np.uint8)
+            frame = _add_dataset_views_overlay(frame, from_cam, to_cam, 0.0)
+            video_frames.append(frame)
+        
+        # 부드러운 전환 (cross-fade)
+        for i in range(transition_frames):
+            t = (i + 1) / transition_frames  # 0 -> 1
+            blended = (1 - t) * from_view + t * to_view
+            frame = blended.astype(np.uint8)
+            frame = _add_dataset_views_overlay(frame, from_cam, to_cam, t)
+            video_frames.append(frame)
+    
+    # 마지막 카메라에서 유지
+    last_idx = full_order[-1]
+    last_cam = camera_order[last_idx]
+    for _ in range(hold_frames):
+        frame = ordered_views[last_idx].copy()
+        frame = _add_dataset_views_overlay(frame, last_cam, last_cam, 1.0)
+        video_frames.append(frame)
+    
+    video_frames = np.stack(video_frames, axis=0)
     imageseq2video_fn(video_frames, output_path, fps=fps)
     return output_path
+
+
+def _add_dataset_views_overlay(
+    image: np.ndarray, 
+    from_cam: int, 
+    to_cam: int, 
+    progress: float
+) -> np.ndarray:
+    """Add camera transition text overlay for dataset views video."""
+    import cv2
+    img = image.copy()
+    
+    if from_cam == to_cam:
+        text = f"Cam {from_cam}"
+    else:
+        text = f"Cam {from_cam} -> Cam {to_cam}"
+    
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    scale, thick = 1.5, 3
+    (tw, th), _ = cv2.getTextSize(text, font, scale, thick)
+    
+    # 검은 배경 박스
+    cv2.rectangle(img, (5, 5), (tw + 15, th + 15), (0, 0, 0), -1)
+    cv2.putText(img, text, (10, th + 10), font, scale, (255, 255, 255), thick)
+    
+    return img
 
 
 def create_turntable_video(

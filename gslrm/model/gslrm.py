@@ -1462,7 +1462,7 @@ class GSLRM(nn.Module):
                     num_views=turntable_views,
                     camera_order=camera_order,
                     loop=loop_trajectory,
-                    show_overlay=False,
+                    show_overlay=True,
                     original_resolution=input_resolution,
                 )
                 # turntable_frames: [num_views, H, W, 3]
