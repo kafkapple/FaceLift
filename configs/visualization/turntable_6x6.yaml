@@ -1,6 +1,6 @@
 # Turntable 6x6 Grid Configuration
 # - 36 views in 6x6 grid
-# - camera_order: [1, 3, 5, 0, 4, 2] (360도 순회)
+# - camera_order: [0, 5, 3, 1, 2, 4] (360도 순회)
 # - Row labels: "Cam 1→3", "Cam 3→5", etc.
 
 visualization:
@@ -12,7 +12,7 @@ visualization:
     elevation: 20
     radius: 2.7
     trajectory_mode: dataset_cameras
-    camera_order: [1, 3, 5, 0, 4, 2]  # 360도 순회 순서
+    camera_order: [0, 5, 3, 1, 2, 4]  # 360도 순회 순서
     include_dataset_views: true
     add_row_labels: true      # "Cam 1→3" 레이블 추가
     save_video: false

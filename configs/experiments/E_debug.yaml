@@ -24,7 +24,7 @@ validation:
 visualization:
   turntable:
     smooth_trajectory: true
-    camera_order: [1, 3, 5, 0, 4, 2]
+    camera_order: [0, 5, 3, 1, 2, 4]
     loop: true
     
     # 36 views = 6 transitions × 6 frames

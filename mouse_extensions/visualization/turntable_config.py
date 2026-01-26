@@ -17,7 +17,7 @@ from scipy.spatial.transform import Rotation, Slerp
 
 
 # Physical camera arrangement (clockwise from front view)
-MOUSE_CAMERA_ORDER = [1, 3, 5, 0, 4, 2]
+MOUSE_CAMERA_ORDER = [0, 5, 3, 1, 2, 4]
 
 # Default turntable settings
 DEFAULT_TURNTABLE_CONFIG = {
