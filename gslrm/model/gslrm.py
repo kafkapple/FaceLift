@@ -88,6 +88,7 @@ from .gaussians_renderer import (
     add_camera_overlay,
     add_row_labels_to_grid,
     add_left_row_labels,
+    create_labeled_input_strip,
 )
 from .transform_data import SplitData, TransformInput, TransformTarget
 from .utils_transformer import (
@@ -1547,29 +1548,18 @@ class GSLRM(nn.Module):
                 turntable_fps = turntable_cfg.get("fps", 30)
                 imageseq2video(video_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=trajectory_fps)
                 # Save turntable with input overlay (like validation)
-                # Create input image strip
-                input_image = rearrange(
-                    input_data.image[batch_idx][:, :3, ...],
-                    "v c h w -> h (v w) c"
-                )
-                input_np = (input_image.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
-                
-                # Resize input to match turntable height
-                border = 2
-                target_h = int(input_np.shape[0] / input_np.shape[1] * turntable_resolution)
-                resized_input = cv2.resize(
-                    input_np, 
-                    (turntable_resolution - border * 2, target_h - border * 2), 
-                    interpolation=cv2.INTER_AREA
-                )
-                bordered_input = np.pad(
-                    resized_input, 
-                    ((border, border), (border, border), (0, 0)), 
-                    mode="constant", constant_values=200
+                # Create labeled input strip in camera traversal order
+                input_strip_h = turntable_resolution // 4  # Height for input strip
+                labeled_input = create_labeled_input_strip(
+                    input_data.image[batch_idx],
+                    camera_order=camera_order,
+                    target_h=input_strip_h,
+                    target_w=turntable_resolution,
+                    border=2
                 )
                 
-                # Combine turntable frames with input
-                input_seq = np.tile(bordered_input[None], (video_frames.shape[0], 1, 1, 1))
+                # Combine turntable frames with labeled input
+                input_seq = np.tile(labeled_input[None], (video_frames.shape[0], 1, 1, 1))
                 combined_frames = np.concatenate((video_frames, input_seq), axis=1)
                 imageseq2video(
                     combined_frames, 
@@ -1611,6 +1601,23 @@ class GSLRM(nn.Module):
                     imageseq2video(
                         orbit_frames, 
                         os.path.join(output_directory, f"turntable_orbit_{item_uid}.mp4"), 
+                        fps=orbit_fps
+                    )
+                    
+                    # Also save orbit turntable with input views at bottom
+                    orbit_input_h = turntable_resolution // 4
+                    orbit_labeled_input = create_labeled_input_strip(
+                        input_data.image[batch_idx],
+                        camera_order=camera_order,
+                        target_h=orbit_input_h,
+                        target_w=turntable_resolution,
+                        border=2
+                    )
+                    orbit_input_seq = np.tile(orbit_labeled_input[None], (orbit_frames.shape[0], 1, 1, 1))
+                    orbit_combined = np.concatenate((orbit_frames, orbit_input_seq), axis=1)
+                    imageseq2video(
+                        orbit_combined,
+                        os.path.join(output_directory, f"turntable_orbit_with_input_{item_uid}.mp4"),
                         fps=orbit_fps
                     )
 

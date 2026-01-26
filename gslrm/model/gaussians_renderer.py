@@ -1474,6 +1474,81 @@ def get_turntable_with_dataset_views(
     return w, h, total_views, fxfycxcy, c2ws, dataset_view_indices
 
 
+
+def create_labeled_input_strip(
+    input_images: torch.Tensor,
+    camera_order: list,
+    target_h: int,
+    target_w: int,
+    border: int = 2
+) -> np.ndarray:
+    """
+    Create input image strip with camera labels, ordered by camera_order.
+
+    Args:
+        input_images: [V, C, H, W] tensor of input images
+        camera_order: List of camera indices in traversal order (e.g., [1, 3, 5, 0, 4, 2])
+        target_h: Target height for the strip (including labels)
+        target_w: Target width for the entire strip
+        border: Border width between images
+
+    Returns:
+        np.ndarray [H, W, 3] uint8 - labeled input strip with camera labels
+    """
+    num_views = input_images.shape[0]
+
+    # Reorder images according to camera_order
+    reordered_images = []
+    for cam_idx in camera_order:
+        if cam_idx < num_views:
+            img = input_images[cam_idx, :3, ...]  # [C, H, W]
+            img = rearrange(img, 'c h w -> h w c')
+            img = (img.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+            reordered_images.append((cam_idx, img))
+
+    if not reordered_images:
+        return None
+
+    # Calculate per-image dimensions
+    num_cams = len(reordered_images)
+    per_img_w = (target_w - border * (num_cams + 1)) // num_cams
+    label_space = 25  # Space for label text
+    per_img_h = target_h - border * 2 - label_space
+
+    # Create the strip with light gray background
+    strip = np.ones((target_h, target_w, 3), dtype=np.uint8) * 200
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.6
+    font_thick = 2
+
+    for i, (cam_idx, img) in enumerate(reordered_images):
+        x_start = border + i * (per_img_w + border)
+
+        # Resize image maintaining aspect ratio
+        orig_h, orig_w = img.shape[:2]
+        scale = min(per_img_w / orig_w, per_img_h / orig_h)
+        new_w = int(orig_w * scale)
+        new_h = int(orig_h * scale)
+        resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+        # Center the image in its slot
+        y_offset = border + (per_img_h - new_h) // 2
+        x_offset = x_start + (per_img_w - new_w) // 2
+
+        # Place image
+        strip[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
+
+        # Add camera label below
+        label = f'Cam {cam_idx}'
+        (tw, th), _ = cv2.getTextSize(label, font, font_scale, font_thick)
+        label_x = x_start + (per_img_w - tw) // 2
+        label_y = border + per_img_h + 18
+        cv2.putText(strip, label, (label_x, label_y), font, font_scale, (0, 0, 0), font_thick)
+
+    return strip
+
+
 def add_left_row_labels(
     grid_image: np.ndarray,
     camera_order: list,
