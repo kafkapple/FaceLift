@@ -17,8 +17,8 @@ _preprocessing:
   transform: affine
   pp: 256
   fx: 549
-  zoom_scope: -
-  zoom_range: -
+  zoom_scope: null
+  zoom_range: null
   safe_zoom: false
   pp_correction: false
 

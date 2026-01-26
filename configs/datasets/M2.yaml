@@ -1,1 +1,31 @@
-D8.yaml
+# =============================================================================
+# Dataset: D8
+# =============================================================================
+# Homography precision baseline (M2)
+# Category: baseline
+# Status: ACTIVE
+# =============================================================================
+
+_name: D8
+_description: "Homography precision baseline (M2)"
+_category: baseline
+_status: ACTIVE
+
+# Preprocessing info (reference only, actual preprocessing uses presets.py)
+_preprocessing:
+  preset: D8
+  transform: homography
+  pp: 256
+  fx: 549
+  zoom_scope: null
+  zoom_range: null
+  safe_zoom: false
+  pp_correction: false
+
+# Dataset paths
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D8/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/D8/data_mouse_val.txt
