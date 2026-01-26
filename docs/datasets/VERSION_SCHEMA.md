@@ -82,15 +82,15 @@ D7 (기본: random split, fx_only scale)
 | D8 | 549 | 256 고정 | 50.5% | 20.21 | 정밀 기하학 |
 | M3 | **739** | 가변 | 78.5% | ~17 | H2 검증용 |
 | M3_norm | 549 | **가변** | 78.5% | ~17 | PP 불일치 |
-| M3_persample | 549 | 256 고정 | **50.5%** | - | D7_1과 유사 |
+| M3_persample (⛔ deprecated) | 549 | 256 고정 | **50.5%** | - | D7_1과 유사 |
 
 ### 핵심 발견
 
 ```
-D3_normalized ≠ M3_persample (Coverage 차이\!)
+D3_normalized ≠ M3_persample (⛔ deprecated) (Coverage 차이\!)
 
 D3_normalized: Coverage 84.3%, PP=256
-M3_persample:  Coverage 50.5%, PP=256  ← D7_1과 같음\!
+M3_persample (⛔ deprecated):  Coverage 50.5%, PP=256  ← D7_1과 같음\!
 
 결론: D3_normalized 재현에는 높은 Coverage + PP=256 + fx=549 필요
 ```

@@ -85,7 +85,7 @@
 
 기존 Object-Centered Zoom이 MVG 부정합 야기:
 - M3_norm: Ray Error 13.62° (cx=197±46)
-- M3_persample: Ray Error 16.15° (cx=235±32)
+- M3_persample (⛔ deprecated → use M3_2): Ray Error 16.15° (cx=235±32)
 
 ### 4.2 해결책: Center-Aligned Zoom
 

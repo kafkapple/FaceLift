@@ -57,7 +57,6 @@ Object-centered crop + PP 미보정 → **geometry_broken**
 
 ### Category 2: Object-Centered Zoom (⚠️ Deprecated)
 Adaptive zoom + Object-centered → **PP 가변 → ray error**
-- [[presets/M3]], M3_norm, M3_persample
 
 ### Category 3: PP-Centered Shift (✅ Stable)
 PP를 256으로 shift → **pretrained 호환**

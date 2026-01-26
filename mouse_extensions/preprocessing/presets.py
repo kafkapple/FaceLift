@@ -343,7 +343,8 @@ PRESETS = {
     },
     
     # P1-2: Per-sample adaptive zoom (variable fx experiment)
-    "M3_persample": {
+    "M3_persample": {  # ⛔ DEPRECATED: Identical to M3_2, use M3_2 instead
+        "deprecated": True,  # 260126: Merged into M3_2
         "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
