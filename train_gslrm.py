@@ -190,12 +190,15 @@ class GSLRMTrainer:
         """Load training and validation datasets."""
         # Dataset selection:
         # - MouseViewDataset: Fixed view order [0,1,2,3,4,5], camera normalization
-        #   → Required for mouse data (inconsistent camera angles)
+        #   → Required for mouse data (non-uniform camera angles)
         # - RandomViewDataset: Random view sampling each step
         #   → Original FaceLift for human data (uniform 60° spacing)
         #
-        # IMPORTANT: Random view order causes Plücker coordinate inconsistency
-        # → Model cannot learn consistent spatial relationships → blurry output
+        # NOTE on view ordering:
+        # - Plücker coordinates: per-pixel ray encoding, order-independent (always correct)
+        # - View type embeddings: first view = "reference", rest = "source"
+        #   → Random order changes which view is "reference" each step
+        #   → For mouse data with non-uniform cameras, fixed order recommended
         use_mouse_dataset = self.config.get("mouse", {}).get("use_mouse_dataset", False)
 
         if use_mouse_dataset:
