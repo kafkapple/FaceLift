@@ -58,6 +58,8 @@ from mouse_extensions.model import (
 from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
 # Alpha visualization
 from mouse_extensions.visualization import (
+    create_unified_visualizer,
+    TurntableConfig,
     add_error_scale_annotation,
     compute_pred_mask_for_visualization,
     create_dataset_views_video,
@@ -1478,7 +1480,7 @@ class GSLRM(nn.Module):
             
             # Check for smooth trajectory mode (interpolate between dataset cameras)
             smooth_trajectory = turntable_cfg.get("smooth_trajectory", False)
-            camera_order = turntable_cfg.get("camera_order", None)
+            camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
             loop_trajectory = turntable_cfg.get("loop", True)
             
             if smooth_trajectory:
@@ -1551,12 +1553,12 @@ class GSLRM(nn.Module):
             h_img = turntable_image.shape[0]
             w_per_view = turntable_image.shape[1] // turntable_views
             turntable_grid = turntable_image.reshape(h_img, turntable_views, w_per_view, 3)
-            grid_rows = turntable_cfg.get("grid_rows", 6)  # Default 6x6 grid
+            grid_rows = turntable_cfg.get("grid_rows", 6)  # Default 6x6 grid (36 views)
             grid_cols = turntable_cfg.get("grid_cols", 6)
             turntable_grid = rearrange(turntable_grid, "h (rows cols) w c -> (rows h) (cols w) c", rows=grid_rows, cols=grid_cols)
             
             # Add row labels if enabled (e.g., "Cam 1 -> 3")
-            if turntable_cfg.get("add_row_labels", False):
+            if turntable_cfg.get("add_row_labels", True):
                 camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
                 label_position = turntable_cfg.get("label_position", "left")  # "top" or "left"
                 if label_position == "left":
@@ -2015,10 +2017,10 @@ class GSLRM(nn.Module):
                 render_resolution = input_image.shape[0]
                 input_resolution = input_data.image.size(3)  # For intrinsics scaling
                 smooth_trajectory = turntable_cfg.get("smooth_trajectory", False)
-                camera_order = turntable_cfg.get("camera_order", None)
+                camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
                 loop_trajectory = turntable_cfg.get("loop", True)
                 turntable_fps = turntable_cfg.get("fps", 15)
-                num_turntable_views = turntable_cfg.get("num_views", 60)
+                num_turntable_views = turntable_cfg.get("num_views", 36)
                 
                 # Get dataset camera poses
                 dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()
@@ -2064,7 +2066,7 @@ class GSLRM(nn.Module):
                 grid_image = rearrange(grid_frames, "(rows cols) h w c -> (rows h) (cols w) c", rows=grid_rows, cols=grid_cols)
                 
                 # Add row labels if enabled
-                if turntable_cfg.get("add_row_labels", False):
+                if turntable_cfg.get("add_row_labels", True):
                     camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
                     label_position = turntable_cfg.get("label_position", "left")  # "top" or "left"
                     if label_position == "left":
