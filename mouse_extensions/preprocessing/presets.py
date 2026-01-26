@@ -534,7 +534,7 @@ VERSION_HIERARCHY = {
 M_SERIES = {
     "M1": "D7.1",       # affine, 안정적 기준선
     "M2": "D8",         # homography, 정밀 기하학
-    "M3": "D10.3",      # homography_zoom (⚠️ fx=739 버그)
+    "M3": "D10.3",      # ⛔ DEPRECATED: fx=739 버그, use M3_1/M3_2 instead
     "M1a": "D7_1_aspect",  # M1 + aspect ratio preserved
 }
 
@@ -542,7 +542,7 @@ M_SERIES = {
 RECOMMENDED = {
     "stable": "D7.1",       # M1: 검증된 안정적 설정
     "precision": "D8",      # M2: 정밀 기하학
-    "production": "M3_norm", # ★ M4: coverage zoom + proper normalization
+    "production": "M3_2", # ★ M4: coverage zoom + proper normalization
 }
 
 
