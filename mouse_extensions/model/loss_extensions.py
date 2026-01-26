@@ -260,6 +260,61 @@ def compute_mask_from_config(
     return None, MaskType.NONE
 
 
+
+def compute_mask_iou(
+    rendering: torch.Tensor,
+    gt_mask: torch.Tensor,
+    config = None,
+    rendered_alpha: Optional[torch.Tensor] = None,
+    bg_threshold: float = 0.1,
+    bg_color: list = [1.0, 1.0, 1.0],
+) -> torch.Tensor:
+    """
+    Compute IoU between GT mask and predicted mask.
+
+    Uses the same mask computation as training for consistency.
+    Falls back to RGB-based detection if config not provided or mask_mode=none.
+
+    Args:
+        rendering: Rendered images [B*V, 3, H, W] in [0, 1]
+        gt_mask: Ground truth mask [B*V, 1, H, W]
+        config: Training config (optional, for mask_mode)
+        rendered_alpha: Rendered alpha [B*V, 1, H, W] or None
+        bg_threshold: Threshold for RGB-based detection
+        bg_color: Background color for RGB detection
+
+    Returns:
+        IoU score as scalar tensor
+    """
+    if gt_mask is None:
+        return torch.tensor(0.0, device=rendering.device)
+
+    pred_mask = None
+    
+    # Try config-based mask computation if available
+    if config is not None:
+        pred_mask, mask_type = compute_mask_from_config(
+            config, rendering, gt_mask, rendered_alpha
+        )
+
+    # Fallback to RGB-based detection
+    if pred_mask is None:
+        bg_tensor = torch.tensor(bg_color, device=rendering.device, dtype=rendering.dtype)
+        bg_tensor = bg_tensor.view(1, 3, 1, 1)
+        color_distance = (rendering - bg_tensor).abs().mean(dim=1, keepdim=True)
+        pred_mask = (color_distance > bg_threshold).float()
+
+    # GT mask binary
+    gt_mask_binary = (gt_mask > 0.5).float()
+
+    # Compute IoU
+    intersection = (pred_mask * gt_mask_binary).sum()
+    union = ((pred_mask + gt_mask_binary) > 0.5).float().sum()
+    iou = intersection / union.clamp(min=1.0)
+
+    return iou
+
+
 def compute_ghost_metrics(
     rendered_alpha: Optional[torch.Tensor],
     opacity: Optional[torch.Tensor],

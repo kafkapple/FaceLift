@@ -5,6 +5,7 @@ Provides:
 - Alpha mask visualization
 - Turntable configuration and trajectory generation
 - Unified video generation for train/val
+- Error annotation utilities
 """
 
 from .alpha_visualization import (
@@ -31,23 +32,31 @@ from .video_generator import (
     get_video_generator,
 )
 
+from .error_annotation import (
+    add_error_scale_annotation,
+    compute_pred_mask_for_visualization,
+)
+
 __all__ = [
     # Alpha visualization
-    'visualize_alpha_comparison',
-    'compute_alpha_metrics', 
-    'should_visualize_alpha',
+    "visualize_alpha_comparison",
+    "compute_alpha_metrics",
+    "should_visualize_alpha",
     # Turntable config
-    'MOUSE_CAMERA_ORDER',
-    'DEFAULT_TURNTABLE_CONFIG',
-    'get_camera_order',
-    'get_camera_pairs',
-    'interpolate_camera_extrinsics',
-    'create_turntable_trajectory',
-    'get_grid_row_labels',
+    "MOUSE_CAMERA_ORDER",
+    "DEFAULT_TURNTABLE_CONFIG",
+    "get_camera_order",
+    "get_camera_pairs",
+    "interpolate_camera_extrinsics",
+    "create_turntable_trajectory",
+    "get_grid_row_labels",
     # Video generation
-    'create_dataset_views_video',
-    'create_turntable_video',
-    'create_grid_image',
-    'VideoGeneratorContext',
-    'get_video_generator',
+    "create_dataset_views_video",
+    "create_turntable_video",
+    "create_grid_image",
+    "VideoGeneratorContext",
+    "get_video_generator",
+    # Error annotation
+    "add_error_scale_annotation",
+    "compute_pred_mask_for_visualization",
 ]

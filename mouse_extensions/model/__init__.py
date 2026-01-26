@@ -7,6 +7,7 @@ and training visualization for mouse data experiments.
 
 # Loss and mask computation
 from .loss_extensions import (
+    compute_mask_iou,
     AlphaLossComputer,
     compute_alpha_loss,
     compute_alpha_metrics,
@@ -38,6 +39,7 @@ except ImportError:
 
 __all__ = [
     # Loss
+    "compute_mask_iou",
     "compute_mask_from_config",
     "compute_ghost_metrics",
     "compute_gaussians_usage",
