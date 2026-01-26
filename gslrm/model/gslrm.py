@@ -1734,7 +1734,7 @@ class GSLRM(nn.Module):
                 imageseq2video(turntable_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=turntable_fps)
             
             # Additionally save dataset camera views for direct GT comparison
-            if turntable_cfg.get("save_dataset_views", True):
+            if turntable_cfg.get("save_dataset_views", False):
                 # Get original resolution from input data (already scaled by dataset)
                 dataset_views = render_dataset_views(
                     model_results.gaussians[batch_idx],
@@ -2250,7 +2250,8 @@ class GSLRM(nn.Module):
                 imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=turntable_fps)
                 
                 # Save dataset views (actual camera viewpoints for comparison)
-                try:
+                if turntable_cfg.get("save_dataset_views", False):
+                  try:
                     dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()
                     dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()
                     # Get input resolution for intrinsics scaling

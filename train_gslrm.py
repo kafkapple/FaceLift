@@ -273,6 +273,14 @@ class GSLRMTrainer:
             sampler=datasampler,
         )
         self.dataloader_iter = iter(self.dataloader)
+        
+        # Setup fixed visualization sample (for consistent comparison across steps)
+        fixed_vis_idx = self.config.get("visualization", {}).get("fixed_sample_idx", None)
+        if fixed_vis_idx is not None:
+            self.fixed_vis_sample = self.dataset[fixed_vis_idx]
+            print(f"Fixed visualization sample set to index {fixed_vis_idx}")
+        else:
+            self.fixed_vis_sample = None
 
         # Validation dataloader
         if self.val_dataset is not None:
@@ -688,6 +696,21 @@ class GSLRMTrainer:
                 pass
                 
             result = self.model(batch, create_visual=create_visual)
+            
+            # If fixed visualization sample is set and this is a vis step,
+            # additionally run visualization with the fixed sample
+            if create_visual and self.fixed_vis_sample is not None:
+                try:
+                    # Create batch from fixed sample
+                    fixed_batch = {
+                        k: v.unsqueeze(0).to(self.device) if isinstance(v, torch.Tensor) else v
+                        for k, v in self.fixed_vis_sample.items()
+                    }
+                    # Run forward with fixed sample for consistent visualization
+                    with torch.no_grad():
+                        _ = self.model(fixed_batch, create_visual=True)
+                except Exception as e:
+                    print(f"Warning: Fixed vis sample failed: {e}")
             
         # Backward pass
         loss = result.loss_metrics.loss / self.config.training.runtime.grad_accum_steps
