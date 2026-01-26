@@ -1394,10 +1394,15 @@ def get_turntable_with_dataset_views(
     h: int = 384,
     radius: float = 2.7,
     elevation: float = 20,
+    original_resolution: int = None,  # Original image resolution for intrinsics scaling
 ):
     """
     Generate turntable cameras + exact dataset cameras.
     Dataset views are placed at positions 0-5, turntable at 6-63.
+    
+    Args:
+        original_resolution: If provided and different from w, dataset intrinsics
+            will be scaled to match the rendering resolution (w x h).
     
     Returns:
         w, h, total_views, fxfycxcy [total_views, 4], c2ws [total_views, 4, 4]
@@ -1406,16 +1411,103 @@ def get_turntable_with_dataset_views(
     num_dataset = dataset_c2ws.shape[0]
     total_views = num_dataset + num_turntable_views
     
-    # Generate turntable views
+    # Scale dataset intrinsics if rendering at different resolution
+    # Formula: fxfycxcy_new = fxfycxcy_orig * (w_new / w_orig)
+    scaled_dataset_fxfycxcy = dataset_fxfycxcy.copy()
+    if original_resolution is not None and original_resolution != w:
+        scale = w / original_resolution
+        scaled_dataset_fxfycxcy = scaled_dataset_fxfycxcy * scale
+    
+    # Generate turntable views (intrinsics already at rendering resolution)
     _, _, _, turntable_fxfycxcy, turntable_c2ws = get_turntable_cameras(
         hfov=hfov, num_views=num_turntable_views, w=w, h=h,
         radius=radius, elevation=elevation, trajectory_mode="turntable"
     )
     
-    # Combine: dataset views first, then turntable
-    fxfycxcy = np.concatenate([dataset_fxfycxcy, turntable_fxfycxcy], axis=0)
+    # Combine: dataset views first, then turntable (now with matching scales)
+    fxfycxcy = np.concatenate([scaled_dataset_fxfycxcy, turntable_fxfycxcy], axis=0)
     c2ws = np.concatenate([dataset_c2ws, turntable_c2ws], axis=0)
     
     dataset_view_indices = list(range(num_dataset))
     
     return w, h, total_views, fxfycxcy, c2ws, dataset_view_indices
+
+
+def add_left_row_labels(
+    grid_image: np.ndarray,
+    camera_order: list,
+    grid_rows: int,
+    grid_cols: int,
+    row_height: int,
+    label_width: int = 80,
+    font_scale: float = 0.5,
+    loop: bool = True
+) -> np.ndarray:
+    """
+    Add row labels to the LEFT side of each row in the grid.
+    
+    Args:
+        grid_image: [H, W, 3] uint8 image
+        camera_order: e.g., [0, 4, 2, 1, 3] for angle-based traversal
+        grid_rows: Number of rows in the grid
+        grid_cols: Number of columns in the grid
+        row_height: Height of each cell in pixels
+        label_width: Width of label bar in pixels
+        font_scale: Font scale for labels
+        loop: Whether camera order loops back to start
+    
+    Returns:
+        [H, W + label_width, 3] image with labels on left
+    """
+    # Extend camera order for looping
+    full_order = camera_order + [camera_order[0]] if loop else camera_order
+    
+    h, w = grid_image.shape[:2]
+    
+    # Calculate frames per row and segment info
+    total_frames = grid_rows * grid_cols
+    num_segments = len(camera_order)
+    frames_per_segment = total_frames / num_segments
+    
+    # Generate row labels
+    row_labels = []
+    for row_idx in range(grid_rows):
+        row_start_frame = row_idx * grid_cols
+        row_end_frame = row_start_frame + grid_cols - 1
+        
+        # Find which segment this row spans
+        start_seg = int(row_start_frame / frames_per_segment) if frames_per_segment > 0 else 0
+        end_seg = int(row_end_frame / frames_per_segment) if frames_per_segment > 0 else 0
+        
+        start_seg = min(start_seg, num_segments - 1)
+        end_seg = min(end_seg, num_segments - 1)
+        
+        from_cam = full_order[start_seg]
+        to_cam = full_order[min(end_seg + 1, len(full_order) - 1)]
+        row_labels.append(f"{from_cam}->{to_cam}")
+    
+    # Create new image with label bar on left
+    result = np.zeros((h, w + label_width, 3), dtype=np.uint8)
+    
+    # Dark background for label column
+    result[:, :label_width] = (40, 40, 40)
+    
+    # Copy original grid image
+    result[:, label_width:] = grid_image
+    
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_thick = 1
+    
+    for row_idx in range(grid_rows):
+        # Position of this row's label (centered vertically)
+        label_y = row_idx * row_height + row_height // 2
+        
+        # Add text
+        text = row_labels[row_idx]
+        (tw, th), _ = cv2.getTextSize(text, font, font_scale, font_thick)
+        text_x = (label_width - tw) // 2
+        text_y = label_y + th // 2
+        
+        cv2.putText(result, text, (text_x, text_y), font, font_scale, (255, 255, 255), font_thick)
+    
+    return result

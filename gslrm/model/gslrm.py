@@ -85,6 +85,7 @@ from .gaussians_renderer import (
     get_turntable_with_dataset_views,
     add_camera_overlay,
     add_row_labels_to_grid,
+    add_left_row_labels,
 )
 from .transform_data import SplitData, TransformInput, TransformTarget
 from .utils_transformer import (
@@ -1624,6 +1625,9 @@ class GSLRM(nn.Module):
             dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()  # [num_cams, 4, 4]
             dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()  # [num_cams, 4]
             
+            # Get input resolution for intrinsics scaling
+            input_resolution = input_data.image.size(3)
+            
             # Check for smooth trajectory mode (interpolate between dataset cameras)
             smooth_trajectory = turntable_cfg.get("smooth_trajectory", False)
             camera_order = turntable_cfg.get("camera_order", None)
@@ -1653,7 +1657,8 @@ class GSLRM(nn.Module):
                     dataset_c2ws, dataset_fxfycxcy,
                     num_turntable_views=num_turntable,
                     w=turntable_resolution, h=turntable_resolution,
-                    radius=turntable_radius, elevation=turntable_elevation
+                    radius=turntable_radius, elevation=turntable_elevation,
+                    original_resolution=input_resolution,  # Scale intrinsics for rendering resolution
                 )
                 
                 # Render all views
@@ -1705,9 +1710,15 @@ class GSLRM(nn.Module):
             # Add row labels if enabled (e.g., "Cam 1 -> 3")
             if turntable_cfg.get("add_row_labels", False):
                 camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
-                turntable_grid = add_row_labels_to_grid(
-                    turntable_grid, camera_order, grid_rows, grid_cols, h_img
-                )
+                label_position = turntable_cfg.get("label_position", "left")  # "top" or "left"
+                if label_position == "left":
+                    turntable_grid = add_left_row_labels(
+                        turntable_grid, camera_order, grid_rows, grid_cols, h_img
+                    )
+                else:
+                    turntable_grid = add_row_labels_to_grid(
+                        turntable_grid, camera_order, grid_rows, grid_cols, h_img
+                    )
             
             Image.fromarray(turntable_grid).save(
                 os.path.join(output_directory, f"turntable_{item_uid}.jpg")
@@ -1725,7 +1736,6 @@ class GSLRM(nn.Module):
             # Additionally save dataset camera views for direct GT comparison
             if turntable_cfg.get("save_dataset_views", True):
                 # Get original resolution from input data (already scaled by dataset)
-                input_resolution = input_data.image.size(3)
                 dataset_views = render_dataset_views(
                     model_results.gaussians[batch_idx],
                     dataset_c2ws, dataset_fxfycxcy,
@@ -2130,6 +2140,7 @@ class GSLRM(nn.Module):
                 # Create turntable visualization
                 turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
                 render_resolution = input_image.shape[0]
+                input_resolution = input_data.image.size(3)  # For intrinsics scaling
                 smooth_trajectory = turntable_cfg.get("smooth_trajectory", False)
                 camera_order = turntable_cfg.get("camera_order", None)
                 loop_trajectory = turntable_cfg.get("loop", True)
@@ -2182,9 +2193,15 @@ class GSLRM(nn.Module):
                 # Add row labels if enabled
                 if turntable_cfg.get("add_row_labels", False):
                     camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
-                    grid_image = add_row_labels_to_grid(
-                        grid_image, camera_order, grid_rows, grid_cols, h_img
-                    )
+                    label_position = turntable_cfg.get("label_position", "left")  # "top" or "left"
+                    if label_position == "left":
+                        grid_image = add_left_row_labels(
+                            grid_image, camera_order, grid_rows, grid_cols, h_img
+                        )
+                    else:
+                        grid_image = add_row_labels_to_grid(
+                            grid_image, camera_order, grid_rows, grid_cols, h_img
+                        )
                 
                 Image.fromarray(grid_image).save(os.path.join(item_output_dir, f"turntable_{item_uid}.jpg"))
                 
