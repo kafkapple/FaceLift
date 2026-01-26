@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from gslrm.model.gslrm import GSLRM
-from gslrm.data.mouse_dataset import MouseDataset
+from mouse_extensions.data.mouse_dataset import MouseDataset
 from omegaconf import OmegaConf
 
 

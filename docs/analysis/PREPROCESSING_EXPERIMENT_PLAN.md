@@ -13,11 +13,11 @@
 
 | 근거 | Dataset | Coverage | Val PSNR |
 |------|---------|----------|----------|
-| 관찰 1 | D3_normalized | 74% | **27.0** |
+| 관찰 1 | D3_normalized | ~6% | **27.0** |
 | 관찰 2 | D7_1 | 50% | 20.7 |
 | 관찰 3 | D8 | 50% | 19.7 |
 
-**예측**: M3_norm (Coverage ~80%) → Val PSNR ≥ 27
+**예측**: M3_norm (Coverage ~6%) → Val PSNR ≥ 27
 
 ### H2: fx 정규화는 Pretrained 호환성에 필수
 **가설**: fx=549 (pretrained 분포) 필수, fx≠549 → 학습 불안정/실패
@@ -54,7 +54,7 @@
 | ID | Dataset | Coverage | fx | PP | fx/fy | 역할 |
 |----|---------|----------|-----|-----|-------|------|
 | **A** | D7_1 | 50% | 549 | 256 | 1.0 | 기준선 (Baseline) |
-| **B** | D3_normalized | 74% | 549 | 256 | 0.99 | 고Coverage+비정방형 |
+| **B** | D3_normalized | ~6% | 549 | 256 | 0.99 | 고Coverage+비정방형 |
 | **C** | M3 | 80% | 739❌ | 가변 | 1.0 | 버그 버전 |
 | **D** | **M3_norm** | 80% | 549✅ | 가변 | 1.0 | **★ 최적 후보** |
 
@@ -62,7 +62,7 @@
 
 | 가설 | 비교 | 통제 변수 | 실험 변수 |
 |------|------|-----------|-----------|
-| **H1** | A vs D | fx=549, PP정책 | Coverage (50% vs 80%) |
+| **H1** | A vs D | fx=549, PP정책 | Coverage (~3% vs ~6%) |
 | **H2** | C vs D | Coverage, PP | fx (739 vs 549) |
 | **H3** | D vs D_pp256 | Coverage, fx | PP (가변 vs 강제256) |
 | **H4** | A vs B | fx=549 | fx/fy (1.0 vs 0.99) |
@@ -155,7 +155,7 @@ IF D.PSNR < F.PSNR - 2:
 ```
 비교: A (fx/fy=1.0) vs B (fx/fy=0.99)
 
-주의: B는 Coverage도 다름 (74% vs 50%)
+주의: B는 Coverage도 다름 (~6% vs ~3%)
 
 IF B.PSNR > A.PSNR:
     → 비정방형 OR Coverage 효과 (분리 불가)
@@ -220,7 +220,7 @@ M3_norm: Val PSNR < 22 또는 Ghosting 심각
 - [ ] 샘플 수 확인 (3597개 예상)
 - [ ] fx 분포 확인 (549 ± 0.1)
 - [ ] cx/cy 분포 확인 (가변, 평균 ~256)
-- [ ] Coverage 확인 (~80%)
+- [ ] Coverage 확인 (~6%)
 - [ ] 시각적 검사 (clipping 없음)
 
 ### 학습 후

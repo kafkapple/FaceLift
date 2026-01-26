@@ -12,9 +12,9 @@
 
 | 데이터셋 | Coverage | fx | Val PSNR | 비고 |
 |----------|----------|-----|----------|------|
-| D3_normalized | 84% | 549 | **27.1** | ⭐ SOTA |
-| D7_1 | 50% | 549 | 20.9 | Baseline |
-| M3 | 78% | **739** | 10.6 | fx 버그 |
+| D3_normalized | ~6% | 549 | **27.1** | ⭐ SOTA |
+| D7_1 | ~3% | 549 | 20.9 | Baseline |
+| M3 | ~6% | **739** | 10.6 | fx 버그 |
 
 **핵심 질문**: D3_normalized가 왜 좋은가? M3가 왜 나쁜가?
 
@@ -41,10 +41,10 @@
 
 | 근거 | Dataset | Coverage | PSNR |
 |------|---------|----------|------|
-| 관찰 | D3_normalized | 84% | 27.1 |
-| 관찰 | D7_1 | 50% | 20.9 |
+| 관찰 | D3_normalized | ~6% | 27.1 |
+| 관찰 | D7_1 | ~3% | 20.9 |
 
-**검증**: M3_norm (78%) vs D7_1 (50%) 비교
+**검증**: M3_norm (78%) vs D7_1 (~3%) 비교
 **예측**: M3_norm PSNR >= 25
 
 ---
@@ -95,10 +95,10 @@
 
 | 설정 | Zoom | Coverage |
 |------|------|----------|
-| M3_norm | Global 1.35x | 78% |
-| M3_persample | Per-sample | 50% |
+| M3_norm | Global 1.35x | ~6% |
+| M3_persample | Per-sample | ~3% |
 
-**⚠️ 정정**: M3_persample Coverage는 50% (80% 아님)
+**⚠️ 정정**: M3_persample Coverage는 ~3% (~6% 아님)
 
 ---
 
@@ -161,7 +161,7 @@
 
 ### 3.3 핵심 발견
 
-1. **Coverage 효과**: D3 (84%) >> D7_1 (50%) → +6 PSNR
+1. **Coverage 효과**: D3 (~6%) >> D7_1 (~3%) → +6 PSNR
 2. **fx 정규화 필수**: M3 (fx=739) → PSNR 10.6 (실패)
 3. **Mask 효과**: E0 (20.9) > E1 (17.9) > E2 (17.0)
 
@@ -251,7 +251,7 @@ M3_norm       | TBD        |
 
 1. ✅ **H2 검증됨**: fx=549 정규화 필수
 2. ✅ **H7 검증됨**: mask_mode=none이 GT mask보다 우수
-3. **Coverage 중요**: D3 (84%) >> D7_1 (50%) → +6 PSNR
+3. **Coverage 중요**: D3 (~6%) >> D7_1 (~3%) → +6 PSNR
 
 ### 대기중인 검증
 
@@ -297,12 +297,12 @@ CUDA_VISIBLE_DEVICES=3 nohup torchrun --standalone --nproc_per_node=1 \
 | **cx** | 256 | 256 | 267 | 198 | 256 |
 | **cy** | 256 | 256 | 198 | 147 | 256 |
 | **cx std** | 0 | 0 | 49 | 37 | 0 |
-| **Coverage** | **84%** | 50% | 78% | 78% | 50% |
+| **Coverage** | **~6%** | ~3% | ~6% | ~6% | ~3% |
 | **Val PSNR** | **27.1** | 20.9 | 10.6 | TBD | TBD |
 
 ### 8.2 D3_normalized 성공 요인
 
-1. **높은 Coverage (84%)**: 유효 gradient 극대화
+1. **높은 (~6%)**: 유효 gradient 극대화
 2. **PP=256 고정**: Pretrained 모델 완벽 호환
 3. **fx/fy=0.9937**: 원본 비율 유지
 

@@ -2,16 +2,22 @@
 Alpha Mask Visualization Module
 
 Provides visualization for rendered alpha masks when alpha_loss_weight > 0.
-Includes comparison with GT mask and WandB logging support.
+Color scheme consistent with supervision visualization:
+- Foreground (object): Green (0.2, 0.8, 0.2)
+- Background: Red (0.8, 0.2, 0.2)
 
 Author: Claude Code
-Date: 2026-01-25
+Date: 2026-01-26 (Updated for color consistency)
 """
 
 import numpy as np
 import torch
 from typing import Optional, Dict, Tuple
 from PIL import Image
+
+# Consistent color scheme with supervision visualization
+FG_COLOR = (0.2, 0.8, 0.2)   # Green for foreground
+BG_COLOR = (0.8, 0.2, 0.2)   # Red for background
 
 
 def visualize_alpha_comparison(
@@ -24,14 +30,14 @@ def visualize_alpha_comparison(
     Create side-by-side comparison of GT mask and rendered alpha.
 
     Layout (4 rows x num_views cols):
-    - Row 0: GT Mask (binary)
-    - Row 1: Rendered Alpha (continuous)
-    - Row 2: Rendered Alpha > threshold (binary)
-    - Row 3: Difference (FN=Red/GT only, FP=Blue/Alpha only, TP=Green, TN=Black)
+    - Row 0: GT Mask (Green=FG, Red=BG)
+    - Row 1: Rendered Alpha (continuous grayscale)
+    - Row 2: Rendered Alpha > threshold (Green=FG, Red=BG)
+    - Row 3: Difference (Green=TP, Red=FN, Blue=FP)
 
     Args:
-        gt_mask: GT mask tensor [B*V, 1, H, W]
-        rendered_alpha: Rendered alpha tensor [B*V, 1, H, W]
+        gt_mask: GT mask tensor [V, 1, H, W] or [B*V, 1, H, W]
+        rendered_alpha: Rendered alpha tensor [V, 1, H, W] or [B*V, 1, H, W]
         num_views: Number of views
         threshold: Threshold for binary conversion
 
@@ -40,40 +46,48 @@ def visualize_alpha_comparison(
     """
     device = gt_mask.device
 
-    # Take first batch only
     v = num_views
     gt = gt_mask[:v].squeeze(1)  # [V, H, W]
     alpha = rendered_alpha[:v].squeeze(1)  # [V, H, W]
 
     h, w = gt.shape[1], gt.shape[2]
 
-    # Row 0: GT Mask (white on black)
-    gt_vis = gt.unsqueeze(-1).expand(-1, -1, -1, 3)  # [V, H, W, 3]
+    # Color tensors
+    fg = torch.tensor(FG_COLOR, device=device).view(1, 1, 1, 3)
+    bg = torch.tensor(BG_COLOR, device=device).view(1, 1, 1, 3)
 
-    # Row 1: Rendered Alpha (grayscale)
+    # Row 0: GT Mask (Green FG, Red BG)
+    gt_expanded = gt.unsqueeze(-1)  # [V, H, W, 1]
+    gt_vis = gt_expanded * fg + (1 - gt_expanded) * bg  # [V, H, W, 3]
+
+    # Row 1: Rendered Alpha (grayscale - keep as-is for continuous visualization)
     alpha_vis = alpha.unsqueeze(-1).expand(-1, -1, -1, 3)  # [V, H, W, 3]
 
-    # Row 2: Rendered Alpha thresholded
-    alpha_binary = (alpha > threshold).float()
-    alpha_binary_vis = alpha_binary.unsqueeze(-1).expand(-1, -1, -1, 3)
+    # Row 2: Rendered Alpha thresholded (Green FG, Red BG)
+    alpha_binary = (alpha > threshold).float().unsqueeze(-1)  # [V, H, W, 1]
+    alpha_binary_vis = alpha_binary * fg + (1 - alpha_binary) * bg
 
-    # Row 3: Difference visualization
+    # Row 3: Difference visualization (confusion matrix colors)
     gt_binary = (gt > threshold).float()
+    pred_binary = (alpha > threshold).float()
 
-    # Create RGB difference image
     diff_vis = torch.zeros(v, h, w, 3, device=device)
 
-    # True Positive (both 1): Green
-    tp = (gt_binary * alpha_binary).bool()
-    diff_vis[..., 1][tp] = 1.0
+    # True Positive (both 1): Green - correct foreground
+    tp = (gt_binary * pred_binary).bool()
+    diff_vis[tp] = torch.tensor(FG_COLOR, device=device)
 
-    # False Negative (pred=0, gt=1): Red (GT only)
-    fn = (gt_binary * (1 - alpha_binary)).bool()
-    diff_vis[..., 0][fn] = 1.0
+    # True Negative (both 0): Dark red - correct background
+    tn = ((1 - gt_binary) * (1 - pred_binary)).bool()
+    diff_vis[tn] = torch.tensor((0.3, 0.1, 0.1), device=device)  # Dark red
 
-    # False Positive (pred=1, gt=0): Blue (Alpha only)
-    fp = ((1 - gt_binary) * alpha_binary).bool()
-    diff_vis[..., 2][fp] = 1.0
+    # False Negative (pred=0, gt=1): Bright Red - missed foreground
+    fn = (gt_binary * (1 - pred_binary)).bool()
+    diff_vis[fn] = torch.tensor((1.0, 0.2, 0.2), device=device)  # Bright red
+
+    # False Positive (pred=1, gt=0): Blue - false foreground
+    fp = ((1 - gt_binary) * pred_binary).bool()
+    diff_vis[fp] = torch.tensor((0.2, 0.2, 1.0), device=device)  # Blue
 
     # Stack rows
     rows = torch.stack([gt_vis, alpha_vis, alpha_binary_vis, diff_vis], dim=0)  # [4, V, H, W, 3]
@@ -100,18 +114,26 @@ def _add_row_labels_alpha(image: np.ndarray, row_height: int) -> np.ndarray:
         draw = ImageDraw.Draw(pil_img)
 
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 42)
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
         except:
-            font = ImageFont.load_default()
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
+            except:
+                font = ImageFont.load_default()
 
-        labels = ["GT Mask", "Rendered Alpha", "Alpha > 0.5", "Diff (R=FN, B=FP, G=TP)"]
+        labels = [
+            "GT Mask",
+            "Rendered Alpha", 
+            "Alpha > 0.5",
+            "Diff (G=TP, R=FN, B=FP)"
+        ]
 
         for i, label in enumerate(labels):
-            y = i * row_height + 5
+            y = i * row_height + 8
             # Draw text with outline for visibility
-            for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1)]:
-                draw.text((5+dx, y+dy), label, fill=(0,0,0), font=font)
-            draw.text((5, y), label, fill=(255,255,255), font=font)
+            for dx, dy in [(-1,-1), (-1,1), (1,-1), (1,1), (-1,0), (1,0), (0,-1), (0,1)]:
+                draw.text((8+dx, y+dy), label, fill=(0,0,0), font=font)
+            draw.text((8, y), label, fill=(255,255,255), font=font)
 
         return np.array(pil_img)
     except Exception as e:
@@ -124,9 +146,7 @@ def compute_alpha_metrics(
     rendered_alpha: torch.Tensor,
     threshold: float = 0.5
 ) -> Dict[str, float]:
-    """
-    Compute alpha mask metrics (IoU, precision, recall).
-    """
+    """Compute alpha mask metrics (IoU, precision, recall)."""
     gt_binary = (gt_mask > threshold).float()
     pred_binary = (rendered_alpha > threshold).float()
 

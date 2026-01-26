@@ -172,7 +172,7 @@ def add_row_labels_to_grid(
     result = np.zeros((new_height, w, 3), dtype=np.uint8)
     
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.5
+    font_scale = 1.0
     font_thick = 1
     
     for row_idx in range(grid_rows):
@@ -1283,6 +1283,7 @@ def render_dataset_trajectory(
     camera_order: list = None,
     loop: bool = True,
     show_overlay: bool = True,
+    original_resolution: int = None,  # Original image resolution for intrinsics scaling
 ):
     """
     Render video traversing through dataset camera positions.
@@ -1304,9 +1305,15 @@ def render_dataset_trajectory(
     device = pc._xyz.device
     h = w = rendering_resolution
     
+    # Scale intrinsics if rendering at different resolution than original
+    scaled_fxfycxcy = dataset_fxfycxcy.copy()
+    if original_resolution is not None and original_resolution != rendering_resolution:
+        scale = rendering_resolution / original_resolution
+        scaled_fxfycxcy = dataset_fxfycxcy * scale
+    
     # Generate trajectory
     fxfycxcy, c2ws, segments = get_dataset_camera_trajectory(
-        dataset_c2ws, dataset_fxfycxcy, num_views, camera_order, loop
+        dataset_c2ws, scaled_fxfycxcy, num_views, camera_order, loop
     )
     
     fxfycxcy = torch.from_numpy(fxfycxcy).float().to(device)
@@ -1440,7 +1447,7 @@ def add_left_row_labels(
     grid_cols: int,
     row_height: int,
     label_width: int = 80,
-    font_scale: float = 0.5,
+    font_scale: float = 1.0,
     loop: bool = True
 ) -> np.ndarray:
     """

@@ -200,3 +200,4 @@ _archive/
 # experiments/ (output dir, not configs)
 alpha_analysis/
 \!configs/experiments/
+experiments/

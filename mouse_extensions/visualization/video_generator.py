@@ -37,11 +37,11 @@ def create_dataset_views_video(
     Returns:
         Output path
     """
-    fps = config.get("dataset_views_fps", 2)
+    fps = config.get("dataset_views_fps", 4)
     camera_order = config.get("camera_order", MOUSE_CAMERA_ORDER)
     
-    # 각 카메라에서 0.5초 유지
-    frames_per_cam = max(1, int(fps * 0.5))
+    # 각 카메라에서 1초 유지 (더 천천히)
+    frames_per_cam = max(2, int(fps * 1.0))
     
     # camera_order에 따라 재정렬
     ordered_views = dataset_views[camera_order]  # [num_cams_ordered, H, W, 3]

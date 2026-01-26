@@ -241,7 +241,7 @@ def main():
     model, config = load_model(args.checkpoint, args.config, args.device)
     
     # Create dataset
-    from gslrm.data.mouse_dataset import MouseViewDataset
+    from mouse_extensions.data.mouse_dataset import MouseViewDataset
     
     # Override validation dataset path if provided
     if args.data_path:

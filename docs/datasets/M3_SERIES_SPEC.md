@@ -225,7 +225,7 @@ for sample in samples:
 
 | 가설 | 검증 데이터셋 | 비교 대상 | 목적 |
 |------|---------------|-----------|------|
-| **H1: Coverage 효과** | M3_norm | D7_1 | Coverage 50% vs 78% |
+| **H1: Coverage 효과** | M3_norm | D7_1 | Coverage ~3% vs ~6% |
 | **H2: fx 정규화 효과** | M3 vs M3_norm | - | fx=739 vs fx=549 |
 | **H3: PP 정합성 효과** | M3_1, M3_2 | M3_norm | PP=256 vs 가변 |
 

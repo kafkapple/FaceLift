@@ -36,18 +36,18 @@
 |--------|-----------|-----------|------|------------|------------|-----------|-----|-----|----------|------|
 | **D7.1 (M1)** | affine | shift_256 | ❌ | - | - | - | 256 | 549 | ~50% | ✅ 기준선 |
 | **D8 (M2)** | homography | shift_256 | ❌ | - | - | - | 256 | 549 | ~50% | ✅ 정밀 |
-| M3_1 | homography | shift_256 | ✅ | **global** | [1.0,1.8] | ❌ | 256 | 549 | ~78% | ✅ 안정 |
-| **M3_2** | homography | shift_256 | ✅ | **per_sample** | [1.0,1.8] | ❌ | 256 | 549 | ~78% | ⭐ **권장** |
+| M3_1 | homography | shift_256 | ✅ | **global** | [1.0,1.8] | ❌ | 256 | 549 | ~6% | ✅ 안정 |
+| **M3_2** | homography | shift_256 | ✅ | **per_sample** | [1.0,1.8] | ❌ | 256 | 549 | ~6% | ⭐ **권장** |
 | M3_2b | homography | shift_256 | ✅ | per_sample | **[1.0,1.5]** | ❌ | 256 | 549 | ~60% | 🔬 H2 baseline |
-| M3_3 | homography | shift_256 | ✅ | per_sample | [1.0,2.5] | **✅** | 256 | 549 | ~78% | 🔬 H2 test |
-| M4 | homography | **pp_correction** | ✅ | per_sample | [1.0,2.5] | ✅ | **가변** | 549 | ~78% | 🔬 H1 test |
-| ~~D10.3~~ | homography | shift_256 | ✅ | global | [1.0,2.5] | ❌ | 가변 | **739** | ~78% | ⛔ **Deprecated** |
+| M3_3 | homography | shift_256 | ✅ | per_sample | [1.0,2.5] | **✅** | 256 | 549 | ~6% | 🔬 H2 test |
+| M4 | homography | **pp_correction** | ✅ | per_sample | [1.0,2.5] | ✅ | **가변** | 549 | ~6% | 🔬 H1 test |
+| ~~D10.3~~ | homography | shift_256 | ✅ | global | [1.0,2.5] | ❌ | 가변 | **739** | ~6% | ⛔ **Deprecated** |
 
 ### 핵심 차이 설명
 
 | 설정 | 설명 |
 |------|------|
-| **zoom=❌** | 전체 이미지 scale (M1/M2), Coverage ~50% |
+| **zoom=❌** | 전체 이미지 scale (M1/M2), Coverage ~3%
 | **zoom=✅ global** | 전체 데이터셋에 동일 zoom 적용 |
 | **zoom=✅ per_sample** | 샘플별 coverage 기반 zoom 계산 |
 | **safe_zoom=✅** | 클리핑 방지 zoom 제한 |
@@ -71,7 +71,7 @@ M3_2 (권장 기준선)
 ├── zoom_center_mode: image
 ├── zoom_range: [1.0, 1.8]
 ├── PP: 256 (고정)
-└── Coverage: ~78%
+└── Coverage: ~6%
 
 M3_2b (H2 baseline - 낮은 coverage)
 ├── 차이: zoom_range [1.0, 1.5] (보수적)
@@ -81,12 +81,12 @@ M3_2b (H2 baseline - 낮은 coverage)
 M3_3 (H2 test - 높은 coverage + safe zoom)
 ├── 차이: zoom_range [1.0, 2.5], safe_zoom=True
 ├── PP: 256 (고정)
-└── Coverage: ~78% (0% clipping 보장)
+└── Coverage: ~6% (0% clipping 보장)
 
 M4 (H1 test - PP correction)
 ├── 차이: zoom_center_mode=object, pp_correction=True
 ├── PP: 가변 (crop offset 반영)
-└── Coverage: ~78% (최대)
+└── Coverage: ~6% (최대)
 ```
 
 

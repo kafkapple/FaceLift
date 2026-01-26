@@ -146,6 +146,7 @@ class Renderer(nn.Module):
             C2W: Camera-to-world transformation matrices
             fxfycxcy: Camera intrinsics (fx, fy, cx, cy)
             deferred: Whether to use deferred rendering (maintains gradients)
+            
         Returns:
             Rendered images
         """
@@ -233,6 +234,7 @@ class GaussiansUpsampler(nn.Module):
         Args:
             gaussians: Transformer output tokens for Gaussians
             images: Image tokens (unused but kept for compatibility)
+            
         Returns:
             Raw Gaussian parameters (before conversion to final format)
         """
@@ -248,6 +250,7 @@ class GaussiansUpsampler(nn.Module):
         
         Args:
             gaussians: Raw Gaussian parameters [b, n_gaussians, param_dim]
+            
         Returns:
             Tuple of (xyz, features, scaling, rotation, opacity)
         """
@@ -343,6 +346,7 @@ class LossComputer(nn.Module):
             input: Input data containing ray information
             result_softpa: Additional results (unused)
             create_visual: Whether to create visualization images
+            
         Returns:
             Dictionary containing all loss values and metrics
         """
@@ -560,11 +564,13 @@ class LossComputer(nn.Module):
                 - torch.sum(xyz_vec.detach() * input.ray_d, dim=2, keepdim=True)
                 * input.ray_d
             )
+            
             # Apply mask if enabled
             if self.config.training.losses.get("masked_pixelalign_loss", False):
                 assert mask is not None, "mask is None but masked_pixelalign_loss is enabled"
                 mask_reshaped = mask.view(b, v, 1, h, w)
                 ortho_vec = ortho_vec * mask_reshaped
+            
             return torch.mean(ortho_vec.norm(dim=2, p=2))
         
         return torch.tensor(0.0, device=img_aligned_xyz.device)
@@ -575,13 +581,17 @@ class LossComputer(nn.Module):
             # Target mean distance (distance from origin to ray origin)
             target_mean_dist = torch.norm(input.ray_o, dim=2, p=2, keepdim=True)
             target_std_dist = 0.5
+            
             # Predicted distance
             pred_dist = (img_aligned_xyz - input.ray_o).norm(dim=2, p=2, keepdim=True)
+            
             # Normalize to target distribution
             pred_dist_detach = pred_dist.detach()
             pred_mean = pred_dist_detach.mean(dim=(2, 3, 4), keepdim=True)
             pred_std = pred_dist_detach.std(dim=(2, 3, 4), keepdim=True)
+            
             target_dist = (pred_dist_detach - pred_mean) / (pred_std + 1e-8) * target_std_dist + target_mean_dist
+            
             return torch.mean((pred_dist - target_dist) ** 2)
         
         return torch.tensor(0.0, device=img_aligned_xyz.device)
@@ -893,6 +903,7 @@ class GSLRM(nn.Module):
         Args:
             start_layer: Starting layer index
             end_layer: Ending layer index (exclusive)
+            
         Returns:
             Function that processes tokens through specified layers
         """
@@ -908,6 +919,7 @@ class GSLRM(nn.Module):
         
         Args:
             input_data: Input data containing images and ray information
+            
         Returns:
             Posed images with Plucker coordinates [batch, views, channels, height, width]
         """
@@ -920,11 +932,13 @@ class GSLRM(nn.Module):
                 -input_data.ray_o * input_data.ray_d, dim=2, keepdim=True
             )
             nearest_points = input_data.ray_o + ray_origin_dot_direction * input_data.ray_d
+            
             return torch.cat([
                 normalized_rgb,
                 input_data.ray_d,
                 nearest_points,
             ], dim=2)
+            
         elif self.config.model.get("use_aug_plucker", False):
             # Augmented Plucker: RGB + cross_product + ray_direction + nearest_points
             ray_cross_product = torch.cross(input_data.ray_o, input_data.ray_d, dim=2)
@@ -932,15 +946,18 @@ class GSLRM(nn.Module):
                 -input_data.ray_o * input_data.ray_d, dim=2, keepdim=True
             )
             nearest_points = input_data.ray_o + ray_origin_dot_direction * input_data.ray_d
+            
             return torch.cat([
                 normalized_rgb,
                 ray_cross_product,
                 input_data.ray_d,
                 nearest_points,
             ], dim=2)
+            
         else:
             # Standard Plucker: RGB + cross_product + ray_direction
             ray_cross_product = torch.cross(input_data.ray_o, input_data.ray_d, dim=2)
+            
             return torch.cat([
                 normalized_rgb,
                 ray_cross_product,
@@ -985,6 +1002,7 @@ class GSLRM(nn.Module):
         for start_idx in range(0, num_layers, checkpoint_interval):
             end_idx = start_idx + checkpoint_interval
             layer_runner = self._create_transformer_layer_runner(start_idx, end_idx)
+            
             combined_tokens = torch.utils.checkpoint.checkpoint(
                 layer_runner,
                 combined_tokens,
@@ -1014,16 +1032,19 @@ class GSLRM(nn.Module):
                 -input_data.ray_o * input_data.ray_d, dim=2, keepdim=True
             )
             depth_values = (2.0 * depth_values - 1.0) * 1.8 + ray_origin_dot_direction
+            
         elif (self.config.model.get("depth_min", -1.0) > 0.0 and 
               self.config.model.get("depth_max", -1.0) > 0.0):
             # Use explicit depth range
             depth_min = self.config.model.depth_min
             depth_max = self.config.model.depth_max
             depth_values = depth_values * (depth_max - depth_min) + depth_min
+            
         elif self.config.model.get("depth_reference_origin", False):
             # Reference from ray origin norm
             ray_origin_norm = input_data.ray_o.norm(dim=2, p=2, keepdim=True)
             depth_values = (2.0 * depth_values - 1.0) * 1.8 + ray_origin_norm
+            
         else:
             # Default depth computation
             depth_values = (2.0 * depth_values - 1.0) * 1.5 + 2.7
@@ -1052,6 +1073,7 @@ class GSLRM(nn.Module):
             checkpoint_path: Path to the checkpoint file
             config: Model configuration
             map_location: Device to map tensors to (e.g., 'cpu', 'cuda:0')
+            
         Returns:
             Loaded GSLRM model
         """
@@ -1108,6 +1130,7 @@ class GSLRM(nn.Module):
             # Create fresh Gaussian model for this batch item
             self.gaussian_renderer.gaussians_model.empty()
             gaussian_model = copy.deepcopy(self.gaussian_renderer.gaussians_model)
+            
             # Set Gaussian data
             gaussian_model = gaussian_model.set_data(
                 xyz[batch_idx].detach().float(),
@@ -1159,6 +1182,7 @@ class GSLRM(nn.Module):
                 - c2w: Camera-to-world matrices [batch, views, 4, 4]
             create_visual: Whether to create visualization outputs
             split_data: Whether to split input/target data
+            
         Returns:
             Dictionary containing model outputs including Gaussians, renders, and losses
         """
@@ -1245,6 +1269,7 @@ class GSLRM(nn.Module):
             pixel_aligned_xyz = self._apply_hard_pixel_alignment(
                 pixel_aligned_xyz, input_data
             )
+            
             # Reshape back to flat format and update xyz
             pixel_aligned_xyz_flat = rearrange(
                 pixel_aligned_xyz,
@@ -1252,6 +1277,7 @@ class GSLRM(nn.Module):
                 patch_h=patch_size,
                 patch_w=patch_size,
             )
+            
             # Replace pixel-aligned Gaussians in the full xyz tensor
             xyz = torch.cat(
                 (xyz[:, :-num_pixel_aligned_gaussians, :], pixel_aligned_xyz_flat), 
@@ -1274,6 +1300,7 @@ class GSLRM(nn.Module):
         
         if target_data is not None:
             target_height, target_width = target_data.image.size(3), target_data.image.size(4)
+            
             # Render images using Gaussian splatting (now returns tuple with alpha)
             rendered_images, rendered_alpha = self.gaussian_renderer(
                 xyz, features, scaling, rotation, opacity,
@@ -1281,6 +1308,7 @@ class GSLRM(nn.Module):
                 C2W=target_data.c2w,
                 fxfycxcy=target_data.fxfycxcy,
             )
+            
             # Compute losses if rendered and target have matching dimensions
             if rendered_images.shape[1] == target_data.image.shape[1]:
                 # rendered_alpha is now directly available from deferred render
@@ -1314,12 +1342,14 @@ class GSLRM(nn.Module):
             loss_metrics.gaussians_usage = torch.tensor(
                 np.mean(np.array(usage_statistics))
             ).float()
+            
             # Add ghosting metrics (NEW - for monitoring ghost artifacts)
             if rendered_alpha is not None:
                 # Alpha foreground coverage (ghost = low coverage or scattered)
                 loss_metrics.ghost_fg_coverage = (rendered_alpha > 0.5).float().mean()
                 # Alpha variance (ghost = high variance in alpha)
                 loss_metrics.ghost_alpha_std = rendered_alpha.std()
+            
             # Opacity statistics from Gaussian parameters
             if opacity is not None:
                 loss_metrics.ghost_opacity_std = opacity.std()
@@ -1361,16 +1391,19 @@ class GSLRM(nn.Module):
         # Save supervision visualization if available
         if (model_results.loss_metrics is not None and 
             model_results.loss_metrics.visual is not None):
+            
             batch_uids = [
                 target_data.index[b, 0, -1].item() 
                 for b in range(target_data.index.size(0))
             ]
 
             uid_range = f"{batch_uids[0]:08}_{batch_uids[-1]:08}"
+            
             # Save supervision comparison image
             Image.fromarray(model_results.loss_metrics.visual).save(
                 os.path.join(output_directory, f"supervision_{uid_range}.jpg")
             )
+            
             # Save UIDs for reference
             with open(os.path.join(output_directory, "uids.txt"), "w") as f:
                 uid_string = "_".join([f"{uid:08}" for uid in batch_uids])
@@ -1434,9 +1467,7 @@ class GSLRM(nn.Module):
             video_views = turntable_cfg.get("video_views", 144)  # Smooth video
             grid_views = turntable_cfg.get("grid_views", 36)  # Grid (6x6)
             turntable_views = video_views  # Use video_views for rendering
-            turntable_resolution = turntable_cfg.get("resolution", None)
-            if turntable_resolution is None:
-                turntable_resolution = input_data.image.size(3)  # Use input resolution like validation
+            turntable_resolution = turntable_cfg.get("resolution", 384)
             turntable_elevation = turntable_cfg.get("elevation", 20)
             turntable_radius = turntable_cfg.get("radius", 2.7)
             trajectory_mode = turntable_cfg.get("trajectory_mode", "dataset_cameras")
@@ -1444,15 +1475,19 @@ class GSLRM(nn.Module):
             # Auto-enable dataset views when using dataset_cameras mode
             include_dataset_views = turntable_cfg.get("include_dataset_views", 
                                                        trajectory_mode == "dataset_cameras")
+            
             # Get dataset camera poses if needed
             dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()  # [num_cams, 4, 4]
             dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()  # [num_cams, 4]
+            
             # Get input resolution for intrinsics scaling
             input_resolution = input_data.image.size(3)
+            
             # Check for smooth trajectory mode (interpolate between dataset cameras)
-            smooth_trajectory = turntable_cfg.get("smooth_trajectory", True)
+            smooth_trajectory = turntable_cfg.get("smooth_trajectory", False)
             camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
             loop_trajectory = turntable_cfg.get("loop", True)
+            
             if smooth_trajectory:
                 # Use smooth interpolation between dataset cameras
                 turntable_frames, segments = render_dataset_trajectory(
@@ -1517,12 +1552,14 @@ class GSLRM(nn.Module):
                     elevation_end=elevation_end,
                     center=gaussian_center
                 )
+            
             # Create grid from turntable frames (subsample 144 -> 36 for 6x6 grid)
             grid_rows = turntable_cfg.get("grid_rows", 6)
             grid_cols = turntable_cfg.get("grid_cols", 6)
             turntable_grid, all_frames, h_img = create_grid_from_video(
                 turntable_image, turntable_views, grid_rows, grid_cols
             )
+            
             # Add row labels if enabled (e.g., "Cam 1 -> 3")
             if turntable_cfg.get("add_row_labels", True):
                 camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
@@ -1535,46 +1572,19 @@ class GSLRM(nn.Module):
                     turntable_grid = add_row_labels_to_grid(
                         turntable_grid, camera_order, grid_rows, grid_cols, h_img
                     )
+            
             Image.fromarray(turntable_grid).save(
                 os.path.join(output_directory, f"turntable_{item_uid}.jpg")
             )
+            
             # Save turntable video (enabled by default)
             if turntable_cfg.get("save_video", True):
                 # Use all_frames for smooth 144-frame video
                 video_frames = rearrange(all_frames, "h v w c -> v h w c")
                 video_frames = np.ascontiguousarray(video_frames)
-                turntable_fps = turntable_cfg.get("fps", 30)
+                turntable_fps = turntable_cfg.get("fps", 15)
                 imageseq2video(video_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=turntable_fps)
-                # Save turntable with input overlay (like validation)
-                # Create input image strip
-                input_image = rearrange(
-                    input_data.image[batch_idx][:, :3, ...],
-                    "v c h w -> h (v w) c"
-                )
-                input_np = (input_image.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
-                
-                # Resize input to match turntable height
-                border = 2
-                target_h = int(input_np.shape[0] / input_np.shape[1] * turntable_resolution)
-                resized_input = cv2.resize(
-                    input_np, 
-                    (turntable_resolution - border * 2, target_h - border * 2), 
-                    interpolation=cv2.INTER_AREA
-                )
-                bordered_input = np.pad(
-                    resized_input, 
-                    ((border, border), (border, border), (0, 0)), 
-                    mode="constant", constant_values=200
-                )
-                
-                # Combine turntable frames with input
-                input_seq = np.tile(bordered_input[None], (video_frames.shape[0], 1, 1, 1))
-                combined_frames = np.concatenate((video_frames, input_seq), axis=1)
-                imageseq2video(
-                    combined_frames, 
-                    os.path.join(output_directory, f"turntable_with_input_{item_uid}.mp4"), 
-                    fps=turntable_fps
-                )
+            
             # Additionally save dataset camera views for direct GT comparison
             if turntable_cfg.get("save_dataset_views", False):
                 # Get original resolution from input data (already scaled by dataset)
@@ -1615,9 +1625,11 @@ class GSLRM(nn.Module):
             # Extract image dimensions and create opacity/depth visualizations
             _, num_views, _, img_height, img_width = input_data.image.size()
             patch_size = self.config.model.image_tokenizer.patch_size
+            
             # Get opacity values for pixel-aligned Gaussians
             gaussian_opacity = model_results.gaussians[batch_idx].get_opacity
             pixel_opacity = gaussian_opacity[-num_views * img_height * img_width:]
+            
             # Reshape opacity to image format
             opacity_visualization = rearrange(
                 pixel_opacity,
@@ -1633,6 +1645,7 @@ class GSLRM(nn.Module):
             # Get 3D positions and compute depth visualization
             gaussian_positions = model_results.gaussians[batch_idx].get_xyz
             pixel_positions = gaussian_positions[-num_views * img_height * img_width:]
+            
             # Reshape positions to image format
             pixel_positions_reshaped = rearrange(
                 pixel_positions,
@@ -1643,10 +1656,12 @@ class GSLRM(nn.Module):
                 patch_h=patch_size,
                 patch_w=patch_size,
             )
+            
             # Compute distances from ray origins
             ray_distances = (pixel_positions_reshaped - input_data.ray_o[batch_idx]).norm(dim=1, p=2)
             distance_visualization = rearrange(ray_distances, "views height width -> height (views width)")
             distance_visualization = distance_visualization.cpu().numpy()
+            
             # Normalize distances for visualization
             dist_min, dist_max = distance_visualization.min(), distance_visualization.max()
             distance_visualization = (distance_visualization - dist_min) / (dist_max - dist_min)
@@ -1668,12 +1683,14 @@ class GSLRM(nn.Module):
             # Save filtered Gaussian model
             camera_origins = None  # Could use input_data.ray_o[batch_idx, :, :, 0, 0] if needed
             default_crop_box = [-0.91, 0.91, -0.91, 0.91, -0.91, 0.91]
+            
             model_results.gaussians[batch_idx].apply_all_filters(
                 opacity_thres=0.02,
                 crop_bbx=default_crop_box,
                 cam_origins=camera_origins,
                 nearfar_percent=(0.0001, 1.0),
             ).save_ply(os.path.join(output_directory, f"gaussians_{item_uid}.ply"))
+            
             print(f"Saved visualization for UID: {item_uid}")
 
             # Break after first item unless saving all
@@ -1703,6 +1720,7 @@ class GSLRM(nn.Module):
             item_uid = input_data.index[batch_idx, 0, -1].item()
             item_output_dir = os.path.join(output_directory, f"{item_uid:08d}")
             os.makedirs(item_output_dir, exist_ok=True)
+            
             # Save input image
             input_image = rearrange(
                 input_data.image[batch_idx], "views channels height width -> height (views width) channels"
@@ -1714,10 +1732,12 @@ class GSLRM(nn.Module):
             # Use centralized visualization function for consistency
             gt_images = target_data.image[batch_idx]  # [V, C, H, W]
             rendered_images = model_results.render[batch_idx]  # [V, 3, H, W]
+            
             # Get rendered_alpha if available
             batch_rendered_alpha = None
             if hasattr(model_results, 'rendered_alpha') and model_results.rendered_alpha is not None:
                 batch_rendered_alpha = model_results.rendered_alpha[batch_idx]  # [V, 1, H, W]
+            
             vis_config = VisualizationConfig.from_training_config(self.config)
             view_ids = target_data.index[batch_idx, :, 0].cpu().numpy().tolist()
             comparison_np, _ = create_validation_visual(
@@ -1737,6 +1757,7 @@ class GSLRM(nn.Module):
             )
             comparison_image = (comparison_image.cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
             Image.fromarray(comparison_image).save(os.path.join(item_output_dir, "gt_vs_pred.png"))
+            
             # Compute and save metrics
             per_view_psnr = compute_psnr(target_data.image[batch_idx], model_results.render[batch_idx])
             per_view_lpips = compute_lpips(target_data.image[batch_idx], model_results.render[batch_idx])
@@ -1755,9 +1776,12 @@ class GSLRM(nn.Module):
             avg_psnr = per_view_psnr.mean().item()
             avg_lpips = per_view_lpips.mean().item()
             avg_ssim = per_view_ssim.mean().item()
+            
             with open(os.path.join(item_output_dir, "metrics.txt"), "w") as f:
                 f.write(f"psnr: {avg_psnr:.4f}\nlpips: {avg_lpips:.4f}\nssim: {avg_ssim:.4f}\n")
+            
             print(f"UID {item_uid}: PSNR={avg_psnr:.4f}, LPIPS={avg_lpips:.4f}, SSIM={avg_ssim:.4f}")
+            
             # Save Gaussian model
             crop_box = None
             if self.config.model.get("clip_xyz", False):
@@ -1766,9 +1790,11 @@ class GSLRM(nn.Module):
                     crop_box = [-half_size, half_size, -half_size, half_size, -half_size, half_size]
                 else:
                     crop_box = [-0.91, 0.91, -0.91, 0.91, -0.91, 0.91]
+            
             model_results.gaussians[batch_idx].apply_all_filters(
                 opacity_thres=0.02, crop_bbx=crop_box, cam_origins=None, nearfar_percent=(0.0001, 1.0)
             ).save_ply(os.path.join(item_output_dir, "gaussians.ply"))
+            
             # Create turntable visualization
             # Get turntable config for inference
             turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
@@ -1777,6 +1803,7 @@ class GSLRM(nn.Module):
             turntable_elevation = turntable_cfg.get("elevation", 20)
             turntable_radius = turntable_cfg.get("radius", 2.7)
             render_resolution = input_image.shape[0]
+            
             # Use configured resolution or default to input resolution
             actual_resolution = turntable_resolution if turntable_resolution else render_resolution
             # Compute Gaussian center for camera orbit
@@ -1793,9 +1820,11 @@ class GSLRM(nn.Module):
                 turntable_frames, "height (views width) channels -> views height width channels", views=num_turntable_views
             )
             turntable_frames = np.ascontiguousarray(turntable_frames)
+            
             # Save basic turntable video
-            turntable_fps = turntable_cfg.get("fps", 30)
+            turntable_fps = turntable_cfg.get("fps", 15)
             imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=turntable_fps)
+            
             # Save description and preview if available
             try:
                 description = dataset.get_description(item_uid)["prompt"]
@@ -1809,10 +1838,12 @@ class GSLRM(nn.Module):
                     Image.fromarray(preview_image).save(os.path.join(item_output_dir, "turntable_preview.png"))
             except (AttributeError, KeyError):
                 pass
+            
             # Create turntable with input overlay
             border_width = 2
             target_width = render_resolution
             target_height = int(input_image.shape[0] / input_image.shape[1] * target_width)
+            
             resized_input = cv2.resize(
                 input_image, (target_width - border_width * 2, target_height - border_width * 2), interpolation=cv2.INTER_AREA
             )
@@ -1820,8 +1851,10 @@ class GSLRM(nn.Module):
                 resized_input, ((border_width, border_width), (border_width, border_width), (0, 0)), 
                 mode="constant", constant_values=200
             )
+            
             input_sequence = np.tile(bordered_input[None], (turntable_frames.shape[0], 1, 1, 1))
             combined_frames = np.concatenate((turntable_frames, input_sequence), axis=1)
+            
             imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=turntable_fps)
     
     @torch.no_grad()
@@ -1838,14 +1871,286 @@ class GSLRM(nn.Module):
         dataset, 
         save_visualizations: bool = False
     ) -> Dict[str, float]:
-        """Save validation results and compute aggregated metrics.
+        """Save validation results and compute aggregated metrics."""
+        from .utils_metrics import compute_psnr, compute_lpips, compute_ssim
+
+        os.makedirs(output_directory, exist_ok=True)
+        input_data, target_data = model_results.input, model_results.target
+        validation_metrics = {"psnr": [], "lpips": [], "ssim": [], "mask_iou": []}
+
+        for batch_idx in range(input_data.image.size(0)):
+            item_uid = input_data.index[batch_idx, 0, -1].item()
+            should_save_visuals = (batch_idx == 0) and save_visualizations
+            
+            # Extract RGB and mask from target
+            full_target = target_data.image[batch_idx]
+            target_image = full_target[:, :3, ...]
+            rendered = model_results.render[batch_idx]
+            
+            # Get mask if available (RGBA format)
+            if full_target.size(1) == 4:
+                gt_mask = full_target[:, 3:4, :, :]
+            else:
+                gt_mask = None
+            
+            # Compute metrics with mask for consistency with training
+            # All metrics are computed on foreground pixels only when mask is available
+            per_view_psnr = compute_psnr(target_image, rendered, mask=gt_mask)
+            per_view_lpips = compute_lpips(target_image, rendered, mask=gt_mask)
+            per_view_ssim = compute_ssim(target_image, rendered, mask=gt_mask)
+            
+            avg_psnr = per_view_psnr.mean().item()
+            avg_lpips = per_view_lpips.mean().item()
+            avg_ssim = per_view_ssim.mean().item()
+
+            # Compute mask IoU
+            if gt_mask is not None:
+                from .utils_metrics import compute_mask_iou
+                per_view_iou = compute_mask_iou(rendered, gt_mask, bg_threshold=0.1)
+                mask_iou = per_view_iou.mean().item()
+            else:
+                mask_iou = 0.0
+
+            validation_metrics["psnr"].append(avg_psnr)
+            validation_metrics["lpips"].append(avg_lpips)
+            validation_metrics["ssim"].append(avg_ssim)
+            validation_metrics["mask_iou"].append(mask_iou)
+            
+            # Collect per-view metrics for first batch (for wandb logging)
+            if batch_idx == 0:
+                validation_metrics["per_view_psnr"] = per_view_psnr.cpu().tolist()
+                validation_metrics["per_view_lpips"] = per_view_lpips.cpu().tolist()
+                validation_metrics["per_view_ssim"] = per_view_ssim.cpu().tolist()
+            
+            # Save visualizations only for first item if requested
+            if should_save_visuals:
+                item_output_dir = os.path.join(output_directory, f"{item_uid:08d}")
+                os.makedirs(item_output_dir, exist_ok=True)
+                
+                # Save input image
+                input_image = rearrange(
+                    input_data.image[batch_idx][:, :3, ...], "views channels height width -> height (views width) channels"
+                )
+                input_image = (input_image.cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
+                Image.fromarray(input_image).save(os.path.join(item_output_dir, "input.png"))
+                
+                # Save ground truth vs prediction comparison - delegate to mouse_extensions
+                full_target = target_data.image[batch_idx]  # (V, 4, H, W) RGBA or (V, 3, H, W) RGB
+                rendered = model_results.render[batch_idx]  # (V, 3, H, W) RGB
+                h = full_target.size(2)
+                
+                # Get rendered_alpha if available
+                batch_rendered_alpha = None
+                if hasattr(model_results, 'rendered_alpha') and model_results.rendered_alpha is not None:
+                    batch_rendered_alpha = model_results.rendered_alpha[batch_idx]  # (V, 1, H, W)
+                
+                # Use centralized visualization function
+                vis_config = VisualizationConfig.from_training_config(self.config)
+                view_ids_list = target_data.index[batch_idx, :, 0].cpu().numpy().tolist()
+                comparison_np, error_stats = create_validation_visual(
+                    full_target, rendered, vis_config,
+                    rendered_alpha=batch_rendered_alpha,
+                    view_indices=view_ids_list
+                )
+                # Determine num_rows for annotation
+                mask_mode = self.config.training.losses.get("mask_mode", None)
+                num_rows = 5 if (full_target.size(1) == 4 and mask_mode != "none") else 3
+                # Add error scale annotation
+                comparison_np = self.loss_calculator._add_error_scale_annotation(
+                    comparison_np, error_stats, h, num_rows
+                )
+                Image.fromarray(comparison_np).save(os.path.join(item_output_dir, "gt_vs_pred.png"))
+                
+                # Save alpha comparison if alpha loss is enabled
+                if should_visualize_alpha(self.config):
+                    try:
+                        if batch_rendered_alpha is not None and full_target.size(1) == 4:
+                            gt_mask_vis = full_target[:, 3:4, :, :]  # [V, 1, H, W]
+                            alpha_vis = batch_rendered_alpha  # [V, 1, H, W]
+                            
+                            alpha_comparison = visualize_alpha_comparison(
+                                gt_mask_vis, alpha_vis,
+                                num_views=gt_mask_vis.size(0),
+                                threshold=0.5
+                            )
+                            Image.fromarray(alpha_comparison).save(
+                                os.path.join(item_output_dir, f"alpha_comparison_{item_uid}.jpg")
+                            )
+                            
+                            # Compute and log metrics
+                            from mouse_extensions.visualization import compute_alpha_metrics
+                            alpha_metrics = compute_alpha_metrics(gt_mask_vis, alpha_vis)
+                            with open(os.path.join(item_output_dir, "alpha_metrics.txt"), "w") as f:
+                                for k, v in alpha_metrics.items():
+                                    f.write(f"{k}: {v:.4f}")
+                    except Exception as e:
+                        print(f"Warning: Could not save alpha comparison: {e}")
+                
+                # Save per-view metrics
+                view_ids = target_data.index[batch_idx, :, 0].cpu().numpy()
+                with open(os.path.join(item_output_dir, "perview_metrics.txt"), "w") as f:
+                    for i in range(per_view_psnr.size(0)):
+                        f.write(
+                            f"view {view_ids[i]:0>6}, psnr: {per_view_psnr[i].item():.4f}, "
+                            f"lpips: {per_view_lpips[i].item():.4f}, ssim: {per_view_ssim[i].item():.4f}\n"
+                        )
+                
+                # Save averaged metrics
+                with open(os.path.join(item_output_dir, "metrics.txt"), "w") as f:
+                    f.write(f"psnr: {avg_psnr:.4f}\nlpips: {avg_lpips:.4f}\nssim: {avg_ssim:.4f}\n")
+                
+                print(f"Validation UID {item_uid}: PSNR={avg_psnr:.4f}, LPIPS={avg_lpips:.4f}, SSIM={avg_ssim:.4f}")
+                
+                # Save Gaussian model
+                crop_box = None
+                if self.config.model.get("clip_xyz", False):
+                    if self.config.model.get("half_bbx_size", None) is not None:
+                        half_size = self.config.model.half_bbx_size
+                        crop_box = [-half_size, half_size, -half_size, half_size, -half_size, half_size]
+                    else:
+                        crop_box = [-0.91, 0.91, -0.91, 0.91, -0.91, 0.91]
+                
+                model_results.gaussians[batch_idx].apply_all_filters(
+                    opacity_thres=0.02, crop_bbx=crop_box, cam_origins=None, nearfar_percent=(0.0001, 1.0)
+                ).save_ply(os.path.join(item_output_dir, "gaussians.ply"))
+                
+                # Create turntable visualization
+                turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
+                render_resolution = input_image.shape[0]
+                input_resolution = input_data.image.size(3)  # For intrinsics scaling
+                smooth_trajectory = turntable_cfg.get("smooth_trajectory", False)
+                camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
+                loop_trajectory = turntable_cfg.get("loop", True)
+                turntable_fps = turntable_cfg.get("fps", 15)
+                video_views = turntable_cfg.get("video_views", 144)  # Smooth video
+                num_turntable_views = video_views
+                
+                # Get dataset camera poses
+                dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()
+                dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()
+                
+                if smooth_trajectory:
+                    # Use smooth interpolation between dataset cameras
+                    turntable_frames, segments = render_dataset_trajectory(
+                        model_results.gaussians[batch_idx],
+                        dataset_c2ws, dataset_fxfycxcy,
+                        rendering_resolution=render_resolution,
+                        num_views=num_turntable_views,
+                        camera_order=camera_order,
+                        loop=loop_trajectory,
+                        show_overlay=False,
+                    original_resolution=input_resolution,
+                    )
+                else:
+                    # Standard 360 turntable
+                    gaussian_center = model_results.gaussians[batch_idx]._xyz.mean(dim=0).detach().cpu().numpy()
+                    turntable_image = render_turntable(
+                        model_results.gaussians[batch_idx], 
+                        rendering_resolution=render_resolution, 
+                        num_views=num_turntable_views,
+                        center=gaussian_center
+                    )
+                    turntable_frames = rearrange(
+                        turntable_image, "height (views width) channels -> views height width channels", 
+                        views=num_turntable_views
+                    )
+                
+                turntable_frames = np.ascontiguousarray(turntable_frames)
+                imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=turntable_fps)
+                
+                # Create grid image (subsample 144 -> 36 for 6x6 grid)
+                grid_rows = turntable_cfg.get("grid_rows", 6)
+                grid_cols = turntable_cfg.get("grid_cols", 6)
+                target_grid_views = grid_rows * grid_cols  # 36
+                
+                # Subsample evenly spaced frames
+                if num_turntable_views > target_grid_views:
+                    indices = np.linspace(0, num_turntable_views - 1, target_grid_views, dtype=int)
+                    grid_frames = turntable_frames[indices]
+                else:
+                    grid_frames = turntable_frames[:target_grid_views]
+                
+                h_img = grid_frames.shape[1]
+                grid_image = rearrange(grid_frames, "(rows cols) h w c -> (rows h) (cols w) c", rows=grid_rows, cols=grid_cols)
+                
+                # Add row labels if enabled
+                if turntable_cfg.get("add_row_labels", True):
+                    camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
+                    label_position = turntable_cfg.get("label_position", "left")  # "top" or "left"
+                    if label_position == "left":
+                        grid_image = add_left_row_labels(
+                            grid_image, camera_order, grid_rows, grid_cols, h_img
+                        )
+                    else:
+                        grid_image = add_row_labels_to_grid(
+                            grid_image, camera_order, grid_rows, grid_cols, h_img
+                        )
+                
+                Image.fromarray(grid_image).save(os.path.join(item_output_dir, f"turntable_{item_uid}.jpg"))
+                
+                # Create turntable with input overlay
+                border_width = 2
+                target_width = render_resolution
+                target_height = int(input_image.shape[0] / input_image.shape[1] * target_width)
+                
+                resized_input = cv2.resize(
+                    input_image, (target_width - border_width * 2, target_height - border_width * 2), interpolation=cv2.INTER_AREA
+                )
+                bordered_input = np.pad(
+                    resized_input, ((border_width, border_width), (border_width, border_width), (0, 0)), 
+                    mode="constant", constant_values=200
+                )
+                
+                input_sequence = np.tile(bordered_input[None], (turntable_frames.shape[0], 1, 1, 1))
+                combined_frames = np.concatenate((turntable_frames, input_sequence), axis=1)
+                
+                imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=turntable_fps)
+                
+                # Save dataset views (actual camera viewpoints for comparison)
+                if turntable_cfg.get("save_dataset_views", False):
+                  try:
+                    dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()
+                    dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()
+                    # Get input resolution for intrinsics scaling
+                    input_resolution = input_data.image.size(3)
+                    dataset_views = render_dataset_views(
+                        model_results.gaussians[batch_idx],
+                        dataset_c2ws, dataset_fxfycxcy,
+                        rendering_resolution=render_resolution,
+                        show_overlay=False,
+                        original_resolution=input_resolution,
+                    )
+                    dataset_strip = rearrange(dataset_views, "v h w c -> h (v w) c")
+                    Image.fromarray(dataset_strip).save(
+                        os.path.join(item_output_dir, f"dataset_views_{item_uid}.jpg")
+                    )
+                    
+                    # Save dataset views video (static view from each camera, cycling)
+                    if turntable_cfg.get("save_dataset_views_video", False):
+                        create_dataset_views_video(
+                            dataset_views,
+                            os.path.join(item_output_dir, f"dataset_views_{item_uid}.mp4"),
+                            turntable_cfg,
+                            imageseq2video,
+                        )
+                  except Exception as e:
+                    print(f"Warning: Could not save dataset_views: {e}")
         
-        Delegates to mouse_extensions.validation.ValidationRunner for modularity.
-        """
-        from mouse_extensions.validation import run_validation
-        return run_validation(
-            self, output_directory, model_results, batch_data, dataset, save_visualizations
-        )
+        # Return averaged metrics with per-view breakdown
+        result = {
+            "psnr": torch.tensor(validation_metrics["psnr"]).mean().item(),
+            "lpips": torch.tensor(validation_metrics["lpips"]).mean().item(),
+            "ssim": torch.tensor(validation_metrics["ssim"]).mean().item(),
+            "mask_iou": torch.tensor(validation_metrics["mask_iou"]).mean().item(),
+        }
+        
+        # Add per-view metrics for wandb logging
+        if "per_view_psnr" in validation_metrics and validation_metrics["per_view_psnr"]:
+            result["per_view_psnr"] = validation_metrics["per_view_psnr"]
+            result["per_view_lpips"] = validation_metrics["per_view_lpips"]
+            result["per_view_ssim"] = validation_metrics["per_view_ssim"]
+        
+        return result
     
     @torch.no_grad()
     def save_validations(

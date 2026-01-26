@@ -22,7 +22,7 @@ MOUSE_CAMERA_ORDER = [1, 3, 5, 0, 4, 2]
 # Default turntable settings
 DEFAULT_TURNTABLE_CONFIG = {
     "camera_order": MOUSE_CAMERA_ORDER,
-    "fps": 15,  # Slower than default 30 (2x slower)
+    "fps": 30,  # 2x faster turntable rotation
     "interpolation_steps": 6,  # Steps between each camera pair
     "grid_rows": 6,
     "grid_cols": 6,
@@ -31,6 +31,7 @@ DEFAULT_TURNTABLE_CONFIG = {
     "add_row_labels": True,
     "use_camera_interpolation": True,
     "save_video": True,  # Enable video by default for train/val
+    "smooth_trajectory": True,  # Enable smooth camera interpolation
 }
 
 
@@ -169,8 +170,8 @@ def add_left_row_labels(
     camera_order: Optional[List[int]] = None,
     grid_rows: int = 6,
     grid_cols: int = 6,
-    label_width: int = 80,
-    font_scale: float = 0.5,
+    label_width: int = 120,
+    font_scale: float = 1.0,
     loop: bool = True
 ) -> np.ndarray:
     """
@@ -231,7 +232,7 @@ def add_left_row_labels(
     result[:, label_width:] = grid_image
     
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_thick = 1
+    font_thick = 2
     
     for row_idx in range(grid_rows):
         # Position of this row's label

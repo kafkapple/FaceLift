@@ -199,7 +199,7 @@ class GSLRMTrainer:
         use_mouse_dataset = self.config.get("mouse", {}).get("use_mouse_dataset", False)
 
         if use_mouse_dataset:
-            from gslrm.data.mouse_dataset import MouseViewDataset
+            from mouse_extensions.data import MouseViewDataset
             print("Using MouseViewDataset with camera normalization")
             self.dataset = MouseViewDataset(self.config, split="train")
             # Use .get() for safe access to validation config
@@ -994,21 +994,21 @@ class GSLRMTrainer:
             except Exception as e:
                 print(f"Warning: Could not load image {f}: {e}")
 
-        # Find dataset_views images (actual camera viewpoints)
-        dataset_views_files = glob.glob(os.path.join(vis_dir, "**/dataset_views_*.jpg"), recursive=True)
-        for i, f in enumerate(dataset_views_files[:1]):  # Limit to 1 image
-            try:
-                img = PILImage.open(f)
-                filename = os.path.basename(f)
-                uid_info = filename.replace("dataset_views_", "").replace(".jpg", "")
-                caption = (
-                    f"Step {self.fwdbwd_pass_step} | UID: {uid_info}\n"
-                    f"Dataset camera views ({num_views} views) | Camera: {norm_status}"
-                )
-                wandb_images[f"{img_prefix}/dataset_views_{i}"] = wandb.Image(img, caption=caption)
-            except Exception as e:
-                print(f"Warning: Could not load image {f}: {e}")
-
+# REMOVED:         # Find dataset_views images (actual camera viewpoints)
+# REMOVED:         dataset_views_files = glob.glob(os.path.join(vis_dir, "**/dataset_views_*.jpg"), recursive=True)
+# REMOVED:         for i, f in enumerate(dataset_views_files[:1]):  # Limit to 1 image
+# REMOVED:             try:
+# REMOVED:                 img = PILImage.open(f)
+# REMOVED:                 filename = os.path.basename(f)
+# REMOVED:                 uid_info = filename.replace("dataset_views_", "").replace(".jpg", "")
+# REMOVED:                 caption = (
+# REMOVED:                     f"Step {self.fwdbwd_pass_step} | UID: {uid_info}\n"
+# REMOVED:                     f"Dataset camera views ({num_views} views) | Camera: {norm_status}"
+# REMOVED:                 )
+# REMOVED:                 wandb_images[f"{img_prefix}/dataset_views_{i}"] = wandb.Image(img, caption=caption)
+# REMOVED:             except Exception as e:
+# REMOVED:                 print(f"Warning: Could not load image {f}: {e}")
+# REMOVED: 
         # Find gt_vs_pred images in subdirectories
         gt_pred_files = glob.glob(os.path.join(vis_dir, "**/gt_vs_pred.png"), recursive=True)
         for i, f in enumerate(gt_pred_files[:2]):  # Limit to 2 images

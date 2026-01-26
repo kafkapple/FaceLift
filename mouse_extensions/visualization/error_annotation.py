@@ -75,7 +75,7 @@ def add_error_scale_annotation(
 
     # --- Add Range Labels ---
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.4
+    font_scale = 0.8
     font_color = (255, 255, 255)
     thickness = 1
 

@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from gslrm.data.mouse_dataset import (
+from mouse_extensions.data.mouse_dataset import (
     normalize_cameras_to_y_up,
     normalize_cameras_to_z_up,
     normalize_camera_distance,

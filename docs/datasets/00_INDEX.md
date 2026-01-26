@@ -2,236 +2,98 @@
 
 > **Navigation**: [← MoC](../00_MoC_INDEX.md) | [CLAUDE.md](../../CLAUDE.md)
 > **SSOT**: 모든 데이터셋 관련 문서의 중앙 허브
+> **최종 업데이트**: 2026-01-26
 
 ---
 
 ## Quick Reference
 
-| 분류 | 권장 | 상세 |
+| 용도 | 권장 | 특징 |
 |------|------|------|
-| **기준선** | [[presets/D7_1\|M1 (D7.1)]] | Affine, PP=256, fx=549 |
-| **정밀** | [[presets/D8\|M2 (D8)]] | Homography, skew 보정 |
-| **최적** | [[presets/M3_2\|M3_2]] ⭐ | Per-sample zoom, MVG-correct |
+| **기준선** | D7_1 (M1) | Affine, PP=256, No zoom |
+| **정밀** | D8 (M2) | Homography, PP=256, No zoom |
+| **운영** | **M3_2** ⭐ | Per-sample zoom, PP=256 |
+| **Hold-out** | M3_3t | Pose-Splatter 1/3 split |
 
 ---
 
-## 문서 구조
+## 핵심 문서
 
-### Individual Dataset Specs (presets/)
-
-| 데이터셋 | Alias | 상태 | 상세 |
-|----------|-------|------|------|
-| [[presets/D7_1]] | M1 | ✅ 기준선 | Affine, PSNR 20.93 |
-| [[presets/D8]] | M2 | ✅ 정밀 | Homography, PSNR 20.21 |
-| [[presets/M3]] | D10.3 | ⚠️ H2 검증용 | fx=739 미정규화 |
-| [[presets/M3_1]] | - | ✅ MVG-correct | Global zoom |
-| [[presets/M3_2]] | - | ⭐ **권장** | Per-sample zoom |
-| [[presets/D3_normalized]] | - | 📊 Reference | PSNR 27.09 최고 |
-
-### Core Documents
-
-| 문서 | 내용 |
-|------|------|
-| [[EXPERIMENT_NAMING]] | 실험 명명규칙, E1-E5 시리즈, 21개 설정 |
-| [[EXPERIMENT_RESULTS]] | 실험 결과 비교표, PSNR 분석 |
-| [[HYPOTHESIS_VERIFICATION]] | H1-H6 가설 검증 매트릭스 |
-| [[VIEW_SELECTION_ANALYSIS]] | Ghosting 분석, Novel view synthesis |
-| [[PREPROCESSING_REGISTRY]] | 프리셋 정의, 전처리 명령어 |
-| [[VERSION_SCHEMA]] | 버전 계층, M-Series, Split 방식 |
-| [[M3_SERIES_SPEC]] | M3 시리즈 상세 명세 |
-
-### Reference Documents
-
-| 문서 | 내용 |
-|------|------|
-| [[RAW_DATA]] | 원본 데이터 출처, 샘플링 전략 |
-| [[CAMERA_CONFIG]] | 6카메라 배치, View 선택 |
+| 문서 | 내용 | 우선순위 |
+|------|------|----------|
+| **[[DATASET_ANALYSIS]]** | 성공/실패 요인 종합, Coverage 정의 | ⭐ 필독 |
+| **[[PREPROCESSING_REGISTRY]]** | 프리셋 정의, 전처리 명령어 | ⭐ 필독 |
+| [[EXPERIMENT_RESULTS]] | 실험 결과 PSNR 비교 | 참조 |
+| [[M3_SERIES_SPEC]] | M3 계열 상세 | 참조 |
 
 ---
 
-## 데이터셋 분류 체계
+## 데이터셋 상태
 
-### Category 1: Legacy (⛔ 사용 금지)
-Object-centered crop + PP 미보정 → **geometry_broken**
-- D1, D4, D6-1, D6-2, D6-3
+### ✅ Active (사용 권장)
 
-### Category 2: Object-Centered Zoom (⚠️ Deprecated)
-Adaptive zoom + Object-centered → **PP 가변 → ray error**
+| 데이터셋 | Transform | Zoom | PP | 용도 |
+|----------|-----------|------|-----|------|
+| **D7_1** (M1) | Affine | ❌ | 256 | 기준선 |
+| **D8** (M2) | Homography | ❌ | 256 | 기준선 |
+| **M3_2** ⭐ | Homo+Zoom | ✅ | 256 | **권장** |
+| **M3_3** | Homo+Zoom | ✅ | 256 | 권장 |
+| **M3_3t** | M3_3 + Split | ✅ | 256 | Hold-out test |
 
-### Category 3: PP-Centered Shift (✅ Stable)
-PP를 256으로 shift → **pretrained 호환**
-- [[presets/D7_1\|M1 (D7.1)]], [[presets/D8\|M2 (D8)]], D7_1_t
+### ❌ Deprecated (사용 금지)
 
-### Category 4: Precision Homography + MVG (⭐ Recommended)
-Center-aligned zoom + PP=256 자동 → **MVG 정합**
-- [[presets/M3_1]] (Global zoom)
-- [[presets/M3_2]] (Per-sample zoom) ⭐
-
----
-
-## M-Series 요약
-
-| Alias | Preset | 변환 | PP | fx | zoom_range | Coverage | 용도 |
-|-------|--------|------|-----|-----|------------|----------|------|
-| M1 | D7.1 | Affine | 256 | 549 | - | ~50% | 기준선 |
-| M2 | D8 | Homography | 256 | 549 | - | ~50% | 정밀 기준선 |
-| M3 | D10.3 | Homo+Zoom | **가변** | **739** | [1.0,2.5] | ~78% | ⚠️ fx 버그 |
-| M3_1 | M3_1 | Global Zoom | 256 | 549 | [1.0,1.8] | ~78% | Per-sample 비교용 |
-| **M3_2** | M3_2 | Per-sample | 256 | 549 | [1.0,1.8] | ~78% | ⭐ **권장** |
-| M3_2b | M3_2b | Conservative | 256 | 549 | **[1.0,1.5]** | ~60% | 🔬 H2 baseline |
-| M3_3 | M3_3 | Safe Zoom | 256 | 549 | [1.0,2.5] | ~78% | 🔬 H2 test |
-| M4 | M4 | Object-centered | **가변** | 549 | [1.0,2.5] | ~78% | 🔬 H1 test |
+| 데이터셋 | 문제 |
+|----------|------|
+| M4 | PP 가변 (object-centered) |
+| M3_norm, M3_persample | PP 가변 |
+| D1~D6 | 기하학 손상 |
 
 ---
 
-## 가설 검증 요약
+## 핵심 발견
 
-| ID | 가설 | 상태 | 상세 |
-|----|------|------|------|
-| H1 | Coverage↑ → PSNR↑ | ✅ | +6 PSNR (50%→74%) |
-| H2 | fx=549 필수 | ⚠️ | PP가 더 중요 |
-| H3 | PP=256 필수 | ✅ | +7 PSNR 효과 |
-| H4 | Aspect Ratio | 🔲 | 미검증 |
-| H5 | Per-sample zoom | 🔄 | 진행 중 |
-| H6 | View Quality | ✅ | Novel view 한계 |
+### PP 정합이 핵심
+- **PP=256**: GS-LRM pretrained 호환 ✅
+- **PP 가변**: Ray error 13-16° → Ghosting ❌
 
-상세: [[HYPOTHESIS_VERIFICATION]]
+### Transform 차이 미미
+- D7_1 (Affine): 20.93 PSNR
+- D8 (Homography): 20.21 PSNR
+- 차이: +0.72 (Affine이 약간 높음)
 
----
-
-## 실험 결과 요약
-
-| Dataset | Val PSNR | Coverage | 상세 |
-|---------|----------|----------|------|
-| [[presets/D3_normalized]] | **27.09** | 74% | ⭐ 최고 |
-| [[presets/D7_1]] | 20.93 | 50% | 기준선 |
-| [[presets/D8]] | 20.21 | 50% | 정밀 |
-| [[presets/M3_1]] | TBD | 78%+ | 검증 완료 |
-| [[presets/M3_2]] | TBD | 78%+ | **권장** |
-
-상세: [[EXPERIMENT_RESULTS]]
+### Coverage 효과 (검증 필요)
+- 실측: D7_1 ~2-3%, M3_2 ~6%
+- 가설: Coverage↑ → PSNR↑ (M3_2 결과로 검증)
 
 ---
 
 ## Quick Start
 
-### 전처리 실행 (권장: M3_2)
 ```bash
-cd /home/joon/dev/FaceLift
-
+# 전처리 (M3_2)
 python -m mouse_extensions.preprocessing.preprocess \
-    --preset M3_2 \
-    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --preset M3_2 --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
     --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
-```
 
-### 학습 실행 (권장: E1_2_alpha)
-```bash
-CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_2 -e E1_2_alpha
-```
+# 학습
+torchrun --standalone --nproc_per_node=1 train_gslrm.py -d M3_2 -e E1_2_alpha
 
-### 대안 실험
-```bash
-# M3_1 (Global zoom) 비교
-CUDA_VISIBLE_DEVICES=1 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_1 -e E1_2_alpha
-
-# Random view selection (H6 검증)
-CUDA_VISIBLE_DEVICES=2 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_2 -e E1_2_random_baseline
-```
-
-### 검증
-```bash
-python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
-    --datasets M3_2 --verbose
-```
-
-### 가설 검증 실험 (M3 Variants)
-
-상세 계획: [[../experiments/HYPOTHESIS_VERIFICATION_PLAN]]
-
-**전처리:**
-```bash
-# M3_2b (H2 baseline: conservative zoom)
-python -m mouse_extensions.preprocessing.preprocess \
-    --preset M3_2b \
-    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2b
-
-# M3_3 (H2 test: safe zoom, 0% clipping)
-python -m mouse_extensions.preprocessing.preprocess \
-    --preset M3_3 \
-    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_3
-
-# M4 (H1 test: object-centered + PP correction)
-python -m mouse_extensions.preprocessing.preprocess \
-    --preset M4 \
-    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M4
-```
-
-**학습:**
-```bash
-# H2: M3_2b vs M3_3 (Coverage 영향, PP 동일)
-CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_2b -e E1_2_alpha
-
-CUDA_VISIBLE_DEVICES=1 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_3 -e E1_2_alpha
-
-# H1: M3_3 vs M4 (PP 영향, Coverage 유사)
-CUDA_VISIBLE_DEVICES=2 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M4 -e E1_2_alpha
+# Hold-out Test Split 생성
+python -m mouse_extensions.preprocessing.create_temporal_split \
+    --input M3_3 --output M3_3t --symlink
 ```
 
 ---
-
-## D7 계열 관계도
-
-```
-D7 (기본: random split, fx_only scale)
-├── D7_1 (M1): individual scale ← [[presets/D7_1]]
-│   └── D7_1_t: D7_1 + temporal split
-├── D7_2: average scale
-├── D7_5: optimal scale
-│   └── D7_5b: object-aware optimal
-└── D7_t: D7 + temporal split
-```
-
----
-
-
----
-
-## 프리셋 분류 체계
-
-### ✅ Active (Production)
-
-| 카테고리 | 프리셋 | 용도 |
-|----------|--------|------|
-| **baseline** | D7.1 (M1), D8 (M2) | 기준선 (zoom 없음) |
-| **production** | M3_1, M3_2 | 운영용 (권장: M3_2) |
-| **hypothesis_test** | M3_2b, M3_3, M4 | 가설 검증용 |
-
-### ⛔ Archived (Reference Only)
-
-| 카테고리 | 프리셋 | 사유 |
-|----------|--------|------|
-| **geometry_broken** | D1, D4, D6-1, D6-2, D6-3 | PP 미보정 → ray error |
-| **superseded** | D7, D7.2, D8.1, D8.2 | D7.1/D8로 대체 |
-| **native** | D9, D9_norm, D9_resized | 변환 없음, 거의 미사용 |
-| **experimental** | D10, D10.1, D10.2 | up_alignment 문제 |
-| **deprecated** | D10.3, M3, M3_norm, M3_persample | fx 버그 또는 중복 |
 
 ## 관련 문서
 
-- [[../00_MoC_INDEX]] - 프로젝트 문서 허브
-- [[../practical/MOUSE_QUICK_REFERENCE]] - 빠른 참조
-- [[../EXPERIMENT_REGISTRY]] - 실험 레지스트리
+| 카테고리 | 문서 |
+|----------|------|
+| 분석 | [[DATASET_ANALYSIS]], [[EXPERIMENT_RESULTS]] |
+| 설정 | [[PREPROCESSING_REGISTRY]], [[M3_SERIES_SPEC]] |
+| 이론 | [[../theory/PP_FX_MVG_ANALYSIS]] |
+| 참조 | [[RAW_DATA]], [[CAMERA_CONFIG]], [[VERSION_SCHEMA]] |
 
 ---
 
-*Dataset Documentation v4.0 | 2026-01-26 | Archive System Added*
+*Dataset Hub v5.0 | 2026-01-26 | 간소화, Coverage 수정*

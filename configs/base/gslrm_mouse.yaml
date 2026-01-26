@@ -140,21 +140,25 @@ visualization:
   # Turntable visualization settings
   turntable:
     # Standard 360° turntable (smooth_trajectory=false)
-    smooth_trajectory: false   # Interpolate between dataset cameras
+    smooth_trajectory: true   # Interpolate between dataset cameras
+    camera_order: [1, 3, 5, 0, 4, 2]  # 360° rotation order
     loop: true                # Return to first camera
     # Training/validation (grid image)
-    num_views: 36           # Total views for grid (default 8x8=64)
-    resolution: 384         # Render resolution
+    num_views: 144           # Total views for grid (default 8x8=64)
+    video_views: 144         # Same as num_views for consistency
+    resolution: null          # null = use input resolution (512)
     elevation: 20           # Camera elevation in degrees
     radius: 2.7             # Camera distance from center
     grid_rows: 6            # Grid layout rows (6x10=60 for smooth trajectory)
     grid_cols: 6            # Grid layout cols
     save_video: true        # Save turntable mp4 during training
+    save_dataset_views: true        # Save dataset camera views image
+    save_dataset_views_video: true  # Save dataset views video
 
     # Inference (video)
     inference_views: 150    # Frames for turntable video
     inference_resolution: null  # null = use input resolution
-    fps: 10                 # Video framerate
+    fps: 30                 # Video framerate
 
 # -----------------------------------------------------------------------------
 # Validation defaults (paths auto-generated)

@@ -1,0 +1,20 @@
+{
+"files.watcherExcludes": {
+    // 이 프로젝트의 대형 데이터/체크포인트
+    "**/datasets/**": true,
+    "**/data/**": true,
+    "**/checkpoints/**": true,
+    "**/logs/**": true,
+    "**/wandb/**": true,
+    "**/tensorboard/**": true
+},
+"search.exclude": {
+    "**/datasets/**": true,
+    "**/data/**": true,
+    "**/checkpoints/**": true,
+    "**/logs/**": true,
+    "**/wandb/**": true,
+    "**/tensorboard/**": true
+}
+}
+  
