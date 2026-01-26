@@ -1452,6 +1452,9 @@ class GSLRM(nn.Module):
             # Check for smooth trajectory mode (interpolate between dataset cameras)
             smooth_trajectory = turntable_cfg.get("smooth_trajectory", True)
             camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
+            # Filter camera_order to only include valid indices (handles exclude_camera_indices)
+            num_available_cams = dataset_c2ws.shape[0]
+            camera_order = [c for c in camera_order if c < num_available_cams]
             loop_trajectory = turntable_cfg.get("loop", True)
             trajectory_fps = turntable_cfg.get("trajectory_fps", 10)  # FPS for trajectory video
             if smooth_trajectory:
@@ -1535,6 +1538,8 @@ class GSLRM(nn.Module):
             # Add row labels if enabled (e.g., "Cam 1 -> 3")
             if turntable_cfg.get("add_row_labels", True):
                 camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
+                # Filter camera_order to only include valid indices
+                camera_order = [c for c in camera_order if c < num_available_cams]
                 label_position = turntable_cfg.get("label_position", "left")  # "top" or "left"
                 if label_position == "left":
                     turntable_grid = add_left_row_labels(
