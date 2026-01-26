@@ -2109,6 +2109,32 @@ class GSLRM(nn.Module):
                 )
                 Image.fromarray(comparison_np).save(os.path.join(item_output_dir, "gt_vs_pred.png"))
                 
+                # Save alpha comparison if alpha loss is enabled
+                if should_visualize_alpha(self.config):
+                    try:
+                        if batch_rendered_alpha is not None and full_target.size(1) == 4:
+                            gt_mask_vis = full_target[:, 3:4, :, :]  # [V, 1, H, W]
+                            alpha_vis = batch_rendered_alpha  # [V, 1, H, W]
+                            
+                            alpha_comparison = visualize_alpha_comparison(
+                                gt_mask_vis, alpha_vis,
+                                num_views=gt_mask_vis.size(0),
+                                threshold=0.5
+                            )
+                            Image.fromarray(alpha_comparison).save(
+                                os.path.join(item_output_dir, f"alpha_comparison_{item_uid}.jpg")
+                            )
+                            
+                            # Compute and log metrics
+                            from mouse_extensions.visualization import compute_alpha_metrics
+                            alpha_metrics = compute_alpha_metrics(gt_mask_vis, alpha_vis)
+                            with open(os.path.join(item_output_dir, "alpha_metrics.txt"), "w") as f:
+                                for k, v in alpha_metrics.items():
+                                    f.write(f"{k}: {v:.4f}
+")
+                    except Exception as e:
+                        print(f"Warning: Could not save alpha comparison: {e}")
+                
                 # Save per-view metrics
                 view_ids = target_data.index[batch_idx, :, 0].cpu().numpy()
                 with open(os.path.join(item_output_dir, "perview_metrics.txt"), "w") as f:

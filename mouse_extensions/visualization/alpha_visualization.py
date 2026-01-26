@@ -100,7 +100,7 @@ def _add_row_labels_alpha(image: np.ndarray, row_height: int) -> np.ndarray:
         draw = ImageDraw.Draw(pil_img)
 
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 42)
         except:
             font = ImageFont.load_default()
 
