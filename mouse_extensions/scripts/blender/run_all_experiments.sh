@@ -13,7 +13,7 @@ set -e  # 에러 시 중단
 # =============================================================================
 
 # Blender 경로 (환경에 맞게 수정)
-BLENDER="${BLENDER:-blender}"
+BLENDER="${BLENDER:-$HOME/blender-4.0.2-linux-x64/blender}"
 
 # 스크립트 경로
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -46,7 +46,7 @@ EXPERIMENTS=(
 # =============================================================================
 
 log() {
-    echo "[$(date +%Y-%m-%d %H:%M:%S)] $1"
+    echo "[$(date "+%Y-%m-%d %H:%M:%S")] $1"
 }
 
 check_blender() {

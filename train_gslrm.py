@@ -1255,6 +1255,7 @@ class GSLRMTrainer:
             self.save_visuals_if_needed(result, batch, create_visual)
             
             # Synchronize after visual creation
+
             if create_visual:
                 self._barrier()
                 

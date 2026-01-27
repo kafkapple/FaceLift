@@ -98,7 +98,7 @@ def create_mouse_ears():
             location=(1.7, side * 0.35, 0.5)
         )
         ear = bpy.context.active_object
-        ear.name = f"Ear_{L if side < 0 else R}"
+        side_name = "L" if side < 0 else "R"; ear.name = f"Ear_{side_name}"
         ear.scale = (0.3, 0.8, 1.0)
         bpy.ops.object.transform_apply(scale=True)
         ears.append(ear)

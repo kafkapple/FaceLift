@@ -90,13 +90,14 @@ def load_mammal_obj(obj_path):
         v.co.y *= 0.001 * scale
         v.co.z *= 0.001 * scale
     
-    # MAMMAL coordinate system fix: -Z up -> Z up (Blender)
-    # Rotate 180 degrees around X axis
+    # MAMMAL coordinate system fix: -Y up -> Z up (Blender)
+    # Rotate +90 degrees around X axis: (x, y, z) -> (x, z, -y)
     import math as _math
     for v in obj.data.vertices:
-        y, z = v.co.y, v.co.z
-        v.co.y = -y
-        v.co.z = -z
+        old_y = v.co.y
+        old_z = v.co.z
+        v.co.y = old_z
+        v.co.z = -old_y
     
     obj.data.update()
     

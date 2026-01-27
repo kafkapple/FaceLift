@@ -369,12 +369,12 @@ def render_sample(sample_id, experiment_name, output_dir, model_obj, cam_obj):
 def render_experiment(experiment_name, output_dir, num_samples):
     """실험 전체 렌더링"""
     
-    print(f"\n{=*60}")
+    print("\n" + "="*60)
     print(f"Experiment: {experiment_name}")
-    print(f"Description: {EXPERIMENTS[experiment_name][desc]}")
+    print(f"Description: {EXPERIMENTS[experiment_name]['desc']}")
     print(f"Samples: {num_samples}")
     print(f"Output: {output_dir}")
-    print(f"{=*60}\n")
+    print("="*60 + "\n")
     
     # 설정
     setup_render_engine()
@@ -412,14 +412,14 @@ def render_experiment(experiment_name, output_dir, num_samples):
     with open(os.path.join(output_dir, "experiment_info.json"), "w") as f:
         json.dump({
             "experiment": experiment_name,
-            "description": EXPERIMENTS[experiment_name]["desc"],
+            "description": EXPERIMENTS[experiment_name]['desc'],
             "num_samples": num_samples,
             "config": CONFIG,
         }, f, indent=2)
     
-    print(f"\n{=*60}")
+    print("\n" + "="*60)
     print(f"Complete: {output_dir}")
-    print(f"{=*60}")
+    print("="*60)
 
 
 # =============================================================================

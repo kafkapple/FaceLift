@@ -358,7 +358,8 @@ def save_outputs(
     save_mesh: bool = True,
     turntable_views: int = DEFAULT_TURNTABLE_VIEWS,
     turntable_fps: int = DEFAULT_TURNTABLE_FPS,
-    image_size: int = DEFAULT_IMG_SIZE
+    image_size: int = DEFAULT_IMG_SIZE,
+    gt_images: torch.Tensor = None
 ):
     """
     Save inference outputs: PLY, OBJ, rendered views, turntable video.
@@ -422,6 +423,15 @@ def save_outputs(
             comp_image_grid = (comp_image_grid.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
             Image.fromarray(comp_image_grid).save(output_path / "render_grid.png")
 
+        # Save GT vs Pred comparison grid
+        if gt_images is not None:
+            try:
+                from mouse_extensions.visualization.inference_viz import save_comparison_grid
+                save_comparison_grid(gt_images, comp_image, str(output_path / "comparison_grid.png"))
+                print(f"  Saved comparison grid (top=GT, bottom=Pred)")
+            except ImportError:
+                print("  Warning: mouse_extensions not found, skipping comparison grid")
+
         print(f"  Saved {v} rendered views")
 
     # Generate turntable video
@@ -441,6 +451,22 @@ def save_outputs(
             print(f"  Saved turntable video: {video_path}")
         except Exception as e:
             print(f"  Warning: Could not generate turntable: {e}")
+
+    # Multi-elevation turntable grid (via mouse_extensions)
+    try:
+        from mouse_extensions.visualization.inference_viz import save_multiview_turntable_grid
+        grid_path = str(output_path / "turntable_grid.png")
+        save_multiview_turntable_grid(
+            filtered_gaussians, grid_path,
+            elevations=[0, 10, 20, 30],
+            num_azimuth=8, radius=2.7, render_res=image_size,
+            gt_images=gt_images,
+        )
+        print(f"  Saved multi-elevation turntable grid")
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"  Warning: Turntable grid failed: {e}")
 
     print(f"  Done saving outputs for {sample_name}")
 
@@ -769,7 +795,8 @@ def main():
                     save_turntable=do_turntable,
                     save_mesh=args.save_mesh,
                     turntable_views=args.turntable_views,
-                    image_size=args.image_size
+                    image_size=args.image_size,
+                    gt_images=batch.get('image', None) if isinstance(batch, dict) else None
                 )
 
                 print(f"Done! Output saved to {output_path}")
@@ -923,7 +950,8 @@ def main():
                     save_turntable=do_turntable,
                     save_mesh=args.save_mesh,
                     turntable_views=args.turntable_views,
-                    image_size=args.image_size
+                    image_size=args.image_size,
+                    gt_images=batch.get('image', None) if isinstance(batch, dict) else None
                 )
 
                 print(f"Done! Output saved to {output_path}")
@@ -968,7 +996,8 @@ def main():
                 save_turntable=save_turntable,
                 save_mesh=args.save_mesh,
                 turntable_views=args.turntable_views,
-                image_size=args.image_size
+                image_size=args.image_size,
+                gt_images=images
             )
 
         except Exception as e:
