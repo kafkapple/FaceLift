@@ -1,6 +1,19 @@
 #!/usr/bin/env python3
 """
-MAMMAL Mesh를 32-View Orbit 카메라로 렌더링 (v2 - 좌표계 수정)
+MAMMAL Mesh를 N-View Orbit 카메라로 렌더링 (v2.1 - procedural material + 6-view mode)
+
+Usage:
+    # 32-view dense orbit (default)
+    blender --background --python render_mammal_32view_v2.py -- \
+        --experiment MAMMAL_CENTER --output_dir /path/to/output --num_samples 100
+
+    # 6-view arena-like (fixed cameras)
+    blender --background --python render_mammal_32view_v2.py -- \
+        --experiment MAMMAL_CENTER --output_dir /path/to/output --num_views 6
+
+    # With procedural fur material
+    blender --background --python render_mammal_32view_v2.py -- \
+        --experiment MAMMAL_CENTER --output_dir /path/to/output --material fur
 """
 
 import bpy
@@ -28,13 +41,17 @@ parser.add_argument("--mammal_results", type=str,
                     default="/home/joon/dev/MAMMAL_mouse/results/fitting/markerless_mouse_1_nerf_v012345_kp22_20260126_025249")
 parser.add_argument("--num_samples", type=int, default=100)
 parser.add_argument("--seed", type=int, default=42)
+parser.add_argument("--texture", type=str, default=None, help="Path to texture PNG file")
+parser.add_argument("--material", type=str, default="fur",
+                    choices=["simple", "fur"], help="Material type")
+parser.add_argument("--num_views", type=int, default=32, help="Number of views (6 for arena-like, 32 for dense)")
+parser.add_argument("--mesh", type=str, default=None, help="Path to specific OBJ mesh file")
 args = parser.parse_args(argv)
 
 # ==============================================================================
 # Constants
 # ==============================================================================
 
-NUM_VIEWS = 32
 IMAGE_SIZE = 512
 FX = FY = 548.9937744140625
 CX = CY = 256.0
@@ -64,35 +81,23 @@ def load_mammal_obj(obj_path):
     bpy.ops.wm.obj_import(filepath=obj_path)
     obj = bpy.context.selected_objects[0]
     
-    # Get vertices in local space
     verts = [v.co for v in obj.data.vertices]
     verts_np = np.array([[v.x, v.y, v.z] for v in verts])
     
-    # MAMMAL is in mm, center at ~(99, 24, 35)
     center = verts_np.mean(axis=0)
     size = verts_np.max(axis=0) - verts_np.min(axis=0)
     max_dim = size.max()
     
     print(f"Original: center={center}, size={size}, max_dim={max_dim:.1f}mm")
     
-    # Transform: center to origin, mm to meters, scale to target size
-    # target_size / (max_dim_in_meters) = target_size / (max_dim_mm * 0.001)
     scale = TARGET_OBJECT_SIZE / (max_dim * 0.001)
     
-    # Apply to each vertex directly
     for v in obj.data.vertices:
-        # Center
-        v.co.x -= center[0]
-        v.co.y -= center[1]
-        v.co.z -= center[2]
-        # mm to m and scale
-        v.co.x *= 0.001 * scale
-        v.co.y *= 0.001 * scale
-        v.co.z *= 0.001 * scale
+        v.co.x = (v.co.x - center[0]) * 0.001 * scale
+        v.co.y = (v.co.y - center[1]) * 0.001 * scale
+        v.co.z = (v.co.z - center[2]) * 0.001 * scale
     
-    # MAMMAL coordinate system fix: -Y up -> Z up (Blender)
-    # Rotate +90 degrees around X axis: (x, y, z) -> (x, z, -y)
-    import math as _math
+    # MAMMAL -Y up -> Blender Z up: (x, y, z) -> (x, z, -y)
     for v in obj.data.vertices:
         old_y = v.co.y
         old_z = v.co.z
@@ -101,7 +106,6 @@ def load_mammal_obj(obj_path):
     
     obj.data.update()
     
-    # Verify
     verts_new = np.array([[v.co.x, v.co.y, v.co.z] for v in obj.data.vertices])
     new_size = verts_new.max(axis=0) - verts_new.min(axis=0)
     print(f"Normalized: size={new_size}, max_dim={new_size.max():.3f}")
@@ -114,25 +118,19 @@ def create_camera(cam_idx, azimuth_deg, elevation_deg, distance):
     cam_obj = bpy.data.objects.new(f"Cam_{cam_idx:03d}", cam_data)
     bpy.context.scene.collection.objects.link(cam_obj)
     
-    # Spherical to Cartesian (Blender: Z-up, Y-forward)
     azim = math.radians(azimuth_deg)
     elev = math.radians(elevation_deg)
     
-    # Standard spherical coordinates with Z-up
     x = distance * math.cos(elev) * math.sin(azim)
     y = -distance * math.cos(elev) * math.cos(azim)
     z = distance * math.sin(elev)
     
     cam_obj.location = (x, y, z)
     
-    # Point at origin using track constraint
     direction = -cam_obj.location.normalized()
     cam_obj.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
     
-    # Set focal length from fx
-    # fx = f_mm * width_px / sensor_width_mm
-    # f_mm = fx * sensor_width / width_px
-    sensor_width = 36  # default full frame
+    sensor_width = 36
     cam_data.lens = FX * sensor_width / IMAGE_SIZE
     cam_data.sensor_width = sensor_width
     
@@ -140,12 +138,8 @@ def create_camera(cam_idx, azimuth_deg, elevation_deg, distance):
 
 def get_opencv_matrices(cam_obj):
     """Get w2c and c2w in OpenCV convention"""
-    # Blender camera: -Z forward, Y up
-    # OpenCV camera: Z forward, -Y up
-    
     cam_matrix = cam_obj.matrix_world.copy()
     
-    # Blender to OpenCV conversion
     flip = Matrix([
         [1, 0, 0, 0],
         [0, -1, 0, 0],
@@ -170,7 +164,6 @@ def setup_render():
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
     
-    # GPU setup
     prefs = bpy.context.preferences.addons["cycles"].preferences
     prefs.compute_device_type = "CUDA"
     prefs.get_devices()
@@ -178,51 +171,137 @@ def setup_render():
         d.use = True
 
 def setup_lighting():
-    """Basic lighting"""
-    # World background
+    """Multi-light setup for realistic mouse rendering"""
     world = bpy.data.worlds.new("World")
     bpy.context.scene.world = world
     world.use_nodes = True
-    world.node_tree.nodes["Background"].inputs[0].default_value = (1, 1, 1, 1)
-    world.node_tree.nodes["Background"].inputs[1].default_value = 0.3
+    bg = world.node_tree.nodes["Background"]
+    bg.inputs[0].default_value = (0.9, 0.9, 0.95, 1)
+    bg.inputs[1].default_value = 0.3
     
-    # Area light
-    light = bpy.data.lights.new("AreaLight", "AREA")
+    # Key light
+    light = bpy.data.lights.new("KeyLight", "AREA")
     light.energy = 50
-    light_obj = bpy.data.objects.new("AreaLight", light)
+    light.size = 2.0
+    light_obj = bpy.data.objects.new("KeyLight", light)
     bpy.context.scene.collection.objects.link(light_obj)
     light_obj.location = (2, -2, 3)
+    
+    # Fill light
+    fill = bpy.data.lights.new("FillLight", "AREA")
+    fill.energy = 20
+    fill.size = 3.0
+    fill_obj = bpy.data.objects.new("FillLight", fill)
+    bpy.context.scene.collection.objects.link(fill_obj)
+    fill_obj.location = (-2, -1, 2)
 
-def setup_material(obj):
-    """Simple diffuse material"""
+def setup_material_simple(obj, texture_path=None):
+    """Simple diffuse material."""
     mat = bpy.data.materials.new("MouseMat")
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes["Principled BSDF"]
-    bsdf.inputs["Base Color"].default_value = (0.6, 0.55, 0.5, 1)
-    bsdf.inputs["Roughness"].default_value = 0.8
+    
+    if texture_path and os.path.exists(texture_path):
+        tex_node = mat.node_tree.nodes.new("ShaderNodeTexImage")
+        tex_node.image = bpy.data.images.load(texture_path)
+        mat.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+        bsdf.inputs["Roughness"].default_value = 0.6
+        print(f"Loaded texture: {texture_path}")
+    else:
+        bsdf.inputs["Base Color"].default_value = (0.6, 0.55, 0.5, 1)
+        bsdf.inputs["Roughness"].default_value = 0.8
+        if texture_path:
+            print(f"WARNING: Texture not found: {texture_path}")
+    
     obj.data.materials.clear()
     obj.data.materials.append(mat)
 
+def setup_material_fur(obj):
+    """Procedural mouse fur material with noise-based color variation."""
+    mat = bpy.data.materials.new("MouseFur")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    
+    # Clear default nodes
+    for n in nodes:
+        nodes.remove(n)
+    
+    # Output
+    output = nodes.new("ShaderNodeOutputMaterial")
+    output.location = (600, 0)
+    
+    # Principled BSDF
+    bsdf = nodes.new("ShaderNodeBsdfPrincipled")
+    bsdf.location = (300, 0)
+    bsdf.inputs["Roughness"].default_value = 0.85
+    bsdf.inputs["Specular IOR Level"].default_value = 0.1
+    links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
+    
+    # Color mix: base fur color + noise variation
+    mix = nodes.new("ShaderNodeMix")
+    mix.data_type = 'RGBA'
+    mix.location = (0, 0)
+    mix.inputs[0].default_value = 0.3  # Factor
+    # Light brown base
+    mix.inputs[6].default_value = (0.45, 0.35, 0.28, 1)
+    # Darker brown variation
+    mix.inputs[7].default_value = (0.3, 0.22, 0.15, 1)
+    links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+    
+    # Noise texture for fur pattern
+    noise = nodes.new("ShaderNodeTexNoise")
+    noise.location = (-200, 0)
+    noise.inputs["Scale"].default_value = 15.0
+    noise.inputs["Detail"].default_value = 8.0
+    noise.inputs["Roughness"].default_value = 0.7
+    links.new(noise.outputs["Fac"], mix.inputs[0])
+    
+    # Texture coordinate (object space)
+    coord = nodes.new("ShaderNodeTexCoord")
+    coord.location = (-400, 0)
+    links.new(coord.outputs["Object"], noise.inputs["Vector"])
+    
+    # Bump for surface detail
+    bump = nodes.new("ShaderNodeBump")
+    bump.location = (100, -200)
+    bump.inputs["Strength"].default_value = 0.15
+    bump.inputs["Distance"].default_value = 0.01
+    links.new(noise.outputs["Fac"], bump.inputs["Height"])
+    links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+    
+    obj.data.materials.clear()
+    obj.data.materials.append(mat)
+    print("Applied procedural fur material")
+
+def setup_material(obj, texture_path=None, material_type="fur"):
+    """Material dispatcher."""
+    if texture_path:
+        setup_material_simple(obj, texture_path)
+    elif material_type == "fur":
+        setup_material_fur(obj)
+    else:
+        setup_material_simple(obj)
+
 def render_sample(obj_path, sample_idx, output_dir, config):
-    """Render one sample with 32 views"""
+    """Render one sample with N views"""
     clear_scene()
     
-    # Load mesh
     obj = load_mammal_obj(str(obj_path))
     
-    # Apply offset if any
     offset = config["offset"]
     if offset != (0, 0, 0):
         obj.location = Vector(offset)
     
-    setup_material(obj)
+    setup_material(obj, texture_path=args.texture, material_type=args.material)
     setup_render()
     setup_lighting()
     
-    # Create 32 cameras
+    # Create cameras
     cameras = []
-    for i in range(NUM_VIEWS):
-        azim = i * (360.0 / NUM_VIEWS)
+    num_views = args.num_views
+    for i in range(num_views):
+        azim = i * (360.0 / num_views)
         cam_obj, cam_data = create_camera(i, azim, ELEVATION, CAMERA_DISTANCE)
         cameras.append((cam_obj, cam_data))
     
@@ -261,18 +340,26 @@ def main():
     output_dir = Path(args.output_dir)
     
     print("\n" + "="*60)
-    print(f"MAMMAL 32-View Rendering v2")
+    print(f"MAMMAL {args.num_views}-View Rendering v2.1")
     print(f"Experiment: {args.experiment} - {config['desc']}")
-    print(f"Samples: {args.num_samples}")
+    print(f"Material: {args.material}, Views: {args.num_views}")
+    print(f"Samples: {args.num_samples}, Texture: {args.texture}, Mesh: {args.mesh}")
     print("="*60 + "\n")
     
     # Get OBJ files
-    obj_dir = Path(args.mammal_results) / "obj"
-    all_objs = sorted(obj_dir.glob("step_2_frame_*.obj"))
-    step = max(1, len(all_objs) // args.num_samples)
-    selected = all_objs[::step][:args.num_samples]
-    
-    print(f"Selected {len(selected)} frames from {len(all_objs)} total")
+    if args.mesh:
+        mesh_path = Path(args.mesh)
+        if not mesh_path.exists():
+            print(f"ERROR: Mesh not found: {mesh_path}")
+            return
+        selected = [mesh_path] * args.num_samples
+        print(f"Single mesh mode: {mesh_path.name} x {args.num_samples} samples")
+    else:
+        obj_dir = Path(args.mammal_results) / "obj"
+        all_objs = sorted(obj_dir.glob("step_2_frame_*.obj"))
+        step = max(1, len(all_objs) // args.num_samples)
+        selected = all_objs[::step][:args.num_samples]
+        print(f"Selected {len(selected)} frames from {len(all_objs)} total")
     
     for idx, obj_path in enumerate(selected):
         print(f"[{idx+1}/{len(selected)}] {obj_path.name}")
