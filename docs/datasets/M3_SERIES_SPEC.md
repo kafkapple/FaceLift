@@ -257,3 +257,20 @@ P3: View 수 실험 (5v)
 ---
 
 *M3_SERIES_SPEC v1.2 | 2026-01-26 | Global vs Per-sample 추가*
+
+---
+
+## See Also
+
+> Parent: [[INDEX]] > Datasets
+
+- [[PREPROCESSING_REGISTRY]] - 전처리 SSOT
+- [[PP_FX_MVG_ANALYSIS]] - PP/MVG 이론
+
+### Archived M3 Analysis Documents
+- `_archive/analysis/M3_INTEGRATION_RATIONALE.md`
+- `_archive/analysis/M3_VERIFICATION_REPORT.md`
+
+---
+
+*Last updated: 2026-01-27*
