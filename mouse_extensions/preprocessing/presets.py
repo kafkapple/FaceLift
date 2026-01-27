@@ -465,6 +465,29 @@ PRESETS = {
         "description": "M3_2 + conservative zoom",
         "active": True,
     },
+    "M3_2c": {  # Re-centered + uniform distance
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_scope": "per_sample",
+        "zoom_center_mode": "image",
+        "target_fg_coverage": 0.05,
+        "min_fg_coverage": 0.03,
+        "zoom_range": [1.0, 1.5],
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,
+        "recenter_cameras": True,
+        "description": "M3_2b + re-centered cameras + uniform distance normalization",
+    },
     "M4": {  # ✅ ACTIVE
         "paradigm": "object_centered_mvg",
         "transform": "homography",
@@ -507,7 +530,7 @@ VERSION_HIERARCHY = {
     "production": ["M3_1", "M3_2"],  # Global/Per-sample zoom, PP=256
 
     # Hypothesis Testing
-    "hypothesis_test": ["M3_2b", "M3_3", "M4"],  # H1/H2 verification
+    "hypothesis_test": ["M3_2b", "M3_2c", "M3_3", "M4"],  # H1/H2 verification
 
     # Object-centered with PP correction
     "object_centered": ["M4"],

@@ -634,7 +634,7 @@ class UnifiedPreprocessor:
 
         return zoomed_img, zoomed_mask, (crop_x, crop_y)
 
-    def compute_camera_params(self, cam: Dict, zoom: float = 1.0, crop_offset = (0, 0)) -> Dict:
+    def compute_camera_params(self, cam: Dict, zoom: float = 1.0, crop_offset = (0, 0), skip_distance_norm: bool = False) -> Dict:
         cfg = self.config
         K, R, T = cam['K'], cam['R'], cam['T']
 
@@ -679,9 +679,11 @@ class UnifiedPreprocessor:
         w2c[:3, :3], w2c[:3, 3] = R, T.flatten()
         c2w = np.linalg.inv(w2c)
         cam_pos = c2w[:3, 3]
-        dist_scale = cfg.target_distance / np.linalg.norm(cam_pos)
+        if not skip_distance_norm:
+            dist_scale = cfg.target_distance / np.linalg.norm(cam_pos)
+            cam_pos = cam_pos * dist_scale
         new_c2w = c2w.copy()
-        new_c2w[:3, 3] = cam_pos * dist_scale
+        new_c2w[:3, 3] = cam_pos
         new_w2c = np.linalg.inv(new_c2w)
 
         return {
@@ -1035,12 +1037,58 @@ class UnifiedPreprocessor:
             img, mask, crop_offset = self.apply_zoom(img, mask, frame_zoom)
             proc_images.append(img)
             proc_masks.append(mask)
-            params = self.compute_camera_params(self.cameras[cam_idx], frame_zoom, crop_offset)
+            skip_dist = getattr(cfg, 'recenter_cameras', False)
+            params = self.compute_camera_params(self.cameras[cam_idx], frame_zoom, crop_offset, skip_distance_norm=skip_dist)
             params['file_path'] = f"images/cam_{cam_idx:03d}.png"
             params['view_id'] = cam_idx
             cam_params.append(params)
 
+        # Batch camera normalization (re-center + uniform distance)
+        if getattr(cfg, 'recenter_cameras', False):
+            cam_params = self._normalize_cameras_batch(
+                cam_params, target_distance=cfg.target_distance)
+
         return {'images': proc_images, 'masks': proc_masks, 'cameras': cam_params, 'frame_idx': frame_idx}
+
+    def _normalize_cameras_batch(self, cam_params_list, target_distance=2.7):
+        """Re-center cameras to origin + uniform distance normalization.
+        
+        Unlike per-view normalization (which forces each camera to exactly target_distance),
+        this preserves the camera rig geometry by:
+        1. Shifting centroid to origin
+        2. Applying the SAME scale factor to all cameras
+        
+        Result: average distance = target_distance, but individual distances vary
+        (preserving baseline ratios for correct parallax).
+        """
+        # Extract positions from c2w matrices
+        positions = []
+        for params in cam_params_list:
+            w2c = np.array(params["w2c"])
+            c2w = np.linalg.inv(w2c)
+            positions.append(c2w[:3, 3].copy())
+        positions = np.array(positions)
+        
+        # Step 1: Re-center (subtract centroid)
+        centroid = positions.mean(axis=0)
+        centered_positions = positions - centroid
+        
+        # Step 2: Uniform scale
+        mean_dist = np.linalg.norm(centered_positions, axis=1).mean()
+        if mean_dist < 1e-6:
+            scale = 1.0
+        else:
+            scale = target_distance / mean_dist
+        
+        # Apply to all cameras
+        for i, params in enumerate(cam_params_list):
+            w2c = np.array(params["w2c"])
+            c2w = np.linalg.inv(w2c)
+            c2w[:3, 3] = centered_positions[i] * scale
+            w2c = np.linalg.inv(c2w)
+            params["w2c"] = w2c.tolist()
+        
+        return cam_params_list
 
     def save_sample(self, sample: Dict, sample_dir: Path):
         """Save processed sample."""
