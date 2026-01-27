@@ -1446,8 +1446,14 @@ class GSLRM(nn.Module):
             include_dataset_views = turntable_cfg.get("include_dataset_views", 
                                                        trajectory_mode == "dataset_cameras")
             # Get dataset camera poses if needed
-            dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()  # [num_cams, 4, 4]
-            dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()  # [num_cams, 4]
+            # Use ALL cameras for turntable trajectory (not just selected training views)
+            # This ensures smooth interpolation even when training uses fewer views
+            if hasattr(target_data, 'all_c2w') and target_data.all_c2w is not None:
+                dataset_c2ws = target_data.all_c2w[batch_idx].cpu().numpy()  # [all_cams, 4, 4]
+                dataset_fxfycxcy = target_data.all_fxfycxcy[batch_idx].cpu().numpy()  # [all_cams, 4]
+            else:
+                dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()  # [num_cams, 4, 4]
+                dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()  # [num_cams, 4]
             # Get input resolution for intrinsics scaling
             input_resolution = input_data.image.size(3)
             # Check for smooth trajectory mode (interpolate between dataset cameras)

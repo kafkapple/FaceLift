@@ -5,7 +5,9 @@
 > **Related**: `MAMMAL_UV_TEXTURE_GUIDE.md` (UV 이론), `M5_SERIES_SPEC.md` (E1 전처리)
 
 ---
-
+  - 방법 A: --mesh 반복 (같은 포즈)                                                                                                                                                                                                               
+  - 방법 B: --mammal_results 디렉토리 (다른 포즈 순차)                                                                                                                                                                                            
+  - 방법 C: Shell loop (가장 유연, render_multi_frame.sh 스크립트 포함)       
 ## 1. Overview
 
 E3는 **완벽한 카메라 파라미터**를 가진 synthetic 데이터로 GS-LRM 동작을 검증하는 실험입니다.

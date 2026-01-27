@@ -343,6 +343,24 @@ class MouseViewDataset(Dataset):
             input_fxfycxcy = []
             input_c2ws = []
 
+            # Extract ALL camera poses for turntable trajectory (not just selected)
+            all_c2ws_raw = []
+            all_fxfycxcy_raw = []
+            target_size = self.config.model.image_tokenizer.image_size
+            resize_ratio_all = target_size / int(cameras[0].get("w", target_size))
+            for cam in cameras:
+                intr = np.array([cam["fx"], cam["fy"], cam["cx"], cam["cy"]])
+                intr *= resize_ratio_all
+                all_fxfycxcy_raw.append(intr)
+                w2c = np.array(cam["w2c"])
+                R, t = w2c[:3, :3], w2c[:3, 3]
+                c2w = np.eye(4)
+                c2w[:3, :3] = R.T
+                c2w[:3, 3] = -R.T @ t
+                all_c2ws_raw.append(c2w)
+            all_c2ws_raw = np.array(all_c2ws_raw)
+            all_fxfycxcy_raw = np.array(all_fxfycxcy_raw)
+
             for idx_chosen, (camera, image_path) in enumerate(
                 zip(selected_cameras, selected_image_paths)
             ):
@@ -464,8 +482,21 @@ class MouseViewDataset(Dataset):
             # Fallback to random sample
             return self.__getitem__(random.randint(0, len(self) - 1))
 
+        # Apply same normalization to ALL cameras (for turntable trajectory)
+        if self.normalize_cameras:
+            if self.normalize_to_z_up:
+                all_c2ws_raw = normalize_cameras_to_z_up(all_c2ws_raw, up_direction)
+            else:
+                all_c2ws_raw = normalize_cameras_to_y_up(all_c2ws_raw, up_direction)
+        if self.target_camera_distance > 0:
+            all_c2ws_raw, all_fxfycxcy_raw = normalize_camera_distance_with_intrinsics(
+                all_c2ws_raw, all_fxfycxcy_raw, self.target_camera_distance
+            )
+
         input_c2ws = torch.from_numpy(input_c2ws).float()
         input_fxfycxcy = torch.from_numpy(input_fxfycxcy).float()
+        all_c2ws_tensor = torch.from_numpy(all_c2ws_raw).float()
+        all_fxfycxcy_tensor = torch.from_numpy(all_fxfycxcy_raw).float()
 
         image_indices = torch.from_numpy(
             np.array(image_choices)
@@ -477,6 +508,8 @@ class MouseViewDataset(Dataset):
             "image": input_images,
             "c2w": input_c2ws,
             "fxfycxcy": input_fxfycxcy,
+            "all_c2w": all_c2ws_tensor,
+            "all_fxfycxcy": all_fxfycxcy_tensor,
             "index": indices,
             "bg_color": bg_color,
         }
