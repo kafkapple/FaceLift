@@ -418,6 +418,9 @@ class PreprocessConfig:
     min_fg_coverage: float = 0.0  # Minimum coverage warning threshold
     zoom_after_transform: bool = False  # If True, compute coverage after applying transform
     
+    # M3_2c: Batch camera normalization
+    recenter_cameras: bool = False  # If True, re-center + uniform distance norm
+    
     # Output structure
     single_folder: bool = False  # If True, save all to samples/ instead of train/val
     
@@ -473,6 +476,8 @@ class PreprocessConfig:
             # M3_3/M4: Safe zoom and PP correction
             config.safe_zoom = preset.get("safe_zoom", False)
             config.pp_correction = preset.get("pp_correction", False)
+            # M3_2c: Batch camera normalization
+            config.recenter_cameras = preset.get("recenter_cameras", False)
             
         # ====== NATIVE (D9, D9_norm) ======
         elif config.paradigm == Paradigm.NATIVE:
