@@ -306,3 +306,189 @@ def apply_pp_correction(cameras_json, offset_3d, fx, camera_distance):
 ---
 
 *FaceLift Synthetic Data | MAMMAL Mesh Integration Plan*
+
+---
+
+## 11. FaceLift 원본 학습 설정 분석
+
+### 데이터셋 구조 (확인됨)
+
+```
+sample_XXX/
+├── images/
+│   ├── cam_000.png ~ cam_031.png   # 32개 뷰
+│   └── ...
+└── opencv_cameras.json              # 32개 카메라 파라미터
+```
+
+### 카메라 배치 (32 views)
+
+| 항목 | 값 |
+|------|-----|
+| **총 뷰 수** | 32 |
+| **fx, fy** | 549 |
+| **cx, cy** | 256 |
+| **distance** | 2.7 |
+| **resolution** | 512×512 |
+| **azimuth** | 0°~360° (11.25° 간격) |
+| **elevation** | 20° (고정) |
+
+### 학습 시 샘플링 전략
+
+```yaml
+# configs/base.yaml
+training:
+  dataset:
+    num_views: 8              # 32개 중 8개 랜덤 샘플링
+    num_input_views: 4        # 8개 중 4개 = 입력 (또는 6개)
+    target_has_input: true    # 타겟에 입력 포함
+    maximize_view_overlap: true  # 인접 뷰 우선 선택
+```
+
+**학습 흐름**:
+```
+32개 뷰 중 8개 랜덤 샘플링
+    │
+    ├─ 4개 (또는 6개) → 입력 (Input Views)
+    │       │
+    │       └─ Transformer 인코딩 → Gaussian 예측
+    │
+    └─ 4개 (또는 2개) → 타겟 (Target Views)
+            │
+            └─ 렌더링 비교 → Loss 계산
+```
+
+### Validation 설정
+
+```yaml
+validation:
+  enabled: true
+  val_every: 5000
+  # 동일한 8개 뷰 샘플링, 동일한 4+4 분할
+```
+
+---
+
+## 12. MAMMAL 메시 기반 32-View 데이터셋 계획
+
+### 목표
+
+MAMMAL 메시를 FaceLift 원본과 동일한 형식으로 렌더링:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  MAMMAL Mesh (2139 포즈) + 32 Orbit Cameras = GS-LRM 호환   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 카메라 설정
+
+```python
+# 32개 카메라 생성 (FaceLift 동일)
+cameras_32 = []
+for i in range(32):
+    azimuth = i * (360 / 32)  # 0°, 11.25°, 22.5°, ...
+    elevation = 20
+    
+    camera = create_orbit_camera(
+        azimuth=azimuth,
+        elevation=elevation,
+        distance=2.7,
+        fx=549, fy=549,
+        cx=256, cy=256
+    )
+    cameras_32.append(camera)
+```
+
+### 디렉토리 구조 (FaceLift 동일)
+
+```
+/home/joon/data/synthetic/mammal_32view/
+├── MAMMAL_CENTER/                    # 중앙 배치
+│   ├── sample_00000/                 # frame 0
+│   │   ├── images/
+│   │   │   ├── cam_000.png ~ cam_031.png
+│   │   └── opencv_cameras.json
+│   ├── sample_00001/                 # frame 5
+│   └── ...
+├── MAMMAL_OFFSET/                    # 오프셋 (PP 불일치)
+├── MAMMAL_OFFSET_PP/                 # 오프셋 + PP 보정
+└── data_train.txt                    # 학습 데이터 목록
+```
+
+### 데이터셋 규모
+
+| 실험 | 프레임 | 뷰 | 이미지 | 용량 |
+|------|--------|-----|--------|------|
+| MAMMAL_CENTER | 500 | 32 | 16,000 | ~8GB |
+| MAMMAL_OFFSET | 500 | 32 | 16,000 | ~8GB |
+| MAMMAL_OFFSET_PP | 500 | 32 | 16,000 | ~8GB |
+| **Total** | 1,500 | - | 48,000 | ~24GB |
+
+### 학습 설정 (기존 FaceLift 재사용)
+
+```yaml
+# configs/mouse/MAMMAL_32view.yaml
+training:
+  dataset:
+    dataset_path: "data/synthetic/mammal_32view/MAMMAL_CENTER/data_train.txt"
+    num_views: 8
+    num_input_views: 4
+    maximize_view_overlap: true
+    background_color: "white"
+```
+
+---
+
+## 13. 렌더링 스크립트 계획
+
+### `render_mammal_32view.py`
+
+```python
+"""
+MAMMAL 메시를 32-view orbit 카메라로 렌더링
+FaceLift 원본 데이터 형식과 동일하게 출력
+"""
+
+def main():
+    # 1. MAMMAL 메시 로드
+    mesh = load_mammal_obj(obj_path)
+    
+    # 2. 중심을 원점으로 이동 + 스케일 정규화
+    mesh = normalize_mesh(mesh, target_size=0.25)
+    
+    # 3. 32개 orbit 카메라 생성
+    cameras = create_orbit_cameras_32(
+        distance=2.7,
+        elevation=20,
+        fx=549, cx=256
+    )
+    
+    # 4. 각 카메라에서 렌더링
+    for cam_idx, camera in enumerate(cameras):
+        render_view(mesh, camera, f"cam_{cam_idx:03d}.png")
+    
+    # 5. opencv_cameras.json 저장
+    save_cameras_json(cameras, output_dir)
+
+# 위치 변형 실험
+EXPERIMENTS = {
+    "MAMMAL_CENTER": {"offset": (0, 0, 0), "pp_correct": False},
+    "MAMMAL_OFFSET": {"offset": (0.3, 0.2, 0), "pp_correct": False},
+    "MAMMAL_OFFSET_PP": {"offset": (0.3, 0.2, 0), "pp_correct": True},
+}
+```
+
+---
+
+## 14. 요약: 3가지 데이터셋
+
+| 데이터셋 | 마우스 위치 | PP | 카메라 | 용도 |
+|----------|------------|-----|--------|------|
+| **Position Experiments** | 가상 모델 | 다양 | 6뷰 | 빠른 검증 |
+| **MAMMAL 6-view** | 실제 메시 | 정확 | 6뷰 | 실제 형상 검증 |
+| **MAMMAL 32-view** | 실제 메시 | 정확 | 32뷰 | **FaceLift 동일 학습** |
+
+---
+
+*Updated: 2026-01-28 | FaceLift Training Configuration Analysis*
