@@ -116,7 +116,57 @@ M1 (Affine)
 
 ---
 
-## 6. Naming Convention
+## 6. Execution Commands
+
+### Basic Format
+
+```bash
+cd /home/joon/dev/FaceLift
+
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset <PRESET> \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/<PRESET>
+```
+
+### M5 Series
+
+```bash
+# M5: Affine + re-centering (baseline)
+python -m mouse_extensions.preprocessing.preprocess --preset M5 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M5
+
+# M5h: Homography + re-centering (no zoom)
+python -m mouse_extensions.preprocessing.preprocess --preset M5h \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M5h
+
+# M5h_1: Homography + re-centering + global zoom
+python -m mouse_extensions.preprocessing.preprocess --preset M5h_1 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M5h_1
+
+# M5h_2: Homography + re-centering + per-sample zoom (RECOMMENDED)
+python -m mouse_extensions.preprocessing.preprocess --preset M5h_2 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M5h_2
+```
+
+### Split Settings
+
+| Parameter | Default | Note |
+|-----------|---------|------|
+| `--val-ratio` | 0.1 | 90% train / 10% val (same as M3) |
+| `--frame-interval` | 1 | Frame interval |
+| `--max-samples` | None | Use all |
+
+Split uses same logic as M3 series (random 10% validation).
+Outputs: `data_mouse_train.txt`, `data_mouse_val.txt` auto-generated.
+
+---
+
+## 7. Naming Convention
 
 | Pattern | Meaning |
 |---------|---------|
