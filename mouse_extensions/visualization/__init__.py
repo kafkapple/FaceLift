@@ -29,7 +29,7 @@ from .turntable_config import (
 )
 
 from .video_generator import (
-    create_dataset_views_video,
+    # create_dataset_views_video,  # REMOVED
     create_turntable_video,
     create_grid_image,
     VideoGeneratorContext,
@@ -55,7 +55,7 @@ __all__ = [
     "create_turntable_trajectory",
     "get_grid_row_labels",
     # Video generation (legacy)
-    "create_dataset_views_video",
+    # "create_dataset_views_video",  # REMOVED
     "create_turntable_video",
     "create_grid_image",
     "VideoGeneratorContext",

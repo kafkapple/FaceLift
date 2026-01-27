@@ -555,6 +555,94 @@ ALIASES = {
     "M2": "D8",
     "M3": "D10.3",      # Legacy (has fx bug)
     "M1a": "D7_1_aspect",
+    # ============================================================
+    # M4 Series: Safety Margin Enhanced (2026-01-27)
+    # Addresses clipping issue where alpha mask does not capture thin features
+    # ============================================================
+    
+    "M4_1": {  # ACTIVE - Clipping-safe version of M3_2
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_scope": "per_sample",
+        "zoom_center_mode": "image",
+        "target_fg_coverage": 0.05,
+        "min_fg_coverage": 0.03,
+        "zoom_range": [1.0, 1.5],  # Reduced from 1.8 to prevent clipping
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,
+        "use_rgb_safety": True,
+        "alpha_margin": 15,
+        "rgb_margin": 20,
+        "description": "M3_2 + enhanced safety margins (alpha+RGB fallback)",
+        "active": True,
+        "note": "Fixes tail clipping issue by using RGB content detection",
+    },
+    
+    "M4_2": {  # ACTIVE - For Coverage hypothesis testing
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_scope": "per_sample",
+        "zoom_center_mode": "image",
+        "target_fg_coverage": 0.08,  # Higher coverage target (8%)
+        "min_fg_coverage": 0.05,
+        "zoom_range": [1.0, 1.3],  # More conservative zoom
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,
+        "use_rgb_safety": True,
+        "alpha_margin": 15,
+        "rgb_margin": 20,
+        "description": "Coverage hypothesis: 8% FG target with conservative zoom",
+        "active": True,
+        "hypothesis": "coverage",
+    },
+    
+    "M4_3": {  # ACTIVE - Conservative global zoom baseline
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_scope": "global",  # Global zoom (not per-sample)
+        "zoom_center_mode": "image",
+        "target_fg_coverage": 0.05,
+        "min_fg_coverage": 0.03,
+        "zoom_range": [1.0, 1.5],  # Conservative
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,
+        "use_rgb_safety": True,
+        "alpha_margin": 15,
+        "rgb_margin": 20,
+        "description": "Global zoom baseline with safety margins",
+        "active": True,
+    },
+
 }
 
 

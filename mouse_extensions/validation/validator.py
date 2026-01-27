@@ -25,13 +25,13 @@ from mouse_extensions.visualization import (
     compute_alpha_metrics,
     should_visualize_alpha,
     MOUSE_CAMERA_ORDER,
-    create_dataset_views_video,
+    # create_dataset_views_video,  # REMOVED: dataset_views deprecated
 )
 
 # From gslrm
 from gslrm.model.gaussians_renderer import (
     render_turntable,
-    render_dataset_views,
+    # render_dataset_views,  # REMOVED: dataset_views deprecated
     render_dataset_trajectory,
     imageseq2video,
     add_row_labels_to_grid,
@@ -322,9 +322,9 @@ class ValidationRunner:
         # Save with input overlay
         self._save_with_input(frames, input_np, render_res, fps, output_dir)
         
-        # Dataset views
-        if cfg.get("save_dataset_views", False):
-            self._save_dataset_views(gaussians, c2ws, fxfycxcy, render_res, input_res, cfg, item_uid, output_dir)
+        # Dataset views - REMOVED (deprecated)
+        # if cfg.get("save_dataset_views", False):  # REMOVED
+        #     self._save_dataset_views(...)  # REMOVED
         
         # Orbit turntable (standard 360-degree rotation)
         if cfg.get("save_orbit_turntable", True):
@@ -409,21 +409,10 @@ class ValidationRunner:
         
         _safe_video_save(combined, os.path.join(output_dir, "turntable_with_input.mp4"), fps=fps)
     
-    def _save_dataset_views(self, gaussians, c2ws, fxfycxcy, render_res, input_res, cfg, item_uid, output_dir):
-        """Save rendered dataset camera views."""
-        try:
-            views = render_dataset_views(
-                gaussians, c2ws, fxfycxcy,
-                rendering_resolution=render_res,
-                show_overlay=False, original_resolution=input_res,
-            )
-            strip = rearrange(views, "v h w c -> h (v w) c")
-            Image.fromarray(strip).save(os.path.join(output_dir, f"dataset_views_{item_uid}.jpg"))
-            
-            if cfg.get("save_dataset_views_video", False):
-                create_dataset_views_video(views, os.path.join(output_dir, f"dataset_views_{item_uid}.mp4"), cfg, _safe_video_save)
-        except Exception as e:
-            print(f"Warning: Could not save dataset_views: {e}")
+    # REMOVED: _save_dataset_views - dataset_views feature deprecated (2026-01-27)
+    # def _save_dataset_views(self, gaussians, c2ws, fxfycxcy, render_res, input_res, cfg, item_uid, output_dir):
+    #     """Save rendered dataset camera views."""
+    #     ...
     
     def _aggregate_results(self, metrics: Dict) -> Dict[str, float]:
         """Aggregate validation metrics."""

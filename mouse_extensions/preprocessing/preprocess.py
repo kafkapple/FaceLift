@@ -1527,3 +1527,133 @@ def compute_object_centered_safe_zoom(
     safe_zoom = output_size / bbox_max
     
     return float(safe_zoom)
+
+
+# =============================================================================
+# Enhanced Safe Zoom with RGB Fallback (2026-01-27)
+# =============================================================================
+
+def compute_safe_zoom_with_rgb(
+    mask: np.ndarray,
+    image: np.ndarray = None,
+    output_size: int = 512,
+    alpha_margin: int = 15,
+    rgb_margin: int = 20,
+    bg_threshold: int = 240,
+) -> float:
+    """Compute safe zoom using both alpha mask and RGB content detection.
+    
+    This addresses the issue where alpha mask (e.g., from SimpleClick) may not
+    fully capture thin features like tails, leading to clipping.
+    
+    Algorithm:
+    1. Compute bbox from alpha mask
+    2. Compute bbox from RGB (non-white pixels)
+    3. Take union bbox
+    4. Add safety margins
+    5. Compute safe zoom from union bbox
+    
+    Args:
+        mask: Alpha mask (H, W), values in [0, 255]
+        image: RGB image (H, W, 3), optional for RGB-based detection
+        output_size: Output image size (assumes square)
+        alpha_margin: Safety margin for alpha bbox in pixels
+        rgb_margin: Additional safety margin for RGB bbox in pixels
+        bg_threshold: Threshold for background detection (gray < threshold = foreground)
+    
+    Returns:
+        Safe zoom factor that prevents clipping of both alpha and RGB content
+    """
+    if mask is None or mask.size == 0:
+        return 1.0
+    
+    # 1. Alpha mask bbox
+    ys, xs = np.where(mask > 127)
+    if len(xs) == 0:
+        return 1.0
+    
+    alpha_x_min, alpha_x_max = xs.min(), xs.max()
+    alpha_y_min, alpha_y_max = ys.min(), ys.max()
+    
+    # 2. RGB content bbox (if image provided)
+    if image is not None and image.size > 0:
+        if len(image.shape) == 3:
+            gray = np.mean(image, axis=2)
+        else:
+            gray = image
+        
+        # Detect dark (non-background) pixels
+        rgb_fg = gray < bg_threshold
+        rgb_ys, rgb_xs = np.where(rgb_fg)
+        
+        if len(rgb_xs) > 0:
+            rgb_x_min, rgb_x_max = rgb_xs.min(), rgb_xs.max()
+            rgb_y_min, rgb_y_max = rgb_ys.min(), rgb_ys.max()
+            
+            # 3. Union bbox
+            x_min = min(alpha_x_min, rgb_x_min)
+            x_max = max(alpha_x_max, rgb_x_max)
+            y_min = min(alpha_y_min, rgb_y_min)
+            y_max = max(alpha_y_max, rgb_y_max)
+        else:
+            x_min, x_max = alpha_x_min, alpha_x_max
+            y_min, y_max = alpha_y_min, alpha_y_max
+    else:
+        x_min, x_max = alpha_x_min, alpha_x_max
+        y_min, y_max = alpha_y_min, alpha_y_max
+    
+    # 4. Add safety margins (use larger margin for RGB-detected content)
+    margin = max(alpha_margin, rgb_margin) if image is not None else alpha_margin
+    
+    # 5. Compute safe zoom
+    # For center-aligned zoom: distance from image center to furthest edge
+    center = output_size / 2
+    max_dist_x = max(center - x_min, x_max - center) + margin
+    max_dist_y = max(center - y_min, y_max - center) + margin
+    max_dist = max(max_dist_x, max_dist_y)
+    
+    if max_dist <= 0:
+        return float('inf')
+    
+    safe_zoom = output_size / (2 * max_dist)
+    
+    return float(safe_zoom)
+
+
+def compute_clipping_safe_zoom_v2(
+    mask: np.ndarray,
+    image: np.ndarray = None,
+    target_coverage: float = 0.05,
+    zoom_range: tuple = (1.0, 1.8),
+    output_size: int = 512,
+    alpha_margin: int = 15,
+    rgb_margin: int = 20,
+) -> float:
+    """Enhanced zoom calculation with RGB fallback.
+    
+    Combines coverage-based zoom with RGB-aware safe zoom constraint.
+    
+    Args:
+        mask: Binary mask
+        image: RGB image for fallback detection
+        target_coverage: Target foreground ratio (0.05 = 5%)
+        zoom_range: (min_zoom, max_zoom) range
+        output_size: Image size
+        alpha_margin: Safety margin for alpha bbox
+        rgb_margin: Additional margin for RGB content
+    
+    Returns:
+        Zoom factor: min(coverage_zoom, safe_zoom), clipped to range
+    """
+    # Target coverage zoom
+    coverage_zoom = compute_persample_zoom_coverage(mask, target_coverage, zoom_range)
+    
+    # Safe zoom with RGB fallback
+    safe_zoom = compute_safe_zoom_with_rgb(
+        mask, image, output_size, alpha_margin, rgb_margin
+    )
+    
+    # Take minimum to prevent clipping
+    final_zoom = min(coverage_zoom, safe_zoom)
+    
+    return float(np.clip(final_zoom, zoom_range[0], zoom_range[1]))

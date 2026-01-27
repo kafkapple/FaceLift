@@ -406,10 +406,11 @@ def create_training_visual(
     # Convert to numpy
     visual_np = (visual.detach().cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
     
-    # Add camera labels if view_indices provided
-    if view_indices is not None:
-        image_width = target.size(3)  # W dimension
-        visual_np = _add_camera_labels(visual_np, view_indices, image_width)
+    # Always add camera labels (default to sequential if not provided)
+    image_width = target.size(3)  # W dimension
+    if view_indices is None:
+        view_indices = list(range(num_views))
+    visual_np = _add_camera_labels(visual_np, view_indices, image_width)
     
     return visual_np, error_stats
 
@@ -510,14 +511,15 @@ def create_validation_visual(
     # Convert to numpy
     visual_np = (visual.detach().cpu().numpy() * 255.0).clip(0.0, 255.0).astype(np.uint8)
     
-    # Add camera labels if view_indices provided
-    if view_indices is not None:
+    # Always add camera labels (default to sequential if not provided)
+    if view_indices is None:
+        view_indices = list(range(num_views))
+    elif num_views < len(view_indices):
         # Handle subsampling case
-        if num_views < len(view_indices):
-            step = len(view_indices) // num_views
-            view_indices = [view_indices[i] for i in range(0, len(view_indices), step)][:num_views]
-        image_width = target.size(3)  # W dimension after potential subsampling
-        visual_np = _add_camera_labels(visual_np, view_indices, image_width)
+        step = len(view_indices) // num_views
+        view_indices = [view_indices[i] for i in range(0, len(view_indices), step)][:num_views]
+    image_width = target.size(3)  # W dimension after potential subsampling
+    visual_np = _add_camera_labels(visual_np, view_indices, image_width)
     
     return visual_np, error_stats
 
