@@ -404,3 +404,25 @@ Transform 후 마스크 coverage: ~2.77%
 zoom = sqrt(5% / 2.77%) ≈ 1.34x
 결과: 목표 5% 달성
 ```
+
+---
+
+## See Also
+
+> Parent: [[INDEX]] > Theory
+
+- [[GHOSTING_ANALYSIS]] - Ghosting 원인 및 해결 전략
+- [[MASK_GUIDE]] - 마스크 시스템 상세
+- [[CENTER_ESTIMATION]] - 3D Triangulation
+- [[COORDINATE_SYSTEMS]] - 좌표계 변환
+- [[CLIPPING_AND_CENTERING_ANALYSIS]] - 클리핑/센터링
+
+### Archived Camera Theory Documents
+이전 camera/ 폴더의 개별 문서들은 이 문서에 통합되었습니다:
+- `_archive/theory/camera/PP_FIX_MVG_THEORY.md` - PP 보정 이론 (원본)
+- `_archive/theory/camera/error_amplification_analysis.md` - PP 오류 증폭 분석
+- `_archive/theory/camera/mvg_virtual_zoom_theory.md` - Virtual zoom MVG 이론
+
+---
+
+*Last updated: 2026-01-27*
