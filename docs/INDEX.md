@@ -19,6 +19,7 @@
 | 문서 | 내용 |
 |------|------|
 | [[TRAINING_PIPELINE_GUIDE]] | 학습 파이프라인 전체 흐름 |
+| [[CODE_WALKTHROUGH]] | 전체 코드 흐름 한 문서 정리 |
 | [[GS-LRM_ARCHITECTURE_GUIDE]] | GS-LRM 모델 구조 |
 | [[GS-LRM_Loss_Formula]] | 손실 함수 수식 |
 | [[METRICS_GUIDE]] | 평가 지표 (PSNR, SSIM, IoU) |
