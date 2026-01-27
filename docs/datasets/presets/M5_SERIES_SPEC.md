@@ -118,47 +118,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 
 ### E3 실행 (Synthetic 렌더링)
 
-**Step 1: UV Transplant** (fitting OBJ에 텍스처 UV 이식)
-
-```bash
-cd /home/joon/dev/FaceLift
-source ~/anaconda3/etc/profile.d/conda.sh && conda activate facelift
-
-python mouse_extensions/scripts/blender/transplant_uv.py \
-    --fitting-dir /home/joon/dev/MAMMAL_mouse/results/fitting/markerless_mouse_1_nerf_v012345_kp22_20260126_025249/obj/ \
-    --reference /home/joon/dev/MAMMAL_mouse/exports/mouse_frame0_textured.obj \
-    --output-dir /home/joon/data/synthetic/textured_obj/ \
-    --max-frames 100 --frame-step 24
-```
-
-**Step 2: Blender 렌더링** (32-view orbit, textured)
-
-```bash
-CUDA_VISIBLE_DEVICES=7 /home/joon/blender-4.0.2-linux-x64/blender --background \
-    --python mouse_extensions/scripts/blender/render_mammal_32view_v2.py -- \
-    --experiment MAMMAL_CENTER \
-    --output_dir /home/joon/data/synthetic/MAMMAL_CENTER_TEXTURED \
-    --mesh /home/joon/data/synthetic/textured_obj/step_2_frame_000000.obj \
-    --texture /home/joon/dev/MAMMAL_mouse/results/sweep/run_wild-sweep-9/texture_final.png \
-    --num_views 32 \
-    --num_samples 1
-```
-
-> **Note**: `--mesh`는 단일 mesh를 N회 반복 렌더링. 다중 프레임을 렌더하려면
-> transplanted OBJ 폴더를 `--mammal_results`의 `obj/` 하위에 배치.
-
-**Step 3: GS-LRM Inference** (렌더링 결과로 추론)
-
-```bash
-source ~/anaconda3/etc/profile.d/conda.sh && conda activate facelift
-
-python inference_mouse.py \
-    --sample_dir /home/joon/data/synthetic/MAMMAL_CENTER_TEXTURED/sample_00000 \
-    --checkpoint checkpoints/gslrm/D8_E0_paper_original/ \
-    --config configs/base/gslrm_mouse.yaml \
-    --output_dir outputs/e3_synthetic/ \
-    --save_turntable --save_mesh
-```
+→ 상세: `docs/datasets/E3_SYNTHETIC_RENDERING_GUIDE.md`
 
 ---
 
