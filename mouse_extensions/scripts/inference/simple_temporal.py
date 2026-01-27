@@ -133,19 +133,32 @@ def process_frame(model, sample_dir: Path, device: str, resolution: int,
     return frames
 
 
+def find_sample_dirs(data_dir: Path) -> list:
+    """Auto-discover sample directories (numeric folder names), sorted."""
+    dirs = []
+    for d in sorted(data_dir.iterdir()):
+        if d.is_dir() and d.name.isdigit():
+            dirs.append((int(d.name), d))
+    return dirs
+
+
 def main():
     parser = argparse.ArgumentParser(description="Simple Temporal Video")
     parser.add_argument("--checkpoint", type=str, required=True)
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--data_dir", type=str, required=True)
-    parser.add_argument("--start_frame", type=int, default=0)
-    parser.add_argument("--end_frame", type=int, default=30)
+    parser.add_argument("--start_frame", type=int, default=None,
+                        help="Start frame index (default: auto-detect)")
+    parser.add_argument("--end_frame", type=int, default=None,
+                        help="End frame index (default: auto-detect)")
     parser.add_argument("--frame_step", type=int, default=1)
-    parser.add_argument("--num_views", type=int, default=36, help="360도 분할 수")
+    parser.add_argument("--num_views", type=int, default=36, help="360-degree subdivisions")
     parser.add_argument("--resolution", type=int, default=384)
     parser.add_argument("--elevation", type=float, default=20.0)
     parser.add_argument("--radius", type=float, default=2.7)
     parser.add_argument("--fps", type=int, default=24)
+    parser.add_argument("--fixed_angles", type=int, nargs="+", default=[0],
+                        help="View angles for fixed-angle videos (default: [0])")
     parser.add_argument("--output_dir", type=str, default="outputs/simple_temporal")
     args = parser.parse_args()
 
@@ -154,9 +167,23 @@ def main():
 
     model, config = load_model(args.checkpoint, args.config, "cuda")
     data_dir = Path(args.data_dir)
-    
-    frame_indices = list(range(args.start_frame, args.end_frame, args.frame_step))
-    print(f"Processing {len(frame_indices)} frames")
+
+    # Auto-discover sample directories if start/end not specified
+    if args.start_frame is None or args.end_frame is None:
+        sample_dirs = find_sample_dirs(data_dir)
+        if not sample_dirs:
+            print(f"No numeric sample directories found in {data_dir}")
+            return
+        all_indices = [idx for idx, _ in sample_dirs]
+        start = args.start_frame if args.start_frame is not None else all_indices[0]
+        end = args.end_frame if args.end_frame is not None else all_indices[-1] + 1
+        frame_indices = [idx for idx in all_indices if start <= idx < end]
+        frame_indices = frame_indices[::args.frame_step]
+        print(f"Auto-detected {len(all_indices)} samples, using {len(frame_indices)} "
+              f"(range {start}-{end}, step {args.frame_step})")
+    else:
+        frame_indices = list(range(args.start_frame, args.end_frame, args.frame_step))
+        print(f"Processing {len(frame_indices)} frames")
 
     all_turntables = []  # [T][V, H, W, C]
     
@@ -185,10 +212,13 @@ def main():
     imageseq2video(all_turntables[0], str(output_dir / "turntable_first.mp4"), fps=args.fps)
     print("Saved: turntable_first.mp4")
 
-    # === 출력 2: 고정 각도, 시간 변화 ===
-    fixed_angle_frames = np.stack([t[0] for t in all_turntables])  # [T, H, W, C]
-    imageseq2video(fixed_angle_frames, str(output_dir / "time_fixed_angle.mp4"), fps=args.fps)
-    print("Saved: time_fixed_angle.mp4")
+    # === 출력 2: 고정 각도, 시간 변화 (multi-angle) ===
+    for angle_idx in args.fixed_angles:
+        angle_idx = angle_idx % V
+        fixed_frames = np.stack([t[angle_idx] for t in all_turntables])  # [T, H, W, C]
+        suffix = f"_angle{angle_idx}" if len(args.fixed_angles) > 1 else ""
+        imageseq2video(fixed_frames, str(output_dir / f"time_fixed{suffix}.mp4"), fps=args.fps)
+        print(f"Saved: time_fixed{suffix}.mp4 (angle={angle_idx}/{V})")
 
     # === 출력 3: 시간에 따라 각도 회전 ===
     rotating_frames = []

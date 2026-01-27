@@ -278,6 +278,33 @@ backward(ctx, grad_renders, grad_alphas) (L1156)
 | `get_turntable_cameras()` | L228 | Generate orbit camera poses |
 | `get_dataset_camera_trajectory()` | L61 | Dataset camera interpolation (hold_frames) |
 
+#### Camera View Ordering (2 systems)
+
+Visualization에서 카메라 뷰 순서는 **2가지 체계**가 공존합니다:
+
+| 체계 | 순서 | 용도 | 라벨 위치 |
+|------|------|------|-----------|
+| **Data Order** | `[0, 1, 2, 3, 4, 5]` | Supervision (GT vs Pred), Input strip | 상단 "Cam 0, Cam 1, ..." |
+| **Spatial Order** | Azimuth 정렬 (동적 계산) | Turntable grid, Trajectory video | 좌측 "0→4, 4→2, ..." |
+
+**Data Order**: 데이터셋 로딩 순서. Supervision 이미지의 각 열은 카메라 인덱스 순서.
+카메라 물리적 배치와 무관하며, loss 디버깅용으로 일관된 비교 제공.
+
+**Spatial Order**: `get_dynamic_camera_order(c2ws)` — 카메라 extrinsics에서 azimuth 각도를
+계산하여 CCW(반시계) 순서로 정렬. Turntable grid/video에서 연속적 회전 궤적 표현.
+이전 하드코딩 `MOUSE_CAMERA_ORDER = [0,4,2,1,3,5]`을 대체.
+
+```
+Data Order:     Cam 0 | Cam 1 | Cam 2 | Cam 3 | Cam 4 | Cam 5
+                (front) (R-front) (front-center) (right) (left) (back-right)
+
+Spatial Order:  Cam 0 → Cam 4 → Cam 2 → Cam 1 → Cam 3 → Cam 5 → (back to 0)
+                (azimuth sorted: -123° → -54° → +4° → +56° → +101° → +154°)
+```
+
+**주의**: Supervision Col[1] = Cam 1 ≠ Turntable Col[1] = Cam 4.
+각 시각화에 라벨이 포함되어 있으므로 직접 비교 시 라벨을 확인할 것.
+
 ---
 
 ## 7. Loss & Metrics

@@ -170,8 +170,8 @@ def add_left_row_labels(
     camera_order: Optional[List[int]] = None,
     grid_rows: int = 6,
     grid_cols: int = 6,
-    label_width: int = 120,
-    font_scale: float = 1.0,
+    label_width: int = 240,
+    font_scale: float = 2.0,
     loop: bool = True
 ) -> np.ndarray:
     """
@@ -232,7 +232,7 @@ def add_left_row_labels(
     result[:, label_width:] = grid_image
     
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_thick = 2
+    font_thick = 4
     
     for row_idx in range(grid_rows):
         # Position of this row's label
@@ -253,31 +253,58 @@ def add_left_row_labels(
 def subsample_frames_for_grid(
     all_frames: np.ndarray,
     video_views: int,
-    grid_views: int = 36
+    grid_views: int = 36,
+    segments: list = None
 ) -> np.ndarray:
     """
     Subsample video frames for grid display.
+    
+    When segments are provided, only transition (non-hold) frames are used
+    to avoid duplicates from hold periods in the grid.
     
     Args:
         all_frames: [H, V, W, C] array of all video frames
         video_views: Number of video frames (e.g., 144)
         grid_views: Target number of grid frames (e.g., 36)
+        segments: Optional list of segment dicts with 'is_hold' and frame range info
     
     Returns:
         [H, grid_views, W, C] subsampled frames
     """
-    if video_views > grid_views:
-        # Take evenly spaced frames (144 -> 36 = every 4th frame)
-        indices = np.linspace(0, video_views - 1, grid_views, dtype=int)
-        return all_frames[:, indices, :, :]
-    return all_frames
+    if video_views <= grid_views:
+        return all_frames
+    
+    if segments is not None:
+        # Filter out hold frames, keep only transition frames
+        # segments: list of (start_frame, end_frame, from_cam, to_cam, is_hold) tuples
+        transition_indices = []
+        for seg in segments:
+            start, end, _, _, is_hold = seg
+            if not is_hold:
+                for idx in range(start, end):
+                    if idx < video_views:
+                        transition_indices.append(idx)
+        
+        if len(transition_indices) >= grid_views:
+            # Uniformly subsample from transition frames only
+            sub_idx = np.linspace(0, len(transition_indices) - 1, grid_views, dtype=int)
+            indices = [transition_indices[i] for i in sub_idx]
+        else:
+            # Not enough transition frames, fall back to all frames
+            indices = np.linspace(0, video_views - 1, grid_views, dtype=int).tolist()
+    else:
+        # No segment info: uniform subsample from all frames
+        indices = np.linspace(0, video_views - 1, grid_views, dtype=int).tolist()
+    
+    return all_frames[:, indices, :, :]
 
 
 def create_grid_from_video(
     turntable_image: np.ndarray,
     video_views: int,
     grid_rows: int = 6,
-    grid_cols: int = 6
+    grid_cols: int = 6,
+    segments: list = None
 ) -> tuple:
     """
     Create grid image from turntable video frames.
@@ -287,6 +314,7 @@ def create_grid_from_video(
         video_views: Number of video frames
         grid_rows: Number of grid rows (default 6)
         grid_cols: Number of grid columns (default 6)
+        segments: Optional segment info to exclude hold frames from grid
     
     Returns:
         (grid_image, all_frames, h_img) tuple
@@ -297,9 +325,9 @@ def create_grid_from_video(
     w_per_view = turntable_image.shape[1] // video_views
     all_frames = turntable_image.reshape(h_img, video_views, w_per_view, 3)
     
-    # Subsample for grid
+    # Subsample for grid (exclude hold frames if segments provided)
     grid_views = grid_rows * grid_cols
-    grid_frames = subsample_frames_for_grid(all_frames, video_views, grid_views)
+    grid_frames = subsample_frames_for_grid(all_frames, video_views, grid_views, segments)
     
     # Rearrange to grid layout
     grid_image = rearrange(grid_frames, "h (rows cols) w c -> (rows h) (cols w) c", 

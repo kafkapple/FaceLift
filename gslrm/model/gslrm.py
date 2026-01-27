@@ -67,6 +67,7 @@ from mouse_extensions.visualization import (
     MOUSE_CAMERA_ORDER,
     DEFAULT_TURNTABLE_CONFIG,
     create_grid_from_video,
+    get_dynamic_camera_order,
 )
 
 from mouse_extensions.model.mask_losses import (
@@ -1451,7 +1452,8 @@ class GSLRM(nn.Module):
             input_resolution = input_data.image.size(3)
             # Check for smooth trajectory mode (interpolate between dataset cameras)
             smooth_trajectory = turntable_cfg.get("smooth_trajectory", True)
-            camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
+            camera_order = get_dynamic_camera_order(dataset_c2ws, self.config)
+            segments = None  # Set by smooth_trajectory branch
             # Filter camera_order to only include valid indices (handles exclude_camera_indices)
             num_available_cams = dataset_c2ws.shape[0]
             camera_order = [c for c in camera_order if c < num_available_cams]
@@ -1533,11 +1535,11 @@ class GSLRM(nn.Module):
             grid_rows = turntable_cfg.get("grid_rows", 6)
             grid_cols = turntable_cfg.get("grid_cols", 6)
             turntable_grid, all_frames, h_img = create_grid_from_video(
-                turntable_image, turntable_views, grid_rows, grid_cols
+                turntable_image, turntable_views, grid_rows, grid_cols, segments=segments
             )
             # Add row labels if enabled (e.g., "Cam 1 -> 3")
             if turntable_cfg.get("add_row_labels", True):
-                camera_order = turntable_cfg.get("camera_order", MOUSE_CAMERA_ORDER)
+                # camera_order already computed above (dynamic)
                 # Filter camera_order to only include valid indices
                 camera_order = [c for c in camera_order if c < num_available_cams]
                 label_position = turntable_cfg.get("label_position", "left")  # "top" or "left"

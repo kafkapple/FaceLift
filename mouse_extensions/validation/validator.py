@@ -21,6 +21,8 @@ from mouse_extensions.model.visualization_extensions import (
     create_validation_visual,
 )
 from mouse_extensions.visualization import (
+    compute_camera_convergence_center,
+    get_dynamic_camera_order,
     visualize_alpha_comparison,
     compute_alpha_metrics,
     should_visualize_alpha,
@@ -287,22 +289,23 @@ class ValidationRunner:
         input_res = input_data.image.size(3)
         
         smooth = cfg.get("smooth_trajectory", True)
-        camera_order = cfg.get("camera_order", MOUSE_CAMERA_ORDER)
         loop = cfg.get("loop", True)
         fps = cfg.get("fps", 30)
         num_views = cfg.get("video_views", 144)
         
         c2ws = target_data.c2w[batch_idx].cpu().numpy()
+        camera_order = get_dynamic_camera_order(c2ws, self.config)
         fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()
         gaussians = model_results.gaussians[batch_idx]
         
         # Render frames
+        segments = None
         if smooth:
-            frames, _ = render_dataset_trajectory(
+            frames, segments = render_dataset_trajectory(
                 gaussians, c2ws, fxfycxcy,
                 rendering_resolution=render_res, num_views=num_views,
                 camera_order=camera_order, loop=loop,
-                show_overlay=False, original_resolution=input_res,
+                show_overlay=True, original_resolution=input_res,
             )
         else:
             center = gaussians._xyz.mean(dim=0).detach().cpu().numpy()
@@ -317,7 +320,7 @@ class ValidationRunner:
         _safe_video_save(frames, os.path.join(output_dir, "turntable.mp4"), fps=fps)
         
         # Save grid
-        self._save_grid(frames, cfg, item_uid, output_dir)
+        self._save_grid(frames, cfg, item_uid, output_dir, segments=segments, camera_order=camera_order)
         
         # Save with input overlay
         self._save_with_input(frames, input_np, render_res, fps, output_dir)
@@ -328,20 +331,17 @@ class ValidationRunner:
         
         # Orbit turntable (standard 360-degree rotation)
         if cfg.get("save_orbit_turntable", True):
-            self._save_orbit_turntable(gaussians, render_res, fps, cfg, item_uid, output_dir, input_np)
+            self._save_orbit_turntable(gaussians, render_res, fps, cfg, item_uid, output_dir, input_np, c2ws)
     
 
-    def _save_orbit_turntable(self, gaussians, render_res, fps, cfg, item_uid, output_dir, input_np):
+    def _save_orbit_turntable(self, gaussians, render_res, fps, cfg, item_uid, output_dir, input_np, c2ws=None):
         """Save standard 360-degree orbit turntable video."""
         try:
             orbit_views = cfg.get("orbit_views", 120)
             orbit_elevation = cfg.get("elevation", 20)
             
-            # Use opacity-weighted center for better focus
-            xyz = gaussians._xyz.detach()
-            opacity = gaussians.get_opacity.detach().squeeze()
-            weights = opacity / (opacity.sum() + 1e-8)
-            center = (xyz * weights.unsqueeze(-1)).sum(dim=0).cpu().numpy()
+            # Use camera convergence center (more stable than opacity-weighted)
+            center = compute_camera_convergence_center(c2ws)
             
             # Use same radius as normalized data (~2.7)
             orbit_radius = cfg.get("orbit_radius", cfg.get("radius", 2.7))
@@ -371,14 +371,30 @@ class ValidationRunner:
         except Exception as e:
             print(f"Warning: Could not save orbit turntable: {e}")
 
-    def _save_grid(self, frames, cfg, item_uid, output_dir):
+    def _save_grid(self, frames, cfg, item_uid, output_dir, segments=None, camera_order=None):
         """Create and save turntable grid."""
         rows = cfg.get("grid_rows", 6)
         cols = cfg.get("grid_cols", 6)
         n_grid = rows * cols
         n_frames = frames.shape[0]
         
-        if n_frames > n_grid:
+        if segments is not None and n_frames > n_grid:
+            # Use only transition (non-hold) frames for grid
+            # segments: list of (start_frame, end_frame, from_cam, to_cam, is_hold)
+            transition_indices = []
+            for seg in segments:
+                start, end, _, _, is_hold = seg
+                if not is_hold:
+                    for idx in range(start, end):
+                        if idx < n_frames:
+                            transition_indices.append(idx)
+            if len(transition_indices) >= n_grid:
+                sub_idx = np.linspace(0, len(transition_indices) - 1, n_grid, dtype=int)
+                indices = [transition_indices[i] for i in sub_idx]
+            else:
+                indices = np.linspace(0, n_frames - 1, n_grid, dtype=int).tolist()
+            grid_frames = frames[indices]
+        elif n_frames > n_grid:
             indices = np.linspace(0, n_frames - 1, n_grid, dtype=int)
             grid_frames = frames[indices]
         else:
@@ -388,7 +404,7 @@ class ValidationRunner:
         grid = rearrange(grid_frames, "(r c) h w ch -> (r h) (c w) ch", r=rows, c=cols)
         
         if cfg.get("add_row_labels", True):
-            cam_order = cfg.get("camera_order", MOUSE_CAMERA_ORDER)
+            cam_order = camera_order if camera_order is not None else cfg.get("camera_order", MOUSE_CAMERA_ORDER)
             if cfg.get("label_position", "left") == "left":
                 grid = add_left_row_labels(grid, cam_order, rows, cols, h)
             else:

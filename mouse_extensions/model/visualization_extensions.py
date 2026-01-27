@@ -112,8 +112,8 @@ def _add_camera_labels(
     visual_np: np.ndarray,
     view_indices: List[int],
     image_width: int,
-    label_height: int = 20,
-    font_size: int = 12
+    label_height: int = 36,
+    font_size: int = 22
 ) -> np.ndarray:
     """
     Add camera index labels at the top of each column in the visualization.
