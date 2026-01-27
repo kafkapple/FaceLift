@@ -305,6 +305,100 @@ Spatial Order:  Cam 0 → Cam 4 → Cam 2 → Cam 1 → Cam 3 → Cam 5 → (bac
 **주의**: Supervision Col[1] = Cam 1 ≠ Turntable Col[1] = Cam 4.
 각 시각화에 라벨이 포함되어 있으므로 직접 비교 시 라벨을 확인할 것.
 
+#### Visualization Output Catalog
+
+**Config** (`configs/base/gslrm_mouse.yaml`):
+```yaml
+training.logging.vis_every: 100      # Training 시각화 주기
+validation.val_every: 200             # Validation 주기
+validation.visual_first_batch: true   # Val 첫 배치만 시각화
+
+visualization.turntable:
+  smooth_trajectory: true       # Dataset camera interpolation
+  hold_frames: 15               # 각 카메라 위치 정지 프레임
+  trajectory_fps: 10            # Trajectory 비디오 FPS
+  save_orbit_turntable: true    # 360° orbit 별도 저장
+  orbit_views: 120 / orbit_fps: 15
+  video_views: 144              # 총 프레임 수
+  grid_rows: 6, grid_cols: 6   # 6×6 = 36 grid
+  resolution: null              # null = input resolution (512)
+  save_video: true              # MP4 저장
+```
+
+##### Training Outputs (`iter_{step:08d}/`)
+
+| # | 파일명 | 형식 | 카메라 순서 | 내용 | WandB |
+|---|--------|------|-------------|------|-------|
+| 1 | `supervision_{uids}.jpg` | Image | Data [0-5] | GT vs Pred (행: GT, Pred, [Mask], Error) | `images/train/supervision_0` |
+| 2 | `input_{uids}.jpg` | Image | Data [0-5] | Input 뷰 (num_input_views) | `images/train/input_0` |
+| 3 | `alpha_comparison_{uids}.jpg` | Image | Data [0-5] | GT Mask / Rendered α / α>0.5 / Diff | `images/train/alpha_comparison_0` |
+| 4 | `turntable_{uid}.jpg` | Image | **Spatial** (azimuth) | 6×6 Grid (hold 제외, transition만) | `images/train/turntable_0` |
+| 5 | `turntable_{uid}.mp4` | Video | Spatial | Dataset camera trajectory (144f, 10fps) | ❌ |
+| 6 | `turntable_with_input_{uid}.mp4` | Video | Spatial + Data | Trajectory + 하단 input strip | ❌ |
+| 7 | `turntable_orbit_{uid}.mp4` | Video | 360° orbit | Convergence center 기준 회전 (120f, 15fps) | ❌ |
+| 8 | `turntable_orbit_with_input_{uid}.mp4` | Video | 360° + Data | Orbit + 하단 input strip | ❌ |
+| 9 | `aligned_gs_opacity_depth_{uid}.jpg` | Image | Data [0-5] | Gaussian opacity + depth map | `images/train/gaussian_vis_0` |
+| 10 | `input_{uid}.jpg` (inference only) | Image | Data | Individual input views | ❌ |
+| 11 | `gaussians_{uid}.ply` | PLY | - | Filtered Gaussian model | ❌ |
+
+**트리거**: `step == 0` 또는 `step % vis_every == 0` (`train_gslrm.py:670`)
+**코드**: `gslrm.py:save_visualization_outputs()` (L1340)
+
+##### Validation Outputs (`val/iter_{step:08d}/{uid:08d}/`)
+
+| # | 파일명 | 형식 | 카메라 순서 | 내용 | WandB |
+|---|--------|------|-------------|------|-------|
+| 1 | `input.png` | Image | Data [0-5] | 6뷰 입력 이미지 | ❌ |
+| 2 | `gt_vs_pred.png` | Image | Data [0-5] | GT vs Pred + error heatmap | `images/val/gt_vs_pred_0` |
+| 3 | `alpha_comparison_{uid}.jpg` | Image | Data [0-5] | Alpha 비교 (GT/Pred/Diff) | `images/val/alpha_comparison_0` |
+| 4 | `turntable_{uid}.jpg` | Image | **Spatial** (azimuth) | 6×6 Grid (hold 제외) | `images/val/turntable_0` |
+| 5 | `turntable.mp4` | Video | Spatial | Dataset camera trajectory | ❌ |
+| 6 | `turntable_with_input.mp4` | Video | Spatial + Data | Trajectory + input 오버레이 | ❌ |
+| 7 | `turntable_orbit_{uid}.mp4` | Video | 360° orbit | Convergence center 기준 회전 | ❌ |
+| 8 | `turntable_orbit_with_input_{uid}.mp4` | Video | 360° + Data | Orbit + input strip | ❌ |
+| 9 | `gaussians.ply` | PLY | - | Filtered Gaussian model | ❌ |
+| 10 | `perview_metrics.txt` | Text | - | Per-view PSNR/LPIPS/SSIM | ❌ |
+| 11 | `metrics.txt` | Text | - | Averaged metrics | ❌ |
+| 12 | `alpha_metrics.txt` | Text | - | IoU, precision, recall | ❌ |
+
+**트리거**: `step == 0` 또는 `step % val_every == 0`, 첫 배치만 시각화 (`train_gslrm.py:1089`)
+**코드**: `validator.py:ValidationRunner._save_visualizations()` (L172)
+
+##### WandB Metrics (숫자)
+
+| Prefix | 항목 | 트리거 |
+|--------|------|--------|
+| `train/` | loss, psnr, l2_loss, perceptual_loss, ssim_loss, lpips, bg_loss, alpha_loss | 매 log_every step |
+| `val/` | loss, psnr, ssim, lpips, mask_iou, l2_loss | 매 val_every step |
+| `val_view/` | view{N}_psnr, view{N}_lpips, view{N}_ssim | 매 val_every (첫 배치) |
+| `meta/` | current_step, total_steps, progress | 매 val_every step |
+
+##### 코드 경로 요약
+
+```
+train_gslrm.py
+  ├── training_step()
+  │   ├── model(batch, create_visual=True)         # vis_every마다
+  │   └── save_visuals_if_needed()                  # L908
+  │       ├── model.save_visuals() → gslrm.py:save_visualization_outputs()
+  │       └── _log_visuals_to_wandb(prefix="train") # L923
+  │
+  └── run_validation()                              # val_every마다
+      ├── model.save_validations() → validator.py:save_validation_results()
+      │   └── _save_visualizations() → _create_turntable(), _save_grid(), etc.
+      ├── wandb.log(val_metrics)                    # L1166
+      └── _log_visuals_to_wandb(prefix="val")       # L1175
+
+  # 독립 평가 (training loop에서 호출 안 됨)
+  save_evaluation_results()                           # gslrm.py:L1737
+    └── per-sample: input.png, gt_vs_pred.png, metrics.txt,
+        perview_metrics.txt, gaussians.ply, turntable.mp4,
+        turntable_preview.png, turntable_with_input.mp4
+```
+
+> **Note**: `save_evaluation_results()`는 독립 evaluation/inference 스크립트에서만 호출됩니다.
+> Training 중 validation은 `save_validations()` → `ValidationRunner`를 사용합니다.
+
 ---
 
 ## 7. Loss & Metrics
