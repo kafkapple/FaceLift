@@ -464,7 +464,7 @@ def main():
     model, config = load_model(args.checkpoint, args.config, device)
 
     mouse_config = config.get("mouse", {})
-    target_camera_distance = mouse_config.get("target_camera_distance", 2.7)
+    target_camera_distance = mouse_config.get("target_camera_distance", 2.7) or 2.7
     print(f"Target camera distance: {target_camera_distance}")
     print(f"Opacity threshold: {args.opacity_threshold}")
     print(f"Color threshold: {args.color_threshold}")

@@ -500,10 +500,64 @@ mouse_extensions/visualization/
 └── inference_viz.py           # Inference-time visualization
 
 mouse_extensions/scripts/inference/
-├── render_from_checkpoint.py  # Checkpoint → renders
-├── temporal_turntable.py      # Temporal sequence rendering
+├── simple_temporal.py         # ✅ 권장 temporal inference
+├── temporal_turntable.py      # v3: Gaussian filtering + per-frame center (실험적)
+├── temporal_turntable_v4.py   # v4: render_turntable 기반 (안정)
+├── render_from_checkpoint.py  # Checkpoint → single-frame renders
 └── prune_gaussians.py         # Post-hoc pruning
 ```
+
+#### Temporal Inference 스크립트 비교
+
+| 스크립트 | 상태 | 렌더링 방식 | Center | 특징 |
+|----------|------|------------|--------|------|
+| **simple_temporal.py** | ✅ 권장 | `render_turntable()` (검증됨) | Gaussian mean | auto-discovery, multi-angle, grid |
+| temporal_turntable.py (v3) | ⚠️ 실험적 | 자체 `render_opencv_cam()` 루프 | Per-frame foreground | Gaussian 필터링, 자체 카메라 생성 |
+| temporal_turntable_v4.py | ✅ 안정 | `render_turntable()` (검증됨) | First frame fixed | v3의 안정화 버전 |
+
+**v3 불안정 원인**:
+1. 자체 카메라 생성 (`get_centered_turntable_cameras`) — hFOV 기반, 검증된 `render_turntable`과 다른 경로
+2. Per-frame center 변동 → 시점 jitter
+3. Gaussian 필터링 시 `GaussianModel` 수동 복사 → SH band 호환성 리스크
+4. `target_camera_distance` config에서 읽음 → 0.0이면 정규화 안 됨 (수정 완료: fallback 2.7)
+
+#### Temporal Inference 사용법
+
+**기본 사용 (simple_temporal.py 권장)**:
+```bash
+cd /home/joon/dev/FaceLift
+source ~/anaconda3/etc/profile.d/conda.sh && conda activate facelift
+
+CUDA_VISIBLE_DEVICES=6 python mouse_extensions/scripts/inference/simple_temporal.py \
+  --checkpoint checkpoints/gslrm/M5h_2_E1_2_alpha/ckpt_0000000000001100.pt \
+  --config configs/base/gslrm_mouse.yaml \
+  --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5h_2 \
+  --start_frame 0 --end_frame 120 --frame_step 5 \
+  --num_views 36 --resolution 384 --elevation 20.0 --radius 2.7 \
+  --fps 24 --output_dir outputs/temporal_M5h_2/simple
+```
+
+**출력 영상 (5종)**:
+| 파일 | 내용 | 용도 |
+|------|------|------|
+| `turntable_first.mp4` | 첫 프레임 360° 회전 | 3D 품질 확인 |
+| `time_fixed.mp4` | 고정 시점, 시간 변화 | 동작 분석 |
+| `time_rotating.mp4` | 시간+회전 동시 | 시네마틱 |
+| `full_all.mp4` | 전체 T×V 프레임 | 완전 탐색 |
+| `grid_first.jpg` | 첫 프레임 6×6 그리드 | Quick reference |
+
+**주요 파라미터**:
+| 파라미터 | 기본값 | 설명 |
+|----------|--------|------|
+| `--frame_step` | 1 | 프레임 샘플링 간격 (5=매 5번째) |
+| `--num_views` | 36 | 360°를 몇 등분 (36=10° 간격) |
+| `--resolution` | 384 | 렌더링 해상도 |
+| `--elevation` | 20.0 | 카메라 고도각 |
+| `--radius` | 2.7 | 카메라 거리 (정규화 단위) |
+| `--fixed_angles` | [0] | 고정 시점 영상에 사용할 각도 인덱스 |
+| `--start/end_frame` | None | 자동 감지 (미지정 시) |
+
+**GPU 주의**: gpu03에서 GPU 0-3은 Blackwell (sm_120, PyTorch 미지원). **GPU 4-7 (A6000)** 사용 필수.
 
 ---
 
