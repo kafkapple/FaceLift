@@ -474,7 +474,7 @@ PRESETS = {
     # =========================================================================
     
     "M5h": {  # ACTIVE - Homography + re-centering (no zoom)
-        "paradigm": "precision_homography",
+        "paradigm": "recentered_homography",
         "transform": "homography",
         "scale_mode": "individual",
         "pp_method": "shift_to_256",
@@ -490,7 +490,7 @@ PRESETS = {
     },
     
     "M5h_1": {  # ACTIVE - Re-centered + global zoom
-        "paradigm": "precision_homography",
+        "paradigm": "recentered_homography",
         "transform": "homography",
         "scale_mode": "individual",
         "pp_method": "shift_to_256",
@@ -513,7 +513,7 @@ PRESETS = {
     },
     
     "M5h_2": {  # ACTIVE - Re-centered + per-sample zoom (RECOMMENDED)
-        "paradigm": "precision_homography",
+        "paradigm": "recentered_homography",
         "transform": "homography",
         "scale_mode": "individual",
         "pp_method": "shift_to_256",
@@ -536,7 +536,7 @@ PRESETS = {
     },
     
     "M5": {  # ACTIVE - Affine + re-centering (no zoom)
-        "paradigm": "precision_affine",
+        "paradigm": "recentered_affine",
         "transform": "affine",
         "scale_mode": "individual",
         "pp_method": "shift_to_256",

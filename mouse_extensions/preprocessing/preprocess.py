@@ -355,6 +355,8 @@ class Paradigm(Enum):
     OBJECT_CENTERED_MVG = "object_centered_mvg"
     NATIVE = "native"
     UP_ALIGNED_ZOOM = "up_aligned_zoom"
+    RECENTERED_AFFINE = "recentered_affine"
+    RECENTERED_HOMOGRAPHY = "recentered_homography"
 
 
 class TransformType(Enum):
@@ -505,6 +507,40 @@ class PreprocessConfig:
             config.target_fg_coverage = preset.get('target_fg_coverage', 0.05)
             config.min_fg_coverage = preset.get('min_fg_coverage', 0.0)
             config.zoom_after_transform = preset.get('zoom_after_transform', False)
+
+        # ====== RECENTERED_AFFINE (M5) ======
+        elif config.paradigm == Paradigm.RECENTERED_AFFINE:
+            config.transform = TransformType.AFFINE
+            config.skew_correction = False
+            config.scale_mode = ScaleMode(preset.get('scale_mode', 'individual'))
+            config.target_fx = preset.get('target_fx', 549.0)
+            config.recenter_cameras = True  # Core M5 feature
+            config.target_distance = preset.get('target_distance', 2.7)
+
+        # ====== RECENTERED_HOMOGRAPHY (M5h) ======
+        elif config.paradigm == Paradigm.RECENTERED_HOMOGRAPHY:
+            config.transform = TransformType.HOMOGRAPHY
+            config.skew_correction = preset.get('skew_correction', True)
+            config.scale_mode = ScaleMode(preset.get('scale_mode', 'individual'))
+            config.target_fx = preset.get('target_fx', 548.9938)
+            config.recenter_cameras = True  # Core M5 feature
+            config.target_distance = preset.get('target_distance', 2.7)
+            # Zoom support (M5h_1, M5h_2)
+            config.zoom = preset.get('zoom', 1.0)
+            config.adaptive_zoom = preset.get("adaptive_zoom", False)
+            config.zoom_scope = preset.get("zoom_scope", "global")
+            config.zoom_range = tuple(preset.get("zoom_range", [1.0, 1.5]))
+            config.zoom_fill_ratio = preset.get("zoom_fill_ratio", 0.85)
+            config.zoom_method = preset.get("zoom_method", "bbox")
+            config.zoom_center_mode = preset.get("zoom_center_mode", "image")
+            config.target_fg_coverage = preset.get("target_fg_coverage", 0.05)
+            config.min_fg_coverage = preset.get("min_fg_coverage", 0.0)
+            config.zoom_after_transform = preset.get("zoom_after_transform", False)
+            config.normalize_after_zoom = preset.get("normalize_after_zoom", False)
+            config.force_pp_to_target = preset.get("force_pp_to_target", False)
+            # Zoom enabled check
+            if preset.get("zoom_enabled", False):
+                config.adaptive_zoom = True
 
         # Output structure
         config.single_folder = preset.get('single_folder', False)
@@ -1208,7 +1244,7 @@ _stats:
                     saved_count += 1
 
         # ====== D7/D8/D10: Use video captures ======
-        elif cfg.paradigm in [Paradigm.PP_CENTERED_SHIFT, Paradigm.PRECISION_HOMOGRAPHY, Paradigm.UP_ALIGNED_ZOOM, Paradigm.OBJECT_CENTERED_MVG]:
+        elif cfg.paradigm in [Paradigm.PP_CENTERED_SHIFT, Paradigm.PRECISION_HOMOGRAPHY, Paradigm.UP_ALIGNED_ZOOM, Paradigm.OBJECT_CENTERED_MVG, Paradigm.RECENTERED_AFFINE, Paradigm.RECENTERED_HOMOGRAPHY]:
             print(f"Loading cameras: {cfg.camera_pkl}")
             self.load_cameras(cfg.camera_pkl)
             
