@@ -1,0 +1,23 @@
+# Dataset: M5
+# M1(D7.1) + re-centered cameras + uniform distance norm. Affine baseline.
+# Generated: 2026-01-27 18:59:36
+
+_name: M5
+_description: "M1(D7.1) + re-centered cameras + uniform distance norm. Affine baseline."
+_category: recentered_affine
+_preprocessing:
+  paradigm: recentered_affine
+  transform: affine
+  target_fx: 549.0
+  output_size: 512
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_val.txt
+
+_stats:
+  num_train: 3240
+  num_val: 360

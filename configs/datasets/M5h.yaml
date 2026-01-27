@@ -1,0 +1,23 @@
+# Dataset: M5h
+# M2(D8) + re-centered cameras + uniform distance norm. No zoom.
+# Generated: 2026-01-27 19:11:36
+
+_name: M5h
+_description: "M2(D8) + re-centered cameras + uniform distance norm. No zoom."
+_category: recentered_homography
+_preprocessing:
+  paradigm: recentered_homography
+  transform: homography
+  target_fx: 548.9938
+  output_size: 512
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5h/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5h/data_mouse_val.txt
+
+_stats:
+  num_train: 3240
+  num_val: 360

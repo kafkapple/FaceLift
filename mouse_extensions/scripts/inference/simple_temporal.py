@@ -88,6 +88,9 @@ def load_sample(sample_dir: Path, device: str = "cuda") -> edict:
     c2ws = normalize_cameras_to_z_up(c2ws)
     c2ws, fxfycxcy = normalize_camera_distance_with_intrinsics(c2ws, fxfycxcy, 2.7)
 
+    # Keep raw images (uint8, HWC, RGB) for input grid visualization
+    raw_images = (images * 255).clip(0, 255).astype(np.uint8)  # [V, H, W, C]
+
     images = torch.from_numpy(images).float().to(device)
     images = rearrange(images, "v h w c -> v c h w")
     
@@ -96,7 +99,7 @@ def load_sample(sample_dir: Path, device: str = "cuda") -> edict:
         "c2w": torch.from_numpy(c2ws).float().to(device).unsqueeze(0),
         "fxfycxcy": torch.from_numpy(fxfycxcy).float().to(device).unsqueeze(0),
         "index": torch.zeros(len(frames), 3, dtype=torch.long, device=device).unsqueeze(0),
-    })
+    }), raw_images
 
 
 @torch.no_grad()
@@ -104,7 +107,7 @@ def process_frame(model, sample_dir: Path, device: str, resolution: int,
                   num_views: int, elevation: float, radius: float) -> np.ndarray:
     """단일 프레임 처리 → turntable 프레임들 반환."""
     
-    sample = load_sample(sample_dir, device)
+    sample, raw_input_images = load_sample(sample_dir, device)
     
     with torch.amp.autocast("cuda", dtype=torch.bfloat16):
         output = model(sample, create_visual=False, split_data=False)
@@ -130,7 +133,7 @@ def process_frame(model, sample_dir: Path, device: str, resolution: int,
     gc.collect()
     torch.cuda.empty_cache()
     
-    return frames
+    return frames, raw_input_images
 
 
 def find_sample_dirs(data_dir: Path) -> list:
@@ -159,6 +162,8 @@ def main():
     parser.add_argument("--fps", type=int, default=24)
     parser.add_argument("--fixed_angles", type=int, nargs="+", default=[0],
                         help="View angles for fixed-angle videos (default: [0])")
+    parser.add_argument("--split", type=str, default=None,
+                        help="Path to split file (e.g. data_mouse_val.txt). Overrides start/end/step.")
     parser.add_argument("--output_dir", type=str, default="outputs/simple_temporal")
     args = parser.parse_args()
 
@@ -168,8 +173,17 @@ def main():
     model, config = load_model(args.checkpoint, args.config, "cuda")
     data_dir = Path(args.data_dir)
 
-    # Auto-discover sample directories if start/end not specified
-    if args.start_frame is None or args.end_frame is None:
+    # Load frame indices from split file or auto-discover
+    if args.split:
+        split_path = Path(args.split)
+        if not split_path.exists():
+            split_path = data_dir / args.split
+        with open(split_path) as f:
+            lines = [l.strip().rstrip("/") for l in f if l.strip()]
+        frame_indices = sorted([int(Path(l).name) for l in lines])
+        frame_indices = frame_indices[::args.frame_step]
+        print(f"Split file: {len(frame_indices)} frames (step {args.frame_step})")
+    elif args.start_frame is None or args.end_frame is None:
         sample_dirs = find_sample_dirs(data_dir)
         if not sample_dirs:
             print(f"No numeric sample directories found in {data_dir}")
@@ -186,6 +200,7 @@ def main():
         print(f"Processing {len(frame_indices)} frames")
 
     all_turntables = []  # [T][V, H, W, C]
+    all_input_views = []  # [T][V, H, W, C] raw input camera images
     
     for frame_idx in tqdm(frame_indices, desc="Frames"):
         sample_dir = data_dir / f"{frame_idx:06d}"
@@ -193,11 +208,12 @@ def main():
             print(f"Skip: {sample_dir}")
             continue
         
-        frames = process_frame(
+        frames, raw_inputs = process_frame(
             model, sample_dir, "cuda",
             args.resolution, args.num_views, args.elevation, args.radius
         )
         all_turntables.append(frames)
+        all_input_views.append(raw_inputs)
 
     if not all_turntables:
         print("No frames!")
@@ -247,6 +263,27 @@ def main():
     grid = grid.transpose(0, 2, 1, 3, 4).reshape(rows * H, cols * W, 3)
     Image.fromarray(grid).save(str(output_dir / "grid_first.jpg"))
     print("Saved: grid_first.jpg")
+
+    # === Output 6: 6-camera input grid video (2x3 layout) ===
+    num_cams = all_input_views[0].shape[0]  # typically 6
+    grid_cols = 3
+    grid_rows = (num_cams + grid_cols - 1) // grid_cols  # 2 for 6 cameras
+    ih, iw = all_input_views[0].shape[1:3]
+    
+    grid_video_frames = []
+    for t in range(len(all_input_views)):
+        views = all_input_views[t]  # [V, H, W, C]
+        # Pad if num_cams < grid_rows * grid_cols
+        pad_n = grid_rows * grid_cols - num_cams
+        if pad_n > 0:
+            views = np.concatenate([views, np.ones((pad_n, ih, iw, 3), dtype=views.dtype) * 255], axis=0)
+        grid = views.reshape(grid_rows, grid_cols, ih, iw, 3)
+        grid = grid.transpose(0, 2, 1, 3, 4).reshape(grid_rows * ih, grid_cols * iw, 3)
+        grid_video_frames.append(grid)
+    
+    grid_video_frames = np.stack(grid_video_frames)  # [T, GH, GW, C]
+    imageseq2video(grid_video_frames, str(output_dir / "grid_6view.mp4"), fps=args.fps)
+    print(f"Saved: grid_6view.mp4 ({len(grid_video_frames)} frames, {grid_rows}x{grid_cols} layout)")
 
     print(f"\nDone! Output: {output_dir}")
 

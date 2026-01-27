@@ -123,3 +123,28 @@ python mouse_extensions/scripts/analysis/clipping_analyzer.py \
 | E1_3_lgm | gt | 1.0 | 강한 alpha |
 | E2_1_alpha | none | 0.1 | alpha만 |
 
+
+---
+
+## MVDiffusion Finetune (Single Image → 6 Views)
+
+### 목적
+단일 이미지 → MVDiffusion (6 views) → GS-LRM (3D) 파이프라인 구축.
+GS-LRM과 동일한 전처리 데이터(M5)로 finetune하여 카메라 파라미터 일관성 확보.
+
+### Config
+- **파일**: `configs/mvdiffusion/mouse_mvdiffusion_M5.yaml`
+- **전처리**: M5 (Affine, D7.1 preset, 512x512, fx=549, cx=cy=256)
+- **GS-LRM 기준**: M5_E1_2_alpha (Alpha IoU=0.8398)
+- **데이터**: train 3239 / val 359 샘플
+
+### 실행 명령어
+```bash
+cd /home/joon/dev/FaceLift
+CUDA_VISIBLE_DEVICES=7 accelerate launch     --config_file mvdiffusion/node_config/1gpu.yaml     train_diffusion.py     --config configs/mvdiffusion/mouse_mvdiffusion_M5.yaml
+```
+
+### WandB
+- Project: `mouse_facelift`
+- Exp: `mvdiff_M5_finetune`
+- Group: `mvdiffusion`
