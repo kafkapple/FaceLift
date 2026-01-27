@@ -465,120 +465,93 @@ PRESETS = {
         "description": "M3_2 + conservative zoom",
         "active": True,
     },
-    "M3_2c": {  # Re-centered + uniform distance
+    # =========================================================================
+    # M5 Series: Re-centered + Uniform Distance Normalization (2026-01-28)
+    # =========================================================================
+    # Core change: camera centroid -> origin + uniform distance scaling
+    # Fixes per-view distance normalization bug (up to 34.7% rig distortion)
+    # All image transforms (affine/homography/zoom) preserved from M1-M4
+    # =========================================================================
+    
+    "M5h": {  # ACTIVE - Homography + re-centering (no zoom)
         "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
         "pp_method": "shift_to_256",
         "skew_correction": True,
-        "up_alignment": False,
-        "adaptive_zoom": True,
-        "zoom_method": "coverage_based",
-        "zoom_scope": "per_sample",
-        "zoom_center_mode": "image",
-        "target_fg_coverage": 0.05,
-        "min_fg_coverage": 0.03,
-        "zoom_range": [1.0, 1.5],
-        "zoom_after_transform": True,
-        "target_fx": 548.9937744140625,
-        "output_size": 512,
-        "single_folder": True,
-        "normalize_after_zoom": True,
-        "force_pp_to_target": False,
+        "normalize_translation": True,
+        "target_distance": 2.7,
+        "target_fx": 548.9938,
+        "image_size": 512,
         "recenter_cameras": True,
-        "description": "M3_2b + re-centered cameras + uniform distance normalization",
+        "description": "M2(D8) + re-centered cameras + uniform distance norm. No zoom.",
+        "active": True,
+        "ray_error": "~0 deg",
     },
-    "M4": {  # ✅ ACTIVE
-        "paradigm": "object_centered_mvg",
+    
+    "M5h_1": {  # ACTIVE - Re-centered + global zoom
+        "paradigm": "precision_homography",
         "transform": "homography",
         "scale_mode": "individual",
-        "pp_method": "pp_correction",
+        "pp_method": "shift_to_256",
         "skew_correction": True,
-        "up_alignment": False,
-        "adaptive_zoom": True,
+        "normalize_translation": True,
+        "target_distance": 2.7,
+        "target_fx": 548.9938,
+        "image_size": 512,
+        "recenter_cameras": True,
+        "zoom_enabled": True,
+        "zoom_scope": "global",
         "zoom_method": "coverage_based",
-        "zoom_scope": "per_sample",
-        "zoom_center_mode": "object",
-        "pp_correction": True,
+        "zoom_range": [1.0, 1.8],
+        "zoom_center_mode": "image",
         "target_fg_coverage": 0.05,
-        "min_fg_coverage": 0.03,
-        "zoom_range": [1.0, 2.5],
-        "zoom_after_transform": True,
-        "target_fx": 548.9937744140625,
-        "output_size": 512,
-        "single_folder": True,
         "normalize_after_zoom": True,
-        "force_pp_to_target": False,
-        "description": "Object-centered + PP correction (max coverage)",
+        "description": "M3_1 + re-centered cameras + uniform distance norm. Global zoom.",
         "active": True,
+        "ray_error": "~0 deg",
+    },
+    
+    "M5h_2": {  # ACTIVE - Re-centered + per-sample zoom (RECOMMENDED)
+        "paradigm": "precision_homography",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": True,
+        "normalize_translation": True,
+        "target_distance": 2.7,
+        "target_fx": 548.9938,
+        "image_size": 512,
+        "recenter_cameras": True,
+        "zoom_enabled": True,
+        "zoom_scope": "per_sample",
+        "zoom_method": "coverage_based",
+        "zoom_range": [1.0, 1.5],
+        "zoom_center_mode": "image",
+        "target_fg_coverage": 0.05,
+        "normalize_after_zoom": True,
+        "description": "M3_2b + re-centered cameras + uniform distance norm. Per-sample zoom. RECOMMENDED.",
+        "active": True,
+        "ray_error": "~0 deg",
+    },
+    
+    "M5": {  # ACTIVE - Affine + re-centering (no zoom)
+        "paradigm": "precision_affine",
+        "transform": "affine",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": False,
+        "normalize_translation": True,
+        "target_distance": 2.7,
+        "target_fx": 549.0,
+        "image_size": 512,
+        "recenter_cameras": True,
+        "description": "M1(D7.1) + re-centered cameras + uniform distance norm. Affine baseline.",
+        "active": True,
+        "ray_error": "~0 deg",
     },
 
-}
-
-
-# Version hierarchy for organization
-VERSION_HIERARCHY = {
-    # ==========================================================================
-    # ACTIVE PRESETS (Production Use)
-    # ==========================================================================
-    "recommended": "M3_2",  # Best overall: per-sample zoom, PP=256, fx=549
-
-    # Baseline (no zoom)
-    "baseline": ["D7.1", "D8"],  # M1, M2
-
-    # Adaptive Zoom (production)
-    "production": ["M3_1", "M3_2"],  # Global/Per-sample zoom, PP=256
-
-    # Hypothesis Testing
-    "hypothesis_test": ["M3_2b", "M3_2c", "M3_3", "M4"],  # H1/H2 verification
-
-    # Object-centered with PP correction
-    "object_centered": ["M4"],
-
-    # ==========================================================================
-    # ARCHIVED PRESETS (Reference Only - Do Not Use)
-    # ==========================================================================
-
-    # Geometry Broken: PP not corrected after object-centered crop
-    "archived_geometry_broken": ["D1", "D4", "D6-1", "D6-2", "D6-3"],
-
-    # Superseded by D7.1/D8
-    "archived_superseded": ["D7", "D7.2", "D8.1", "D8.2"],
-
-    # Native (no transform) - rarely used
-    "archived_native": ["D9", "D9_norm", "D9_resized"],
-
-    # Experimental/Deprecated
-    "archived_experimental": ["D10", "D10.1", "D10.2"],
-    "archived_deprecated": ["D10.3", "M3", "M3_norm", "M3_persample"],
-}
-
-# M-Series 권장 매핑
-M_SERIES = {
-    "M1": "D7.1",       # affine, 안정적 기준선
-    "M2": "D8",         # homography, 정밀 기하학
-    "M3": "D10.3",      # ⛔ DEPRECATED: fx=739 버그, use M3_1/M3_2 instead
-    "M1a": "D7_1_aspect",  # M1 + aspect ratio preserved
-}
-
-# 권장 설정
-RECOMMENDED = {
-    "stable": "D7.1",       # M1: 검증된 안정적 설정
-    "precision": "D8",      # M2: 정밀 기하학
-    "production": "M3_2", # ★ M4: coverage zoom + proper normalization
-}
-
-
-
-
-
-# Alias mapping for M-series to D-series
-ALIASES = {
-    "M1": "D7.1",
-    "M2": "D8",
-    "M3": "D10.3",      # Legacy (has fx bug)
-    "M1a": "D7_1_aspect",
-    # ============================================================
+# ============================================================
     # M4 Series: Safety Margin Enhanced (2026-01-27)
     # Addresses clipping issue where alpha mask does not capture thin features
     # ============================================================
@@ -665,6 +638,99 @@ ALIASES = {
         "description": "Global zoom baseline with safety margins",
         "active": True,
     },
+
+        "M4": {  # ✅ ACTIVE
+        "paradigm": "object_centered_mvg",
+        "transform": "homography",
+        "scale_mode": "individual",
+        "pp_method": "pp_correction",
+        "skew_correction": True,
+        "up_alignment": False,
+        "adaptive_zoom": True,
+        "zoom_method": "coverage_based",
+        "zoom_scope": "per_sample",
+        "zoom_center_mode": "object",
+        "pp_correction": True,
+        "target_fg_coverage": 0.05,
+        "min_fg_coverage": 0.03,
+        "zoom_range": [1.0, 2.5],
+        "zoom_after_transform": True,
+        "target_fx": 548.9937744140625,
+        "output_size": 512,
+        "single_folder": True,
+        "normalize_after_zoom": True,
+        "force_pp_to_target": False,
+        "description": "Object-centered + PP correction (max coverage)",
+        "active": True,
+    },
+
+}
+
+
+# Version hierarchy for organization
+VERSION_HIERARCHY = {
+    # ==========================================================================
+    # ACTIVE PRESETS (Production Use)
+    # ==========================================================================
+    "recommended": "M3_2",  # Best overall: per-sample zoom, PP=256, fx=549
+
+    # Baseline (no zoom)
+    "baseline": ["D7.1", "D8"],  # M1, M2
+
+    # Adaptive Zoom (production)
+    "production": ["M3_1", "M3_2"],  # Global/Per-sample zoom, PP=256
+
+    # Hypothesis Testing
+    "hypothesis_test": ["M3_2b", "M3_3", "M4", "M5h", "M5h_2"],  # H1/H2 verification
+
+    # Object-centered with PP correction
+    "object_centered": ["M4"],
+    "recentered": ["M5h", "M5h_1", "M5h_2", "M5"],
+
+    # ==========================================================================
+    # ARCHIVED PRESETS (Reference Only - Do Not Use)
+    # ==========================================================================
+
+    # Geometry Broken: PP not corrected after object-centered crop
+    "archived_geometry_broken": ["D1", "D4", "D6-1", "D6-2", "D6-3"],
+
+    # Superseded by D7.1/D8
+    "archived_superseded": ["D7", "D7.2", "D8.1", "D8.2"],
+
+    # Native (no transform) - rarely used
+    "archived_native": ["D9", "D9_norm", "D9_resized"],
+
+    # Experimental/Deprecated
+    "archived_experimental": ["D10", "D10.1", "D10.2"],
+    "archived_deprecated": ["D10.3", "M3", "M3_norm", "M3_persample"],
+}
+
+# M-Series 권장 매핑
+M_SERIES = {
+    "M1": "D7.1",       # affine, 안정적 기준선
+    "M2": "D8",         # homography, 정밀 기하학
+    "M3": "D10.3",      # ⛔ DEPRECATED: fx=739 버그, use M3_1/M3_2 instead
+    "M1a": "D7_1_aspect",  # M1 + aspect ratio preserved
+}
+
+# 권장 설정
+RECOMMENDED = {
+    "stable": "D7.1",       # M1: 검증된 안정적 설정
+    "precision": "D8",      # M2: 정밀 기하학
+    "production": "M5h_2", # ★ M4: coverage zoom + proper normalization
+}
+
+
+
+
+
+# Alias mapping for M-series to D-series
+ALIASES = {
+    "M1": "D7.1",
+    "M2": "D8",
+    "M3": "D10.3",      # Legacy (has fx bug)
+    "M5h": "M5h_2",        # re-centered + uniform norm (RECOMMENDED)
+    "M1a": "D7_1_aspect",
 
 }
 

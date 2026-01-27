@@ -1,7 +1,7 @@
 # FaceLift Dataset Master Reference
 
 > **SSOT (Single Source of Truth)** - 모든 데이터셋 정보의 중앙 문서
-> **Updated**: 2026-01-27
+> **Updated**: 2026-01-28
 
 ---
 
@@ -11,10 +11,11 @@
 
 | 순위 | Dataset | PP | fx | Clipping | Coverage | 상태 | 용도 |
 |------|---------|----|----|----------|----------|------|------|
-| **1** | **M3_2** | 256 | 549 | 6.5% | ~5% | ⭐ **권장** | Per-sample zoom |
-| **2** | **M3_1** | 256 | 549 | 0% | ~4-5% | ⭐ 안전 | Global zoom |
-| 3 | D7_1 (M1) | 256 | 549 | 0% | ~3% | 기준선 | Affine |
-| 4 | D8 (M2) | 256 | 549 | 0% | ~3% | 기준선 | Homography |
+| **1** | **M5h_2** ★ | 256 | 549 | TBD | ~5% | ⭐ **권장** | Per-sample zoom + re-center |
+| **2** | **M3_2** | 256 | 549 | 6.5% | ~5% | ✅ 검증됨 | Per-sample zoom |
+| **3** | **M3_1** | 256 | 549 | 0% | ~4-5% | ⭐ 안전 | Global zoom |
+| 4 | D7_1 (M1) | 256 | 549 | 0% | ~3% | 기준선 | Affine |
+| 5 | D8 (M2) | 256 | 549 | 0% | ~3% | 기준선 | Homography |
 
 ### 가설 검증용 데이터셋 (진행 중)
 
@@ -22,6 +23,8 @@
 |---------|------|-----|------------|------|
 | **M3_2b** | H2 baseline (낮은 zoom) | 256 | [1.0, 1.5] | 🔬 실험 중 |
 | **M3_3** | H2 test (safe zoom) | 256 | [1.0, 2.5] + safe | 🔬 실험 중 |
+| **M5** | Affine + re-centering (no zoom) | 256 | - | 🔬 실험 예정 |
+| **M5h_2** | Homography + re-centering (per-sample) | 256 | [1.0, 1.5] | 🔬 실험 예정 |
 | **M4** | H1 test (PP correction) | 가변 | [1.0, 2.5] + safe | 🔬 실험 중 |
 
 ### 실패/Deprecated 데이터셋 (사용 금지)

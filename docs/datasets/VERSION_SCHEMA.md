@@ -1,6 +1,6 @@
 # Dataset Version Schema
 
-> **최종 업데이트**: 2026-01-26
+> **최종 업데이트**: 2026-01-28
 > **SSOT**: 데이터셋 버전 체계 및 분류
 
 ---
@@ -12,7 +12,8 @@
 | **M1** | D7.1 | Affine | 256 | 549 | ✅ 기준선 |
 | **M2** | D8 | Homography | 256 | 549 | ✅ 정밀 |
 | **M3_1** | M3_1 | Global Zoom | 256 | 549 | ✅ 검증됨 |
-| **M3_2** | M3_2 | Per-sample | 256 | 549 | ⭐ **권장** |
+| **M5h_2** ★ | M5h_2 | Per-sample+Recenter | 256 | 549 | ⭐ **권장** |
+| **M3_2** | M3_2 | Per-sample | 256 | 549 | ✅ 검증됨 |
 
 **M3 상세**: [[M3_SERIES_SPEC]] (config, 이론, 검증 결과)
 
@@ -26,7 +27,26 @@
 | **homography** | D8, D8.1, D8.2 | skew 보정 포함 |
 | **homography_zoom** | M3_1, M3_2 | homography + adaptive zoom |
 | **geometry_broken** | D1, D4, D6-* | ⛔ PP 미보정, 사용 금지 |
+| **recentered** | M5, M5h, M5h_1, M5h_2 | re-centered + uniform norm |
 | **deprecated** | M3, M3_norm, D10.3 | fx/PP 버그 |
+
+---
+
+
+## M5 Series: Re-centered + Uniform Normalization (2026-01-28)
+
+| Alias | Base | Zoom | Re-center | 상태 |
+|-------|------|------|-----------|------|
+| **M5** | Affine | 없음 | Yes | Active |
+| **M5h** | Homography | 없음 | Yes | Active |
+| **M5h_1** | Homography | Global [1.0,1.8] | Yes | Active |
+| **M5h_2** ★ | Homography | Per-sample [1.0,1.5] | Yes | **권장** |
+
+**핵심 변경**:
+- Per-view distance norm → Uniform distance norm (baseline 비율 보존)
+- Camera centroid → 원점 (GS-LRM pretrained 호환)
+
+**상세**: [[M5_SERIES_SPEC]]
 
 ---
 
@@ -58,4 +78,4 @@
 
 ---
 
-*VERSION_SCHEMA v2.0 | 2026-01-26 | 중복 제거, 링크 구조화*
+*VERSION_SCHEMA v2.0 | 2026-01-28 | 중복 제거, 링크 구조화*
