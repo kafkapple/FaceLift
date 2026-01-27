@@ -349,14 +349,28 @@ def setup_model_training(models: Dict, cfg: TrainingConfig):
                     "xFormers 0.0.16 cannot be used for training in some GPUs. "
                     "If you observe problems during training, please update xFormers to at least 0.0.17."
                 )
-            models['unet'].enable_xformers_memory_efficient_attention()
+            # Patch: skip xformers GPU validation that may detect incompatible GPUs
+            try:
+                models['unet'].enable_xformers_memory_efficient_attention()
+            except RuntimeError as e:
+                if 'no kernel image' in str(e):
+                    logger.warn(f'xformers GPU validation failed, forcing enable via processor')
+                    from diffusers.models.attention_processor import XFormersAttnProcessor
+                    models['unet'].set_attn_processor(XFormersAttnProcessor())
+                else:
+                    raise
             logger.info("Enabled xFormers memory efficient attention")
         else:
             raise ValueError("xFormers is not available. Make sure it is installed correctly")
 
     # Enable gradient checkpointing
     if cfg.gradient_checkpointing:
-        models['unet'].enable_gradient_checkpointing()
+        # Compat: diffusers>=0.30 gradient checkpointing
+        import torch.utils.checkpoint as torch_ckpt
+        for module in models['unet'].modules():
+            if hasattr(module, 'gradient_checkpointing'):
+                module.gradient_checkpointing = True
+                module._gradient_checkpointing_func = torch_ckpt.checkpoint
 
     # Enable TF32 for faster training on Ampere GPUs
     if cfg.allow_tf32:

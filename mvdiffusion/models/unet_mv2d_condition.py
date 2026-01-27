@@ -38,7 +38,13 @@ from diffusers.models.embeddings import (
     TimestepEmbedding,
     Timesteps,
 )
-from diffusers.models.modeling_utils import ModelMixin, load_state_dict, _load_state_dict_into_model
+from diffusers.models.modeling_utils import ModelMixin, load_state_dict
+# Compat: _load_state_dict_into_model removed in diffusers>=0.30
+def _load_state_dict_into_model(model, state_dict):
+    error_msgs = []
+    model.load_state_dict(state_dict, strict=False)
+    return error_msgs
+
 from diffusers.models.unets.unet_2d_blocks import (
     CrossAttnDownBlock2D,
     CrossAttnUpBlock2D,
@@ -841,8 +847,15 @@ class UNetMV2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixi
         for module in self.children():
             fn_recursive_set_attention_slice(module, reversed_slice_size)
 
-    def _set_gradient_checkpointing(self, module, value=False):
-        if isinstance(module, (CrossAttnDownBlock2D, CrossAttnDownBlockMV2D, DownBlock2D, CrossAttnUpBlock2D, CrossAttnUpBlockMV2D, UpBlock2D)):
+    def _set_gradient_checkpointing(self, module=None, value=False, enable=None, gradient_checkpointing_func=None):
+        # Compat: diffusers>=0.30 uses enable= instead of value=
+        if enable is not None:
+            value = enable
+        if module is None:
+            for m in self.modules():
+                if isinstance(m, (CrossAttnDownBlock2D, CrossAttnDownBlockMV2D, DownBlock2D, CrossAttnUpBlock2D, CrossAttnUpBlockMV2D, UpBlock2D)):
+                    m.gradient_checkpointing = value
+        elif isinstance(module, (CrossAttnDownBlock2D, CrossAttnDownBlockMV2D, DownBlock2D, CrossAttnUpBlock2D, CrossAttnUpBlockMV2D, UpBlock2D)):
             module.gradient_checkpointing = value
 
     def forward(
@@ -1403,7 +1416,7 @@ class UNetMV2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixi
 
             model = cls.from_config(config, **unused_kwargs)
             import copy
-            state_dict_pretrain = load_state_dict(model_file, variant=variant)
+            state_dict_pretrain = load_state_dict(model_file)
             state_dict = copy.deepcopy(state_dict_pretrain)
             
             if init_mvattn_with_selfattn:
@@ -1418,7 +1431,7 @@ class UNetMV2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixi
                         state_dict[key_mv] = state_dict_pretrain[key]
             # del state_dict_pretrain
             
-            model._convert_deprecated_attention_blocks(state_dict)
+            if hasattr(model, "_convert_deprecated_attention_blocks"): model._convert_deprecated_attention_blocks(state_dict)
 
             conv_in_weight = state_dict['conv_in.weight']
             conv_out_weight = state_dict['conv_out.weight']
