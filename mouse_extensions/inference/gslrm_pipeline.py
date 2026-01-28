@@ -123,11 +123,17 @@ class GSLRMInference:
         name: str,
         save_turntable: bool = True,
         save_mesh: bool = True,
+        save_comparison: bool = True,
+        save_turntable_grid: bool = True,
+        save_rrd: bool = True,
+        gt_images: Optional[torch.Tensor] = None,
         turntable_views: int = 120,
         turntable_fps: int = 30,
         image_size: int = 512,
     ) -> Path:
-        """Save inference outputs: PLY, rendered views, turntable video.
+        """Save inference outputs: PLY, rendered views, turntable, grids, RRD.
+
+        All save_* options are True by default for comprehensive output.
 
         Args:
             result: Model output from predict().
@@ -135,6 +141,10 @@ class GSLRMInference:
             name: Sample name (subfolder).
             save_turntable: Generate turntable video.
             save_mesh: Save PLY file.
+            save_comparison: Save GT vs Pred comparison grid.
+            save_turntable_grid: Save multi-elevation turntable grid.
+            save_rrd: Save Rerun .rrd sequence (3D Gaussians + rendered views).
+            gt_images: Input images [B,V,C,H,W] for comparison (auto-extracted if None).
             turntable_views: Number of turntable frames.
             turntable_fps: Video FPS.
             image_size: Rendering resolution.
@@ -159,6 +169,11 @@ class GSLRMInference:
             nearfar_percent=(0.0001, 1.0),
         )
 
+        # Resolve GT images (for comparison/grid)
+        input_images = gt_images
+        if input_images is None and hasattr(result, "input") and result.input is not None:
+            input_images = result.input.get("image", None)
+
         # Save PLY
         if save_mesh:
             ply_path = out / "gaussians.ply"
@@ -166,6 +181,7 @@ class GSLRMInference:
             print(f"  Saved PLY: {ply_path}")
 
         # Save rendered views
+        comp = None
         if result.render is not None:
             comp = result.render[0].detach()
             for i in range(comp.size(0)):
@@ -178,6 +194,19 @@ class GSLRMInference:
                 grid = rearrange(comp, "v c h w -> h (v w) c")
                 grid_np = (grid.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
                 Image.fromarray(grid_np).save(out / "render_grid.png")
+
+        # GT vs Pred comparison grid
+        if save_comparison and comp is not None and input_images is not None:
+            try:
+                from mouse_extensions.visualization.inference_viz import (
+                    save_comparison_grid,
+                )
+                save_comparison_grid(
+                    input_images, comp, str(out / "comparison_grid.png")
+                )
+                print(f"  Saved comparison grid")
+            except Exception as e:
+                print(f"  Warning: comparison grid failed: {e}")
 
         # Turntable video
         if save_turntable:
@@ -195,6 +224,36 @@ class GSLRMInference:
                 print(f"  Saved turntable: {video_path}")
             except Exception as e:
                 print(f"  Warning: turntable failed: {e}")
+
+        # Multi-elevation turntable grid
+        if save_turntable_grid:
+            try:
+                from mouse_extensions.visualization.inference_viz import (
+                    save_multiview_turntable_grid,
+                )
+                save_multiview_turntable_grid(
+                    filtered,
+                    str(out / "turntable_grid.png"),
+                    elevations=[0, 10, 20, 30],
+                    num_azimuth=8,
+                    radius=2.7,
+                    render_res=image_size,
+                    gt_images=input_images,
+                )
+                print(f"  Saved turntable grid")
+            except Exception as e:
+                print(f"  Warning: turntable grid failed: {e}")
+
+        # Rerun .rrd sequence
+        if save_rrd:
+            try:
+                rrd_path = out / "gaussians.rrd"
+                _save_rerun_rrd(
+                    filtered, comp, input_images, str(rrd_path), name
+                )
+                print(f"  Saved RRD: {rrd_path}")
+            except Exception as e:
+                print(f"  Warning: RRD export failed: {e}")
 
         return out
 
@@ -290,3 +349,74 @@ def find_sample_dirs(data_dir: str) -> List[str]:
             elif (item / "images" / "cam_000.png").exists():
                 samples.append(str(item))
     return samples
+
+
+def _save_rerun_rrd(
+    gaussians,
+    pred_images: Optional[torch.Tensor],
+    gt_images: Optional[torch.Tensor],
+    output_path: str,
+    recording_name: str = "gslrm_inference",
+) -> None:
+    """Save 3D Gaussians and rendered views as a Rerun .rrd file.
+
+    Logs:
+        - 3D Gaussian point cloud (positions + colors)
+        - Predicted rendered views (if available)
+        - GT input views (if available)
+
+    Args:
+        gaussians: Filtered GaussianModel with .xyz, .get_opacity, .get_features.
+        pred_images: Predicted views [V, C, H, W] (optional).
+        gt_images: GT input views [B, V, C, H, W] or [V, C, H, W] (optional).
+        output_path: Path to save .rrd file.
+        recording_name: Rerun recording name.
+    """
+    import rerun as rr
+
+    rr.init(recording_name, spawn=False)
+    rr.save(output_path)
+
+    # Log 3D Gaussian point cloud
+    means = gaussians.get_xyz.detach().cpu().numpy()  # [N, 3]
+    opacity = gaussians.get_opacity.detach().cpu().numpy().squeeze(-1)  # [N]
+
+    # Extract colors from SH features (DC component)
+    sh_features = gaussians.get_features  # [N, num_sh, 3]
+    if sh_features is not None:
+        # DC component (index 0), convert SH to RGB
+        dc = sh_features[:, 0, :].detach().cpu().numpy()  # [N, 3]
+        colors_rgb = (0.5 + dc * 0.28209479177387814).clip(0, 1)  # SH C0 = 0.2821
+        colors_u8 = (colors_rgb * 255).clip(0, 255).astype(np.uint8)
+    else:
+        colors_u8 = None
+
+    # Filter by opacity for cleaner visualization
+    vis_mask = opacity > 0.1
+    vis_means = means[vis_mask]
+
+    rr.log(
+        "gaussians/points",
+        rr.Points3D(
+            vis_means,
+            colors=colors_u8[vis_mask] if colors_u8 is not None else None,
+            radii=np.full(vis_means.shape[0], 0.003, dtype=np.float32),
+        ),
+    )
+
+    # Log predicted rendered views
+    if pred_images is not None:
+        for i in range(pred_images.size(0)):
+            img_np = (
+                pred_images[i].permute(1, 2, 0).cpu().numpy() * 255
+            ).clip(0, 255).astype(np.uint8)
+            rr.log(f"renders/pred/view_{i:02d}", rr.Image(img_np))
+
+    # Log GT input views
+    if gt_images is not None:
+        gt = gt_images[0] if gt_images.dim() == 5 else gt_images
+        for i in range(gt.size(0)):
+            img_np = (
+                gt[i].permute(1, 2, 0).cpu().numpy() * 255
+            ).clip(0, 255).astype(np.uint8)
+            rr.log(f"renders/gt/view_{i:02d}", rr.Image(img_np))
