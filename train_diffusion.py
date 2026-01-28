@@ -832,52 +832,81 @@ def log_validation(dataloader, vae, feature_extractor, image_encoder, image_norm
             metrics_txt += f"guidance_scale: {guidance_scale:.1f}\n psnr: {psnr}\nlpips: {lpips}\nssim: {ssim}\n"
 
     # Log images to wandb (first batch only)
-    # Grid structure: Input (repeated) | GT | Pred - stacked vertically
+    # Grid structure: GT vs Pred comparison with input view border
     if accelerator.is_main_process and len(images_cond) > 0:
         logger.info(f"Preparing wandb image logging: images_cond={len(images_cond)}, images_gt={len(images_gt)}, images_pred keys={list(images_pred.keys())}")
         try:
-            # Get input image and repeat to match view count
-            input_img = images_cond[0][0]  # First sample, reference view [C, H, W]
-            h, w = input_img.shape[1], input_img.shape[2]
+            import cv2 as cv
 
-            # Create input row (repeated n_views times)
-            input_repeated = input_img.unsqueeze(0).repeat(cfg.n_views, 1, 1, 1)  # [V, C, H, W]
-            input_row = rearrange(input_repeated, "V C H W -> H (V W) C")
-            input_row_np = (input_row.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+            def _add_border(img_np, color, width=4):
+                """Add colored border to image (H,W,C uint8)."""
+                bordered = img_np.copy()
+                bordered[:width, :] = color
+                bordered[-width:, :] = color
+                bordered[:, :width] = color
+                bordered[:, -width:] = color
+                return bordered
+
+            def _add_label_bar(width, text, font_scale=0.5, text_color=(255,255,255), bg_color=(0,0,0)):
+                """Create a label bar image with centered text."""
+                bar_h = 22
+                bar = np.full((bar_h, width, 3), bg_color, dtype=np.uint8)
+                font = cv.FONT_HERSHEY_SIMPLEX
+                (tw, th), _ = cv.getTextSize(text, font, font_scale, 1)
+                x = (width - tw) // 2
+                y = (bar_h + th) // 2
+                cv.putText(bar, text, (x, y), font, font_scale, text_color, 1, cv.LINE_AA)
+                return bar
+
+            # Reference view index
+            ref_idx = cfg.reference_view_idx if isinstance(cfg.reference_view_idx, int) else 0
+
+            # Get input image
+            input_img = images_cond[0][0]  # First sample, reference view [C, H, W]
 
             # Log input separately
             input_single = (input_img.cpu().numpy().transpose(1, 2, 0) * 255).clip(0, 255).astype(np.uint8)
             wandb_images["samples/input"] = wandb.Image(input_single, caption="Input (Reference View)")
 
+            # Helper: convert views tensor to row with input view green border
+            def _views_to_row(views_tensor, ref_idx):
+                panels = []
+                for v in range(views_tensor.shape[0]):
+                    vp = (views_tensor[v].cpu().numpy().transpose(1, 2, 0) * 255).clip(0, 255).astype(np.uint8)
+                    if v == ref_idx:
+                        vp = _add_border(vp, (0, 255, 0), width=4)
+                    panels.append(vp)
+                return np.concatenate(panels, axis=1)
+
             # Ground truth row
             gt_row_np = None
             if len(images_gt) > 0:
-                gt_views = images_gt[0][:cfg.n_views]  # [V, C, H, W]
-                gt_row = rearrange(gt_views, "V C H W -> H (V W) C")
-                gt_row_np = (gt_row.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-                wandb_images["samples/gt_views"] = wandb.Image(gt_row_np, caption=f"Ground Truth ({cfg.n_views} views)")
+                gt_views = images_gt[0][:cfg.n_views]
+                gt_row_np = _views_to_row(gt_views, ref_idx)
+                wandb_images["samples/gt_views"] = wandb.Image(
+                    gt_row_np, caption=f"GT ({cfg.n_views} views, green=input view {ref_idx})")
 
             # Predictions for each guidance scale
             for guidance_scale in cfg.validation_guidance_scales:
                 key = f"{name}-sample_cfg{guidance_scale:.1f}"
                 if key in images_pred and len(images_pred[key]) > 0:
-                    pred_views = images_pred[key][0][:cfg.n_views]  # [V, C, H, W]
-                    pred_row = rearrange(pred_views, "V C H W -> H (V W) C")
-                    pred_row_np = (pred_row.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                    pred_views = images_pred[key][0][:cfg.n_views]
+                    pred_row_np = _views_to_row(pred_views, ref_idx)
 
-                    # Individual prediction grid
                     wandb_images[f"samples/pred_cfg{guidance_scale:.1f}"] = wandb.Image(
-                        pred_row_np, caption=f"Predicted (guidance={guidance_scale:.1f})"
-                    )
+                        pred_row_np, caption=f"Pred cfg={guidance_scale:.1f} (green=input view {ref_idx})")
 
-                    # Combined comparison grid: Input | GT | Pred (3 rows stacked)
+                    # GT vs Pred: 2-row comparison with label bars
                     if gt_row_np is not None:
-                        # Add row labels (simple approach: stack vertically)
-                        combined_grid = np.concatenate([input_row_np, gt_row_np, pred_row_np], axis=0)
-                        wandb_images[f"comparison/input_gt_pred_cfg{guidance_scale:.1f}"] = wandb.Image(
-                            combined_grid,
-                            caption=f"Row1:Input | Row2:GT | Row3:Pred (cfg={guidance_scale:.1f})"
-                        )
+                        row_w = gt_row_np.shape[1]
+                        gt_bar = _add_label_bar(row_w, f"GT  (green border = input view {ref_idx})",
+                                                text_color=(200, 255, 200))
+                        pred_bar = _add_label_bar(row_w, f"Pred  (cfg={guidance_scale:.1f})",
+                                                  text_color=(200, 200, 255))
+                        comparison = np.concatenate([gt_bar, gt_row_np, pred_bar, pred_row_np], axis=0)
+                        wandb_images[f"comparison/gt_vs_pred_cfg{guidance_scale:.1f}"] = wandb.Image(
+                            comparison,
+                            caption=f"Top: GT | Bottom: Pred (cfg={guidance_scale:.1f}) | Green = input view {ref_idx}")
 
             # Log all images at once
             if wandb_images:
@@ -1078,7 +1107,13 @@ def main(cfg: TrainingConfig):
                 global_step += 1
 
                 # Log training metrics
-                accelerator.log({"train_mse_loss": train_mse_loss}, step=global_step)
+                train_log_dict = {
+                    "train/mse_loss": train_mse_loss,
+                    "train/lr": lr_scheduler.get_last_lr()[0],
+                    "train/epoch": epoch,
+                    "train/global_step": global_step,
+                }
+                accelerator.log(train_log_dict, step=global_step)
                 train_mse_loss = 0.0
 
                 # Save checkpoint
