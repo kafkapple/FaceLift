@@ -1,0 +1,23 @@
+# Dataset: M5_4
+# ABLATION B: centering O (PP=256) + normalization X (raw trans)
+# Generated: 2026-01-28 17:08:07
+
+_name: M5_4
+_description: "ABLATION B: centering O (PP=256) + normalization X (raw trans)"
+_category: recentered_affine
+_preprocessing:
+  paradigm: recentered_affine
+  transform: affine
+  target_fx: 549.0
+  output_size: 512
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5_4/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5_4/data_mouse_val.txt
+
+_stats:
+  num_train: 3240
+  num_val: 360

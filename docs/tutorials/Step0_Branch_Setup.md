@@ -1,3 +1,5 @@
+> **DEPRECATED (2026-01-29)**: This tutorial predates mouse_extensions refactoring. Does not reflect Modular config (-d -e), preset system, or mouse_extensions/ structure.
+
 # Step 0: 원본 Repo 기반 새 브랜치 생성
 
 > 현재 저장소에서 원본 FaceLift main을 받아 새 브랜치로 만들고, 단계별로 mouse 모듈을 추가하는 방법

@@ -1,0 +1,25 @@
+# Dataset: D6-1 (Ablation: No Centering)
+# Normalization O (fx=549, trans=2.7), Centering X (PP variable, ~cx=208, cy=187)
+# Purpose: Test centering contribution by comparing with M5 (centering O)
+
+_name: D6_1
+_description: "No-crop resize + normalization. PP variable (no centering). Ablation for centering contribution."
+_category: no_centering_ablation
+_preprocessing:
+  paradigm: no_crop_resize
+  transform: resize_only
+  target_fx: 549.0
+  output_size: 512
+  centering: false
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/_archive/D6-1/data_mouse_train_fixed.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/_archive/D6-1/data_mouse_val_fixed.txt
+
+_stats:
+  num_train: 3240
+  num_val: 360
+  camera_params: "fx=549, cx=208+-6, cy=187+-15, trans=2.70"

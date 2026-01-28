@@ -1,3 +1,5 @@
+> **DEPRECATED (2026-01-29)**: This tutorial predates mouse_extensions refactoring. Does not reflect Modular config (-d -e), preset system, or mouse_extensions/ structure.
+
 # Step 3: 카메라 정규화 전처리
 
 > 원본 Mouse 데이터를 FaceLift 형식으로 변환하는 전처리 스크립트를 구현합니다.

@@ -1,0 +1,23 @@
+# Dataset: M3_2c
+# M3_2b + re-centered cameras + uniform distance normalization
+# Generated: 2026-01-27 17:23:32
+
+_name: M3_2c
+_description: "M3_2b + re-centered cameras + uniform distance normalization"
+_category: precision_homography
+_preprocessing:
+  paradigm: precision_homography
+  transform: homography
+  target_fx: 548.9937744140625
+  output_size: 512
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_2c_test/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M3_2c_test/data_mouse_val.txt
+
+_stats:
+  num_train: 2
+  num_val: 0

@@ -1,3 +1,5 @@
+> **DEPRECATED (2026-01-29)**: This tutorial predates mouse_extensions refactoring. Does not reflect Modular config (-d -e), preset system, or mouse_extensions/ structure.
+
 # Step 1: Fork & 환경 설정
 
 > 원본 FaceLift 저장소를 fork 하고 개발 환경을 설정합니다.

@@ -1,6 +1,6 @@
 # Raw Data Sources
 
-> **Navigation**: [← Index](./00_INDEX.md) | [MoC](../00_MoC_INDEX.md)
+> **Navigation**: [← Index](../INDEX.md) | [Quick Ref](../MOUSE_QUICK_REFERENCE.md)
 > **SSOT**: 원본 데이터 출처 및 샘플링 전략
 
 ---
@@ -165,9 +165,7 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
 
 ## 7. 관련 문서
 
-- [[CAMERA_CONFIG]] - 6카메라 배치
 - [[PREPROCESSING_REGISTRY]] - 프리셋 정의
-- [[VERSION_SCHEMA]] - 데이터셋 버전
 
 ---
 
@@ -177,7 +175,7 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
 
 # Camera Configuration
 
-> **Navigation**: [← Index](./00_INDEX.md) | [MoC](../00_MoC_INDEX.md)
+> **Navigation**: [← Index](../INDEX.md) | [Quick Ref](../MOUSE_QUICK_REFERENCE.md)
 > **SSOT**: 6카메라 배치 및 View 선택 가이드
 
 ---
@@ -338,8 +336,6 @@ result = estimator.estimate(masks)
 ## 6. 관련 문서
 
 - [[RAW_DATA]] - 원본 데이터 출처
-- [[VERSION_SCHEMA]] - 데이터셋 버전
-- [[../theory/PP_FX_MVG_ANALYSIS]] - MVG 이론
 
 ---
 

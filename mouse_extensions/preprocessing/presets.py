@@ -664,6 +664,42 @@ PRESETS = {
         "active": True,
     },
 
+
+    # ==========================================================================
+    # ABLATION PRESETS: Normalization/Centering Contribution (2026-01-29)
+    # ==========================================================================
+
+    "M5_4": {
+        "paradigm": "recentered_affine",
+        "transform": "affine",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": False,
+        "normalize_translation": False,
+        "recenter_cameras": False,
+        "target_fx": 549.0,
+        "image_size": 512,
+        "description": "ABLATION B: centering O (PP=256) + normalization X (raw trans)",
+        "active": True,
+        "ablation": "no_normalization",
+    },
+
+    "M5_5": {
+        "paradigm": "recentered_affine",
+        "transform": "affine",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": False,
+        "normalize_translation": True,
+        "recenter_cameras": False,
+        "target_distance": 2.7,
+        "target_fx": 549.0,
+        "image_size": 512,
+        "description": "ABLATION E: centering O (PP=256) + per-view norm (each cam=2.7)",
+        "active": True,
+        "ablation": "per_view_normalization",
+    },
+
 }
 
 
@@ -763,4 +799,3 @@ def get_recommended() -> str:
 def get_presets_by_paradigm(paradigm: str) -> list:
     """Get all presets for a given paradigm."""
     return [k for k, v in PRESETS.items() if v.get("paradigm") == paradigm]
-

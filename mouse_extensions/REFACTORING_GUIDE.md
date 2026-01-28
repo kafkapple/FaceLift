@@ -176,3 +176,26 @@ IMPORT PATTERN:
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ```
+
+---
+
+## 6. 원본 수정 파일 목록 (2026-01-29 기준)
+
+| 파일 | 수정 정도 | 내용 |
+|------|----------|------|
+| `gslrm/model/gslrm.py` | Heavy | 6 mouse_extensions imports |
+| `gslrm/model/gaussians_renderer.py` | Heavy | diff_gauss + 446줄 trajectory |
+| `gslrm/data/mouse_dataset.py` | Shim | redirect only |
+| `gslrm/data/dataset.py` | Minor | conditional import |
+| `gslrm/model/transform_data.py` | Minor | conditional import |
+| `gslrm/model/utils_metrics.py` | Minor | conditional import |
+| `gslrm/model/utils_train.py` | Minor | conditional import |
+| `train_gslrm.py` | Minor | 3 conditional imports |
+
+### 커스텀 패키지
+- `diff_gauss 1.0.10.0` — `diff_gaussian_rasterization` 대체 (alpha mask 지원)
+
+### 향후 리팩토링 TODO
+- [ ] `gaussians_renderer.py` trajectory 446줄 → `mouse_extensions/visualization/` 이동
+- [ ] `gslrm.py` 직접 import → plugin/registry 패턴 전환
+- [ ] `reports/` 내 `generate_comprehensive_d8_report.py` 정리 (D8 전용, 범용화 필요)

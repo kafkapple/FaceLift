@@ -1,3 +1,5 @@
+> **DEPRECATED (2026-01-29)**: This tutorial predates mouse_extensions refactoring. Does not reflect Modular config (-d -e), preset system, or mouse_extensions/ structure.
+
 # Step 4: Config 설정
 
 > Mouse 학습을 위한 config 파일을 설정합니다.

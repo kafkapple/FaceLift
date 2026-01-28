@@ -1,6 +1,6 @@
 # Preprocessing Registry (전처리 레지스트리)
 
-> **Navigation**: [← Index](./00_INDEX.md) | [MoC](../00_MoC_INDEX.md)
+> **Navigation**: [← Index](../INDEX.md) | [Quick Ref](../MOUSE_QUICK_REFERENCE.md)
 > **SSOT**: 데이터셋 전처리 설정 중앙 관리
 > **최종 업데이트**: 2026-01-26
 
@@ -131,7 +131,7 @@ if self.normalize_after_zoom and zoom_center_mode != "image":
 
 **재전처리 필요**: M3_1, M3_2 데이터셋 삭제 후 재생성
 
-**상세**: [[../theory/PP_FX_MVG_ANALYSIS#버그-수정]]
+*(이론 상세: 로컬 Obsidian  참조)*
 
 ---
 
@@ -220,12 +220,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 
 | 문서 | 위치 |
 |------|------|
-| Dataset Index | [[./00_INDEX]] |
-| Version Schema | [[./VERSION_SCHEMA]] |
-| M3 Series Spec | [[./M3_SERIES_SPEC]] |
-| Experiment Results | [[./EXPERIMENT_RESULTS]] |
 | Quick Reference | [[../practical/MOUSE_QUICK_REFERENCE]] |
-| PP/MVG Analysis | [[../theory/PP_FX_MVG_ANALYSIS]] |
 
 ---
 

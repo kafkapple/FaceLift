@@ -1,3 +1,5 @@
+> **DEPRECATED (2026-01-29)**: This tutorial predates mouse_extensions refactoring. Does not reflect Modular config (-d -e), preset system, or mouse_extensions/ structure.
+
 # Step 5: 학습 실행
 
 > 설정이 완료된 후 실제 학습을 실행합니다.

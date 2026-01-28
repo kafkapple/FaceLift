@@ -502,7 +502,7 @@ validation:
 | 문서 | 내용 |
 |------|------|
 | [EXPERIMENT_REGISTRY](./EXPERIMENT_REGISTRY.md) | 실험 목록 및 실행 명령어 |
-| [HYPOTHESIS_EXPERIMENT_PLAN](./HYPOTHESIS_EXPERIMENT_PLAN.md) | 가설 검증 계획 |
+| *(가설 실험 계획: EXPERIMENT_REGISTRY에 통합)* | 가설 검증 계획 |
 | [TRAINING_LOGGING_GUIDE](./TRAINING_LOGGING_GUIDE.md) | 학습/로깅 가이드 |
 | [PREPROCESSING_REGISTRY](../datasets/PREPROCESSING_REGISTRY.md) | 전처리 SSOT |
 | [INDEX](../INDEX.md) | 전체 문서 허브 |
