@@ -127,3 +127,40 @@ CUDA_VISIBLE_DEVICES=7 accelerate launch \
 ---
 
 *Quick Reference | 2026-01-28*
+
+
+---
+
+## Quick Start Commands (merged)
+
+> Merged from QUICK_START.md (v7.0, 2026-01-25)
+
+### Background 실행
+
+```bash
+cd /home/joon/dev/FaceLift
+conda activate facelift
+
+CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M3_2 -e E0_1_facelift > logs/M3_2_E0_1.log 2>&1 &
+```
+
+### GPU 사용 (gpu03)
+
+| GPU | Architecture | Available |
+|-----|-------------|-----------|
+| 0-3 | Blackwell | X (PyTorch unsupported) |
+| 4-7 | A6000 | O |
+
+```bash
+nvidia-smi
+ps aux | grep train_gslrm
+```
+
+### 폐기 데이터셋 (사용 금지)
+
+| ID | Issue | Ray Error |
+|----|-------|-----------|
+| ~~M3~~ | fx=739 unnormalized | 6.96 deg |
+| ~~M3_norm~~ | Variable PP | 13.62 deg |
+| ~~M3_persample~~ | Variable PP | 16.15 deg |
