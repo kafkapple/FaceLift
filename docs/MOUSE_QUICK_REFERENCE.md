@@ -1,33 +1,7 @@
+# Mouse Quick Reference
 
----
-
-## Frame Context Inspection Tool
-
-프레임 주변 컨텍스트를 슬로우모션으로 추출하여 검사하는 도구.
-
-### 위치
-`mouse_extensions/scripts/extract_frame_context.py`
-
-### 사용법
-```bash
-# 기본: 3초 전후, 0.25x 속도
-python extract_frame_context.py --video input.mp4 --frames 5900
-
-# 슬로우모션 (10x 느리게)
-python extract_frame_context.py --video input.mp4 --frames 5900,11800 --speed 0.1
-
-# 윈도우 확장 (5초 전후)
-python extract_frame_context.py --video input.mp4 --frames 5900 --window 5.0
-```
-
-### 파라미터
-| 옵션 | 설명 | 기본값 |
-|------|------|--------|
-| `--video, -v` | 입력 비디오 | (필수) |
-| `--frames, -f` | 타겟 프레임 (콤마 구분) | (필수) |
-| `--window, -w` | 전후 윈도우 (초) | 3.0 |
-| `--speed, -s` | 재생 속도 배율 | 0.25 |
-| `--output, -o` | 출력 디렉토리 | 비디오 위치 |
+> 매일 사용하는 명령어, 데이터셋, 실험 설정 빠른 참조
+> Last updated: 2026-01-28
 
 ---
 
@@ -51,66 +25,17 @@ DISCONTINUITY_FRAMES = {5900, 11800, 17700}
 
 ---
 
-## 실험 명령어 Quick Reference
-
-### 전처리 (Preprocessing)
-
-```bash
-cd /home/joon/dev/FaceLift
-
-# 권장: M3_2
-python -m mouse_extensions.preprocessing.preprocess \
-    --preset M3_2 \
-    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
-
-# H2 실험용
-python -m mouse_extensions.preprocessing.preprocess --preset M3_2b ...
-python -m mouse_extensions.preprocessing.preprocess --preset M3_3 ...
-
-# H1 실험용
-python -m mouse_extensions.preprocessing.preprocess --preset M4 ...
-```
-
-### 학습 (Training)
-
-```bash
-cd /home/joon/dev/FaceLift
-
-# 기본 (권장)
-CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_2 -e E1_2_alpha
-
-# 가설 검증
-CUDA_VISIBLE_DEVICES=1 torchrun ... -d M3_2b -e E1_2_alpha  # H2 baseline
-CUDA_VISIBLE_DEVICES=2 torchrun ... -d M3_3 -e E1_2_alpha   # H2 test
-CUDA_VISIBLE_DEVICES=3 torchrun ... -d M4 -e E1_2_alpha     # H1 test
-```
-
-### 검증 (Validation)
-
-```bash
-# PP/MVG 일관성 검증
-python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
-    --datasets M3_2 --verbose
-
-# 클리핑 분석
-python mouse_extensions/scripts/analysis/clipping_analyzer.py \
-    /home/joon/data/preprocessed/FaceLift_mouse/M3_2 -r 50 -m 10
-```
-
----
-
 ## 데이터셋 요약
 
 | Preset | PP | fx | zoom_range | 용도 |
 |--------|-----|-----|------------|------|
 | D7.1 (M1) | 256 | 549 | - | 기준선 |
 | D8 (M2) | 256 | 549 | - | 정밀 기준선 |
-| **M3_2** | 256 | 549 | [1.0,1.8] | ⭐ **권장** |
+| **M3_2** | 256 | 549 | [1.0,1.8] | 이전 권장 |
 | M3_2b | 256 | 549 | [1.0,1.5] | H2 baseline |
 | M3_3 | 256 | 549 | [1.0,2.5] | H2 test |
 | M4 | 가변 | 549 | [1.0,2.5] | H1 test |
+| **M5** | 256 | 549 | - | ⭐ **현재 권장** (Affine, 512x512) |
 
 ---
 
@@ -123,6 +48,53 @@ python mouse_extensions/scripts/analysis/clipping_analyzer.py \
 | E1_3_lgm | gt | 1.0 | 강한 alpha |
 | E2_1_alpha | none | 0.1 | alpha만 |
 
+---
+
+## 전처리 명령어
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# 권장: M5
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M5 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M5
+
+# 기타 프리셋
+python -m mouse_extensions.preprocessing.preprocess --preset M3_2 ...
+python -m mouse_extensions.preprocessing.preprocess --preset M4 ...
+```
+
+---
+
+## 학습 명령어
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# Modular mode (권장) - M5 + E1_2_alpha
+CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M5 -e E1_2_alpha
+
+# Legacy mode
+CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py --config configs/mouse/M5_E1_2_alpha.yaml
+```
+
+---
+
+## 검증 명령어
+
+```bash
+# PP/MVG 일관성 검증
+python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
+    --datasets M5 --verbose
+
+# 클리핑 분석
+python mouse_extensions/scripts/analysis/clipping_analyzer.py \
+    /home/joon/data/preprocessed/FaceLift_mouse/M5 -r 50 -m 10
+```
 
 ---
 
@@ -141,10 +113,17 @@ GS-LRM과 동일한 전처리 데이터(M5)로 finetune하여 카메라 파라�
 ### 실행 명령어
 ```bash
 cd /home/joon/dev/FaceLift
-CUDA_VISIBLE_DEVICES=7 accelerate launch     --config_file mvdiffusion/node_config/1gpu.yaml     train_diffusion.py     --config configs/mvdiffusion/mouse_mvdiffusion_M5.yaml
+CUDA_VISIBLE_DEVICES=7 accelerate launch \
+    --config_file mvdiffusion/node_config/1gpu.yaml \
+    train_diffusion.py \
+    --config configs/mvdiffusion/mouse_mvdiffusion_M5.yaml
 ```
 
 ### WandB
-- Project: `mouse_facelift`
+- Project: `FaceLift-Mouse`
 - Exp: `mvdiff_M5_finetune`
 - Group: `mvdiffusion`
+
+---
+
+*Quick Reference | 2026-01-28*

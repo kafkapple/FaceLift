@@ -14,7 +14,7 @@
 
 ---
 
-## Architecture (4)
+## Architecture (5)
 
 | 문서 | 내용 |
 |------|------|
@@ -40,13 +40,14 @@
 
 ---
 
-## Datasets (9 + presets/6)
+## Datasets (10 + presets/6)
 
 | 문서 | 내용 |
 |------|------|
-| [[PREPROCESSING_REGISTRY]] | ⭐ 전처리 SSOT (D0~M3) |
+| [[PREPROCESSING_REGISTRY]] | ⭐ 전처리 SSOT (D0~M5) |
 | [[DATASET_MASTER_REFERENCE]] | 데이터셋 마스터 참조 |
 | [[M3_SERIES_SPEC]] | M3 시리즈 상세 스펙 |
+| [[M5_MIGRATION_GUIDE]] | ⭐ M3→M5 마이그레이션 가이드 |
 | [[RAW_DATA]] | 원본 데이터 정보 |
 | [[VERSION_SCHEMA]] | 버전 스키마 규칙 |
 
@@ -54,15 +55,14 @@
 
 ---
 
-## Experiments (7)
+## Experiments (6)
 
 | 문서 | 내용 |
 |------|------|
 | [[EXPERIMENT_QUICKSTART]] | 실험 빠른 시작 |
 | [[EXPERIMENT_REGISTRY]] | 실험 이력 |
-| [[EXPERIMENT_SCHEMA]] | 실험 스키마 |
-| [[CONFIG_SCHEMA]] | Config 구조 |
-| [[CONFIG_MODULAR]] | Modular config 시스템 |
+| [[EXPERIMENT_CONFIG_GUIDE]] | ⭐ Config 통합 가이드 (Modular + Schema + Naming) |
+| [[MVDIFFUSION_FINETUNE_GUIDE]] | MVDiffusion M5 finetune 가이드 |
 | [[TRAINING_LOGGING_GUIDE]] | WandB 로깅 가이드 |
 | [[VISUALIZATION_SETTINGS]] | 시각화 설정 |
 
@@ -78,18 +78,16 @@
 
 ---
 
-## Reports (4)
+## Reports (2 active + archive)
 
 | 문서 | 내용 |
 |------|------|
-| 260123_Gaussian_Rendering_Clamping_Analysis | 렌더링 클램핑 분석 |
-| 260123_Temporal_Turntable_Debug | Turntable 디버깅 |
-| Camera_Preprocessing_Analysis_Report | 카메라 전처리 분석 |
-| preprocessing_comparison_D6_D7_report | D6/D7 비교 리포트 |
+| [[260123_Research_Note]] | Rendering Clamping + Turntable Debug |
+| [[Camera_Preprocessing_Analysis_Report]] | 카메라 전처리 분석 |
 
 ---
 
-## Tutorials (7)
+## Tutorials (8)
 
 | 문서 | 내용 |
 |------|------|
@@ -100,6 +98,7 @@
 | Step4_Config_Setup | Config 설정 |
 | Step5_Training | 학습 실행 |
 | VSCode_Debug_Mask_Guide | VSCode 디버깅 |
+| [[TOOLS_REFERENCE]] | 진단/분석 도구 가이드 |
 
 ---
 
@@ -110,5 +109,5 @@
 
 ---
 
-*FaceLift Mouse Documentation | Last updated: 2026-01-27*
-*Total active docs: ~43 files (from 167)*
+*FaceLift Mouse Documentation | Last updated: 2026-01-28*
+*Total active docs: ~45 files*
