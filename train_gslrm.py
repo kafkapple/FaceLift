@@ -67,6 +67,7 @@ from rich import print
 
 # Local imports
 from gslrm.model.utils_train import (
+    checkpoint_best,
     checkpoint_job, 
     get_job_overview, 
     resume_job,
@@ -1168,6 +1169,13 @@ class GSLRMTrainer:
                         wandb_log_val_metrics[f"val_view/view{view_idx}_lpips"] = lpips
                         wandb_log_val_metrics[f"val_view/view{view_idx}_ssim"] = ssim
                 
+                # Save best checkpoint by val/psnr
+                checkpoint_best(
+                    self.config.training.checkpointing.checkpoint_dir,
+                    self.model, self.optimizer, self.lr_scheduler,
+                    self.fwdbwd_pass_step, self.param_update_step,
+                    metric_value=avg_psnr, metric_name="psnr"
+                )
                 wandb.log(wandb_log_val_metrics, step=self.fwdbwd_pass_step)
 
                 # Log validation images to WandB

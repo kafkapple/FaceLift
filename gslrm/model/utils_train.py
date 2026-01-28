@@ -73,7 +73,7 @@ def configure_lr_scheduler(optimizer, total_train_steps, warm_up_steps, schedule
     return schedulers[scheduler_type]()
 
 
-def checkpoint_job(out_dir, model, optimizer, lr_scheduler, fwdbwd_pass_step, param_update_step, keep_last_n=3):
+def checkpoint_job(out_dir, model, optimizer, lr_scheduler, fwdbwd_pass_step, param_update_step, keep_last_n=1):
     """Save model and optimizer states, keeping only the last N checkpoints."""
     if isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
         model = model.module
@@ -204,3 +204,39 @@ def get_job_overview(num_gpus, num_epochs, num_train_samples, batch_size_per_gpu
         num_epochs=num_epochs,
     )
 
+
+
+def checkpoint_best(out_dir, model, optimizer, lr_scheduler,
+                    fwdbwd_pass_step, param_update_step,
+                    metric_value, metric_name="psnr"):
+    """Save checkpoint if metric improves. Returns True if saved."""
+    import json
+
+    best_path = os.path.join(out_dir, f"best_{metric_name}.pt")
+    best_meta_path = os.path.join(out_dir, f"best_{metric_name}.json")
+
+    # Check if this is the best so far
+    should_save = True
+    if os.path.exists(best_meta_path):
+        with open(best_meta_path) as f:
+            prev = json.load(f)
+        if metric_value <= prev["value"]:
+            should_save = False
+
+    if should_save:
+        model_to_save = model.module if isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel) else model
+        torch.save({
+            "model": model_to_save.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "lr_scheduler": lr_scheduler.state_dict(),
+            "fwdbwd_pass_step": fwdbwd_pass_step,
+            "param_update_step": param_update_step,
+        }, best_path)
+
+        with open(best_meta_path, "w") as f:
+            json.dump({"value": metric_value, "step": fwdbwd_pass_step,
+                       "metric": metric_name}, f, indent=2)
+
+        print(f"New best {metric_name}: {metric_value:.4f} at step {fwdbwd_pass_step}")
+        return True
+    return False
