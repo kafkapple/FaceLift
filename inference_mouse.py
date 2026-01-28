@@ -15,6 +15,9 @@
 # limitations under the License.
 
 """
+# DEPRECATED: Use mouse_extensions.inference module instead.
+# See: mouse_extensions/inference/end_to_end.py
+
 Mouse-FaceLift Inference Script
 
 Complete inference pipeline for mouse 3D reconstruction:
