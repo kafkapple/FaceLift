@@ -231,16 +231,19 @@ class GSLRMInference:
                 from mouse_extensions.visualization.inference_viz import (
                     save_multiview_turntable_grid,
                 )
+                # num_azimuth=6 to match GT view count (6 views), no zero-padding
+                # Row 0: GT input views (6)
+                # Row 1-3: turntable renders at elevation 0°, 15°, 30° (6 azimuths each)
                 save_multiview_turntable_grid(
                     filtered,
                     str(out / "turntable_grid.png"),
-                    elevations=[0, 10, 20, 30],
-                    num_azimuth=8,
+                    elevations=[0, 15, 30],
+                    num_azimuth=6,
                     radius=2.7,
                     render_res=image_size,
                     gt_images=input_images,
                 )
-                print(f"  Saved turntable grid")
+                print(f"  Saved turntable grid (GT + 3 elevations × 6 azimuths)")
             except Exception as e:
                 print(f"  Warning: turntable grid failed: {e}")
 

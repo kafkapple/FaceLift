@@ -2,7 +2,7 @@
 """CLI entry point for end-to-end Mouse-FaceLift inference.
 
 Usage:
-    # Single image → 6 views → 3D (full pipeline)
+    # Single image -> 6 views -> 3D (full pipeline, M5 default cameras)
     python -m mouse_extensions.scripts.inference.run_e2e_inference \
         --input_image input.png \
         --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5/checkpoint-3500 \
@@ -10,7 +10,13 @@ Usage:
         --gslrm_config configs/base/gslrm_mouse.yaml \
         --output_dir outputs/e2e_test
 
-    # 6-view folder → 3D (GS-LRM only)
+    # Custom camera setup
+    python -m mouse_extensions.scripts.inference.run_e2e_inference \
+        --input_image input.png \
+        --camera_json /path/to/opencv_cameras.json \
+        ...
+
+    # 6-view folder -> 3D (GS-LRM only, cameras from sample's json)
     python -m mouse_extensions.scripts.inference.run_e2e_inference \
         --sample_dir /path/to/sample/000531 \
         --gslrm_checkpoint checkpoints/gslrm/M5_E0_1_facelift \
@@ -47,6 +53,10 @@ def main():
     parser.add_argument("--prompt_embed_path", type=str, default=None)
     parser.add_argument("--prefer_ema", action="store_true", default=True)
 
+    # Camera
+    parser.add_argument("--camera_json", type=str, default=None,
+                        help="Camera params JSON for E2E mode. Default: M5 fixed cameras.")
+
     # Output
     parser.add_argument("--output_dir", type=str, default="outputs/e2e_inference")
     parser.add_argument("--no_turntable", action="store_true")
@@ -81,10 +91,10 @@ def main():
         device=args.device,
         image_size=args.image_size,
         prefer_ema=args.prefer_ema,
+        camera_json=args.camera_json,
     )
 
     if args.input_image:
-        # Full E2E: single image → 6 views → 3D
         out = pipeline.run(
             args.input_image,
             args.output_dir,
@@ -98,7 +108,6 @@ def main():
         print(f"\nDone! Output: {out}")
 
     elif args.sample_dir:
-        # GS-LRM only from 6-view folder
         out = pipeline.run_from_views(
             args.sample_dir,
             args.output_dir,
@@ -109,7 +118,6 @@ def main():
         print(f"\nDone! Output: {out}")
 
     elif args.data_dir:
-        # Batch mode
         samples = find_sample_dirs(args.data_dir)
         print(f"Found {len(samples)} samples in {args.data_dir}")
         for sample_dir in samples:

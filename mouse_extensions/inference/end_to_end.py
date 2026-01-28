@@ -1,4 +1,4 @@
-"""End-to-end inference: single image → 6 views → 3D Gaussians.
+"""End-to-end inference: single image -> 6 views -> 3D Gaussians.
 
 Chains MVDiffusionInference and GSLRMInference into one pipeline.
 """
@@ -30,6 +30,7 @@ class EndToEndPipeline:
         device: str = "cuda",
         image_size: int = 512,
         prefer_ema: bool = True,
+        camera_json: Optional[str] = None,
     ):
         """Initialize both pipelines.
 
@@ -42,9 +43,12 @@ class EndToEndPipeline:
             device: Torch device.
             image_size: Image resolution.
             prefer_ema: Use EMA UNet weights if available.
+            camera_json: Path to opencv_cameras.json for E2E camera params.
+                         If None, uses M5 default cameras.
         """
         self.device = device
         self.image_size = image_size
+        self.camera_json = camera_json
 
         # Always load GS-LRM
         print("=== Loading GS-LRM ===")
@@ -79,7 +83,7 @@ class EndToEndPipeline:
         save_mesh: bool = True,
         turntable_views: int = 120,
     ) -> Path:
-        """Run full pipeline: single image → 6 views → 3D → save.
+        """Run full pipeline: single image -> 6 views -> 3D -> save.
 
         Args:
             input_image: Path to single input image.
@@ -122,9 +126,10 @@ class EndToEndPipeline:
         print(f"  Saved views to {views_dir}")
 
         # Step 2: GS-LRM reconstruction
+        # Use actual training camera parameters (from camera_json or M5 default)
         print("[2/2] Running GS-LRM reconstruction...")
         c2ws, fxfycxcys = MVDiffusionInference.compute_cameras(
-            self.image_size, self.device
+            self.image_size, self.device, camera_json=self.camera_json
         )
 
         images = views.unsqueeze(0)  # [1, 6, C, H, W]
@@ -158,6 +163,8 @@ class EndToEndPipeline:
         turntable_views: int = 120,
     ) -> Path:
         """Run GS-LRM only from a 6-view sample directory.
+
+        Uses camera parameters from the sample's opencv_cameras.json.
 
         Args:
             sample_dir: Directory with images/ and opencv_cameras.json.

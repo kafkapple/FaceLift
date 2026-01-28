@@ -3,6 +3,7 @@
 Loads a fine-tuned MVDiffusion model and generates 6 views from a single input image.
 """
 
+import json
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -12,13 +13,66 @@ import torchvision.transforms.functional as TF
 from PIL import Image
 
 
-# Camera configuration: 6 views evenly spaced in azimuth
-MVDIFFUSION_AZIMUTHS = [0, 60, 120, 180, 240, 300]
-MVDIFFUSION_ELEVATION = 0
+# ---------------------------------------------------------------------------
+# Default camera configuration: M5 fixed 6-camera rig
+# ---------------------------------------------------------------------------
+# These are the actual calibrated camera poses from the M5 preprocessed
+# dataset. All M5 frames share identical extrinsics (6 fixed cameras).
+#
+# Camera layout (non-uniform elevation, non-uniform azimuth):
+#   Cam 0: elev=-34.5 deg, azim=-99.6 deg, dist=2.799
+#   Cam 1: elev=+32.0 deg, azim=+81.6 deg, dist=2.739
+#   Cam 2: elev=+80.6 deg, azim=-135.2 deg, dist=2.706  (near top-down)
+#   Cam 3: elev=-23.3 deg, azim=+99.3 deg, dist=2.593
+#   Cam 4: elev=+21.6 deg, azim=-83.1 deg, dist=2.757
+#   Cam 5: elev=-75.6 deg, azim=+48.0 deg, dist=2.607   (near bottom-up)
+#
+# Intrinsics: fx=fy=549.0, cx=cy=256.0 (at 512x512)
+_DEFAULT_CAMERA_JSON = Path(__file__).parent / "cameras" / "m5_cameras.json"
+
+
+def _load_cameras_from_json(
+    camera_json_path: str,
+    image_size: int = 512,
+    device: str = "cuda",
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Load camera parameters from an opencv_cameras.json file.
+
+    Args:
+        camera_json_path: Path to opencv_cameras.json.
+        image_size: Target image resolution (for intrinsics scaling).
+        device: Torch device.
+
+    Returns:
+        (c2w [V, 4, 4], fxfycxcy [V, 4])
+    """
+    with open(camera_json_path, "r") as f:
+        camera_data = json.load(f)
+
+    frames = camera_data["frames"]
+    c2ws = []
+    fxfycxcys = []
+
+    for frame in frames:
+        w2c = np.array(frame["w2c"])
+        c2ws.append(np.linalg.inv(w2c))
+
+        scale = image_size / frame.get("w", image_size)
+        fxfycxcys.append([
+            frame["fx"] * scale,
+            frame["fy"] * scale,
+            frame["cx"] * scale,
+            frame["cy"] * scale,
+        ])
+
+    c2ws_t = torch.from_numpy(np.array(c2ws)).float().to(device)
+    fxfycxcys_t = torch.tensor(fxfycxcys, dtype=torch.float32).to(device)
+
+    return c2ws_t, fxfycxcys_t
 
 
 class MVDiffusionInference:
-    """MVDiffusion pipeline: single image → 6 multi-view images."""
+    """MVDiffusion pipeline: single image -> 6 multi-view images."""
 
     def __init__(
         self,
@@ -164,46 +218,21 @@ class MVDiffusionInference:
     def compute_cameras(
         image_size: int = 512,
         device: str = "cuda",
-        camera_distance: float = 2.7,
+        camera_json: Optional[str] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Compute fixed camera parameters for MVDiffusion 6-view layout.
+        """Return camera parameters for GS-LRM reconstruction.
+
+        Default: loads the M5 fixed 6-camera rig from
+        ``mouse_extensions/inference/cameras/m5_cameras.json``.
+        Override with ``camera_json`` for other camera setups.
+
+        Args:
+            image_size: Image resolution (intrinsics scale with this).
+            device: Torch device.
+            camera_json: Path to opencv_cameras.json. If None, uses M5 default.
 
         Returns:
             (c2w [6, 4, 4], fxfycxcy [6, 4])
         """
-        fov = 50.0
-        focal = image_size / (2 * np.tan(np.radians(fov / 2)))
-        cx = cy = image_size / 2
-
-        c2ws = []
-        fxfycxcys = []
-
-        for azim in MVDIFFUSION_AZIMUTHS:
-            azim_rad = np.radians(azim)
-            elev_rad = np.radians(MVDIFFUSION_ELEVATION)
-
-            x = camera_distance * np.cos(elev_rad) * np.sin(azim_rad)
-            y = camera_distance * np.sin(elev_rad)
-            z = camera_distance * np.cos(elev_rad) * np.cos(azim_rad)
-
-            cam_pos = np.array([x, y, z])
-            forward = -cam_pos / np.linalg.norm(cam_pos)
-            right = np.cross(np.array([0, 1, 0]), forward)
-            if np.linalg.norm(right) < 1e-6:
-                right = np.array([1, 0, 0])
-            right /= np.linalg.norm(right)
-            up = np.cross(forward, right)
-
-            c2w = np.eye(4)
-            c2w[:3, 0] = right
-            c2w[:3, 1] = up
-            c2w[:3, 2] = -forward  # OpenGL convention
-            c2w[:3, 3] = cam_pos
-
-            c2ws.append(c2w)
-            fxfycxcys.append([focal, focal, cx, cy])
-
-        c2ws = torch.from_numpy(np.array(c2ws)).float().to(device)
-        fxfycxcys = torch.from_numpy(np.array(fxfycxcys)).float().to(device)
-
-        return c2ws, fxfycxcys
+        json_path = camera_json or str(_DEFAULT_CAMERA_JSON)
+        return _load_cameras_from_json(json_path, image_size, device)
