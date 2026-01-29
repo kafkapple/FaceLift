@@ -59,6 +59,43 @@
 | **M3_1** | M3_1 | homography_zoom | 256 | 549 | ✅ MVG-correct |
 | **M3_2** | M3_2 | homography_zoom | 256 | 549 | ✅ |
 
+### 2.4 Zoom 전처리 (Adaptive Zoom)
+
+#### Zoom Variants
+
+| Preset | Transform | Zoom Scope | 설명 | 상태 |
+|--------|-----------|------------|------|------|
+| **M3_1** | Homography | Global | 전체 데이터 동일 zoom factor | ✅ |
+| **M5h_1** | Homography | Global | M5 + global zoom | ✅ |
+| **M5h_2** | Homography | Per-sample | **M5 + 샘플별 adaptive zoom** | ⭐ **권장** |
+
+#### M5 (Affine) + Zoom이 없는 이유
+
+**기술적 제약 아님, 설계 선택:**
+
+| 측면 | 설명 |
+|------|------|
+| **코드 구조** | Zoom은 transform과 독립적 → 기술적으로 affine+zoom 가능 |
+| **Ablation 목적** | M5는 최소 baseline (affine, no zoom) |
+| **Zoom 시 정밀도** | Zoom은 기하학 오차를 증폭시킴 |
+| **Skew 보정** | Affine은 skew 무시 (fx/fy 0.46% 차이) |
+
+**이론적 근거:**
+
+
+**권장 경로:**
+- Zoom 불필요 시: **M5** (affine baseline)
+- Zoom 필요 시: **M5h_2** (homography + per-sample zoom)
+
+### 2.5 데이터셋 분류 요약
+
+| 분류 | 데이터셋 | 용도 |
+|------|----------|------|
+| **기준선** | M5 | Ablation 비교 기준 |
+| **Ablation** | M5_4, M5_5, M0, M0_n | 가설 검증 실험 |
+| **비교용** | **M5t** | Pose Splatter 공정 비교 (1:1:1) |
+| **확장 (선택)** | M5h, M5h_1, M5h_2 | Ablation 후 최적 조합에 적용 |
+
 ---
 
 ## 3. 카메라 정규화 모드 (중요!)
