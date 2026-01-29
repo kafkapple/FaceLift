@@ -130,7 +130,7 @@ cd /home/joon/dev/FaceLift
 # M5t (Pose Splatter 비교) - Background with log
 CUDA_VISIBLE_DEVICES=4 nohup accelerate launch \
     --mixed_precision=fp16 \
-    train_mvdiffusion.py \
+    train_diffusion.py \
     --config configs/mvdiffusion/mouse_mvdiffusion_M5t.yaml \
     > logs/mvdiff_M5t.log 2>&1 &
 
