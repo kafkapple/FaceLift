@@ -49,6 +49,7 @@ class MVDiffusionModule:
         num_steps: int = 50,
         guidance_scale: float = 3.0,
         seed: int = 42,
+        image_size: int = 512,
     ) -> list[Image.Image]:
         """Generate 6 views from single image.
         
@@ -57,6 +58,7 @@ class MVDiffusionModule:
             num_steps: Diffusion steps
             guidance_scale: CFG scale
             seed: Random seed
+            image_size: Output resolution
             
         Returns:
             List of 6 PIL Images
@@ -64,17 +66,29 @@ class MVDiffusionModule:
         self.load()
 
         # Convert to PIL if needed
-        if isinstance(image, (str, Path)):
-            image = Image.open(image).convert("RGB")
-        elif isinstance(image, np.ndarray):
+        if isinstance(image, np.ndarray):
             image = Image.fromarray(image)
+        elif isinstance(image, (str, Path)):
+            image = Image.open(image).convert("RGB")
 
-        return self.pipeline.generate(
-            image,
+        # Generate views - returns tensor [6, C, H, W] in [0, 1]
+        views_tensor = self.pipeline.generate_views(
+            input_image=image,
+            image_size=image_size,
             num_steps=num_steps,
             guidance_scale=guidance_scale,
             seed=seed,
         )
+
+        # Convert tensor to list of PIL Images
+        views = []
+        for i in range(views_tensor.shape[0]):
+            # [C, H, W] -> [H, W, C], scale to 0-255
+            img_np = views_tensor[i].permute(1, 2, 0).cpu().numpy()
+            img_np = (img_np * 255).clip(0, 255).astype(np.uint8)
+            views.append(Image.fromarray(img_np))
+
+        return views
 
     def unload(self):
         """Free GPU memory."""
