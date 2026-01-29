@@ -305,4 +305,138 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_tempo
 
 ---
 
-*FaceLift E2E Inference Guide v1.1 | 2026-01-29*
+*FaceLift E2E Inference Guide v1.2 | 2026-01-29*
+
+---
+
+## 11. Gaussian Export & Rerun 지원 (v1.2 추가)
+
+### 11.1 새로운 Export 옵션
+
+| 옵션 | 설명 | 기본값 |
+|------|------|--------|
+| `--save_gaussian` | Gaussian .ply/.npz 파일 저장 | False |
+| `--save_rerun` | Rerun .rrd 파일 저장 (인터랙티브 3D 뷰어) | False |
+| `--save_first_only` | 첫 프레임만 export (빠른 테스트) | False |
+| `--rotation_speed` | 회전 속도 (0.5=절반, 1.0=정상) | **0.5** |
+
+### 11.2 회전 속도 조절
+
+기본값 `--rotation_speed 0.5`로 절반 속도 (프레임 2배 보간):
+
+```bash
+# 절반 속도 (기본값 - 권장)
+--rotation_speed 0.5   # 36 views → 72 frames
+
+# 정상 속도
+--rotation_speed 1.0   # 36 views → 36 frames
+
+# 1/4 속도 (느리게)
+--rotation_speed 0.25  # 36 views → 144 frames
+```
+
+### 11.3 Gaussian 파일 저장
+
+```bash
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5_E0_1_facelift \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 10 \
+    --save_gaussian \
+    --output_dir outputs/with_gaussians
+```
+
+**출력 구조**:
+```
+outputs/with_gaussians/
+├── gaussians/
+│   ├── frame_000000.ply    # GS Viewer 호환
+│   ├── frame_000000.npz    # Lightweight (Rerun용)
+│   ├── frame_000001.ply
+│   └── ...
+├── turntable_first.mp4
+└── ...
+```
+
+### 11.4 Rerun 인터랙티브 뷰어
+
+```bash
+# Rerun .rrd 파일 생성
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5_E0_1_facelift \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 10 \
+    --save_gaussian --save_rerun \
+    --output_dir outputs/with_rerun
+
+# Rerun 뷰어로 열기
+rerun outputs/with_rerun/rerun/sequence.rrd
+
+# 웹 뷰어 (SSH 환경)
+rerun --web-viewer outputs/with_rerun/rerun/sequence.rrd
+```
+
+**Rerun 기능**:
+- 3D 포인트 클라우드 시각화
+- 타임라인으로 프레임 간 이동
+- 색상/투명도 별도 레이어
+- 마우스로 회전/줌/팬
+
+### 11.5 빠른 첫 프레임 테스트
+
+```bash
+# 첫 프레임만 Gaussian/Rerun 저장 (빠름)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5_E0_1_facelift \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 100 \
+    --save_gaussian --save_rerun --save_first_only \
+    --output_dir outputs/first_frame_test
+```
+
+### 11.6 전체 옵션 예제
+
+```bash
+# 모든 기능 활성화
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5_E0_1_facelift \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 100 \
+    --num_views 36 \
+    --resolution 384 \
+    --fps 24 \
+    --rotation_speed 0.5 \
+    --fixed_angles 0 90 180 270 \
+    --save_gaussian \
+    --save_rerun \
+    --output_dir outputs/full_export
+```
+
+### 11.7 업데이트된 출력 구조
+
+```
+outputs/full_export/
+├── turntable_first.mp4         # 첫 프레임 360° (절반 속도)
+├── time_fixed.mp4              # 고정 각도 0°
+├── time_fixed_angle90.mp4      # 고정 각도 90° (지정 시)
+├── time_fixed_angle180.mp4     # 고정 각도 180°
+├── time_fixed_angle270.mp4     # 고정 각도 270°
+├── time_rotating.mp4           # 시간에 따라 회전
+├── full_all.mp4                # 전체 (T×V 프레임)
+├── grid_first.jpg              # 첫 프레임 그리드
+├── grid_6view.mp4              # 입력 6-view 영상
+├── gaussians/                  # Gaussian 파일
+│   ├── frame_000000.ply
+│   ├── frame_000000.npz
+│   └── ...
+└── rerun/                      # Rerun 파일
+    └── sequence.rrd            # 타임라인 시퀀스
+```
+
+---
+
+*Updated: 2026-01-29 | Added Gaussian export & Rerun support*
