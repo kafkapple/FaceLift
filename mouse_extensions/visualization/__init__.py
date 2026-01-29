@@ -7,6 +7,7 @@ Provides:
 - Unified video generation for train/val
 - Error annotation utilities
 - Unified visualization (train/val consistent)
+- Gaussian export (PLY, NPZ, Rerun .rrd)
 """
 
 from .alpha_visualization import (
@@ -31,7 +32,6 @@ from .turntable_config import (
 )
 
 from .video_generator import (
-    # create_dataset_views_video,  # REMOVED
     create_turntable_video,
     create_grid_image,
     VideoGeneratorContext,
@@ -41,6 +41,15 @@ from .video_generator import (
 from .error_annotation import (
     add_error_scale_annotation,
     compute_pred_mask_for_visualization,
+)
+
+from .unified_visualizer import (
+    UnifiedVisualizer,
+    VisualizerConfig,
+    GaussianExporter,
+    RerunExporter,
+    create_visualizer,
+    get_default_config,
 )
 
 __all__ = [
@@ -57,7 +66,6 @@ __all__ = [
     "create_turntable_trajectory",
     "get_grid_row_labels",
     # Video generation (legacy)
-    # "create_dataset_views_video",  # REMOVED
     "create_turntable_video",
     "create_grid_image",
     "VideoGeneratorContext",
@@ -65,7 +73,11 @@ __all__ = [
     # Error annotation
     "add_error_scale_annotation",
     "compute_pred_mask_for_visualization",
-    # Unified visualization (recommended)
-    "TurntableConfig",
-    "create_unified_visualizer",
+    # Unified visualizer (recommended for inference)
+    "UnifiedVisualizer",
+    "VisualizerConfig",
+    "GaussianExporter",
+    "RerunExporter",
+    "create_visualizer",
+    "get_default_config",
 ]
