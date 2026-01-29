@@ -521,3 +521,112 @@ outputs/temporal_M5/
 ---
 
 *Updated: 2026-01-29 | Added grid labels & default output changes (v1.3)*
+
+---
+
+## 13. 추론 경로 및 최신 체크포인트 (v1.4)
+
+### 13.1 최신 권장 체크포인트
+
+| 모델 | 체크포인트 | `--checkpoint` 값 |
+|------|-----------|-------------------|
+| **GS-LRM (M5t)** | `checkpoints/gslrm/M5t_E0_1_facelift/best_psnr.pt` | `M5t_E0_1_facelift` |
+| **MVDiffusion (M5)** | `checkpoints/mvdiffusion/mouse_M5/checkpoint-3500` | (전체 경로 필요) |
+| GS-LRM (pretrained) | `checkpoints/gslrm/ckpt_0000000000021125.pt` | `pretrained` |
+
+### 13.2 두 가지 추론 경로
+
+| 경로 | 입력 | 사용 모델 | 용도 |
+|------|------|----------|------|
+| **Path 1** | 6-view 샘플 | GS-LRM only | 전처리된 데이터셋 평가 |
+| **Path 2** | 1-view 이미지 | MVDiffusion → GS-LRM | 단일 이미지에서 3D 생성 |
+
+### 13.3 Path 1: GS-LRM only (6-view input)
+
+전처리된 6-view 샘플에서 직접 3D 재구성:
+
+```bash
+# 단일 샘플
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --sample_dir /home/joon/data/preprocessed/FaceLift_mouse/M5t/000000 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --output_dir outputs/gslrm_test
+
+# 배치 처리 (모든 샘플)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5t \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --output_dir outputs/batch_test
+```
+
+### 13.4 Path 2: MVDiffusion + GS-LRM (1-view input)
+
+단일 이미지 → MVDiffusion으로 6-view 생성 → GS-LRM으로 3D 재구성:
+
+```bash
+# 외부 이미지 사용
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --input_image /path/to/my_image.png \
+    --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5/checkpoint-3500 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --output_dir outputs/e2e_test
+
+# 샘플의 특정 뷰 사용 (비교 실험용)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --sample_dir /home/joon/data/preprocessed/FaceLift_mouse/M5t/000000 \
+    --input_view_idx 0 \
+    --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5/checkpoint-3500 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --output_dir outputs/e2e_from_view
+```
+
+**`--input_view_idx` 옵션**: 0-5 중 선택, 해당 카메라 뷰를 MVDiffusion 입력으로 사용
+
+### 13.5 체크포인트 자동 탐색
+
+`--gslrm_checkpoint`는 다양한 형식을 지원:
+
+| 형식 | 예시 | 동작 |
+|------|------|------|
+| 실험 이름 | `M5t_E0_1_facelift` | `checkpoints/gslrm/{name}/best_psnr.pt` 탐색 |
+| 키워드 | `pretrained` | 원본 pretrained 체크포인트 |
+| 디렉토리 | `checkpoints/gslrm/M5t_E0_1_facelift/` | best.pt 또는 최신 ckpt 탐색 |
+| 파일 | `path/to/ckpt.pt` | 해당 파일 직접 사용 |
+
+**탐색 우선순위**: `best.pt` > `best_psnr.pt` > 최신 `ckpt_*.pt`
+
+### 13.6 출력 구조
+
+```
+outputs/e2e_test/
+├── cam_000/                     # (Path 2: 입력 뷰 이름)
+│   ├── generated_views/         # MVDiffusion 생성 6-view
+│   │   ├── view_00.png
+│   │   └── ...
+│   ├── gaussians.ply            # 3D Gaussian
+│   ├── gaussians.rrd            # Rerun 뷰어 파일
+│   ├── comparison_grid.jpg      # GT vs Rendered 비교
+│   └── turntable_grid.jpg       # 다각도 렌더링
+│
+└── 000000/                      # (Path 1: 샘플 이름)
+    ├── gaussians.ply
+    ├── gaussians.rrd
+    └── ...
+```
+
+### 13.7 MVDiffusion 생성 옵션
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--num_steps` | 50 | Diffusion 스텝 수 |
+| `--guidance_scale` | 3.0 | Classifier-free guidance 스케일 |
+| `--seed` | 42 | 랜덤 시드 |
+| `--image_size` | 512 | 출력 이미지 해상도 |
+
+---
+
+*Updated: 2026-01-29 | Added inference paths and M5t checkpoint (v1.4)*
