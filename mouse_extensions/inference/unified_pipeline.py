@@ -133,7 +133,7 @@ class UnifiedPipeline:
         if not image_path:
             raise ValueError("input.image_path required for single_image mode")
         
-        image = Image.open(image_path).convert("RGB")
+        image = Image.open(image_path)
         return self._process_with_mvdiffusion(image, "single")
 
     def _run_single_sample(self) -> dict:
@@ -147,7 +147,7 @@ class UnifiedPipeline:
         if view_idx is not None:
             # 1-view mode: use MVDiffusion
             image_path = sample_dir / "images" / f"cam_{view_idx:03d}.png"
-            image = Image.open(image_path).convert("RGB")
+            image = Image.open(image_path)
             return self._process_with_mvdiffusion(image, sample_dir.name)
         else:
             # 6-view mode: use GS-LRM directly
@@ -189,7 +189,7 @@ class UnifiedPipeline:
                     image_path = sample_dir / "images" / f"cam_{view_idx:03d}.png"
                     if not image_path.exists():
                         continue
-                    image = Image.open(image_path).convert("RGB")
+                    image = Image.open(image_path)
                     result = self._process_with_mvdiffusion(
                         image, 
                         sample_dir.name,

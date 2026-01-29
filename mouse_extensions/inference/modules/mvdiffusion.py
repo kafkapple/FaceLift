@@ -69,7 +69,7 @@ class MVDiffusionModule:
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image)
         elif isinstance(image, (str, Path)):
-            image = Image.open(image).convert("RGB")
+            image = Image.open(image)
 
         # Generate views - returns tensor [6, C, H, W] in [0, 1]
         views_tensor = self.pipeline.generate_views(
