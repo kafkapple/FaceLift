@@ -139,7 +139,7 @@ def add_row_labels_to_grid(
     grid_rows: int,
     grid_cols: int,
     row_height: int,
-    label_height: int = 25,
+    label_height: int = 40,
     loop: bool = True
 ) -> np.ndarray:
     """
@@ -185,19 +185,22 @@ def add_row_labels_to_grid(
         if start_seg == end_seg:
             from_cam = full_order[start_seg]
             to_cam = full_order[start_seg + 1]
-            row_labels.append(f"Cam {from_cam} -> {to_cam}")
         else:
             from_cam = full_order[start_seg]
             to_cam = full_order[end_seg + 1]
-            row_labels.append(f"Cam {from_cam} -> {to_cam}")
+        
+        # Calculate angle range for this row
+        start_angle = int((row_start_frame / total_frames) * 360)
+        end_angle = int((row_end_frame / total_frames) * 360)
+        row_labels.append(f"Cam {from_cam} -> {to_cam}  |  {start_angle}° - {end_angle}°")
     
     # Create new image with label bars
     new_height = h + label_height * grid_rows
     result = np.zeros((new_height, w, 3), dtype=np.uint8)
     
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 1.0
-    font_thick = 1
+    font_scale = 1.5  # Larger font for better visibility
+    font_thick = 2
     
     for row_idx in range(grid_rows):
         # Position of this row's label bar

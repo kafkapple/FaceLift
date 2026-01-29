@@ -393,8 +393,8 @@ class ValidationRunner:
         
         if cfg.get("add_row_labels", True):
             cam_order = camera_order if camera_order is not None else cfg.get("camera_order", MOUSE_CAMERA_ORDER)
-            if cfg.get("label_position", "left") == "left":
-                grid = add_left_row_labels(grid, cam_order, rows, cols, h)
+            if cfg.get("label_position", "top") == "top":
+                grid = add_row_labels_to_grid(grid, cam_order, rows, cols, h)
             else:
                 grid = add_row_labels_to_grid(grid, cam_order, rows, cols, h)
         

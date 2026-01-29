@@ -1620,7 +1620,7 @@ class GSLRM(nn.Module):
                 # camera_order already computed above (dynamic)
                 # Filter camera_order to only include valid indices
                 camera_order = [c for c in camera_order if c < num_available_cams]
-                label_position = turntable_cfg.get("label_position", "left")  # "top" or "left"
+                label_position = turntable_cfg.get("label_position", "top")  # "top" or "left"
                 if label_position == "left":
                     turntable_grid = add_left_row_labels(
                         turntable_grid, camera_order, grid_rows, grid_cols, h_img
@@ -1630,7 +1630,7 @@ class GSLRM(nn.Module):
                         turntable_grid, camera_order, grid_rows, grid_cols, h_img
                     )
             # Add angle overlay if enabled (default: True)
-            if turntable_cfg.get("add_angle_overlay", True):
+            if turntable_cfg.get("add_angle_overlay", False):  # Disabled: angles shown in row labels
                 turntable_grid = add_angle_overlay_to_grid(
                     turntable_grid, grid_rows, grid_cols
                 )
