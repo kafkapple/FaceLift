@@ -101,6 +101,9 @@ training:
     max_fwdbwd_passes: 15000
     warmup: 500
     l2_warmup_steps: 500
+    # Early stopping: stop if val/psnr doesn't improve for N validations
+    # With val_every=200, patience=10 means ~2000 steps without improvement
+    early_stop_patience: 10
 
   # Checkpointing defaults (paths auto-generated)
   checkpointing:

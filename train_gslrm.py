@@ -100,6 +100,11 @@ class GSLRMTrainer:
         self.val_dataloader = None
         # Initialize test dataloader (for temporal split datasets)
         self.test_dataloader = None
+        
+        # Early stopping state
+        self.best_val_psnr = 0.0
+        self.patience_counter = 0
+        self.early_stopped = False
 
         
     def setup_distributed(self):
@@ -1219,13 +1224,27 @@ class GSLRMTrainer:
                         wandb_log_val_metrics[f"val_view/view{view_idx}_lpips"] = lpips
                         wandb_log_val_metrics[f"val_view/view{view_idx}_ssim"] = ssim
                 
-                # Save best checkpoint by val/psnr
-                checkpoint_best(
+                # Save best checkpoint by val/psnr and track early stopping
+                is_best = checkpoint_best(
                     self.config.training.checkpointing.checkpoint_dir,
                     self.model, self.optimizer, self.lr_scheduler,
                     self.fwdbwd_pass_step, self.param_update_step,
                     metric_value=avg_psnr, metric_name="psnr"
                 )
+                
+                # Early stopping logic
+                patience = self.config.training.schedule.get("early_stop_patience", 0)
+                if patience > 0:
+                    if is_best:
+                        self.best_val_psnr = avg_psnr
+                        self.patience_counter = 0
+                        print_rank0(f"[EarlyStopping] New best PSNR: {avg_psnr:.4f}")
+                    else:
+                        self.patience_counter += 1
+                        print_rank0(f"[EarlyStopping] No improvement. Patience: {self.patience_counter}/{patience}")
+                        if self.patience_counter >= patience:
+                            print_rank0(f"[EarlyStopping] Triggered! Best PSNR: {self.best_val_psnr:.4f}")
+                            self.early_stopped = True
                 wandb.log(wandb_log_val_metrics, step=self.fwdbwd_pass_step)
 
                 # Log validation images to WandB
@@ -1244,10 +1263,25 @@ class GSLRMTrainer:
         self.model.train()
 
     def run_test(self):
-        """Run final test evaluation (once at end of training)."""
+        """Run final test evaluation with best checkpoint."""
         if not TEST_EVALUATION_AVAILABLE or self.test_dataloader is None:
             print("[Test] No test dataloader available, skipping test evaluation")
             return
+
+        # Load best checkpoint for test evaluation
+        best_ckpt_path = os.path.join(
+            self.config.training.checkpointing.checkpoint_dir,
+            "best_psnr.pt"
+        )
+        if os.path.exists(best_ckpt_path):
+            print_rank0(f"[Test] Loading best checkpoint: {best_ckpt_path}")
+            checkpoint = torch.load(best_ckpt_path, map_location=self.device, weights_only=False)
+            model_to_load = self.model.module if hasattr(self.model, 'module') else self.model
+            model_to_load.load_state_dict(checkpoint["model"], strict=False)
+            best_step = checkpoint.get("fwdbwd_pass_step", "?")
+            print_rank0(f"[Test] Best checkpoint loaded (step {best_step})")
+        else:
+            print_rank0("[Test] No best checkpoint found, using current model")
 
         test_output_dir = self._val_output_dir.replace("validation", "test")
 
@@ -1271,6 +1305,10 @@ class GSLRMTrainer:
         # Check epoch-based early stopping
         if cur_epoch >= self.config.training.schedule.get("early_stop_after_epochs", int(1e10)) - 1:
             print(f"Early stopping after {self.config.training.schedule.early_stop_after_epochs} epochs")
+            return True
+        
+        # Patience-based early stopping
+        if self.early_stopped:
             return True
             
         return False
