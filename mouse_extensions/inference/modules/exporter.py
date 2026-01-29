@@ -127,7 +127,7 @@ class ExporterModule:
 
         for i, gaussians in enumerate(gaussians_list):
             frame_idx = frame_indices[i] if frame_indices else i
-            rr.set_time_sequence("frame", frame_idx)
+            rr.set_time("frame", frame_idx)
 
             # Extract positions from GaussianModel
             if hasattr(gaussians, '_xyz'):
