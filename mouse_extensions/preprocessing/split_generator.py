@@ -182,6 +182,131 @@ def generate_pose_splatter_split(dataset_dir: str) -> Dict[str, List[str]]:
     )
 
 
+
+def create_temporal_variant(
+    source_dir: str,
+    variant_name: str = None,
+    ratios: Tuple[float, float, float] = (1/3, 1/3, 1/3),
+    holdout_views: List[int] = None,
+) -> Dict[str, any]:
+    """
+    Create a symlink-based temporal split variant of an existing dataset.
+
+    This is the recommended way to create Pose Splatter-compatible datasets
+    without duplicating data.
+
+    Args:
+        source_dir: Path to source dataset (e.g., M0/)
+        variant_name: Name for variant (default: source + 't', e.g., M0 → M0t)
+        ratios: Train/val/test ratios (default: 1:1:1)
+        holdout_views: Views to hold out for NVS evaluation
+
+    Returns:
+        Dictionary with variant info
+
+    Example:
+        # Creates M0t/ with symlinks to M0/ and temporal 1:1:1 split
+        create_temporal_variant("/path/to/M0")
+    """
+    source_dir = Path(source_dir)
+    assert source_dir.exists(), f"Source directory not found: {source_dir}"
+
+    # Determine variant name and directory
+    if variant_name is None:
+        variant_name = source_dir.name + "t"
+    variant_dir = source_dir.parent / variant_name
+
+    if variant_dir.exists():
+        print(f"⚠️  Variant directory already exists: {variant_dir}")
+        print("    Use --force to overwrite or choose a different name")
+        return None
+
+    # Collect sample directories from source
+    samples = sorted([
+        d.name for d in source_dir.iterdir()
+        if d.is_dir() and d.name.isdigit()
+    ], key=int)
+
+    total = len(samples)
+    print(f"Source: {source_dir}")
+    print(f"Variant: {variant_dir}")
+    print(f"Total samples: {total}")
+
+    # Create variant directory
+    variant_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create symlinks for all sample directories
+    print(f"Creating {total} symlinks...")
+    for sample in samples:
+        src = source_dir / sample
+        dst = variant_dir / sample
+        dst.symlink_to(src)
+
+    # Generate temporal split
+    train_ratio, val_ratio, test_ratio = ratios
+    n_train = int(total * train_ratio)
+    n_val = int(total * val_ratio)
+    n_test = total - n_train - n_val
+
+    train_samples = samples[:n_train]
+    val_samples = samples[n_train:n_train + n_val]
+    test_samples = samples[n_train + n_val:]
+
+    print(f"Split (temporal): train={n_train}, val={n_val}, test={n_test}")
+
+    # Write split files with absolute paths
+    output_files = {}
+    for split_name, split_samples in [
+        ("train", train_samples),
+        ("val", val_samples),
+        ("test", test_samples),
+        ("all", samples),
+    ]:
+        out_path = variant_dir / f"data_mouse_{split_name}.txt"
+        with open(out_path, "w") as f:
+            for s in split_samples:
+                f.write(f"{variant_dir}/{s}/\n")
+        output_files[split_name] = str(out_path)
+        print(f"  Wrote {out_path.name} ({len(split_samples)} samples)")
+
+    # Create split.json with metadata
+    split_info = {
+        "source": str(source_dir),
+        "variant": str(variant_dir),
+        "strategy": "temporal",
+        "ratios": {"train": train_ratio, "val": val_ratio, "test": test_ratio},
+        "splits": {
+            "train": {
+                "count": len(train_samples),
+                "range": [train_samples[0], train_samples[-1]] if train_samples else [],
+            },
+            "val": {
+                "count": len(val_samples),
+                "range": [val_samples[0], val_samples[-1]] if val_samples else [],
+            },
+            "test": {
+                "count": len(test_samples),
+                "range": [test_samples[0], test_samples[-1]] if test_samples else [],
+            },
+        },
+        "files": output_files,
+        "symlinked": True,
+    }
+
+    if holdout_views:
+        split_info["views"] = {
+            "observed": [i for i in range(6) if i not in holdout_views],
+            "holdout": holdout_views,
+        }
+
+    split_json_path = variant_dir / "split.json"
+    with open(split_json_path, "w") as f:
+        json.dump(split_info, f, indent=2)
+    print(f"  Wrote split.json")
+
+    print(f"\n✅ Created temporal variant: {variant_dir}")
+    return split_info
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate train/val/test splits for FaceLift mouse data",
@@ -223,9 +348,23 @@ Examples:
                         help="Overwrite existing split files (default: error if exists)")
     parser.add_argument("--backup", action="store_true", default=True,
                         help="Backup existing split files before overwriting (default: True)")
+
+    parser.add_argument("--create-variant", type=str, metavar="NAME",
+                        help="Create symlink-based temporal variant (e.g., M0t)")
     
     args = parser.parse_args()
     
+
+    # Handle --create-variant option
+    if args.create_variant:
+        create_temporal_variant(
+            source_dir=args.dataset_dir,
+            variant_name=args.create_variant,
+            ratios=tuple(args.ratios),
+            holdout_views=args.holdout_views,
+        )
+        return
+
     generate_split(
         dataset_dir=args.dataset_dir,
         strategy=args.strategy,
