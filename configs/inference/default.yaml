@@ -1,0 +1,66 @@
+# Unified Inference Pipeline - Default Config
+# Usage: python -m mouse_extensions.inference.run --config configs/inference/default.yaml
+
+input:
+  # Mode: single_image | single_sample | batch
+  mode: batch
+  
+  # Paths (set one based on mode)
+  data_dir: null          # For batch mode
+  sample_dir: null        # For single_sample mode
+  image_path: null        # For single_image mode
+  
+  # View selection (null = 6-view, 0-5 = 1-view with MVDiffusion)
+  view_idx: null
+  
+  # Frame range (batch mode only)
+  frame_range:
+    start: null           # null = from beginning
+    end: null             # null = to end
+    step: 1
+
+pipeline:
+  mvdiffusion:
+    # auto: enable if view_idx is set
+    # true: always enable
+    # false: never enable
+    enabled: auto
+    checkpoint: mouse_M5
+    num_steps: 50
+    guidance_scale: 3.0
+    seed: 42
+    
+  gslrm:
+    checkpoint: M5t_E0_1_facelift
+    config: configs/base/gslrm_mouse.yaml
+
+rendering:
+  resolution: 384
+  num_views: 36
+  elevation: 20.0
+  radius: 2.7
+  fixed_angles: [0]
+  rotation_speed: 0.5     # 0.5 = half speed (interpolated)
+
+output:
+  dir: outputs/inference
+  
+  # Export options
+  gaussian: true          # Save .ply and .npz
+  rerun: true             # Save .rrd for Rerun viewer
+  
+  # Video options
+  video:
+    enabled: true
+    fps: 24
+    # Types: turntable, time_fixed, time_rotating, full_all, grid_6view
+    types:
+      - turntable
+      - time_fixed
+      - time_rotating
+      - grid_6view
+  
+  # Grid image options
+  grid:
+    enabled: true
+    cols: 6

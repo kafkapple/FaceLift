@@ -1,0 +1,21 @@
+# 1-view Mode Config (MVDiffusion + GS-LRM)
+# Usage: python -m mouse_extensions.inference.run --config configs/inference/m5_1view.yaml
+
+_base_: default.yaml
+
+input:
+  mode: batch
+  data_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5
+  view_idx: 0             # Use camera 0 as input
+  frame_range:
+    start: 0
+    end: 100
+    step: 1
+
+pipeline:
+  mvdiffusion:
+    enabled: true         # Force enable
+    checkpoint: mouse_M5
+
+output:
+  dir: outputs/m5_1view

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED: Use unified pipeline instead:#   python -m mouse_extensions.inference.run --config configs/inference/default.yaml# This script is kept for backward compatibility.
 """
 Simple Temporal Video - Enhanced with Gaussian Export and Rerun Support
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED: Use unified pipeline instead:#   python -m mouse_extensions.inference.run --config configs/inference/default.yaml# This script is kept for backward compatibility.
 """CLI entry point for end-to-end Mouse-FaceLift inference.
 
 Two inference paths:
