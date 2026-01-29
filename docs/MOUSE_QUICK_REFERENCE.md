@@ -104,25 +104,43 @@ python mouse_extensions/scripts/analysis/clipping_analyzer.py \
 단일 이미지 → MVDiffusion (6 views) → GS-LRM (3D) 파이프라인 구축.
 GS-LRM과 동일한 전처리 데이터(M5)로 finetune하여 카메라 파라미터 일관성 확보.
 
-### Config
-- **파일**: `configs/mvdiffusion/mouse_mvdiffusion_M5.yaml`
+### Config 선택
+
+| Config | Split | Train/Val/Test | 용도 |
+|--------|-------|---------------|------|
+| mouse_mvdiffusion_M5.yaml | 80/10/10 random | 2880/360/360 | 일반 학습 |
+| mouse_mvdiffusion_M5t.yaml | 1:1:1 temporal | 1200/1200/1200 | Pose Splatter 비교 |
+
+### M5 (기본 - Random Split)
+- **파일**: configs/mvdiffusion/mouse_mvdiffusion_M5.yaml
 - **전처리**: M5 (Affine, D7.1 preset, 512x512, fx=549, cx=cy=256)
-- **GS-LRM 기준**: M5_E1_2_alpha (Alpha IoU=0.8398)
-- **데이터**: train 3239 / val 359 샘플
+- **데이터**: train 2880 / val 360 샘플 (80/10/10)
+
+### M5t (Pose Splatter 비교용 - Temporal Split)
+- **파일**: configs/mvdiffusion/mouse_mvdiffusion_M5t.yaml
+- **전처리**: 동일 (M5 데이터 공유)
+- **데이터**: train 1200 / val 1200 / test 1200 (*_ps.txt 파일)
+- **특징**: Pose Splatter 논문과 동일한 1:1:1 temporal consecutive split
 
 ### 실행 명령어
+
 ```bash
 cd /home/joon/dev/FaceLift
-CUDA_VISIBLE_DEVICES=7 accelerate launch \
-    --config_file mvdiffusion/node_config/1gpu.yaml \
-    train_diffusion.py \
-    --config configs/mvdiffusion/mouse_mvdiffusion_M5.yaml
+
+# M5t (Pose Splatter 비교) - Background with log
+CUDA_VISIBLE_DEVICES=4 nohup accelerate launch \
+    --mixed_precision=fp16 \
+    train_mvdiffusion.py \
+    --config configs/mvdiffusion/mouse_mvdiffusion_M5t.yaml \
+    > logs/mvdiff_M5t.log 2>&1 &
+
+# 로그 확인
+tail -f logs/mvdiff_M5t.log
 ```
 
 ### WandB
-- Project: `FaceLift-Mouse`
-- Exp: `mvdiff_M5_finetune`
-- Group: `mvdiffusion`
+- Project: FaceLift-Mouse
+- Group: mvdiffusion
 
 ---
 
