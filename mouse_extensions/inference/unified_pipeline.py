@@ -193,13 +193,13 @@ class UnifiedPipeline:
                     result = self._process_with_mvdiffusion(
                         image, 
                         sample_dir.name,
-                        save_per_sample=False,
+                        save_per_sample=self.config.output.get("per_sample", True),
                     )
                 else:
                     # 6-view mode
                     result = self._process_6view_sample(
                         sample_dir,
-                        save_per_sample=False,
+                        save_per_sample=self.config.output.get("per_sample", True),
                     )
                 
                 all_turntables.append(result["turntable_frames"])

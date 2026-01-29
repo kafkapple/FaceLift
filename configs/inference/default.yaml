@@ -47,6 +47,7 @@ output:
   
   # Export options
   gaussian: true          # Save .ply and .npz
+  per_sample: true         # Save per-sample outputs (views, gaussians, grids)
   rerun: true             # Save .rrd for Rerun viewer
   
   # Video options
