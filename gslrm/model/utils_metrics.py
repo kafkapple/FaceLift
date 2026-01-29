@@ -185,3 +185,48 @@ def compute_mask_iou(
     
     iou = intersection / union.clamp(min=1.0)
     return iou
+
+
+@torch.no_grad()
+def compute_l1(
+    ground_truth: Float[Tensor, "batch channel height width"],
+    predicted: Float[Tensor, "batch channel height width"],
+    mask: Optional[Float[Tensor, "batch 1 height width"]] = None,
+    normalize_by_mask: bool = True,
+) -> Float[Tensor, " batch"]:
+    """
+    Compute L1 distance between ground truth and predicted images.
+    
+    Pose Splatter uses normalized masked L1:
+        L1 = sum(|pred - gt| * mask) / sum(mask)
+    
+    Args:
+        ground_truth: GT images [B, C, H, W] in [0, 1]
+        predicted: Predicted images [B, C, H, W] in [0, 1]
+        mask: Optional binary mask [B, 1, H, W] where 1=foreground, 0=background
+        normalize_by_mask: If True, normalize by mask area (Pose Splatter style)
+    
+    Returns:
+        Per-batch L1 values [B]
+    """
+    ground_truth = ground_truth.clip(min=0, max=1)
+    predicted = predicted.clip(min=0, max=1)
+    
+    l1_error = (ground_truth - predicted).abs()
+    
+    if mask is not None:
+        mask_binary = (mask > 0.5).float()
+        mask_expanded = mask_binary.expand_as(ground_truth)
+        
+        masked_l1 = l1_error * mask_expanded
+        
+        if normalize_by_mask:
+            # Pose Splatter style: normalize by mask area
+            num_valid = mask_expanded.sum(dim=(1, 2, 3)).clamp(min=1.0)
+            l1 = masked_l1.sum(dim=(1, 2, 3)) / num_valid
+        else:
+            l1 = masked_l1.mean(dim=(1, 2, 3))
+    else:
+        l1 = reduce(l1_error, "b c h w -> b", "mean")
+    
+    return l1

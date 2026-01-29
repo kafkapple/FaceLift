@@ -546,6 +546,12 @@ PRESETS = {
         "target_fx": 549.0,
         "image_size": 512,
         "recenter_cameras": True,
+        # Split config (Pose Splatter compatible)
+        "split": {
+            "strategy": "temporal",
+            "ratios": (0.8, 0.1, 0.1),  # 80/10/10 default
+            "seed": 42,
+        },
         "description": "M1(D7.1) + re-centered cameras + uniform distance norm. Affine baseline.",
         "active": True,
         "ray_error": "~0 deg",
@@ -669,6 +675,29 @@ PRESETS = {
     # ABLATION PRESETS: Normalization/Centering Contribution (2026-01-29)
     # ==========================================================================
 
+
+    "M5t": {  # ACTIVE - M5 with Pose Splatter 1:1:1 split
+        "paradigm": "recentered_affine",
+        "transform": "affine",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": False,
+        "normalize_translation": True,
+        "target_distance": 2.7,
+        "target_fx": 549.0,
+        "image_size": 512,
+        "recenter_cameras": True,
+        "split": {
+            "strategy": "temporal",
+            "ratios": (1/3, 1/3, 1/3),  # Pose Splatter 1:1:1
+            "seed": 42,
+            "holdout_views": [5],
+        },
+        "description": "M5 + Pose Splatter 1:1:1 temporal split (data symlinked from M5)",
+        "active": True,
+        "ray_error": "~0 deg",
+        "data_symlink": "M5",
+    },
     "M5_4": {
         "paradigm": "recentered_affine",
         "transform": "affine",
@@ -698,6 +727,37 @@ PRESETS = {
         "description": "ABLATION E: centering O (PP=256) + per-view norm (each cam=2.7)",
         "active": True,
         "ablation": "per_view_normalization",
+    },
+
+    "M0": {
+        "paradigm": "recentered_affine",
+        "transform": "affine",
+        "scale_mode": "individual",
+        "pp_method": "original",  # No centering - keep original PP
+        "skew_correction": False,
+        "normalize_translation": False,
+        "recenter_cameras": False,
+        "target_fx": 549.0,
+        "image_size": 512,
+        "description": "BASELINE: no centering (original PP), no normalization (raw translation)",
+        "active": True,
+        "ablation": "baseline_raw",
+    },
+
+    "M0_n": {
+        "paradigm": "recentered_affine",
+        "transform": "affine",
+        "scale_mode": "individual",
+        "pp_method": "original",  # No centering - keep original PP
+        "skew_correction": False,
+        "normalize_translation": True,  # Per-view normalization
+        "recenter_cameras": False,
+        "target_distance": 2.7,
+        "target_fx": 549.0,
+        "image_size": 512,
+        "description": "BASELINE + per-view norm: no centering (original PP), per-view normalization",
+        "active": True,
+        "ablation": "baseline_perview_norm",
     },
 
 }

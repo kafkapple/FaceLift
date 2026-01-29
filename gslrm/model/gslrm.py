@@ -67,6 +67,7 @@ from mouse_extensions.visualization import (
     MOUSE_CAMERA_ORDER,
     DEFAULT_TURNTABLE_CONFIG,
     create_grid_from_video,
+    add_angle_overlay_to_grid,
     get_dynamic_camera_order,
 )
 
@@ -551,6 +552,66 @@ class LossComputer(nn.Module):
                 return self.ssim_loss_module(rendering, target)
         return torch.tensor(0.0, device=rendering.device)
     
+    def _compute_l1_loss(self, rendering, target, mask=None):
+        """
+        Compute L1 loss (Pose Splatter style).
+        
+        Pose Splatter uses normalized masked L1: sum(|pred - gt| * mask) / sum(mask)
+        Default: disabled (l1_loss_weight=0.0)
+        """
+        if self.config.training.losses.get("l1_loss_weight", 0.0) > 0.0:
+            l1_error = (rendering - target).abs()
+            
+            use_mask = self.config.training.losses.get("masked_l1_loss", True)  # Default: masked
+            normalize_by_mask = self.config.training.losses.get("normalize_l1_by_mask", True)  # Pose Splatter style
+            
+            if use_mask and mask is not None:
+                mask_binary = (mask > 0.5).float()
+                masked_l1 = l1_error * mask_binary
+                
+                if normalize_by_mask:
+                    # Pose Splatter style: normalize by mask area
+                    num_valid = mask_binary.sum().clamp(min=1.0)
+                    return masked_l1.sum() / num_valid
+                else:
+                    return masked_l1.mean()
+            else:
+                return l1_error.mean()
+        return torch.tensor(0.0, device=rendering.device)
+    
+    def _compute_iou_loss(self, rendering, gt_mask, rendered_alpha=None):
+        """
+        Compute IoU loss (silhouette IoU from Pose Splatter).
+        
+        IoU = intersection / union
+        Loss = 1 - IoU (so lower is better)
+        
+        Default: disabled (iou_loss_weight=0.0)
+        """
+        if self.config.training.losses.get("iou_loss_weight", 0.0) > 0.0:
+            if gt_mask is None:
+                return torch.tensor(0.0, device=rendering.device)
+            
+            # Use rendered alpha if available, otherwise derive from RGB
+            if rendered_alpha is not None:
+                pred_mask = (rendered_alpha > 0.5).float()
+            else:
+                # Derive from RGB: distance from white background
+                bg_threshold = self.config.training.losses.get("iou_bg_threshold", 0.1)
+                color_distance = (rendering - 1.0).abs().mean(dim=1, keepdim=True)
+                pred_mask = (color_distance > bg_threshold).float()
+            
+            gt_mask_binary = (gt_mask > 0.5).float()
+            
+            # IoU calculation
+            intersection = (pred_mask * gt_mask_binary).sum()
+            union = ((pred_mask + gt_mask_binary) > 0.5).float().sum().clamp(min=1.0)
+            iou = intersection / union
+            
+            # Return 1 - IoU as loss (so minimizing loss = maximizing IoU)
+            return 1.0 - iou
+        return torch.tensor(0.0, device=rendering.device)
+    
     def _compute_pixelalign_loss(self, img_aligned_xyz, input, mask, b, v, h, w):
         """Compute pixel alignment loss."""
         if self.config.training.losses.pixelalign_loss_weight > 0.0:
@@ -609,6 +670,17 @@ class LossComputer(nn.Module):
         bg_weight = getattr(weights, "bg_loss_weight", 0.0)
         if bg_weight > 0:
             total = total + bg_weight * losses.get("bg_loss", 0.0)
+        
+        # L1 loss (Pose Splatter style, default: 0.0 = disabled)
+        l1_weight = getattr(weights, "l1_loss_weight", 0.0)
+        if l1_weight > 0:
+            total = total + l1_weight * losses.get("l1", 0.0)
+        
+        # IoU loss (silhouette, default: 0.0 = disabled)
+        iou_weight = getattr(weights, "iou_loss_weight", 0.0)
+        if iou_weight > 0:
+            # IoU is similarity (higher=better), convert to loss (1 - IoU)
+            total = total + iou_weight * losses.get("iou", 0.0)
         
         return total
     
@@ -1557,6 +1629,11 @@ class GSLRM(nn.Module):
                     turntable_grid = add_row_labels_to_grid(
                         turntable_grid, camera_order, grid_rows, grid_cols, h_img
                     )
+            # Add angle overlay if enabled (default: True)
+            if turntable_cfg.get("add_angle_overlay", True):
+                turntable_grid = add_angle_overlay_to_grid(
+                    turntable_grid, grid_rows, grid_cols
+                )
             Image.fromarray(turntable_grid).save(
                 os.path.join(output_directory, f"turntable_{item_uid}.jpg")
             )

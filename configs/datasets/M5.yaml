@@ -1,6 +1,8 @@
 # Dataset: M5
 # M1(D7.1) + re-centered cameras + uniform distance norm. Affine baseline.
+# Split: 80/10/10 temporal (train:val:test = 2880:360:360)
 # Generated: 2026-01-27 18:59:36
+# Updated: 2026-01-29 (added test path)
 
 _name: M5
 _description: "M1(D7.1) + re-centered cameras + uniform distance norm. Affine baseline."
@@ -10,14 +12,24 @@ _preprocessing:
   transform: affine
   target_fx: 549.0
   output_size: 512
+_split:
+  strategy: temporal
+  ratios: [0.8, 0.1, 0.1]
 
 training:
   dataset:
     dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_train.txt
 
 validation:
+  enabled: true
   dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_val.txt
+  test_enabled: true  # Enable test evaluation at end of training
+
+test:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_test.txt
 
 _stats:
-  num_train: 3240
+  num_train: 2880
   num_val: 360
+  num_test: 360
+  total: 3600

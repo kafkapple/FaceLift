@@ -129,6 +129,7 @@ def run_test_evaluation(
         "ssim": [],
         "lpips": [],
         "mask_iou": [],
+        "l1": [],
         "psnr_train_mask": [],
         "per_view_psnr": [],
         "per_view_lpips": [],
@@ -166,6 +167,7 @@ def run_test_evaluation(
                     test_metrics["ssim"].append(metrics["ssim"])
                     test_metrics["lpips"].append(metrics["lpips"])
                     test_metrics["mask_iou"].append(metrics.get("mask_iou", 0.0))
+                    test_metrics["l1"].append(metrics.get("l1", 0.0))
                     test_metrics["psnr_train_mask"].append(
                         metrics.get("psnr_train_mask", metrics["psnr"])
                     )
@@ -189,6 +191,7 @@ def run_test_evaluation(
         "ssim": sum(test_metrics["ssim"]) / max(len(test_metrics["ssim"]), 1),
         "lpips": sum(test_metrics["lpips"]) / max(len(test_metrics["lpips"]), 1),
         "mask_iou": sum(test_metrics["mask_iou"]) / max(len(test_metrics["mask_iou"]), 1),
+        "l1": sum(test_metrics.get("l1", [0.0])) / max(len(test_metrics.get("l1", [1.0])), 1),
         "psnr_train_mask": sum(test_metrics["psnr_train_mask"]) / max(len(test_metrics["psnr_train_mask"]), 1),
     }
 
@@ -211,8 +214,25 @@ def run_test_evaluation(
     print(f"  PSNR:     {avg_metrics['psnr']:.4f}")
     print(f"  SSIM:     {avg_metrics['ssim']:.4f}")
     print(f"  LPIPS:    {avg_metrics['lpips']:.4f}")
+    print(f"  L1:       {avg_metrics.get('l1', 0.0):.4f}")
     print(f"  Mask IoU: {avg_metrics['mask_iou']:.4f}")
     print(f"{'='*60}")
+    
+    # Pose Splatter comparison table (NeurIPS 2025)
+    print()
+    print("Comparison with Pose Splatter (NeurIPS 2025):")
+    print("-" * 60)
+    ps_psnr, ps_ssim, ps_iou, ps_l1 = 29.0, 0.982, 0.760, 0.632
+    our_l1 = avg_metrics.get('l1', 0.0)
+    header = f"{'Metric':<12} | {'Ours':>10} | {'PoseSplatter':>12} | {'Diff':>10}"
+    print(header)
+    print("-" * 60)
+    print(f"{'PSNR':<12} | {avg_metrics['psnr']:>10.2f} | {ps_psnr:>12.2f} | {avg_metrics['psnr']-ps_psnr:>+10.2f}")
+    print(f"{'SSIM':<12} | {avg_metrics['ssim']:>10.4f} | {ps_ssim:>12.4f} | {avg_metrics['ssim']-ps_ssim:>+10.4f}")
+    print(f"{'IoU':<12} | {avg_metrics['mask_iou']:>10.4f} | {ps_iou:>12.4f} | {avg_metrics['mask_iou']-ps_iou:>+10.4f}")
+    print(f"{'L1':<12} | {our_l1:>10.4f} | {ps_l1:>12.4f} | {our_l1-ps_l1:>+10.4f}")
+    print("-" * 60)
+    print("Note: Pose Splatter uses 5cam train, 1 holdout view NVS eval")
 
     # Log to wandb
     if log_to_wandb and trainer.ddp_rank == 0:
@@ -257,6 +277,32 @@ def run_test_evaluation(
         for key, value in wandb_test_metrics.items():
             if key.startswith("final/") or key.startswith("test/"):
                 wandb.run.summary[key] = value
+
+        # Log test images to wandb (turntable, gt_vs_pred, etc.)
+        try:
+            import glob
+            test_images = {}
+            
+            # Find and log turntable images
+            turntable_files = glob.glob(os.path.join(output_dir, "turntable_*.jpg"))
+            for i, tt_file in enumerate(sorted(turntable_files)[:5]):  # Max 5
+                test_images[f"test/turntable_{i}"] = wandb.Image(
+                    tt_file, caption=f"Test Sample {i} Turntable"
+                )
+            
+            # Find and log gt_vs_pred images
+            gt_pred_files = glob.glob(os.path.join(output_dir, "*_gt_vs_pred.jpg")) + \
+                           glob.glob(os.path.join(output_dir, "*gt_pred*.jpg"))
+            for i, gp_file in enumerate(sorted(gt_pred_files)[:5]):  # Max 5
+                test_images[f"test/gt_vs_pred_{i}"] = wandb.Image(
+                    gp_file, caption=f"Test Sample {i} GT vs Pred"
+                )
+            
+            if test_images:
+                wandb.log(test_images, step=trainer.fwdbwd_pass_step)
+                print(f"[Test Evaluation] Logged {len(test_images)} test images to wandb")
+        except Exception as e:
+            print(f"[Test Evaluation] Warning: Could not log test images: {e}")
 
         print(f"[Test Evaluation] Logged test metrics to wandb")
 

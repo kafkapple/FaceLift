@@ -27,6 +27,7 @@ from .turntable_config import (
     get_grid_row_labels,
     subsample_frames_for_grid,
     create_grid_from_video,
+    add_angle_overlay_to_grid,
 )
 
 from .video_generator import (

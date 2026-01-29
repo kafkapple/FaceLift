@@ -212,6 +212,18 @@ class GSLRMTrainer:
                 self.val_dataset = MouseViewDataset(self.config, split="val")
             else:
                 self.val_dataset = None
+            
+            # Test dataset (for temporal split evaluation)
+            test_config = self.config.get("test", {})
+            if test_config.get("enabled", False) or val_config.get("test_enabled", False):
+                try:
+                    self.test_dataset = MouseViewDataset(self.config, split="test")
+                    print(f"Test dataset loaded: {len(self.test_dataset)} samples")
+                except Exception as e:
+                    print(f"Test dataset not available: {e}")
+                    self.test_dataset = None
+            else:
+                self.test_dataset = None
         else:
             from gslrm.data.dataset import RandomViewDataset
             print("Using RandomViewDataset (original FaceLift)")
@@ -222,6 +234,18 @@ class GSLRMTrainer:
                 self.val_dataset = RandomViewDataset(self.config, split="val")
             else:
                 self.val_dataset = None
+            
+            # Test dataset (for temporal split evaluation)
+            test_config = self.config.get("test", {})
+            if test_config.get("enabled", False) or val_config.get("test_enabled", False):
+                try:
+                    self.test_dataset = RandomViewDataset(self.config, split="test")
+                    print(f"Test dataset loaded: {len(self.test_dataset)} samples")
+                except Exception as e:
+                    print(f"Test dataset not available: {e}")
+                    self.test_dataset = None
+            else:
+                self.test_dataset = None
             
         self._log_dataset_examples()
         self._setup_dataloaders()
@@ -307,6 +331,25 @@ class GSLRMTrainer:
                 sampler=val_datasampler,
             )
             self.val_dataloader_iter = iter(self.val_dataloader)
+        
+        # Test dataloader (for temporal split evaluation at end of training)
+        if hasattr(self, "test_dataset") and self.test_dataset is not None:
+            if self.single_gpu_mode:
+                test_datasampler = None
+            else:
+                test_datasampler = DistributedSampler(self.test_dataset, shuffle=False)
+            
+            self.test_dataloader = DataLoader(
+                self.test_dataset,
+                batch_size=1,  # Always batch_size=1 for test evaluation
+                shuffle=False,
+                num_workers=self.config.training.dataloader.num_workers,
+                persistent_workers=True,
+                pin_memory=False,
+                drop_last=False,
+                sampler=test_datasampler,
+            )
+            print(f"Test dataloader created: {len(self.test_dataloader)} batches")
             
     def setup_model(self):
         """Initialize the model."""
@@ -511,8 +554,12 @@ class GSLRMTrainer:
                 "max_steps": self.config.training.schedule.max_fwdbwd_passes,
             }
         
-        # Create wandb directory
-        wandb_dir = "wandb_logs"
+        # Create wandb directory - prefer local storage to avoid NFS stale file handle errors
+        local_wandb_dir = "/node_data/joon/wandb_logs"
+        if os.path.isdir("/node_data/joon"):
+            wandb_dir = local_wandb_dir
+        else:
+            wandb_dir = "wandb_logs"
         os.makedirs(wandb_dir, exist_ok=True)
         
         # Initialize wandb with cleaner configuration
@@ -864,7 +911,7 @@ class GSLRMTrainer:
             }
             
             # Primary metrics: main losses for optimization (always log)
-            primary_losses = ["loss", "l2_loss", "psnr", "mask_iou"]
+            primary_losses = ["loss", "l2_loss", "psnr", "mask_iou", "l1_loss", "iou_loss"]
             # Secondary losses: may be 0 during warmup, log only when non-zero
             secondary_losses = ["perceptual_loss", "ssim_loss", "lpips_loss", "background_loss", "alpha_loss"]
             # Auxiliary metrics: debugging (skip constants like gt_min=0, gt_max=1)
@@ -1083,7 +1130,7 @@ class GSLRMTrainer:
                   dtype=self.amp_dtype_mapping[self.config.training.runtime.amp_dtype],
               )):
             
-            log_val_metrics = {"psnr": [], "ssim": [], "lpips": [], "mask_iou": [], "psnr_train_mask": [], "mask_type": None}
+            log_val_metrics = {"psnr": [], "ssim": [], "lpips": [], "mask_iou": [], "l1": [], "psnr_train_mask": [], "mask_type": None}
 
             for idx, batch in enumerate(self.val_dataloader):
                 batch = {k: v.to(self.device) for k, v in batch.items()}
@@ -1104,6 +1151,7 @@ class GSLRMTrainer:
                     log_val_metrics["ssim"].append(val_metrics["ssim"])
                     log_val_metrics["lpips"].append(val_metrics["lpips"])
                     log_val_metrics["mask_iou"].append(val_metrics.get("mask_iou", 0.0))
+                    log_val_metrics["l1"].append(val_metrics.get("l1", 0.0))
                     log_val_metrics["psnr_train_mask"].append(val_metrics.get("psnr_train_mask", val_metrics["psnr"]))
                     if val_metrics.get("mask_type"):
                         log_val_metrics["mask_type"] = val_metrics["mask_type"]
@@ -1123,6 +1171,7 @@ class GSLRMTrainer:
                 avg_ssim = sum(log_val_metrics["ssim"]) / max(len(log_val_metrics["ssim"]), 1)
                 avg_lpips = sum(log_val_metrics["lpips"]) / max(len(log_val_metrics["lpips"]), 1)
                 avg_mask_iou = sum(log_val_metrics["mask_iou"]) / max(len(log_val_metrics["mask_iou"]), 1)
+                avg_l1 = sum(log_val_metrics.get("l1", [0.0])) / max(len(log_val_metrics.get("l1", [1.0])), 1)
                 avg_psnr_train_mask = sum(log_val_metrics.get("psnr_train_mask", [avg_psnr])) / max(len(log_val_metrics.get("psnr_train_mask", [1])), 1)
                 mask_type = log_val_metrics.get("mask_type", "GT")
                 
@@ -1150,6 +1199,7 @@ class GSLRMTrainer:
                     "val/ssim_loss": 1.0 - avg_ssim,
                     "val/lpips": avg_lpips,
                     "val/mask_iou": avg_mask_iou,
+                    "val/l1": avg_l1,
                     "val/psnr_train_mask": avg_psnr_train_mask,
                     "val/mask_type": mask_type,
                     # Meta info (NEW - for experiment tracking)

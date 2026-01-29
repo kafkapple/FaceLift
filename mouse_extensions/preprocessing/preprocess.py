@@ -514,8 +514,12 @@ class PreprocessConfig:
             config.skew_correction = False
             config.scale_mode = ScaleMode(preset.get('scale_mode', 'individual'))
             config.target_fx = preset.get('target_fx', 549.0)
-            config.recenter_cameras = True  # Core M5 feature
+            config.recenter_cameras = preset.get("recenter_cameras", True)  # M5=True, M0=False
             config.target_distance = preset.get('target_distance', 2.7)
+            # PP method: "shift_to_256" (M5) or "original" (M0)
+            pp_method = preset.get("pp_method", "shift_to_256")
+            if pp_method == "original":
+                config.target_pp = None  # Don't shift PP, keep scaled original
 
         # ====== RECENTERED_HOMOGRAPHY (M5h) ======
         elif config.paradigm == Paradigm.RECENTERED_HOMOGRAPHY:
@@ -523,7 +527,7 @@ class PreprocessConfig:
             config.skew_correction = preset.get('skew_correction', True)
             config.scale_mode = ScaleMode(preset.get('scale_mode', 'individual'))
             config.target_fx = preset.get('target_fx', 548.9938)
-            config.recenter_cameras = True  # Core M5 feature
+            config.recenter_cameras = preset.get("recenter_cameras", True)  # M5=True, M0=False
             config.target_distance = preset.get('target_distance', 2.7)
             # Zoom support (M5h_1, M5h_2)
             config.zoom = preset.get('zoom', 1.0)
@@ -604,8 +608,13 @@ class UnifiedPreprocessor:
             avg = (scale_x + scale_y) / 2
             scale_x = scale_y = avg
 
-        shift_x = cfg.target_pp[0] - orig_cx * scale_x
-        shift_y = cfg.target_pp[1] - orig_cy * scale_y
+        # Handle target_pp=None (M0: keep scaled original PP, no shift)
+        if cfg.target_pp is None:
+            shift_x = 0.0
+            shift_y = 0.0
+        else:
+            shift_x = cfg.target_pp[0] - orig_cx * scale_x
+            shift_y = cfg.target_pp[1] - orig_cy * scale_y
 
         return np.array([[scale_x, 0, shift_x], [0, scale_y, shift_y]], dtype=np.float32)
 
@@ -691,7 +700,13 @@ class UnifiedPreprocessor:
                 scale_x = scale_y = (scale_x + scale_y) / 2
             fx, fy = orig_fx * scale_x, orig_fy * scale_y
 
-        cx, cy = cfg.target_pp
+        # Handle target_pp=None (M0: use scaled original PP)
+        if cfg.target_pp is None:
+            orig_cx, orig_cy = K[0, 2], K[1, 2]
+            cx = orig_cx * scale_x
+            cy = orig_cy * scale_y
+        else:
+            cx, cy = cfg.target_pp
 
         if zoom > 1.0:
             crop_x, crop_y = crop_offset
@@ -710,10 +725,12 @@ class UnifiedPreprocessor:
                 cy = cy * renorm_scale
             else:
                 # For center-aligned zoom, PP should remain at target (256)
-                cx, cy = cfg.target_pp
+                if cfg.target_pp is not None:
+                    cx, cy = cfg.target_pp
+                # else: keep scaled PP from above
         
         # Alternative: Force PP to target (for GS-LRM compatibility)
-        if getattr(cfg, 'force_pp_to_target', False):
+        if getattr(cfg, 'force_pp_to_target', False) and cfg.target_pp is not None:
             cx, cy = cfg.target_pp
 
         w2c = np.eye(4)

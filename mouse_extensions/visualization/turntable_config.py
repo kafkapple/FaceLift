@@ -28,7 +28,8 @@ DEFAULT_TURNTABLE_CONFIG = {
     "grid_cols": 6,
     "video_views": 144,  # Smooth video (144 = 36*4 frames)
     "grid_views": 36,    # Grid image (6x6 = 36)
-    "add_row_labels": True,
+    "add_row_labels": False,
+    "add_angle_overlay": True,
     "use_camera_interpolation": True,
     "save_video": True,  # Enable video by default for train/val
     "smooth_trajectory": True,  # Enable smooth camera interpolation
@@ -534,3 +535,58 @@ def compute_camera_convergence_center(c2ws: np.ndarray) -> np.ndarray:
         center = cam_positions.mean(axis=0)
     
     return center
+
+
+def add_angle_overlay_to_grid(
+    grid_image: np.ndarray,
+    grid_rows: int = 6,
+    grid_cols: int = 6,
+    font_scale: float = 0.5,
+    start_angle: float = 0.0,
+) -> np.ndarray:
+    """
+    Add angle overlay (azimuth) to each cell in the grid.
+    
+    Args:
+        grid_image: [H, W, 3] uint8 grid image
+        grid_rows: Number of rows
+        grid_cols: Number of columns
+        font_scale: Font scale for overlay text
+        start_angle: Starting angle (default 0)
+    
+    Returns:
+        Grid image with angle overlays on bottom-left of each cell
+    """
+    import cv2
+    
+    result = grid_image.copy()
+    h, w = grid_image.shape[:2]
+    cell_h = h // grid_rows
+    cell_w = w // grid_cols
+    
+    # Font settings
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_thick = 1
+    
+    total_frames = grid_rows * grid_cols
+    
+    for row in range(grid_rows):
+        for col in range(grid_cols):
+            frame_idx = row * grid_cols + col
+            # Calculate angle for this frame (0 to 360 degrees)
+            angle = start_angle + (frame_idx / total_frames) * 360
+            angle = angle % 360  # Normalize to 0-360
+            
+            # Position in cell (bottom-left corner)
+            x = col * cell_w + 5
+            y = (row + 1) * cell_h - 5
+            
+            # Draw angle text
+            text = str(int(angle))
+            (tw, th), _ = cv2.getTextSize(text, font, font_scale, font_thick)
+            
+            # Background rectangle for readability
+            cv2.rectangle(result, (x-2, y-th-2), (x+tw+2, y+2), (0, 0, 0), -1)
+            cv2.putText(result, text, (x, y), font, font_scale, (255, 255, 255), font_thick)
+    
+    return result

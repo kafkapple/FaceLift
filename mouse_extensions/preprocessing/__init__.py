@@ -56,6 +56,11 @@ from .center_estimation import (
 
 from .data_loader import DataLoader
 
+from .split_generator import (
+    generate_split,
+    generate_pose_splatter_split,
+)
+
 __all__ = [
     # Unified Preprocessor (D7+)
     "UnifiedPreprocessor",
@@ -75,4 +80,7 @@ __all__ = [
     "compare_all_methods",
     # Data Loader
     "DataLoader",
+    # Split Generator
+    "generate_split",
+    "generate_pose_splatter_split",
 ]

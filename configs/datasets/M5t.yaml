@@ -1,0 +1,42 @@
+# Dataset: M5t (Temporal 1:1:1 Split - Pose Splatter Compatible)
+# M5 data with Pose Splatter-style temporal 1:1:1 train/val/test split
+# Data is symlinked from M5 (preprocessing shared)
+# Generated: 2026-01-29
+
+_name: M5t
+_description: "M5 + Pose Splatter 1:1:1 temporal split (for fair comparison)"
+_category: recentered_affine
+_preprocessing:
+  paradigm: recentered_affine
+  transform: affine
+  target_fx: 549.0
+  output_size: 512
+_split:
+  strategy: temporal
+  ratios: [0.333, 0.333, 0.334]
+  note: "Pose Splatter NeurIPS 2025 compatible"
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5t/data_mouse_train.txt
+
+validation:
+  enabled: true
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5t/data_mouse_val.txt
+  test_enabled: true  # Enable test evaluation at end of training
+
+test:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5t/data_mouse_test.txt
+
+_stats:
+  num_train: 1198
+  num_val: 1198
+  num_test: 1204
+  total: 3600
+  
+_comparison:
+  pose_splatter:
+    psnr: 29.0
+    ssim: 0.982
+    iou: 0.760
+    l1: 0.632

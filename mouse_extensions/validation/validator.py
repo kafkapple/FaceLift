@@ -107,11 +107,11 @@ class ValidationRunner:
         save_visualizations: bool = False
     ) -> Dict[str, float]:
         """Run validation and save results."""
-        from gslrm.model.utils_metrics import compute_psnr, compute_lpips, compute_ssim, compute_mask_iou
+        from gslrm.model.utils_metrics import compute_psnr, compute_lpips, compute_ssim, compute_mask_iou, compute_l1
         
         os.makedirs(output_directory, exist_ok=True)
         input_data, target_data = model_results.input, model_results.target
-        validation_metrics = {"psnr": [], "lpips": [], "ssim": [], "mask_iou": []}
+        validation_metrics = {"psnr": [], "lpips": [], "ssim": [], "mask_iou": [], "l1": []}
         
         for batch_idx in range(input_data.image.size(0)):
             item_uid = input_data.index[batch_idx, 0, -1].item()
@@ -124,7 +124,8 @@ class ValidationRunner:
             )
             
             for key in validation_metrics:
-                validation_metrics[key].append(metrics[key])
+                if key in metrics:
+                    validation_metrics[key].append(metrics[key])
             
             if batch_idx == 0:
                 validation_metrics["per_view_psnr"] = metrics["per_view_psnr"]
@@ -153,6 +154,7 @@ class ValidationRunner:
         per_view_psnr = compute_psnr(target_image, rendered, mask=gt_mask)
         per_view_lpips = compute_lpips(target_image, rendered, mask=gt_mask)
         per_view_ssim = compute_ssim(target_image, rendered, mask=gt_mask)
+        per_view_l1 = compute_l1(target_image, rendered, mask=gt_mask, normalize_by_mask=True)
         
         mask_iou = 0.0
         if gt_mask is not None:
@@ -164,9 +166,11 @@ class ValidationRunner:
             "lpips": per_view_lpips.mean().item(),
             "ssim": per_view_ssim.mean().item(),
             "mask_iou": mask_iou,
+            "l1": per_view_l1.mean().item(),
             "per_view_psnr": per_view_psnr.cpu().tolist(),
             "per_view_lpips": per_view_lpips.cpu().tolist(),
             "per_view_ssim": per_view_ssim.cpu().tolist(),
+            "per_view_l1": per_view_l1.cpu().tolist(),
         }
     
     def _save_visualizations(
@@ -437,12 +441,15 @@ class ValidationRunner:
             "lpips": torch.tensor(metrics["lpips"]).mean().item(),
             "ssim": torch.tensor(metrics["ssim"]).mean().item(),
             "mask_iou": torch.tensor(metrics["mask_iou"]).mean().item(),
+            "l1": torch.tensor(metrics.get("l1", [0.0])).mean().item(),
         }
         
         if "per_view_psnr" in metrics and metrics["per_view_psnr"]:
             result["per_view_psnr"] = metrics["per_view_psnr"]
             result["per_view_lpips"] = metrics["per_view_lpips"]
             result["per_view_ssim"] = metrics["per_view_ssim"]
+            if "per_view_l1" in metrics:
+                result["per_view_l1"] = metrics["per_view_l1"]
         
         return result
 
