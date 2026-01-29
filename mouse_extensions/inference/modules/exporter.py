@@ -1,5 +1,6 @@
 """Exporter module: Save gaussians, videos, images."""
 
+import os
 from pathlib import Path
 from typing import Optional, Union
 
@@ -26,13 +27,13 @@ class ExporterModule:
 
     def save_gaussians_ply(
         self,
-        gaussians: torch.Tensor,
+        gaussians,  # GaussianModel object
         path: Optional[Union[str, Path]] = None,
     ) -> Path:
         """Save Gaussians as PLY file.
         
         Args:
-            gaussians: Gaussian parameters tensor
+            gaussians: GaussianModel object with save_ply method
             path: Output path (default: output_dir/gaussians.ply)
             
         Returns:
@@ -41,23 +42,28 @@ class ExporterModule:
         if not self.save_gaussian:
             return None
 
-        from gslrm.model.gaussians_renderer import export_gaussians
-
         path = Path(path) if path else self.output_dir / "gaussians.ply"
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        export_gaussians(gaussians, str(path))
+        # GaussianModel has save_ply method
+        if hasattr(gaussians, 'save_ply'):
+            gaussians.save_ply(str(path))
+        else:
+            # Fallback: save as npz if not a GaussianModel
+            self.save_gaussians_npz(gaussians, path.with_suffix('.npz'))
+            return path.with_suffix('.npz')
+            
         return path
 
     def save_gaussians_npz(
         self,
-        gaussians: torch.Tensor,
+        gaussians,
         path: Optional[Union[str, Path]] = None,
     ) -> Path:
         """Save Gaussians as lightweight NPZ.
         
         Args:
-            gaussians: Gaussian parameters tensor
+            gaussians: GaussianModel or tensor
             path: Output path (default: output_dir/gaussians.npz)
             
         Returns:
@@ -69,23 +75,35 @@ class ExporterModule:
         path = Path(path) if path else self.output_dir / "gaussians.npz"
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Extract key attributes
-        if isinstance(gaussians, torch.Tensor):
-            gaussians = gaussians.detach().cpu().numpy()
+        # Extract data from GaussianModel if available
+        if hasattr(gaussians, _xyz):
+            data = {
+                xyz: gaussians._xyz.detach().cpu().numpy(),
+                opacity: gaussians._opacity.detach().cpu().numpy(),
+                scaling: gaussians._scaling.detach().cpu().numpy(),
+                rotation: gaussians._rotation.detach().cpu().numpy(),
+                features_dc: gaussians._features_dc.detach().cpu().numpy(),
+            }
+            if gaussians._features_rest is not None:
+                data[features_rest] = gaussians._features_rest.detach().cpu().numpy()
+        elif isinstance(gaussians, torch.Tensor):
+            data = {gaussians: gaussians.detach().cpu().numpy()}
+        else:
+            data = {gaussians: np.array(gaussians)}
 
-        np.savez_compressed(str(path), gaussians=gaussians)
+        np.savez_compressed(str(path), **data)
         return path
 
     def save_rerun_rrd(
         self,
-        gaussians_list: list[torch.Tensor],
+        gaussians_list: list,
         frame_indices: Optional[list[int]] = None,
         path: Optional[Union[str, Path]] = None,
     ) -> Path:
         """Save temporal sequence as Rerun RRD file.
         
         Args:
-            gaussians_list: List of Gaussian tensors per frame
+            gaussians_list: List of GaussianModel objects per frame
             frame_indices: Frame indices for timeline
             path: Output path (default: output_dir/sequence.rrd)
             
@@ -111,13 +129,17 @@ class ExporterModule:
             frame_idx = frame_indices[i] if frame_indices else i
             rr.set_time_sequence("frame", frame_idx)
 
-            if isinstance(gaussians, torch.Tensor):
-                gaussians = gaussians.detach().cpu().numpy()
+            # Extract positions from GaussianModel
+            if hasattr(gaussians, _xyz):
+                positions = gaussians._xyz.detach().cpu().numpy()
+            elif isinstance(gaussians, torch.Tensor):
+                positions = gaussians.detach().cpu().numpy()
+                if positions.ndim == 2 and positions.shape[1] >= 3:
+                    positions = positions[:, :3]
+            else:
+                continue
 
-            # Log as point cloud (simplified)
-            if gaussians.ndim == 2 and gaussians.shape[1] >= 3:
-                positions = gaussians[:, :3]
-                rr.log("gaussians", rr.Points3D(positions))
+            rr.log("gaussians", rr.Points3D(positions))
 
         return path
 
