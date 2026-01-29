@@ -1474,6 +1474,8 @@ def main():
     parser.add_argument('--transform', choices=['affine', 'homography', 'none'])
     parser.add_argument('--scale-mode', choices=['fx_only', 'individual', 'average'])
     parser.add_argument('--zoom', type=float)
+    parser.add_argument('--temporal-variant', action='store_true',
+                        help="Create temporal 1:1:1 split variant after preprocessing (e.g., M0 → M0t)")
     args = parser.parse_args()
 
     if args.list_presets:
@@ -1508,6 +1510,13 @@ def main():
         config.zoom = args.zoom
 
     UnifiedPreprocessor(config).run()
+
+    # Create temporal variant if requested
+    if args.temporal_variant:
+        from mouse_extensions.preprocessing.split_generator import create_temporal_variant
+        variant_name = Path(args.output_dir).name + "t"
+        print(f"\n=== Creating temporal variant: {variant_name} ===")
+        create_temporal_variant(args.output_dir, variant_name)
 
 
 if __name__ == "__main__":
