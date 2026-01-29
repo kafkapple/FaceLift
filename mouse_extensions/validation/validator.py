@@ -107,7 +107,8 @@ class ValidationRunner:
         save_visualizations: bool = False
     ) -> Dict[str, float]:
         """Run validation and save results."""
-        from gslrm.model.utils_metrics import compute_psnr, compute_lpips, compute_ssim, compute_mask_iou, compute_l1
+        from mouse_extensions.evaluation import MetricsComputer
+        metrics_computer = MetricsComputer()
         
         os.makedirs(output_directory, exist_ok=True)
         input_data, target_data = model_results.input, model_results.target
@@ -119,8 +120,7 @@ class ValidationRunner:
             
             # Compute metrics
             metrics = self._compute_batch_metrics(
-                target_data, model_results, batch_idx,
-                compute_psnr, compute_lpips, compute_ssim, compute_mask_iou
+                target_data, model_results, batch_idx, metrics_computer
             )
             
             for key in validation_metrics:
@@ -141,37 +141,21 @@ class ValidationRunner:
         return self._aggregate_results(validation_metrics)
     
     def _compute_batch_metrics(
-        self, target_data, model_results, batch_idx,
-        compute_psnr, compute_lpips, compute_ssim, compute_mask_iou
+        self, target_data, model_results, batch_idx, metrics_computer
     ) -> Dict[str, Any]:
-        """Compute metrics for a single batch item."""
+        """
+        Compute metrics for a single batch item.
+
+        Uses MetricsComputer to avoid the "3-place modification" bug:
+        adding new metrics only requires updating MetricsComputer class.
+        """
         full_target = target_data.image[batch_idx]
         target_image = full_target[:, :3, ...]
         rendered = model_results.render[batch_idx]
-        
         gt_mask = full_target[:, 3:4, :, :] if full_target.size(1) == 4 else None
-        
-        per_view_psnr = compute_psnr(target_image, rendered, mask=gt_mask)
-        per_view_lpips = compute_lpips(target_image, rendered, mask=gt_mask)
-        per_view_ssim = compute_ssim(target_image, rendered, mask=gt_mask)
-        per_view_l1 = compute_l1(target_image, rendered, mask=gt_mask, normalize_by_mask=True)
-        
-        mask_iou = 0.0
-        if gt_mask is not None:
-            per_view_iou = compute_mask_iou(rendered, gt_mask, bg_threshold=0.1)
-            mask_iou = per_view_iou.mean().item()
-        
-        return {
-            "psnr": per_view_psnr.mean().item(),
-            "lpips": per_view_lpips.mean().item(),
-            "ssim": per_view_ssim.mean().item(),
-            "mask_iou": mask_iou,
-            "l1": per_view_l1.mean().item(),
-            "per_view_psnr": per_view_psnr.cpu().tolist(),
-            "per_view_lpips": per_view_lpips.cpu().tolist(),
-            "per_view_ssim": per_view_ssim.cpu().tolist(),
-            "per_view_l1": per_view_l1.cpu().tolist(),
-        }
+
+        # Use centralized compute_per_view_metrics method
+        return metrics_computer.compute_per_view_metrics(target_image, rendered, gt_mask)
     
     def _save_visualizations(
         self, output_directory, item_uid, batch_idx,
