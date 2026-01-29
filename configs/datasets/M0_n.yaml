@@ -1,0 +1,23 @@
+# Dataset: M0_n
+# BASELINE + per-view norm: no centering (original PP), per-view normalization
+# Generated: 2026-01-29 16:51:12
+
+_name: M0_n
+_description: "BASELINE + per-view norm: no centering (original PP), per-view normalization"
+_category: recentered_affine
+_preprocessing:
+  paradigm: recentered_affine
+  transform: affine
+  target_fx: 549.0
+  output_size: 512
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M0_n/data_mouse_train.txt
+
+validation:
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M0_n/data_mouse_val.txt
+
+_stats:
+  num_train: 3240
+  num_val: 360
