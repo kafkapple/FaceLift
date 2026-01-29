@@ -440,3 +440,84 @@ outputs/full_export/
 ---
 
 *Updated: 2026-01-29 | Added Gaussian export & Rerun support*
+
+---
+
+## 12. Grid 레이블 및 기본 출력 (v1.3 추가)
+
+### 12.1 Grid 이미지 레이블
+
+모든 grid 이미지에 정보 레이블이 자동 추가됩니다:
+
+**Turntable Grid (`grid_first.jpg`)**:
+```
+Views 0-5 | 0 deg - 50 deg                    Elev: 20 deg
+[view0] [view1] [view2] [view3] [view4] [view5]
+Views 6-11 | 60 deg - 110 deg                 Elev: 20 deg
+[view6] [view7] [view8] [view9] [view10] [view11]
+...
+```
+
+**Input Grid (`grid_input.jpg`)**:
+```
+Input Cameras 0-2
+[cam0] [cam1] [cam2]
+Input Cameras 3-5
+[cam3] [cam4] [cam5]
+```
+
+### 12.2 기본 출력 설정 변경
+
+**v1.3부터 기본 모드에서 모든 산출물이 저장됩니다**:
+
+| 출력 | 기본값 | 비활성화 |
+|------|--------|----------|
+| Gaussian (.ply/.npz) | ✅ 저장 | `--no_gaussian` |
+| Rerun (.rrd) | ✅ 저장 | `--no_rerun` |
+| Videos | ✅ 항상 저장 | - |
+| Grid images | ✅ 항상 저장 | - |
+
+```bash
+# 기본 실행 (모든 출력 저장)
+python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5_E0_1_facelift \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 10
+
+# Gaussian만 비활성화
+python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5_E0_1_facelift \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --no_gaussian
+
+# 빠른 테스트 (영상만)
+python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5_E0_1_facelift \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --no_gaussian --no_rerun
+```
+
+### 12.3 전체 출력 구조 (v1.3)
+
+```
+outputs/temporal_M5/
+├── Videos
+│   ├── turntable_first.mp4     # 첫 프레임 360° (절반 속도)
+│   ├── time_fixed.mp4          # 고정 각도
+│   ├── time_rotating.mp4       # 시간에 따라 회전
+│   ├── full_all.mp4            # 전체 (T×V)
+│   └── grid_6view.mp4          # 입력 카메라 영상
+├── Images
+│   ├── grid_first.jpg          # Turntable grid + 각도 레이블
+│   └── grid_input.jpg          # Input cameras + 카메라 레이블
+├── gaussians/                  # (기본 활성화)
+│   ├── frame_000000.ply
+│   ├── frame_000000.npz
+│   └── ...
+└── rerun/                      # (기본 활성화)
+    └── sequence.rrd
+```
+
+---
+
+*Updated: 2026-01-29 | Added grid labels & default output changes (v1.3)*
