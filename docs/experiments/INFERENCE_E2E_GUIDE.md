@@ -629,4 +629,75 @@ outputs/e2e_test/
 
 ---
 
-*Updated: 2026-01-29 | Added inference paths and M5t checkpoint (v1.4)*
+
+
+
+---
+
+## 14. 배치 처리 (Batch Processing)
+
+### 14.1 프레임 범위 옵션
+
+| 옵션 | 설명 | 기본값 |
+|------|------|--------|
+| `--start_frame` | 시작 프레임 인덱스 | None (처음부터) |
+| `--end_frame` | 종료 프레임 인덱스 (exclusive) | None (끝까지) |
+| `--frame_step` | 프레임 간격 | 1 |
+
+### 14.2 GS-LRM 배치 (6-view)
+
+```bash
+# 프레임 100-200, 5프레임 간격
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 100 --end_frame 200 --frame_step 5 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --output_dir outputs/batch_gslrm
+
+# 전체 데이터 10프레임마다
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --frame_step 10 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --output_dir outputs/batch_sparse
+```
+
+### 14.3 MVDiffusion + GS-LRM 배치 (1-view)
+
+```bash
+# 처음 100개 샘플, view 0 사용
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --input_view_idx 0 \
+    --start_frame 0 --end_frame 100 \
+    --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5/checkpoint-3500 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --output_dir outputs/batch_mvdiffusion
+```
+
+### 14.4 배치 모드 출력 구조
+
+```
+outputs/batch_mvdiffusion/
+├── 000100/                      # 샘플별 하위 폴더
+│   ├── generated_views/
+│   ├── gaussians.ply
+│   └── turntable_grid.jpg
+├── 000105/
+│   └── ...
+└── 000200/
+    └── ...
+```
+
+### 14.5 배치 모드 요약
+
+| 모드 | 인자 조합 | 설명 |
+|------|----------|------|
+| GS-LRM only | `--data_dir` | 모든 샘플 6-view → GS-LRM |
+| GS-LRM + 범위 | `--data_dir --start_frame --end_frame` | 지정 범위만 처리 |
+| MVDiffusion + GS-LRM | `--data_dir --input_view_idx N` | 각 샘플의 view N → MVDiffusion → GS-LRM |
+| 전체 조합 | `--data_dir --input_view_idx --start_frame --end_frame --frame_step` | 범위 + 간격 + MVDiffusion |
+
+---
+
+*Updated: 2026-01-29 | Added batch processing with frame range (v1.5)*
