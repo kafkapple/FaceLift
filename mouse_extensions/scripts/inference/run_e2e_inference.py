@@ -87,6 +87,12 @@ Examples:
                              help="6-view sample directory")
     input_group.add_argument("--data_dir", type=str, 
                              help="Directory containing multiple samples")
+    input_group.add_argument("--start_frame", type=int, default=None,
+                             help="Start frame index for batch processing")
+    input_group.add_argument("--end_frame", type=int, default=None,
+                             help="End frame index for batch processing (exclusive)")
+    input_group.add_argument("--frame_step", type=int, default=1,
+                             help="Frame step for batch processing (default: 1)")
     input_group.add_argument("--input_view_idx", type=int, default=None,
                              help="View index (0-5) to use as input for MVDiffusion. "
                                   "When set with --sample_dir, uses that view for MVDiffusion instead of all 6 views.")
@@ -145,7 +151,8 @@ Examples:
     # Check if MVDiffusion is needed
     use_mvdiffusion = (
         args.input_image is not None or 
-        (args.sample_dir is not None and args.input_view_idx is not None)
+        (args.sample_dir is not None and args.input_view_idx is not None) or
+        (args.data_dir is not None and args.input_view_idx is not None)
     )
     
     if use_mvdiffusion and not args.mvdiffusion_checkpoint:
@@ -230,24 +237,76 @@ Examples:
         print(f"\nDone! Output: {out}")
 
     elif args.data_dir:
-        # Batch: multiple samples -> GS-LRM only
-        print(f"\n=== Batch: GS-LRM on all samples ===")
+        # Batch processing
         samples = find_sample_dirs(args.data_dir)
-        print(f"Found {len(samples)} samples in {args.data_dir}")
         
-        for sample_dir in samples:
-            try:
-                pipeline.run_from_views(
-                    sample_dir,
-                    args.output_dir,
-                    save_turntable=save_turntable,
-                    save_mesh=save_mesh,
-                    turntable_views=args.turntable_views,
-                )
-            except Exception as e:
-                print(f"Error processing {sample_dir}: {e}")
-                import traceback
-                traceback.print_exc()
+        # Apply frame range filtering
+        if args.start_frame is not None or args.end_frame is not None:
+            start = args.start_frame if args.start_frame is not None else 0
+            end = args.end_frame if args.end_frame is not None else len(samples)
+            samples = samples[start:end]
+        
+        # Apply frame step
+        if args.frame_step > 1:
+            samples = samples[::args.frame_step]
+        
+        total = len(samples)
+        print(f"\nFound {total} samples to process")
+        if args.start_frame or args.end_frame:
+            print(f"  Frame range: [{args.start_frame}:{args.end_frame}]")
+        if args.frame_step > 1:
+            print(f"  Frame step: {args.frame_step}")
+        
+        if args.input_view_idx is not None:
+            # Batch: MVDiffusion + GS-LRM (using specified view from each sample)
+            print(f"=== Batch Path 2b: MVDiffusion (view {args.input_view_idx}) + GS-LRM ===")
+            
+            from tqdm import tqdm
+            for i, sample_dir in enumerate(tqdm(samples, desc="Processing")):
+                try:
+                    sample_path = Path(sample_dir)
+                    view_image = sample_path / "images" / f"cam_{args.input_view_idx:03d}.png"
+                    
+                    if not view_image.exists():
+                        print(f"Skip {sample_dir}: view {args.input_view_idx} not found")
+                        continue
+                    
+                    # Create per-sample output directory
+                    sample_name = sample_path.name
+                    sample_output = Path(args.output_dir) / sample_name
+                    
+                    pipeline.run(
+                        str(view_image),
+                        str(sample_output),
+                        num_steps=args.num_steps,
+                        guidance_scale=args.guidance_scale,
+                        seed=args.seed,
+                        save_turntable=save_turntable,
+                        save_mesh=save_mesh,
+                        turntable_views=args.turntable_views,
+                    )
+                except Exception as e:
+                    print(f"Error processing {sample_dir}: {e}")
+                    import traceback
+                    traceback.print_exc()
+        else:
+            # Batch: GS-LRM only (using all 6 views)
+            print(f"=== Batch Path 1: GS-LRM only (6-view) ===")
+            
+            from tqdm import tqdm
+            for sample_dir in tqdm(samples, desc="Processing"):
+                try:
+                    pipeline.run_from_views(
+                        sample_dir,
+                        args.output_dir,
+                        save_turntable=save_turntable,
+                        save_mesh=save_mesh,
+                        turntable_views=args.turntable_views,
+                    )
+                except Exception as e:
+                    print(f"Error processing {sample_dir}: {e}")
+                    import traceback
+                    traceback.print_exc()
         
         print(f"\nAll outputs saved to: {args.output_dir}")
 
