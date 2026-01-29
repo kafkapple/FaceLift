@@ -16,14 +16,16 @@ class MVDiffusionModule:
     def __init__(
         self,
         checkpoint: str,
-        base_path: str = "checkpoints/mvdiffusion/pipeckpts",
-        prompt_embed_path: Optional[str] = None,
+        base_pipeline_path: str = "checkpoints/mvdiffusion/pipeckpts",
         device: str = "cuda",
+        dtype: torch.dtype = torch.float16,
+        prefer_ema: bool = True,
     ):
         self.device = device
         self.checkpoint_path = find_mvdiffusion_checkpoint(checkpoint)
-        self.base_path = base_path
-        self.prompt_embed_path = prompt_embed_path
+        self.base_pipeline_path = base_pipeline_path
+        self.dtype = dtype
+        self.prefer_ema = prefer_ema
         self.pipeline = None
 
     def load(self):
@@ -35,9 +37,10 @@ class MVDiffusionModule:
 
         self.pipeline = MVDiffusionInference(
             checkpoint_path=self.checkpoint_path,
-            base_path=self.base_path,
-            prompt_embed_path=self.prompt_embed_path,
+            base_pipeline_path=self.base_pipeline_path,
             device=self.device,
+            dtype=self.dtype,
+            prefer_ema=self.prefer_ema,
         )
 
     def generate(
