@@ -139,7 +139,7 @@ def add_row_labels_to_grid(
     grid_rows: int,
     grid_cols: int,
     row_height: int,
-    label_height: int = 40,
+    label_height: int = 55,
     loop: bool = True
 ) -> np.ndarray:
     """
@@ -192,7 +192,8 @@ def add_row_labels_to_grid(
         # Calculate angle range for this row
         start_angle = int((row_start_frame / total_frames) * 360)
         end_angle = int((row_end_frame / total_frames) * 360)
-        row_labels.append(f"Cam {from_cam} -> {to_cam}  |  {start_angle}° - {end_angle}°")
+        # Store as tuple: (camera_text, angle_text)
+        row_labels.append((f"Cam {from_cam} -> {to_cam}", f"{start_angle}° - {end_angle}°"))
     
     # Create new image with label bars
     new_height = h + label_height * grid_rows
@@ -216,12 +217,20 @@ def add_row_labels_to_grid(
         # Draw label bar (dark background)
         result[label_y:label_y + label_height, :] = (30, 30, 30)
         
-        # Add text
-        text = row_labels[row_idx]
-        (tw, th), _ = cv2.getTextSize(text, font, font_scale, font_thick)
-        text_x = 10
-        text_y = label_y + (label_height + th) // 2
-        cv2.putText(result, text, (text_x, text_y), font, font_scale, (255, 255, 255), font_thick)
+        # Add text (2 lines: camera info + angle info)
+        cam_text, angle_text = row_labels[row_idx]
+        
+        # Line 1: Camera info (larger font)
+        font_scale_cam = 1.3
+        (tw1, th1), _ = cv2.getTextSize(cam_text, font, font_scale_cam, font_thick)
+        text_y1 = label_y + th1 + 5
+        cv2.putText(result, cam_text, (10, text_y1), font, font_scale_cam, (255, 255, 255), font_thick)
+        
+        # Line 2: Angle info (slightly smaller, different color)
+        font_scale_angle = 1.0
+        (tw2, th2), _ = cv2.getTextSize(angle_text, font, font_scale_angle, 1)
+        text_y2 = label_y + th1 + th2 + 12
+        cv2.putText(result, angle_text, (10, text_y2), font, font_scale_angle, (200, 200, 100), 1)
     
     return result
 
