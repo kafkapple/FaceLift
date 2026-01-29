@@ -15,6 +15,8 @@ from easydict import EasyDict as edict
 from einops import rearrange
 from PIL import Image
 
+from mouse_extensions.inference.checkpoint_utils import find_checkpoint
+
 
 class GSLRMInference:
     """GS-LRM pipeline: multi-view images → 3D Gaussian splats."""
@@ -48,17 +50,8 @@ class GSLRMInference:
         GSLRM = importlib.import_module(module).__dict__[class_name]
         self.model = GSLRM(self.config).to(device)
 
-        # Load checkpoint
-        ckpt_path = Path(checkpoint_path)
-        if ckpt_path.is_dir():
-            ckpt_files = sorted(
-                ckpt_path.glob("ckpt_*.pt"),
-                key=lambda x: int(x.stem.split("_")[-1]),
-            )
-            if not ckpt_files:
-                raise FileNotFoundError(f"No ckpt_*.pt in {ckpt_path}")
-            ckpt_path = ckpt_files[-1]
-
+        # Find and load checkpoint (supports experiment names, directories, etc.)
+        ckpt_path = find_checkpoint(checkpoint_path)
         print(f"Loading checkpoint: {ckpt_path}")
         checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
 
