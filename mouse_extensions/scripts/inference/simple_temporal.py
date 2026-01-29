@@ -10,6 +10,7 @@ import argparse
 import gc
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -27,9 +28,84 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from gslrm.model.gaussians_renderer import render_turntable, imageseq2video
 
 
+def find_checkpoint(checkpoint_input: str, base_dir: str = "checkpoints/gslrm") -> str:
+    """
+    Flexibly find checkpoint file.
+
+    Args:
+        checkpoint_input: Can be:
+            - Full path to .pt file
+            - Directory containing .pt files
+            - Dataset/experiment name (e.g., "M5_E0_1_facelift")
+            - "pretrained" or "base" for original checkpoint
+
+    Returns:
+        Path to the checkpoint file
+    """
+    base_path = Path(base_dir)
+    input_path = Path(checkpoint_input)
+
+    # Case 1: Exact file path exists
+    if input_path.exists() and input_path.is_file():
+        print(f"Using checkpoint: {input_path}")
+        return str(input_path)
+
+    # Case 2: "pretrained" or "base" -> original checkpoint
+    if checkpoint_input.lower() in ["pretrained", "base", "original"]:
+        pretrained = base_path / "ckpt_0000000000021125.pt"
+        if pretrained.exists():
+            print(f"Using pretrained checkpoint: {pretrained}")
+            return str(pretrained)
+        raise FileNotFoundError(f"Pretrained checkpoint not found: {pretrained}")
+
+    # Case 3: Directory path or name
+    search_dir = None
+    if input_path.exists() and input_path.is_dir():
+        search_dir = input_path
+    elif (base_path / checkpoint_input).exists():
+        search_dir = base_path / checkpoint_input
+
+    if search_dir:
+        # Find best.pt first
+        best_pt = search_dir / "best.pt"
+        if best_pt.exists():
+            print(f"Using best checkpoint: {best_pt}")
+            return str(best_pt)
+
+        # Find all ckpt_*.pt files and get the latest
+        pt_files = list(search_dir.glob("ckpt_*.pt"))
+        if not pt_files:
+            raise FileNotFoundError(f"No checkpoint files found in {search_dir}")
+
+        def extract_step(p):
+            match = re.search(r'ckpt_(\d+)\.pt', p.name)
+            return int(match.group(1)) if match else 0
+
+        pt_files.sort(key=extract_step, reverse=True)
+        latest = pt_files[0]
+        print(f"Using latest checkpoint: {latest} (step {extract_step(latest)})")
+        return str(latest)
+
+    # Case 4: Try as experiment name pattern
+    matching_dirs = list(base_path.glob(f"{checkpoint_input}*"))
+    if matching_dirs:
+        matching_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return find_checkpoint(str(matching_dirs[0]), base_dir)
+
+    # List available options
+    available = [d.name for d in base_path.iterdir() if d.is_dir()]
+    raise FileNotFoundError(
+        f"Checkpoint not found: {checkpoint_input}. "
+        f"Available: {', '.join(available[:5])}..."
+    )
+
+
 def load_model(checkpoint_path: str, config_path: str, device: str = "cuda"):
     """Load GS-LRM model."""
     from gslrm.model.gslrm import GSLRM
+
+    # Auto-find checkpoint
+    checkpoint_path = find_checkpoint(checkpoint_path)
 
     config = OmegaConf.load(config_path)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
