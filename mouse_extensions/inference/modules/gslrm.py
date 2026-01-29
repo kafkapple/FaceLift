@@ -60,7 +60,7 @@ class GSLRMModule:
                 - image: [1, V, C, H, W] tensor
                 - c2w: [1, V, 4, 4] tensor
                 - fxfycxcy: [1, V, 4] tensor
-                - index: [1, V, 3] tensor
+                - index: [1, V, 2] tensor (view_idx, scene_idx)
                 
         Returns:
             Output dictionary with gaussians
@@ -107,7 +107,7 @@ class GSLRMModule:
             "image": images_t.unsqueeze(0),
             "c2w": torch.from_numpy(c2ws).float().to(self.device).unsqueeze(0),
             "fxfycxcy": torch.from_numpy(fxfycxcy).float().to(self.device).unsqueeze(0),
-            "index": torch.zeros(len(images), 3, dtype=torch.long, device=self.device).unsqueeze(0),
+            "index": torch.stack([torch.arange(len(images), dtype=torch.long, device=self.device), torch.zeros(len(images), dtype=torch.long, device=self.device)], dim=-1).unsqueeze(0),
         })
 
         return self.forward(sample)

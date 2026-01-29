@@ -176,12 +176,12 @@ ps aux | grep train_gslrm
 cd /home/joon/dev/FaceLift
 
 # Single image -> 6 views -> 3D Gaussians
-CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.inference.run_inference \
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.inference.run \
     --config configs/inference/m5_1view.yaml \
     --image /path/to/input.png
 
 # Batch processing (1-view mode)
-CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.inference.run_inference \
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.inference.run \
     --config configs/inference/m5_1view.yaml \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
     --start_frame 0 --end_frame 100 --frame_step 5 \
