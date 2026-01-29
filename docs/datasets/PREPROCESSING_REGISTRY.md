@@ -34,6 +34,8 @@
 
 ### 2.1 M5 Series (Ablation Study)
 
+> **상세**: [M5_SERIES_SPEC.md](./M5_SERIES_SPEC.md) - 정규화 방식 상세 비교
+
 | Preset | PP Centering | Translation Norm | 설명 | 상태 |
 |--------|--------------|------------------|------|------|
 | **M5** | ✅ PP=256 | Batch Uniform | 기준선: centroid→origin + 동일 scale | ✅ **권장** |
