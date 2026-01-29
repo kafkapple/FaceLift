@@ -76,20 +76,20 @@ class ExporterModule:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         # Extract data from GaussianModel if available
-        if hasattr(gaussians, _xyz):
+        if hasattr(gaussians, '_xyz'):
             data = {
-                xyz: gaussians._xyz.detach().cpu().numpy(),
-                opacity: gaussians._opacity.detach().cpu().numpy(),
-                scaling: gaussians._scaling.detach().cpu().numpy(),
-                rotation: gaussians._rotation.detach().cpu().numpy(),
-                features_dc: gaussians._features_dc.detach().cpu().numpy(),
+                'xyz': gaussians._xyz.detach().cpu().numpy(),
+                'opacity': gaussians._opacity.detach().cpu().numpy(),
+                'scaling': gaussians._scaling.detach().cpu().numpy(),
+                'rotation': gaussians._rotation.detach().cpu().numpy(),
+                'features_dc': gaussians._features_dc.detach().cpu().numpy(),
             }
             if gaussians._features_rest is not None:
-                data[features_rest] = gaussians._features_rest.detach().cpu().numpy()
+                data['features_rest'] = gaussians._features_rest.detach().cpu().numpy()
         elif isinstance(gaussians, torch.Tensor):
-            data = {gaussians: gaussians.detach().cpu().numpy()}
+            data = {'gaussians': gaussians.detach().cpu().numpy()}
         else:
-            data = {gaussians: np.array(gaussians)}
+            data = {'gaussians': np.array(gaussians)}
 
         np.savez_compressed(str(path), **data)
         return path
@@ -130,7 +130,7 @@ class ExporterModule:
             rr.set_time_sequence("frame", frame_idx)
 
             # Extract positions from GaussianModel
-            if hasattr(gaussians, _xyz):
+            if hasattr(gaussians, '_xyz'):
                 positions = gaussians._xyz.detach().cpu().numpy()
             elif isinstance(gaussians, torch.Tensor):
                 positions = gaussians.detach().cpu().numpy()

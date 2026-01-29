@@ -345,14 +345,15 @@ class UnifiedPipeline:
         
         return np.stack(views) if views else None
 
-    def _get_default_cameras(self) -> tuple[np.ndarray, np.ndarray]:
-        """Get default camera parameters for MVDiffusion output."""
-        # Use M5 default cameras
-        # TODO: Load from config or camera file
-        n_views = 6
-        c2ws = np.eye(4)[None].repeat(n_views, axis=0)
-        fxfycxcy = np.array([[549, 549, 256, 256]] * n_views)
-        return c2ws, fxfycxcy
+    def _get_default_cameras(self, image_size: int = 512) -> tuple[np.ndarray, np.ndarray]:
+        """Get camera parameters for MVDiffusion output from M5 default cameras."""
+        from mouse_extensions.inference.mvdiffusion_pipeline import MVDiffusionInference
+        
+        c2ws, fxfycxcy = MVDiffusionInference.compute_cameras(
+            image_size=image_size,
+            device=self.device,
+        )
+        return c2ws.cpu().numpy(), fxfycxcy.cpu().numpy()
 
     def _generate_batch_outputs(
         self,
