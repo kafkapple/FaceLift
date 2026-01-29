@@ -112,7 +112,26 @@ def _normalize_cameras_batch(cam_params_list, target_distance=2.7):
 | **Center (PP=256)** | M5_4 | M5_5 | **M5** ✅ |
 | **No Center** | M0 | M0_n | (N/A) |
 
-### 4.2 가설 및 우선순위
+### 4.2 각 프리셋의 목적
+
+| Preset | 검증 내용 | 비교 대상 |
+|--------|----------|----------|
+| **M5** | 기준선 (Center + Batch Uniform) | - |
+| **M5_4** | "Norm 없이 centering만으로 충분한가?" | M5 vs M5_4 |
+| **M5_5** | "Batch 대신 Per-view norm도 가능한가?" | M5 vs M5_5 |
+| **M0** | "완전 raw는 어디서 실패하는가?" | 실패 분석용 |
+| **M0_n** | "Centering 없이 norm만으로 가능한가?" | M5 vs M0_n |
+
+### 4.3 M5_4 vs M5_5 상세 비교
+
+| 항목 | M5_4 | M5_5 |
+|------|------|------|
+| **PP Centering** | ✅ PP=256 | ✅ PP=256 |
+| **Translation Norm** | ❌ None | ⚠️ Per-view (각 카메라 개별 2.7) |
+| **기하학 보존** | ✅ 원본 거리 비율 유지 | ⚠️ 왜곡 (모든 카메라 동일 거리) |
+| **검증 가설** | Norm 필요성 | Norm 방식 비교 |
+
+### 4.4 가설 및 우선순위
 
 | 순위 | 가설 | 비교 | 핵심 질문 |
 |------|------|------|----------|
@@ -121,12 +140,23 @@ def _normalize_cameras_batch(cam_params_list, target_distance=2.7):
 | **P3** | Norm 없이 center만? | M5 vs M5_4 | Pretrained 스케일 매칭 필수? |
 | **P4** | Raw baseline | M0 | 어디서 실패하는가? |
 
-### 4.3 기존 결과
+### 4.5 예상 결과 시나리오
+
+| 결과 패턴 | 의미 | 결론 |
+|----------|------|------|
+| M5 ≈ M5_5 >> M5_4 | Per-view도 충분, Norm이 핵심 | Norm 필수, 방식은 유연 |
+| M5 >> M5_5 ≈ M5_4 | Batch Uniform이 핵심 | 기하학 보존 중요 |
+| M5 ≈ M5_4 ≈ M5_5 | Centering만으로 충분 | Norm 불필요 |
+| M5 >> M5_4, M5 >> M5_5 | 둘 다 필요 | 현재 M5 설정이 최적 |
+
+### 4.6 기존 결과 (참고)
 
 | 실험 | 결과 | 의미 |
 |------|------|------|
 | D3n (No Center + Uniform) | PSNR ~3 ⛔ | Centering 없이 실패 |
 | M5 (Center + Batch Uniform) | PSNR ~23 ✅ | 현재 최고 |
+
+**D3n 실패 원인 분석**: Uniform norm은 모든 카메라를 동일 비율로 스케일하지만, PP가 가변이면 광선 방향이 불일치하여 3D 재구성 실패.
 
 ---
 
