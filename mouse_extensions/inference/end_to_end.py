@@ -15,6 +15,7 @@ from mouse_extensions.inference.gslrm_pipeline import (
     GSLRMInference,
     load_sample_data,
 )
+from mouse_extensions.inference.checkpoint_utils import find_mvdiffusion_checkpoint
 
 
 class EndToEndPipeline:
