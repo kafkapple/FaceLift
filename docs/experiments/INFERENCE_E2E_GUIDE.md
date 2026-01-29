@@ -35,8 +35,9 @@ Input Image → [MVDiffusion] → 6-view Images → [GS-LRM] → 3D Gaussians �
 cd /home/joon/dev/FaceLift
 source ~/anaconda3/etc/profile.d/conda.sh && conda activate facelift
 
-python -m mouse_extensions.scripts.inference.simple_temporal \
-    --checkpoint checkpoints/gslrm/M5_best.pt \
+# GPU 지정 + 실험 이름으로 체크포인트 자동 탐색
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5_E0_1_facelift \
     --config configs/base/gslrm_mouse.yaml \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
     --start_frame 0 \
@@ -48,10 +49,49 @@ python -m mouse_extensions.scripts.inference.simple_temporal \
     --output_dir outputs/temporal_M5
 ```
 
-### 3.2 주요 옵션
+### 3.2 체크포인트 자동 탐색
+
+`--checkpoint` 옵션은 다양한 형식을 지원합니다:
+
+| 입력 형식 | 예시 | 동작 |
+|----------|------|------|
+| **실험 이름** | `M5_E0_1_facelift` | `checkpoints/gslrm/M5_E0_1_facelift/`에서 최신 찾기 |
+| **pretrained** | `pretrained` | 원본 `ckpt_0000000000021125.pt` 사용 |
+| **전체 경로** | `checkpoints/.../ckpt_*.pt` | 해당 파일 직접 사용 |
+| **디렉토리** | `checkpoints/gslrm/M5_E0_1_facelift/` | 디렉토리 내 최신 찾기 |
+
+**자동 탐색 우선순위**:
+1. `best.pt` (있으면 우선)
+2. 가장 높은 step의 `ckpt_*.pt`
+
+```bash
+# 실험 이름만 지정 (자동으로 최신 checkpoint)
+--checkpoint M5_E0_1_facelift
+
+# pretrained 모델 사용
+--checkpoint pretrained
+
+# 특정 파일 지정
+--checkpoint checkpoints/gslrm/M5_E0_1_facelift/ckpt_0000000000006300.pt
+```
+
+### 3.3 GPU 지정
+
+학습과 동일하게 `CUDA_VISIBLE_DEVICES`로 GPU 선택:
+
+```bash
+# GPU 4번 사용
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal ...
+
+# GPU 5번 사용
+CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.scripts.inference.simple_temporal ...
+```
+
+### 3.4 주요 옵션
 
 | 옵션 | 설명 | 기본값 | 권장 |
 |------|------|--------|------|
+| `--checkpoint` | 체크포인트 (자동 탐색 지원) | 필수 | 실험 이름 |
 | `--start_frame` | 시작 프레임 (샘플 인덱스) | 첫 번째 | 0 |
 | `--end_frame` | 끝 프레임 (exclusive) | 마지막 | 100 |
 | `--frame_step` | 프레임 간격 | 1 | **1** (전처리 이미 5x 샘플링됨) |
@@ -63,13 +103,13 @@ python -m mouse_extensions.scripts.inference.simple_temporal \
 | `--elevation` | 카메라 고도각 | 20.0 | 20.0 |
 | `--radius` | 카메라 거리 | 2.7 | 2.7 |
 
-### 3.3 프레임 범위 이해
+### 3.5 프레임 범위 이해
 
 **중요**: 전처리 시 이미 `frame_jump=5` 적용됨
 
 | 원본 데이터 | 전처리 후 | 추론 설정 | 결과 |
 |-------------|-----------|-----------|------|
-| ~18,000 프레임 | 3,600 샘플 | `--frame_step 1` | 3,600 샘플 전체 |
+| ~18,000 프레임 | 3,600 샘플 | `--frame_step 1` | 3,600 샘플 전체 ✅ |
 | ~18,000 프레임 | 3,600 샘플 | `--frame_step 5` | 720 샘플 (⚠️ 1/25 원본) |
 
 ```bash
@@ -83,12 +123,12 @@ python -m mouse_extensions.scripts.inference.simple_temporal \
 --frame_step 10
 ```
 
-### 3.4 Split 파일 사용
+### 3.6 Split 파일 사용
 
 ```bash
 # Test set 평가
-python -m mouse_extensions.scripts.inference.simple_temporal \
-    --checkpoint checkpoints/gslrm/M5t_best.pt \
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5t_E0_1_facelift \
     --config configs/base/gslrm_mouse.yaml \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5t \
     --split /home/joon/data/preprocessed/FaceLift_mouse/M5t/data_mouse_test.txt \
@@ -102,9 +142,9 @@ python -m mouse_extensions.scripts.inference.simple_temporal \
 ### 4.1 6-view 샘플에서 직접 렌더링
 
 ```bash
-python -m mouse_extensions.scripts.inference.run_e2e_inference \
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --sample_dir /home/joon/data/preprocessed/FaceLift_mouse/M5/000531 \
-    --gslrm_checkpoint checkpoints/gslrm/M5_best.pt \
+    --gslrm_checkpoint M5_E0_1_facelift \
     --gslrm_config configs/base/gslrm_mouse.yaml \
     --output_dir outputs/e2e_test
 ```
@@ -112,10 +152,10 @@ python -m mouse_extensions.scripts.inference.run_e2e_inference \
 ### 4.2 단일 이미지 입력 (MVDiffusion 필요)
 
 ```bash
-python -m mouse_extensions.scripts.inference.run_e2e_inference \
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --input_image /path/to/single_image.png \
     --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_finetuned \
-    --gslrm_checkpoint checkpoints/gslrm/M5_best.pt \
+    --gslrm_checkpoint M5_E0_1_facelift \
     --gslrm_config configs/base/gslrm_mouse.yaml \
     --camera_json configs/cameras/m5_fixed.json \
     --output_dir outputs/e2e_single
@@ -124,9 +164,9 @@ python -m mouse_extensions.scripts.inference.run_e2e_inference \
 ### 4.3 배치 처리
 
 ```bash
-python -m mouse_extensions.scripts.inference.run_e2e_inference \
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
-    --gslrm_checkpoint checkpoints/gslrm/M5_best.pt \
+    --gslrm_checkpoint M5_E0_1_facelift \
     --gslrm_config configs/base/gslrm_mouse.yaml \
     --output_dir outputs/e2e_batch
 ```
@@ -165,16 +205,27 @@ outputs/temporal_M5/
 
 ## 7. 체크포인트 위치
 
-| 모델 | 경로 | 설명 |
-|------|------|------|
-| GS-LRM pretrained | `checkpoints/gslrm/ckpt_0000000000021125.pt` | 원본 |
-| GS-LRM finetuned | `checkpoints/gslrm/{dataset}_{exp}/best.pt` | 학습 후 |
-| MVDiffusion base | `checkpoints/mvdiffusion/pipeckpts/` | 기본 |
-| MVDiffusion finetuned | `checkpoints/mvdiffusion/mouse_finetuned/` | Mouse용 |
+| 모델 | 경로 | `--checkpoint` 값 |
+|------|------|---------------------|
+| GS-LRM pretrained | `checkpoints/gslrm/ckpt_0000000000021125.pt` | `pretrained` |
+| M5 + E0_1 | `checkpoints/gslrm/M5_E0_1_facelift/` | `M5_E0_1_facelift` |
+| M5 + E1_2 | `checkpoints/gslrm/M5_E1_2_alpha/` | `M5_E1_2_alpha` |
+| M5h_2 + E0_1 | `checkpoints/gslrm/M5h_2_E0_1_facelift/` | `M5h_2_E0_1_facelift` |
+| MVDiffusion base | `checkpoints/mvdiffusion/pipeckpts/` | - |
 
 ---
 
 ## 8. 문제 해결
+
+### Checkpoint not found
+
+```bash
+# 사용 가능한 체크포인트 확인
+ls checkpoints/gslrm/
+
+# 실험 이름으로 자동 탐색
+--checkpoint M5_E0_1_facelift
+```
 
 ### CUDA OOM
 
@@ -210,28 +261,36 @@ outputs/temporal_M5/
 
 ```bash
 # 기본 (100 프레임 테스트)
-python -m mouse_extensions.scripts.inference.simple_temporal \
-    --checkpoint checkpoints/gslrm/M5_best.pt \
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5_E0_1_facelift \
     --config configs/base/gslrm_mouse.yaml \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
     --start_frame 0 --end_frame 100 --frame_step 1 \
     --output_dir outputs/temporal_test
 
 # 전체 데이터셋
-python -m mouse_extensions.scripts.inference.simple_temporal \
-    --checkpoint checkpoints/gslrm/M5_best.pt \
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5_E0_1_facelift \
     --config configs/base/gslrm_mouse.yaml \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
     --frame_step 1 \
     --output_dir outputs/temporal_full
 
 # Test split 평가 (Pose Splatter 비교용)
-python -m mouse_extensions.scripts.inference.simple_temporal \
-    --checkpoint checkpoints/gslrm/M5t_best.pt \
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5t_E0_1_facelift \
     --config configs/base/gslrm_mouse.yaml \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5t \
     --split data_mouse_test.txt \
     --output_dir outputs/temporal_M5t_test
+
+# Pretrained 모델로 테스트
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint pretrained \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 10 --frame_step 1 \
+    --output_dir outputs/temporal_pretrained_test
 ```
 
 ---
@@ -246,4 +305,4 @@ python -m mouse_extensions.scripts.inference.simple_temporal \
 
 ---
 
-*FaceLift E2E Inference Guide v1.0 | 2026-01-29*
+*FaceLift E2E Inference Guide v1.1 | 2026-01-29*
