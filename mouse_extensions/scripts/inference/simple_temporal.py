@@ -35,6 +35,7 @@ import torch
 from easydict import EasyDict as edict
 from einops import rearrange
 from omegaconf import OmegaConf
+import cv2
 from tqdm import tqdm
 from PIL import Image
 
@@ -42,6 +43,138 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from gslrm.model.gaussians_renderer import render_turntable, imageseq2video
+
+
+# ============================================================================
+# Grid Label Helper Functions
+# ============================================================================
+
+def add_turntable_row_labels(
+    grid_image: np.ndarray,
+    num_views: int,
+    grid_rows: int,
+    grid_cols: int,
+    row_height: int,
+    label_height: int = 45,
+    elevation: float = 20.0,
+) -> np.ndarray:
+    """
+    Add angle info labels to turntable grid image.
+    
+    Args:
+        grid_image: [H, W, 3] uint8 image
+        num_views: Total number of views (360 degree)
+        grid_rows: Number of rows in grid
+        grid_cols: Number of columns in grid
+        row_height: Height of each cell
+        label_height: Height of label bar
+        elevation: Camera elevation angle
+    
+    Returns:
+        Image with label bars added
+    """
+    h, w = grid_image.shape[:2]
+    
+    # Calculate angle step
+    angle_step = 360.0 / num_views
+    
+    # Create new image with label bars
+    new_height = h + label_height * grid_rows
+    result = np.zeros((new_height, w, 3), dtype=np.uint8)
+    
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    
+    for row_idx in range(grid_rows):
+        # Position of this row's label bar
+        label_y = row_idx * (row_height + label_height)
+        # Position of this row's image data
+        img_y = label_y + label_height
+        
+        # Copy image row
+        src_start = row_idx * row_height
+        src_end = src_start + row_height
+        if src_end <= h:
+            result[img_y:img_y + row_height, :] = grid_image[src_start:src_end, :]
+        
+        # Draw label bar (dark background)
+        result[label_y:label_y + label_height, :] = (30, 30, 30)
+        
+        # Calculate angle range for this row
+        start_view = row_idx * grid_cols
+        end_view = min(start_view + grid_cols - 1, num_views - 1)
+        start_angle = int(start_view * angle_step)
+        end_angle = int(end_view * angle_step)
+        
+        # Line 1: Angle range
+        angle_text = f"Views {start_view}-{end_view} | {start_angle} deg - {end_angle} deg"
+        font_scale = 1.0
+        (tw, th), _ = cv2.getTextSize(angle_text, font, font_scale, 2)
+        text_y = label_y + th + 8
+        cv2.putText(result, angle_text, (10, text_y), font, font_scale, (255, 255, 255), 2)
+        
+        # Line 2: Elevation info (smaller, on the right side)
+        elev_text = f"Elev: {elevation:.0f} deg"
+        (tw2, th2), _ = cv2.getTextSize(elev_text, font, 0.7, 1)
+        cv2.putText(result, elev_text, (w - tw2 - 10, text_y), font, 0.7, (180, 180, 180), 1)
+    
+    return result
+
+
+def add_input_view_labels(
+    grid_image: np.ndarray,
+    num_cams: int,
+    grid_rows: int,
+    grid_cols: int,
+    row_height: int,
+    label_height: int = 35,
+) -> np.ndarray:
+    """
+    Add camera labels to input view grid.
+    
+    Args:
+        grid_image: [H, W, 3] uint8
+        num_cams: Number of cameras
+        grid_rows, grid_cols: Grid dimensions
+        row_height: Cell height
+        label_height: Label bar height
+    
+    Returns:
+        Labeled grid image
+    """
+    h, w = grid_image.shape[:2]
+    
+    # Create new image with label bars
+    new_height = h + label_height * grid_rows
+    result = np.zeros((new_height, w, 3), dtype=np.uint8)
+    
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    
+    for row_idx in range(grid_rows):
+        label_y = row_idx * (row_height + label_height)
+        img_y = label_y + label_height
+        
+        # Copy image row
+        src_start = row_idx * row_height
+        src_end = src_start + row_height
+        if src_end <= h:
+            result[img_y:img_y + row_height, :] = grid_image[src_start:src_end, :]
+        
+        # Draw label bar
+        result[label_y:label_y + label_height, :] = (30, 30, 30)
+        
+        # Camera indices for this row
+        start_cam = row_idx * grid_cols
+        end_cam = min(start_cam + grid_cols - 1, num_cams - 1)
+        
+        cam_text = f"Input Cameras {start_cam}-{end_cam}"
+        font_scale = 0.9
+        (tw, th), _ = cv2.getTextSize(cam_text, font, font_scale, 2)
+        text_y = label_y + th + 6
+        cv2.putText(result, cam_text, (10, text_y), font, font_scale, (255, 255, 255), 2)
+    
+    return result
+
+
 
 
 def find_checkpoint(checkpoint_input: str, base_dir: str = "checkpoints/gslrm") -> str:
@@ -356,11 +489,15 @@ Examples:
     parser.add_argument("--fixed_angles", type=int, nargs="+", default=[0],
                         help="Fixed angle views for time videos (default: [0])")
     
-    # Export options
-    parser.add_argument("--save_gaussian", action="store_true",
-                        help="Save Gaussian .ply and .npz files")
-    parser.add_argument("--save_rerun", action="store_true",
-                        help="Save Rerun .rrd files for interactive viewing")
+    # Export options (all enabled by default)
+    parser.add_argument("--save_gaussian", action="store_true", default=True,
+                        help="Save Gaussian .ply and .npz files (default: True)")
+    parser.add_argument("--no_gaussian", action="store_true",
+                        help="Disable Gaussian file saving")
+    parser.add_argument("--save_rerun", action="store_true", default=True,
+                        help="Save Rerun .rrd files for interactive viewing (default: True)")
+    parser.add_argument("--no_rerun", action="store_true",
+                        help="Disable Rerun .rrd file saving")
     parser.add_argument("--save_first_only", action="store_true",
                         help="Only save Gaussian/Rerun for first frame (faster)")
     
@@ -410,6 +547,12 @@ Examples:
         frame_indices = list(range(args.start_frame, args.end_frame, args.frame_step))
         print(f"Processing {len(frame_indices)} frames")
 
+    # Handle --no_* flags
+    if args.no_gaussian:
+        args.save_gaussian = False
+    if args.no_rerun:
+        args.save_rerun = False
+    
     # Check if we need to export Gaussians
     need_gaussians = args.save_gaussian or args.save_rerun
     
@@ -534,7 +677,7 @@ Examples:
     imageseq2video(full_frames, str(output_dir / "full_all.mp4"), fps=args.fps)
     print(f"Saved: full_all.mp4 ({T}x{V}={T*V} frames)")
 
-    # === Output 5: Grid image (first frame) ===
+    # === Output 5: Grid image (first frame) with angle labels ===
     first = all_turntables[0]
     cols = 6
     rows = (V + cols - 1) // cols
@@ -544,30 +687,62 @@ Examples:
         first = np.concatenate([first, padding], axis=0)
     grid = first.reshape(rows, cols, H, W, 3)
     grid = grid.transpose(0, 2, 1, 3, 4).reshape(rows * H, cols * W, 3)
-    Image.fromarray(grid).save(str(output_dir / "grid_first.jpg"))
-    print("Saved: grid_first.jpg")
+    
+    # Add angle labels to grid
+    grid_labeled = add_turntable_row_labels(
+        grid, 
+        num_views=V,
+        grid_rows=rows,
+        grid_cols=cols,
+        row_height=H,
+        elevation=args.elevation,
+    )
+    Image.fromarray(grid_labeled).save(str(output_dir / "grid_first.jpg"))
+    print(f"Saved: grid_first.jpg ({rows}x{cols} grid with angle labels)")
 
-    # === Output 6: 6-camera input grid video ===
+    # === Output 6: 6-camera input grid (first frame image) ===
     num_cams = all_input_views[0].shape[0]
-    grid_cols = 3
-    grid_rows = (num_cams + grid_cols - 1) // grid_cols
+    input_grid_cols = 3
+    input_grid_rows = (num_cams + input_grid_cols - 1) // input_grid_cols
     ih, iw = all_input_views[0].shape[1:3]
+    
+    # Create input grid image (first frame)
+    input_views = all_input_views[0]
+    pad_n = input_grid_rows * input_grid_cols - num_cams
+    if pad_n > 0:
+        input_views = np.concatenate(
+            [input_views, np.ones((pad_n, ih, iw, 3), dtype=input_views.dtype) * 255], axis=0
+        )
+    input_grid = input_views.reshape(input_grid_rows, input_grid_cols, ih, iw, 3)
+    input_grid = input_grid.transpose(0, 2, 1, 3, 4).reshape(input_grid_rows * ih, input_grid_cols * iw, 3)
+    
+    # Add camera labels
+    input_grid_labeled = add_input_view_labels(
+        input_grid,
+        num_cams=num_cams,
+        grid_rows=input_grid_rows,
+        grid_cols=input_grid_cols,
+        row_height=ih,
+    )
+    Image.fromarray(input_grid_labeled).save(str(output_dir / "grid_input.jpg"))
+    print(f"Saved: grid_input.jpg ({input_grid_rows}x{input_grid_cols} input cameras)")
 
+    # === Output 7: 6-camera input grid video ===
     grid_video_frames = []
     for t in range(len(all_input_views)):
         views = all_input_views[t]
-        pad_n = grid_rows * grid_cols - num_cams
+        pad_n = input_grid_rows * input_grid_cols - num_cams
         if pad_n > 0:
             views = np.concatenate(
                 [views, np.ones((pad_n, ih, iw, 3), dtype=views.dtype) * 255], axis=0
             )
-        grid = views.reshape(grid_rows, grid_cols, ih, iw, 3)
-        grid = grid.transpose(0, 2, 1, 3, 4).reshape(grid_rows * ih, grid_cols * iw, 3)
+        grid = views.reshape(input_grid_rows, input_grid_cols, ih, iw, 3)
+        grid = grid.transpose(0, 2, 1, 3, 4).reshape(input_grid_rows * ih, input_grid_cols * iw, 3)
         grid_video_frames.append(grid)
 
     grid_video_frames = np.stack(grid_video_frames)
     imageseq2video(grid_video_frames, str(output_dir / "grid_6view.mp4"), fps=args.fps)
-    print(f"Saved: grid_6view.mp4 ({len(grid_video_frames)} frames, {grid_rows}x{grid_cols})")
+    print(f"Saved: grid_6view.mp4 ({len(grid_video_frames)} frames, {input_grid_rows}x{input_grid_cols})")
 
     # Summary
     print(f"\n{'='*60}")
@@ -579,7 +754,8 @@ Examples:
     print(f"  - time_rotating.mp4    : Rotating view with time")
     print(f"  - full_all.mp4         : All frames × all angles")
     print(f"  - grid_6view.mp4       : 6-camera input views")
-    print(f"  - grid_first.jpg       : First frame turntable grid")
+    print(f"  - grid_first.jpg       : First frame turntable grid with angle labels")
+    print(f"  - grid_input.jpg       : Input camera views grid")
     if args.save_gaussian:
         print("Gaussians:")
         print(f"  - gaussians/*.ply      : PLY files (GS viewer compatible)")
