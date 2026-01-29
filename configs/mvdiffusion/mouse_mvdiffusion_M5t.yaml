@@ -35,7 +35,7 @@ prompt_embed_path: "mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt"
 # Same camera params as GS-LRM training for consistent pipeline
 # =============================================================================
 train_dataset:
-  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_train_ps.txt
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt
   bg_color: 'three_choices'
   augmentation: true
   aug_brightness: [0.9, 1.1]
@@ -43,7 +43,7 @@ train_dataset:
   aug_hflip: false
 
 validation_dataset:
-  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_val_ps.txt
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_val.txt
   bg_color: 'white'
 
 # =============================================================================

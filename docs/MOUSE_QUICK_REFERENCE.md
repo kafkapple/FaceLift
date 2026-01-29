@@ -109,18 +109,18 @@ GS-LRM과 동일한 전처리 데이터(M5)로 finetune하여 카메라 파라�
 | Config | Split | Train/Val/Test | 용도 |
 |--------|-------|---------------|------|
 | mouse_mvdiffusion_M5.yaml | 80/10/10 random | 2880/360/360 | 일반 학습 |
-| mouse_mvdiffusion_M5t.yaml | 80/10/10 temporal | 2880/360/360 | 별도 split (추후 1:1:1 생성) |
+| mouse_mvdiffusion_M5t.yaml | 1:1:1 temporal | 1198/1198/1204 | **Pose Splatter 비교** |
 
 ### M5 (기본 - Random Split)
 - **파일**: configs/mvdiffusion/mouse_mvdiffusion_M5.yaml
 - **전처리**: M5 (Affine, D7.1 preset, 512x512, fx=549, cx=cy=256)
 - **데이터**: train 2880 / val 360 샘플 (80/10/10)
 
-### M5t (별도 Split - Temporal)
+### M5t (Pose Splatter 비교용 - 1:1:1 Temporal Split)
 - **파일**: configs/mvdiffusion/mouse_mvdiffusion_M5t.yaml
 - **전처리**: 동일 (M5 데이터 공유)
-- **데이터**: train 2880 / val 360 (*_ps.txt 파일, 80/10/10)
-- **참고**: 1:1:1 split 필요 시 split_generator.py로 생성
+- **데이터**: train 1198 / val 1198 / test 1204 (*_1to1.txt 파일)
+- **특징**: Pose Splatter 논문과 동일한 1:1:1 temporal consecutive split
 
 ### 실행 명령어
 
