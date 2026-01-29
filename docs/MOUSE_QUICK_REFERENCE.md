@@ -164,3 +164,35 @@ ps aux | grep train_gslrm
 | ~~M3~~ | fx=739 unnormalized | 6.96 deg |
 | ~~M3_norm~~ | Variable PP | 13.62 deg |
 | ~~M3_persample~~ | Variable PP | 16.15 deg |
+
+
+---
+
+## E2E Inference (MVDiffusion + GS-LRM)
+
+### Unified Pipeline
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# Single image -> 6 views -> 3D Gaussians
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.inference.run_inference \
+    --config configs/inference/m5_1view.yaml \
+    --image /path/to/input.png
+
+# Batch processing (1-view mode)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.inference.run_inference \
+    --config configs/inference/m5_1view.yaml \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 100 --frame_step 5 \
+    --view_idx 0
+```
+
+### Camera Parameters Warning
+
+MVDiffusion output -> GS-LRM input requires M5 camera parameters.
+Use MVDiffusionInference.compute_cameras(). Never use identity matrices.
+
+---
+
+*Updated: 2026-01-29 | Added E2E inference section*
