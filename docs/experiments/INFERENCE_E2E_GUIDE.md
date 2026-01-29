@@ -701,3 +701,192 @@ outputs/batch_mvdiffusion/
 ---
 
 *Updated: 2026-01-29 | Added batch processing with frame range (v1.5)*
+
+---
+
+## 15. 종합 예제 (Comprehensive Examples)
+
+### 15.1 현재 권장 체크포인트
+
+| 모델 | 경로 | 자동 탐색 값 |
+|------|------|-------------|
+| **MVDiffusion** | `checkpoints/mvdiffusion/mouse_M5/` | `mouse_M5` |
+| **GS-LRM** | `checkpoints/gslrm/M5t_E0_1_facelift/` | `M5t_E0_1_facelift` |
+
+### 15.2 단일 샘플 3D 재구성
+
+#### 6-view 입력 (GS-LRM only)
+
+```bash
+# 특정 샘플 (6-view → 3D Gaussian)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --sample_dir /home/joon/data/preprocessed/FaceLift_mouse/M5/000531 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --output_dir outputs/sample_531
+```
+
+#### 단일 뷰 입력 (MVDiffusion + GS-LRM)
+
+```bash
+# 샘플의 view 0 → MVDiffusion → 6-view → GS-LRM
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --sample_dir /home/joon/data/preprocessed/FaceLift_mouse/M5/000531 \
+    --input_view_idx 0 \
+    --mvdiffusion_checkpoint mouse_M5 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --output_dir outputs/sample_531_from_view0
+```
+
+### 15.3 여러 샘플 배치 처리
+
+#### 전체 데이터셋 처리
+
+```bash
+# M5 전체 3,600 샘플 (6-view → GS-LRM)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --output_dir outputs/batch_full
+```
+
+#### 프레임 범위 지정
+
+```bash
+# 샘플 0-99 (100개)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 100 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --output_dir outputs/batch_0_100
+
+# 샘플 500-600, 매 5번째만
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 500 --end_frame 600 --frame_step 5 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --output_dir outputs/batch_500_600_step5
+```
+
+#### 1-view 배치 (MVDiffusion 포함)
+
+```bash
+# 100개 샘플, view 0 → MVDiffusion → GS-LRM
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --input_view_idx 0 \
+    --start_frame 0 --end_frame 100 \
+    --mvdiffusion_checkpoint mouse_M5 \
+    --gslrm_checkpoint M5t_E0_1_facelift \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --output_dir outputs/batch_mvdiffusion_view0
+```
+
+### 15.4 연속 프레임 영상 생성 (Temporal Video)
+
+`simple_temporal.py`를 사용하여 시간 순서대로 영상을 생성합니다.
+
+#### 기본 영상 생성
+
+```bash
+# 100 프레임 → 360° 회전 영상
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5t_E0_1_facelift \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 100 \
+    --num_views 36 \
+    --resolution 384 \
+    --fps 24 \
+    --output_dir outputs/temporal_100frames
+```
+
+**출력 영상**:
+- `turntable_first.mp4`: 첫 프레임 360° 회전
+- `time_fixed.mp4`: 시간 변화 (고정 각도 0°)
+- `time_rotating.mp4`: 시간 + 회전 동시
+- `grid_6view.mp4`: 6-view 입력 영상
+
+#### 고정 각도 다중 지정
+
+```bash
+# 0°, 90°, 180°, 270° 4개 고정 각도 영상
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5t_E0_1_facelift \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 100 \
+    --fixed_angles 0 9 18 27 \
+    --output_dir outputs/temporal_4angles
+```
+
+**참고**: `--fixed_angles`는 뷰 인덱스 (0-35), 각도 = 인덱스 × 10°
+
+#### Test Split 영상
+
+```bash
+# M5t test set 전체 영상
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint M5t_E0_1_facelift \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5t \
+    --split data_mouse_test.txt \
+    --fps 24 \
+    --output_dir outputs/temporal_test_split
+```
+
+### 15.5 출력 구조
+
+#### run_e2e_inference 출력
+
+```
+outputs/batch_mvdiffusion_view0/
+├── 000000/                      # 샘플별 폴더
+│   ├── generated_views/         # MVDiffusion 생성 6-view
+│   │   ├── view_00.png
+│   │   ├── view_01.png
+│   │   └── ...
+│   ├── gaussians.ply            # 3D Gaussian (.ply)
+│   └── turntable_grid.jpg       # 다각도 렌더링 그리드
+├── 000001/
+│   └── ...
+└── 000099/
+    └── ...
+```
+
+#### simple_temporal 출력
+
+```
+outputs/temporal_100frames/
+├── turntable_first.mp4          # 첫 프레임 360°
+├── time_fixed.mp4               # 시간 변화 (각도 0°)
+├── time_fixed_angle9.mp4        # 각도 90° (--fixed_angles 9 지정 시)
+├── time_rotating.mp4            # 시간 + 회전
+├── full_all.mp4                 # 전체 (T × V 프레임)
+├── grid_first.jpg               # 첫 프레임 그리드 이미지
+├── grid_6view.mp4               # 입력 6-view 영상
+├── gaussians/                   # Gaussian 파일 (--save_gaussian)
+│   ├── frame_000000.ply
+│   └── ...
+└── rerun/                       # Rerun 파일 (--save_rerun)
+    └── sequence.rrd
+```
+
+### 15.6 Quick Reference
+
+| 목적 | 명령어 핵심 부분 |
+|------|-----------------|
+| 단일 샘플 (6-view) | `--sample_dir /path/to/sample` |
+| 단일 샘플 (1-view) | `--sample_dir ... --input_view_idx N --mvdiffusion_checkpoint mouse_M5` |
+| 배치 (6-view) | `--data_dir /path/to/dataset` |
+| 배치 (1-view) | `--data_dir ... --input_view_idx N --mvdiffusion_checkpoint mouse_M5` |
+| 프레임 범위 | `--start_frame X --end_frame Y --frame_step Z` |
+| 연속 영상 | `simple_temporal.py --checkpoint M5t_E0_1_facelift --data_dir ...` |
+
+---
+
+*Updated: 2026-01-29 | Added comprehensive examples (v1.6)*

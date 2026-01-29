@@ -64,7 +64,7 @@ class EndToEndPipeline:
         if mvdiffusion_checkpoint:
             print("=== Loading MVDiffusion ===")
             self.mvdiff = MVDiffusionInference(
-                checkpoint_path=mvdiffusion_checkpoint,
+                checkpoint_path=find_mvdiffusion_checkpoint(mvdiffusion_checkpoint),
                 base_pipeline_path=mvdiffusion_base,
                 device=device,
                 prefer_ema=prefer_ema,
