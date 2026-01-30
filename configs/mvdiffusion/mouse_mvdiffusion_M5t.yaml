@@ -133,6 +133,6 @@ unet_from_pretrained_kwargs:
   addition_downsample: false
 
 # WandB
-wandb_exp_name: "mvdiff_M5_finetune"
+wandb_exp_name: "mvdiff_M5t_finetune"
 wandb_group: "mvdiffusion"
-wandb_job_type: "finetune_M5"
+wandb_job_type: "finetune_M5t"
