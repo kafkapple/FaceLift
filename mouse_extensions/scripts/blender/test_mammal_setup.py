@@ -12,7 +12,7 @@ from mathutils import Vector
 # Configuration
 # ==============================================================================
 
-MAMMAL_OBJ = "/home/joon/dev/MAMMAL_mouse/results/fitting/markerless_mouse_1_nerf_v012345_kp22_20260126_025249/obj/step_2_frame_000000.obj"
+MAMMAL_OBJ = str(Path.home()) + "/dev/MAMMAL_mouse/results/fitting/markerless_mouse_1_nerf_v012345_kp22_20260126_025249/obj/step_2_frame_000000.obj"
 
 # FaceLift camera settings
 NUM_CAMERAS = 6

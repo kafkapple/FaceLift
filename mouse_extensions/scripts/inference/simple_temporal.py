@@ -13,7 +13,7 @@ Usage:
     python -m mouse_extensions.scripts.inference.simple_temporal \\
         --checkpoint M5_E0_1_facelift \\
         --config configs/base/gslrm_mouse.yaml \\
-        --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \\
+        --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \\
         --start_frame 0 --end_frame 100 \\
         --save_gaussian --save_rerun \\
         --rotation_speed 0.5 \\
@@ -441,14 +441,14 @@ Examples:
   python -m mouse_extensions.scripts.inference.simple_temporal \\
       --checkpoint M5_E0_1_facelift \\
       --config configs/base/gslrm_mouse.yaml \\
-      --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \\
+      --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \\
       --start_frame 0 --end_frame 100
 
   # With Gaussian export and half-speed rotation
   python -m mouse_extensions.scripts.inference.simple_temporal \\
       --checkpoint M5_E0_1_facelift \\
       --config configs/base/gslrm_mouse.yaml \\
-      --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \\
+      --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \\
       --save_gaussian --save_rerun \\
       --rotation_speed 0.5
         """,

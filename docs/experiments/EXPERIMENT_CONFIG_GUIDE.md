@@ -299,7 +299,7 @@ wandb:
 - [ ] `training.dataset`에 num_views/num_input_views **없는가?**
 - [ ] `training.dataset.data_list` **절대경로**인가?
 - [ ] `wandb.name`이 파일명과 일치하는가?
-- [ ] `python scripts/validate_config.py` 통과하는가?
+- [ ] `# (삭제됨) validate_config.py` 통과하는가?
 - [ ] Pretrained checkpoint 경로 포함되어 있는가? (`checkpoints/gslrm/ckpt_0000000000021125.pt`)
 
 ### 템플릿
@@ -308,7 +308,7 @@ wandb:
 # 기존 config 복사 후 수정
 cp configs/experiments/E0_1_facelift.yaml configs/experiments/my_new.yaml
 # 수정 후 검증
-python scripts/validate_config.py configs/experiments/my_new.yaml
+# (삭제됨) validate_config.py configs/experiments/my_new.yaml
 ```
 
 ---
@@ -629,10 +629,10 @@ if ref_view_config == "random":
 
 ### 3.2 Phase 2: 합성 데이터 생성
 
-**Script**: `scripts/generate_gslrm_training_data.py`
+**Script**: `mouse_extensions/scripts/preprocessing/ 참조`
 
 ```bash
-python scripts/generate_gslrm_training_data.py \
+python mouse_extensions/scripts/preprocessing/ 참조 \
     --mvdiff_checkpoint checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/checkpoint-XXXX \
     --input_data data_mouse/data_mouse_train.txt \
     --output_dir data_mouse_synthetic \
@@ -711,7 +711,7 @@ nohup bash -c 'CUDA_VISIBLE_DEVICES=0 accelerate launch train_diffusion.py \
 
 ```bash
 # MVDiffusion 학습 완료 후 실행
-python scripts/generate_gslrm_training_data.py \
+python mouse_extensions/scripts/preprocessing/ 참조 \
     --mvdiff_checkpoint checkpoints/mvdiffusion/mouse/mouse_embeds_6x_aug/checkpoint-20000 \
     --input_data data_mouse/data_mouse_train.txt \
     --output_dir data_mouse_synthetic \
@@ -816,7 +816,7 @@ python test_full_pipeline.py \
 | 파일 | 용도 |
 |------|------|
 | `configs/mouse_mvdiffusion_6x_aug.yaml` | Phase 1 config |
-| `scripts/generate_gslrm_training_data.py` | Phase 2 script |
+| `mouse_extensions/scripts/preprocessing/ 참조` | Phase 2 script |
 | `configs/mouse_gslrm_synthetic.yaml` | Phase 3 config |
 | `mvdiffusion/data/mouse_dataset.py` | 수정된 dataset (random ref) |
 | `mvdiffusion/data/mouse_prompt_embeds_6view/` | Mouse prompt embeds |

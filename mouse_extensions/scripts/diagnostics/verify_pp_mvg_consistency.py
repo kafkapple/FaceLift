@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
 # Constants
-DEFAULT_BASE_PATH = '/home/joon/data/preprocessed/FaceLift_mouse'
+DEFAULT_BASE_PATH = '" + str(Path.home()) + "/data/preprocessed/FaceLift_mouse'
 TARGET_PP = 256.0
 TARGET_FX = 548.9937744140625
 MAX_ACCEPTABLE_RAY_ERROR = 1.0  # degrees

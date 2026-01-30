@@ -1546,6 +1546,8 @@ class GSLRM(nn.Module):
                 if fov_scale != 1.0:
                     # Scale fx, fy (indices 0, 1) to adjust FOV
                     scaled_fxfycxcy[:, :2] *= fov_scale
+                # show_overlay: adds "Cam X" text to each frame. Default False to avoid duplication with row labels.
+                show_frame_overlay = turntable_cfg.get("show_frame_overlay", False)
                 turntable_frames, segments = render_dataset_trajectory(
                     model_results.gaussians[batch_idx],
                     dataset_c2ws, scaled_fxfycxcy,
@@ -1553,7 +1555,7 @@ class GSLRM(nn.Module):
                     num_views=turntable_views,
                     camera_order=camera_order,
                     loop=loop_trajectory,
-                    show_overlay=True,
+                    show_overlay=show_frame_overlay,  # FIX: configurable, default False
                     original_resolution=input_resolution,
                     hold_frames=hold_frames,
                 )
@@ -1648,8 +1650,16 @@ class GSLRM(nn.Module):
                 # Create labeled input strip showing all views in camera order
                 # Mark which were inputs vs predicted
                 input_strip_h = turntable_resolution // 4  # Height for input strip
-                num_input_views = input_data.image.shape[1]
-                input_indices = list(range(num_input_views))  # Assume sorted order
+                # Get actual input camera indices (handles random_view_selection)
+                if hasattr(input_data, "index") and input_data.index is not None:
+                    input_indices = input_data.index[batch_idx, :, 0].cpu().numpy().tolist()
+                else:
+                    num_input_views = input_data.image.shape[1]
+                    input_indices = list(range(num_input_views))  # Fallback
+                # Get view indices (tensor position -> camera ID mapping)
+                view_indices = None
+                if hasattr(target_data, "index") and target_data.index is not None:
+                    view_indices = target_data.index[batch_idx, :, 0].cpu().numpy().tolist()
                 labeled_input = create_labeled_input_strip(
                     target_data.image[batch_idx],  # All 6 views
                     camera_order=camera_order,
@@ -1657,6 +1667,7 @@ class GSLRM(nn.Module):
                     target_w=turntable_resolution,
                     border=2,
                     input_indices=input_indices,  # Mark input vs predicted
+                    view_indices=view_indices,  # FIX: Pass tensor->camera mapping
                 )
                 
                 # Combine turntable frames with labeled input
@@ -1721,6 +1732,7 @@ class GSLRM(nn.Module):
                         target_w=turntable_resolution,
                         border=2,
                         input_indices=input_indices,  # Mark input vs predicted
+                        view_indices=view_indices,  # FIX: Pass tensor->camera mapping
                     )
                     orbit_input_seq = np.tile(orbit_labeled_input[None], (orbit_frames.shape[0], 1, 1, 1))
                     orbit_combined = np.concatenate((orbit_frames, orbit_input_seq), axis=1)

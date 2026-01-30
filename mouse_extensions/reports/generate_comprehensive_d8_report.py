@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from mouse_extensions.paths import FACELIFT_ROOT, DATA_ROOT
 """
 Comprehensive D8 Camera and Preprocessing Report Generator
 
@@ -26,8 +27,8 @@ from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d.proj3d import proj_transform
 
 # Configuration
-BASE_DIR = Path("/home/joon/dev/FaceLift")
-DATA_DIR = Path("/home/joon/data")
+BASE_DIR = FACELIFT_ROOT
+DATA_DIR = DATA_ROOT
 RAW_DIR = DATA_DIR / "raw/markerless_mouse_1_nerf"
 D8_SAMPLE_DIR = DATA_DIR / "preprocessed/FaceLift_mouse/D8_sample/train/000000"
 D8_1_SAMPLE_DIR = DATA_DIR / "preprocessed/FaceLift_mouse/D8_1_sample/train/000000"
@@ -779,20 +780,20 @@ H = K_{{target}} \\cdot K_{{orig}}^{{-1}}
 
 <h3>D8 Preprocessing Command</h3>
 <pre>
-cd /home/joon/dev/FaceLift
+cd ~/dev/FaceLift
 python -m mouse_extensions.preprocessing.preprocess \\
     --preset D8 \\
-    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \\
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D8
+    --input-dir ~/data/raw/markerless_mouse_1_nerf \\
+    --output-dir ~/data/preprocessed/FaceLift_mouse/D8
 </pre>
 
 <h3>D8.1 Preprocessing Command</h3>
 <pre>
-cd /home/joon/dev/FaceLift
+cd ~/dev/FaceLift
 python -m mouse_extensions.preprocessing.preprocess \\
     --preset D8.1 \\
-    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \\
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/D8_1
+    --input-dir ~/data/raw/markerless_mouse_1_nerf \\
+    --output-dir ~/data/preprocessed/FaceLift_mouse/D8_1
 </pre>
 
 <hr>

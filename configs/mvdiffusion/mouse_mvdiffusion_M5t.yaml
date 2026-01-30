@@ -9,7 +9,7 @@
 #   - Resolution: 512x512, 6 views
 #   - Camera: fx=549, cx=cy=256, trans_norm=2.7 (GS-LRM pretrained compatible)
 #   - Transform: Affine (no homography, no zoom)
-#   - Data: /home/joon/data/preprocessed/FaceLift_mouse/M5/
+#   - Data: ~/data/preprocessed/FaceLift_mouse/M5/
 # GS-LRM Baseline: M5_E1_2_alpha (Alpha IoU=0.8398, F1=0.9129)
 # Purpose: Finetune MVDiffusion with same preprocessed data as GS-LRM
 #   so that generated 6-view images have consistent camera parameters
@@ -35,7 +35,7 @@ prompt_embed_path: "mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt"
 # Same camera params as GS-LRM training for consistent pipeline
 # =============================================================================
 train_dataset:
-  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt
+  path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt
   bg_color: 'three_choices'
   augmentation: true
   aug_brightness: [0.9, 1.1]
@@ -43,7 +43,7 @@ train_dataset:
   aug_hflip: false
 
 validation_dataset:
-  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_val.txt
+  path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_val.txt
   bg_color: 'white'
 
 # =============================================================================

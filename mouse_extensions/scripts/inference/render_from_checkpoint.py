@@ -9,7 +9,7 @@ Usage Examples:
     python render_from_checkpoint.py \
         --checkpoint checkpoints/gslrm/mouse_v63_v12_random/ckpt_best.pt \
         --config configs/mouse/gslrm_v63_v12_random.yaml \
-        --data_path /home/joon/data/preprocessed/FaceLift_mouse/data_mouse_v12_centered/data_mouse_val.txt \
+        --data_path ~/data/preprocessed/FaceLift_mouse/data_mouse_v12_centered/data_mouse_val.txt \
         --output_dir outputs/v63_renders \
         --mode turntable
 

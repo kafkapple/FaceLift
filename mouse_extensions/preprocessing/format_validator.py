@@ -11,6 +11,8 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 from PIL import Image
 
+from ..paths import PREPROCESSED_DIR
+
 
 class FormatValidator:
     """Validates preprocessed data against FaceLift/MouseDataset requirements."""
@@ -198,7 +200,7 @@ class FormatValidator:
 def validate_d3_dataset():
     """Quick validation of D3 dataset."""
     validator = FormatValidator(
-        reference_path="/home/joon/data/preprocessed/FaceLift_mouse/D1_pp_centered/train/sample_000000"
+        reference_path=str(PREPROCESSED_DIR / "D1_pp_centered" / "train" / "sample_000000")
     )
     
     print("=" * 60)
@@ -206,7 +208,7 @@ def validate_d3_dataset():
     print("=" * 60)
     
     # Validate D3
-    d3_path = Path("/home/joon/data/preprocessed/FaceLift_mouse/D3")
+    d3_path = PREPROCESSED_DIR / "D3"
     results = validator.validate_dataset(d3_path, max_samples=20)
     
     print(f"\nSamples checked: {results['total']}")

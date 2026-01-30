@@ -38,6 +38,7 @@ from gslrm.model.gaussians_renderer import (
     imageseq2video,
     add_row_labels_to_grid,
     add_left_row_labels,
+    create_labeled_input_strip,  # Added for unified train/val visualization
 )
 
 
@@ -311,7 +312,24 @@ class ValidationRunner:
         self._save_grid(frames, cfg, item_uid, output_dir, segments=segments, camera_order=camera_order)
         
         # Save with input overlay
-        self._save_with_input(frames, input_np, render_res, fps, output_dir)
+        # Get view indices for proper camera->tensor mapping (unified with training)
+        view_indices = None
+        if hasattr(target_data, "index") and target_data.index is not None:
+            view_indices = target_data.index[batch_idx, :, 0].cpu().numpy().tolist()
+        # Get actual input camera indices (handles random_view_selection)
+        if hasattr(input_data, "index") and input_data.index is not None:
+            input_indices = input_data.index[batch_idx, :, 0].cpu().numpy().tolist()
+        else:
+            num_input_views = input_data.image.shape[1]
+            input_indices = list(range(num_input_views))  # Fallback
+        
+        self._save_with_input(
+            frames, input_np, render_res, fps, output_dir,
+            target_images=target_data.image[batch_idx],  # All views (unified with training)
+            camera_order=camera_order,
+            view_indices=view_indices,
+            input_indices=input_indices,
+        )
         
         # Dataset views - REMOVED (deprecated)
         # if cfg.get("save_dataset_views", False):  # REMOVED
@@ -319,10 +337,10 @@ class ValidationRunner:
         
         # Orbit turntable (standard 360-degree rotation)
         if cfg.get("save_orbit_turntable", True):
-            self._save_orbit_turntable(gaussians, render_res, fps, cfg, item_uid, output_dir, input_np, c2ws)
+            self._save_orbit_turntable(gaussians, render_res, fps, cfg, item_uid, output_dir, input_np, c2ws, target_images=target_data.image[batch_idx], camera_order=camera_order, view_indices=view_indices, input_indices=input_indices)
     
 
-    def _save_orbit_turntable(self, gaussians, render_res, fps, cfg, item_uid, output_dir, input_np, c2ws=None):
+    def _save_orbit_turntable(self, gaussians, render_res, fps, cfg, item_uid, output_dir, input_np, c2ws=None, target_images=None, camera_order=None, view_indices=None, input_indices=None):
         """Save standard 360-degree orbit turntable video."""
         try:
             orbit_views = cfg.get("orbit_views", 120)
@@ -348,7 +366,24 @@ class ValidationRunner:
             # Save orbit video
             _safe_video_save(orbit_frames, os.path.join(output_dir, f"turntable_orbit_{item_uid}.mp4"), fps=fps)
             
-            # Save orbit with input strip
+            # Save orbit with input strip (unified with training)
+            if target_images is not None and camera_order is not None:
+                orbit_input_h = render_res // 4
+                orbit_labeled_input = create_labeled_input_strip(
+                    target_images,
+                    camera_order=camera_order,
+                    target_h=orbit_input_h,
+                    target_w=render_res,
+                    border=2,
+                    input_indices=input_indices,
+                    view_indices=view_indices,
+                )
+                if orbit_labeled_input is not None:
+                    input_seq = np.tile(orbit_labeled_input[None], (orbit_frames.shape[0], 1, 1, 1))
+                    combined = np.concatenate((orbit_frames, input_seq), axis=1)
+                    _safe_video_save(combined, os.path.join(output_dir, f"turntable_orbit_with_input_{item_uid}.mp4"), fps=fps)
+                    return
+            # Fallback: simple resized input
             border = 2
             target_h = int(input_np.shape[0] / input_np.shape[1] * render_res)
             resized = cv2.resize(input_np, (render_res - border * 2, target_h - border * 2), interpolation=cv2.INTER_AREA)
@@ -400,8 +435,45 @@ class ValidationRunner:
         
         Image.fromarray(grid).save(os.path.join(output_dir, f"turntable_{item_uid}.jpg"))
     
-    def _save_with_input(self, frames, input_np, render_res, fps, output_dir):
-        """Save turntable with input overlay."""
+    def _save_with_input(self, frames, input_np, render_res, fps, output_dir, 
+                        target_images=None, camera_order=None, view_indices=None, input_indices=None):
+        """Save turntable with input overlay (unified with training visualization).
+        
+        Args:
+            frames: Video frames [N, H, W, 3]
+            input_np: Fallback single input image (used if target_images is None)
+            render_res: Rendering resolution
+            fps: Frames per second
+            output_dir: Output directory
+            target_images: Optional [V, C, H, W] tensor of all views (for labeled strip)
+            camera_order: Optional camera order for labeled strip
+            view_indices: Optional tensor->camera mapping
+            input_indices: Optional list of input view indices
+        """
+        # Use labeled input strip if target_images provided (unified with training)
+        if target_images is not None and camera_order is not None:
+            input_strip_h = render_res // 4
+            num_views = target_images.shape[0]
+            if input_indices is None:
+                input_indices = [0]  # Default: first view is input
+            
+            labeled_input = create_labeled_input_strip(
+                target_images,
+                camera_order=camera_order,
+                target_h=input_strip_h,
+                target_w=render_res,
+                border=2,
+                input_indices=input_indices,
+                view_indices=view_indices,
+            )
+            
+            if labeled_input is not None:
+                input_seq = np.tile(labeled_input[None], (frames.shape[0], 1, 1, 1))
+                combined = np.concatenate((frames, input_seq), axis=1)
+                _safe_video_save(combined, os.path.join(output_dir, "turntable_with_input.mp4"), fps=fps)
+                return
+        
+        # Fallback: simple resized input (legacy behavior)
         border = 2
         target_h = int(input_np.shape[0] / input_np.shape[1] * render_res)
         

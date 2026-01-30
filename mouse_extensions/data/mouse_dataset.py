@@ -90,6 +90,7 @@ class MouseViewDataset(Dataset):
             raise NotImplementedError(f"Split '{split}' is not supported")
 
         # Load dataset paths from local file
+        dataset_path = os.path.expanduser(dataset_path)
         with open(dataset_path, 'r') as f:
             self.all_data_paths = f.read().strip().split("\n")
 

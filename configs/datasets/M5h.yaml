@@ -13,10 +13,10 @@ _preprocessing:
 
 training:
   dataset:
-    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5h/data_mouse_train.txt
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/M5h/data_mouse_train.txt
 
 validation:
-  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5h/data_mouse_val.txt
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5h/data_mouse_val.txt
 
 _stats:
   num_train: 3240

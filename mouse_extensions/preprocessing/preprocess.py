@@ -39,6 +39,8 @@ import argparse
 import json
 import pickle
 from pathlib import Path
+
+from ..paths import FACELIFT_ROOT as _FACELIFT_ROOT, CONFIGS_DIR
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
 from enum import Enum
@@ -343,8 +345,8 @@ def compute_fg_coverage_after_zoom(mask: np.ndarray, zoom: float) -> float:
 
 
 # Config generation paths
-FACELIFT_ROOT = Path("/home/joon/dev/FaceLift")
-DATASET_CONFIG_DIR = FACELIFT_ROOT / "configs" / "datasets"
+FACELIFT_ROOT = _FACELIFT_ROOT
+DATASET_CONFIG_DIR = CONFIGS_DIR / "datasets"
 
 
 class Paradigm(Enum):
@@ -1476,6 +1478,15 @@ def main():
     parser.add_argument('--zoom', type=float)
     parser.add_argument('--temporal-variant', action='store_true',
                         help="Create temporal 1:1:1 split variant after preprocessing (e.g., M0 → M0t)")
+    parser.add_argument("--split-strategy", type=str, default="temporal",
+                        choices=["temporal", "random"],
+                        help="Split strategy (temporal=Pose Splatter style consecutive, random=shuffled)")
+    parser.add_argument("--split-ratios", type=float, nargs=3,
+                        default=[0.333, 0.333, 0.334],
+                        metavar=("TRAIN", "VAL", "TEST"),
+                        help="Train/val/test ratios (default: 0.333 0.333 0.334)")
+    parser.add_argument("--holdout-views", type=int, nargs="+", default=None,
+                        help="Views to hold out for NVS evaluation (e.g., --holdout-views 5)")
     args = parser.parse_args()
 
     if args.list_presets:
@@ -1510,13 +1521,27 @@ def main():
         config.zoom = args.zoom
 
     UnifiedPreprocessor(config).run()
-
-    # Create temporal variant if requested
+    # Create split variant if requested
     if args.temporal_variant:
         from mouse_extensions.preprocessing.split_generator import create_temporal_variant
-        variant_name = Path(args.output_dir).name + "t"
-        print(f"\n=== Creating temporal variant: {variant_name} ===")
-        create_temporal_variant(args.output_dir, variant_name)
+        
+        # Determine suffix based on strategy
+        suffix = "t" if args.split_strategy == "temporal" else "r"
+        variant_name = Path(args.output_dir).name + suffix
+        
+        print(f"\n=== Creating {args.split_strategy} split variant: {variant_name} ===")
+        print(f"    Strategy: {args.split_strategy}")
+        print(f"    Ratios: train={args.split_ratios[0]:.3f}, val={args.split_ratios[1]:.3f}, test={args.split_ratios[2]:.3f}")
+        if args.holdout_views:
+            print(f"    Holdout views: {args.holdout_views}")
+        
+        create_temporal_variant(
+            args.output_dir,
+            variant_name,
+            ratios=tuple(args.split_ratios),
+            holdout_views=args.holdout_views,
+            strategy=args.split_strategy,
+        )
 
 
 if __name__ == "__main__":

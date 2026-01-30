@@ -1,0 +1,201 @@
+"""SAM-based mouse detection for inference preprocessing.
+
+Uses Segment Anything Model (SAM) for automatic mouse segmentation.
+"""
+
+import logging
+from dataclasses import dataclass
+from typing import Optional, Tuple
+
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DetectionResult:
+    """Result of mouse detection."""
+    
+    mask: np.ndarray  # Binary mask (H, W), dtype=uint8, values 0 or 255
+    centroid: Tuple[float, float]  # (x, y) centroid in pixel coordinates
+    bbox: Tuple[int, int, int, int]  # (x1, y1, x2, y2) bounding box
+    area: int  # Number of foreground pixels
+    confidence: float  # Detection confidence (0-1)
+
+
+class MouseDetector:
+    """SAM-based automatic mouse detection.
+    
+    Uses SAM's automatic mask generation to find the largest object
+    (assumed to be the mouse) in the image.
+    
+    Example:
+        detector = MouseDetector(checkpoint="sam_vit_h.pth")
+        result = detector.detect(image)  # DetectionResult
+    """
+    
+    def __init__(
+        self,
+        checkpoint: Optional[str] = None,
+        model_type: str = "vit_h",
+        device: str = "cuda",
+        points_per_side: int = 32,
+        pred_iou_thresh: float = 0.88,
+        stability_score_thresh: float = 0.95,
+        min_area_ratio: float = 0.01,
+        max_area_ratio: float = 0.90,
+    ):
+        """Initialize SAM detector.
+        
+        Args:
+            checkpoint: Path to SAM checkpoint. If None, detector is disabled.
+            model_type: SAM model type ("vit_h", "vit_l", "vit_b").
+            device: Torch device.
+            points_per_side: SAM points per side for automatic mask generation.
+            pred_iou_thresh: SAM predicted IoU threshold.
+            stability_score_thresh: SAM stability score threshold.
+            min_area_ratio: Minimum mask area as ratio of image size.
+            max_area_ratio: Maximum mask area as ratio of image size.
+        """
+        self.checkpoint = checkpoint
+        self.model_type = model_type
+        self.device = device
+        self.points_per_side = points_per_side
+        self.pred_iou_thresh = pred_iou_thresh
+        self.stability_score_thresh = stability_score_thresh
+        self.min_area_ratio = min_area_ratio
+        self.max_area_ratio = max_area_ratio
+        
+        self._sam = None
+        self._mask_generator = None
+        self._initialized = False
+        
+    def _lazy_init(self):
+        """Lazily initialize SAM model."""
+        if self._initialized:
+            return
+            
+        if self.checkpoint is None:
+            logger.warning("No SAM checkpoint provided. Detection disabled.")
+            self._initialized = True
+            return
+            
+        try:
+            from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+            
+            logger.info(f"Loading SAM model ({self.model_type}) from {self.checkpoint}")
+            self._sam = sam_model_registry[self.model_type](checkpoint=self.checkpoint)
+            self._sam.to(self.device)
+            self._sam.eval()
+            
+            self._mask_generator = SamAutomaticMaskGenerator(
+                model=self._sam,
+                points_per_side=self.points_per_side,
+                pred_iou_thresh=self.pred_iou_thresh,
+                stability_score_thresh=self.stability_score_thresh,
+                crop_n_layers=0,
+                min_mask_region_area=100,
+            )
+            logger.info("SAM model loaded successfully")
+            
+        except ImportError:
+            logger.warning(
+                "segment-anything not installed. "
+                "Install with: pip install git+https://github.com/facebookresearch/segment-anything.git"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to load SAM: {e}")
+            
+        self._initialized = True
+        
+    @property
+    def is_available(self) -> bool:
+        """Check if SAM is available and loaded."""
+        self._lazy_init()
+        return self._mask_generator is not None
+        
+    def detect(self, image: np.ndarray) -> Optional[DetectionResult]:
+        """Detect mouse in image using SAM.
+        
+        Args:
+            image: Input image as numpy array (H, W, 3), RGB, uint8.
+            
+        Returns:
+            DetectionResult if mouse detected, None otherwise.
+        """
+        self._lazy_init()
+        
+        if not self.is_available:
+            return None
+            
+        h, w = image.shape[:2]
+        total_pixels = h * w
+        min_area = int(total_pixels * self.min_area_ratio)
+        max_area = int(total_pixels * self.max_area_ratio)
+        
+        # Generate masks
+        try:
+            masks = self._mask_generator.generate(image)
+        except Exception as e:
+            logger.warning(f"SAM mask generation failed: {e}")
+            return None
+            
+        if not masks:
+            logger.warning("No masks generated by SAM")
+            return None
+            
+        # Filter masks by area
+        valid_masks = [
+            m for m in masks
+            if min_area < m["area"] < max_area
+        ]
+        
+        if not valid_masks:
+            logger.warning(f"No masks in valid area range [{min_area}, {max_area}]")
+            return None
+            
+        # Select largest mask (assumed to be the mouse)
+        best_mask = max(valid_masks, key=lambda m: m["area"])
+        
+        # Extract mask data
+        binary_mask = best_mask["segmentation"].astype(np.uint8) * 255
+        bbox = best_mask["bbox"]  # XYWH format from SAM
+        x, y, w_box, h_box = bbox
+        bbox_xyxy = (int(x), int(y), int(x + w_box), int(y + h_box))
+        
+        # Compute centroid from mask
+        ys, xs = np.where(best_mask["segmentation"])
+        centroid_x = float(xs.mean())
+        centroid_y = float(ys.mean())
+        
+        return DetectionResult(
+            mask=binary_mask,
+            centroid=(centroid_x, centroid_y),
+            bbox=bbox_xyxy,
+            area=best_mask["area"],
+            confidence=best_mask.get("predicted_iou", 0.9),
+        )
+
+
+def create_detector_from_config(config, device: str = "cuda") -> MouseDetector:
+    """Create MouseDetector from MousePreprocessConfig.
+    
+    Args:
+        config: MousePreprocessConfig instance.
+        device: Torch device.
+        
+    Returns:
+        Configured MouseDetector instance.
+    """
+    from mouse_extensions.inference.preprocessing.config import MousePreprocessConfig
+    
+    return MouseDetector(
+        checkpoint=None,  # Set via preprocessor
+        model_type=config.sam_model_type,
+        device=device,
+        points_per_side=config.sam_points_per_side,
+        pred_iou_thresh=config.sam_pred_iou_thresh,
+        stability_score_thresh=config.sam_stability_score_thresh,
+        min_area_ratio=config.min_area_ratio,
+        max_area_ratio=config.max_area_ratio,
+    )

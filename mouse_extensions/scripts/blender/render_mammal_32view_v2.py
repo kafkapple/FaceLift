@@ -38,7 +38,7 @@ parser.add_argument("--experiment", type=str, default="MAMMAL_CENTER",
                     choices=["MAMMAL_CENTER", "MAMMAL_OFFSET", "MAMMAL_OFFSET_PP"])
 parser.add_argument("--output_dir", type=str, required=True)
 parser.add_argument("--mammal_results", type=str, 
-                    default="/home/joon/dev/MAMMAL_mouse/results/fitting/markerless_mouse_1_nerf_v012345_kp22_20260126_025249")
+                    default=str(Path.home()) + "/dev/MAMMAL_mouse/results/fitting/markerless_mouse_1_nerf_v012345_kp22_20260126_025249")
 parser.add_argument("--num_samples", type=int, default=100)
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--texture", type=str, default=None, help="Path to texture PNG file")

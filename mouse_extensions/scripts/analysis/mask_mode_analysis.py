@@ -16,7 +16,7 @@ Usage:
     CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.mask_mode_analysis \
         --checkpoint checkpoints/gslrm/D7_1_E2/ckpt_step_1000.pt \
         --config configs/mouse/D7_1_E2.yaml \
-        --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \
+        --data_dir ~/data/preprocessed/FaceLift_mouse/D7_1 \
         --output_dir experiments/analysis/mask_mode_D7_1_E2
 
 Output:
@@ -727,7 +727,7 @@ Examples:
   CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.mask_mode_analysis \\
       --checkpoint checkpoints/gslrm/D7_1_E2/ckpt_step_1000.pt \\
       --config configs/mouse/D7_1_E2.yaml \\
-      --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \\
+      --data_dir ~/data/preprocessed/FaceLift_mouse/D7_1 \\
       --output_dir experiments/analysis/mask_mode_D7_1_E2
 """
     )

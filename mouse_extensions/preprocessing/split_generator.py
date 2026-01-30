@@ -182,13 +182,15 @@ def generate_pose_splatter_split(dataset_dir: str) -> Dict[str, List[str]]:
     )
 
 
-
 def create_temporal_variant(
     source_dir: str,
     variant_name: str = None,
     ratios: Tuple[float, float, float] = (1/3, 1/3, 1/3),
     holdout_views: List[int] = None,
+    strategy: str = "temporal",
+    seed: int = 42,
 ) -> Dict[str, any]:
+
     """
     Create a symlink-based temporal split variant of an existing dataset.
 
@@ -243,19 +245,30 @@ def create_temporal_variant(
         dst.symlink_to(src)
 
     # Generate temporal split
+    # Generate split based on strategy
     train_ratio, val_ratio, test_ratio = ratios
     n_train = int(total * train_ratio)
     n_val = int(total * val_ratio)
     n_test = total - n_train - n_val
 
-    train_samples = samples[:n_train]
-    val_samples = samples[n_train:n_train + n_val]
-    test_samples = samples[n_train + n_val:]
+    if strategy == "temporal":
+        # Contiguous temporal blocks (Pose Splatter style)
+        train_samples = samples[:n_train]
+        val_samples = samples[n_train:n_train + n_val]
+        test_samples = samples[n_train + n_val:]
+    elif strategy == "random":
+        # Random shuffle with fixed seed
+        import random as rnd
+        rnd.seed(seed)
+        shuffled = samples.copy()
+        rnd.shuffle(shuffled)
+        train_samples = sorted(shuffled[:n_train], key=int)
+        val_samples = sorted(shuffled[n_train:n_train + n_val], key=int)
+        test_samples = sorted(shuffled[n_train + n_val:], key=int)
+    else:
+        raise ValueError(f"Unknown strategy: {strategy}")
 
-    print(f"Split (temporal): train={n_train}, val={n_val}, test={n_test}")
-
-    # Write split files with absolute paths
-    output_files = {}
+    print(f"Split ({strategy}): train={n_train}, val={n_val}, test={n_test}")
     for split_name, split_samples in [
         ("train", train_samples),
         ("val", val_samples),
@@ -273,7 +286,7 @@ def create_temporal_variant(
     split_info = {
         "source": str(source_dir),
         "variant": str(variant_dir),
-        "strategy": "temporal",
+        "strategy": strategy,
         "ratios": {"train": train_ratio, "val": val_ratio, "test": test_ratio},
         "splits": {
             "train": {
@@ -304,7 +317,7 @@ def create_temporal_variant(
         json.dump(split_info, f, indent=2)
     print(f"  Wrote split.json")
 
-    print(f"\n✅ Created temporal variant: {variant_dir}")
+    print(f"\n✅ Created {strategy} split variant: {variant_dir}")
     return split_info
 
 def main():
@@ -315,17 +328,17 @@ def main():
 Examples:
     # Pose Splatter style (1:1:1 temporal)
     python -m mouse_extensions.preprocessing.split_generator \\
-        --dataset_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \\
+        --dataset_dir /path/to/preprocessed/M5 \\
         --strategy temporal --ratios 0.333 0.333 0.334
     
     # Traditional 80/10/10 random split
     python -m mouse_extensions.preprocessing.split_generator \\
-        --dataset_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \\
+        --dataset_dir /path/to/preprocessed/M5 \\
         --strategy random --ratios 0.8 0.1 0.1
         
     # With holdout view for NVS evaluation
     python -m mouse_extensions.preprocessing.split_generator \\
-        --dataset_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \\
+        --dataset_dir /path/to/preprocessed/M5 \\
         --strategy temporal --ratios 0.333 0.333 0.334 \\
         --holdout_views 5
 """)

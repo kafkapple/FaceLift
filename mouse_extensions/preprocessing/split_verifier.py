@@ -27,6 +27,8 @@ from typing import List, Dict, Optional, Tuple
 from tqdm import tqdm
 import cv2
 
+from ..paths import PREPROCESSED_DIR
+
 
 @dataclass
 class SplitStats:
@@ -314,7 +316,7 @@ def main():
     parser.add_argument("--data-dir", type=Path, help="Single dataset directory")
     parser.add_argument("--data-dirs", nargs="+", help="Multiple dataset names (relative to base)")
     parser.add_argument("--base-dir", type=Path, 
-                       default=Path("/home/joon/data/preprocessed/FaceLift_mouse"),
+                       default=PREPROCESSED_DIR,
                        help="Base directory for datasets")
     parser.add_argument("--output", type=Path, help="Output JSON report")
     parser.add_argument("--max-samples", type=int, default=300, help="Max samples to analyze per split")

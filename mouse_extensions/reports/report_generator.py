@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from mouse_extensions.paths import FACELIFT_ROOT, DATA_ROOT
 """
 Comprehensive Report Generator for FaceLift Mouse Preprocessing
 
@@ -35,8 +36,8 @@ from mpl_toolkits.mplot3d.proj3d import proj_transform
 # CONFIGURATION
 # =============================================================================
 
-BASE_DIR = Path("/home/joon/dev/FaceLift")
-DATA_DIR = Path("/home/joon/data")
+BASE_DIR = FACELIFT_ROOT
+DATA_DIR = DATA_ROOT
 RAW_DIR = DATA_DIR / "raw/markerless_mouse_1_nerf"
 PREPROCESSED_DIR = DATA_DIR / "preprocessed/FaceLift_mouse"
 

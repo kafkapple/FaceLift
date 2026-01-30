@@ -9,14 +9,14 @@ Usage:
     # Compare all mask modes (100 steps each)
     CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.quick_mask_mode_compare \
         --config configs/mouse/D7_1_E1_1_paper_random.yaml \
-        --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \
+        --data_dir ~/data/preprocessed/FaceLift_mouse/D7_1 \
         --output_dir mask_mode_comparison \
         --steps 100
 
     # Test specific mask modes
     CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.quick_mask_mode_compare \
         --config configs/mouse/D7_1_E1_1_paper_random.yaml \
-        --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \
+        --data_dir ~/data/preprocessed/FaceLift_mouse/D7_1 \
         --output_dir mask_mode_comparison \
         --mask_modes none gt alpha \
         --steps 50

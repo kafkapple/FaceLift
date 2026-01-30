@@ -6,7 +6,7 @@ Consolidates all visualization outputs for train/val/test/inference:
 - Gaussian .ply and .npz files
 - Rerun .rrd sequences for interactive 3D viewing
 
-Reference: pose-splatter implementation at /home/joon/dev/pose-splatter
+Reference: pose-splatter implementation at ~/dev/pose-splatter
 
 Author: Claude Code
 Date: 2026-01-29

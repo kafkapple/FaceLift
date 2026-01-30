@@ -5,7 +5,7 @@ _base_: default.yaml
 
 input:
   mode: batch
-  data_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5
+  data_dir: ~/data/preprocessed/FaceLift_mouse/M5
   view_idx: 0             # Use camera 0 as input
   frame_range:
     start: 0

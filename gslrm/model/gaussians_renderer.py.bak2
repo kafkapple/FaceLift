@@ -1494,7 +1494,6 @@ def create_labeled_input_strip(
     target_w: int,
     border: int = 2,
     input_indices: list = None,  # Which views were inputs (e.g., [0,1,2,3])
-    view_indices: list = None,   # NEW: Tensor position -> camera ID mapping
 ) -> np.ndarray:
     """
     Create image strip with camera labels, ordered by camera_order.
@@ -1507,9 +1506,6 @@ def create_labeled_input_strip(
         target_w: Target width for the entire strip
         border: Border width between images
         input_indices: List of indices that were input views (others are predicted)
-        view_indices: List mapping tensor position to camera ID.
-                      e.g., [3, 1, 5, 0, 2, 4] means all_images[0] is camera 3.
-                      If None, assumes all_images[i] is camera i (identity mapping).
 
     Returns:
         np.ndarray [H, W, 3] uint8 - labeled image strip
@@ -1517,21 +1513,13 @@ def create_labeled_input_strip(
     num_views = all_images.shape[0]
     if input_indices is None:
         input_indices = list(range(num_views))  # All are inputs
-    
-    # Build camera_id -> tensor_index mapping
-    # If view_indices is provided, use it; otherwise assume identity
-    if view_indices is not None:
-        cam_to_tensor_idx = {cam_id: tensor_idx for tensor_idx, cam_id in enumerate(view_indices)}
-    else:
-        cam_to_tensor_idx = {i: i for i in range(num_views)}
 
     # Reorder images according to camera_order
     reordered_images = []
     for cam_idx in camera_order:
-        tensor_idx = cam_to_tensor_idx.get(cam_idx)
-        if tensor_idx is not None and tensor_idx < num_views:
-            img = all_images[tensor_idx, :3, ...]  # [C, H, W] - FIXED: use tensor_idx
-            img = rearrange(img, "c h w -> h w c")
+        if cam_idx < num_views:
+            img = all_images[cam_idx, :3, ...]  # [C, H, W]
+            img = rearrange(img, 'c h w -> h w c')
             img = (img.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
             is_input = cam_idx in input_indices
             reordered_images.append((cam_idx, img, is_input))
@@ -1581,17 +1569,18 @@ def create_labeled_input_strip(
         strip[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
 
         # Add camera label below
-        label = f"{cam_idx}"
+        label = f'{cam_idx}'
         if is_input:
-            label += " (In)"
+            label += ' (In)'
         else:
-            label += " (Pred)"
+            label += ' (Pred)'
         (tw, th), _ = cv2.getTextSize(label, font, font_scale, font_thick)
         label_x = x_start + (per_img_w - tw) // 2
         label_y = border + per_img_h + 16
         cv2.putText(strip, label, (label_x, label_y), font, font_scale, (0, 0, 0), font_thick)
 
     return strip
+
 def add_left_row_labels(
     grid_image: np.ndarray,
     camera_order: list,

@@ -301,7 +301,7 @@ def main():
     parser.add_argument('--d7-dir', type=str, default=None,
                         help='D7.1 preprocessed data directory for comparison')
     parser.add_argument('--original-pkl', type=str,
-                        default='/home/joon/data/markerless_mouse_1_nerf/new_cam.pkl',
+                        default='~/data/markerless_mouse_1_nerf/new_cam.pkl',
                         help='Original camera pickle file')
     parser.add_argument('--output', type=str, default=None,
                         help='Output report path')

@@ -11,6 +11,12 @@ Two inference paths:
    - Single image -> MVDiffusion -> 6 views -> GS-LRM -> 3D
    - Can use existing sample view with --input_view_idx
 
+Preprocessing (for raw images not in M5 format):
+   - SAM-based mouse detection
+   - Background removal (white)
+   - Center alignment + coverage normalization
+   - Auto-detected or controlled with --skip_preprocess
+
 Usage:
     # === Path 1: GS-LRM only (6-view sample) ===
     python -m mouse_extensions.scripts.inference.run_e2e_inference \
@@ -19,18 +25,20 @@ Usage:
         --gslrm_config configs/base/gslrm_mouse.yaml \
         --output_dir outputs/gslrm_test
 
-    # === Path 2a: MVDiffusion + GS-LRM (external image) ===
+    # === Path 2a: MVDiffusion + GS-LRM (external image with preprocessing) ===
     python -m mouse_extensions.scripts.inference.run_e2e_inference \
-        --input_image input.png \
+        --input_image raw_mouse_photo.jpg \
+        --sam_checkpoint checkpoints/sam/sam_vit_h.pth \
         --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5/checkpoint-3500 \
         --gslrm_checkpoint M5t_E0_1_facelift \
         --gslrm_config configs/base/gslrm_mouse.yaml \
         --output_dir outputs/e2e_test
 
-    # === Path 2b: MVDiffusion + GS-LRM (sample view as input) ===
+    # === Path 2b: MVDiffusion + GS-LRM (sample view as input, no preprocess needed) ===
     python -m mouse_extensions.scripts.inference.run_e2e_inference \
         --sample_dir /path/to/sample/000531 \
         --input_view_idx 0 \
+        --skip_preprocess \
         --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5/checkpoint-3500 \
         --gslrm_checkpoint M5t_E0_1_facelift \
         --gslrm_config configs/base/gslrm_mouse.yaml \
@@ -63,17 +71,31 @@ Inference Paths:
     --input_image OR (--sample_dir + --input_view_idx)
     Requires: --mvdiffusion_checkpoint
 
+Preprocessing (for raw images):
+  By default, preprocessing auto-detects if image is already in M5 format.
+  Use --sam_checkpoint to enable SAM-based detection for raw images.
+  Use --skip_preprocess to skip preprocessing entirely.
+
 Examples:
   # GS-LRM only
   python -m mouse_extensions.scripts.inference.run_e2e_inference \\
-      --sample_dir /home/joon/data/preprocessed/FaceLift_mouse/M5t/000000 \\
+      --sample_dir ~/data/preprocessed/FaceLift_mouse/M5t/000000 \\
       --gslrm_checkpoint M5t_E0_1_facelift \\
       --gslrm_config configs/base/gslrm_mouse.yaml
 
-  # MVDiffusion + GS-LRM (use view 0 from sample)
+  # MVDiffusion + GS-LRM with preprocessing (raw image)
   python -m mouse_extensions.scripts.inference.run_e2e_inference \\
-      --sample_dir /home/joon/data/preprocessed/FaceLift_mouse/M5t/000000 \\
+      --input_image raw_mouse.jpg \\
+      --sam_checkpoint checkpoints/sam/sam_vit_h.pth \\
+      --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5/checkpoint-3500 \\
+      --gslrm_checkpoint M5t_E0_1_facelift \\
+      --gslrm_config configs/base/gslrm_mouse.yaml
+
+  # MVDiffusion + GS-LRM (use view 0 from sample, no preprocess)
+  python -m mouse_extensions.scripts.inference.run_e2e_inference \\
+      --sample_dir ~/data/preprocessed/FaceLift_mouse/M5t/000000 \\
       --input_view_idx 0 \\
+      --skip_preprocess \\
       --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5/checkpoint-3500 \\
       --gslrm_checkpoint M5t_E0_1_facelift \\
       --gslrm_config configs/base/gslrm_mouse.yaml
@@ -97,6 +119,16 @@ Examples:
     input_group.add_argument("--input_view_idx", type=int, default=None,
                              help="View index (0-5) to use as input for MVDiffusion. "
                                   "When set with --sample_dir, uses that view for MVDiffusion instead of all 6 views.")
+
+    # Preprocessing options
+    preprocess_group = parser.add_argument_group("Preprocessing (for raw images)")
+    preprocess_group.add_argument("--sam_checkpoint", type=str, default=None,
+                                  help="SAM checkpoint for mouse detection. "
+                                       "If None, uses simple resize fallback.")
+    preprocess_group.add_argument("--skip_preprocess", action="store_true",
+                                  help="Skip preprocessing entirely (for M5-format images)")
+    preprocess_group.add_argument("--save_preprocess_steps", action="store_true",
+                                  help="Save visualization of preprocessing steps")
 
     # Model options
     model_group = parser.add_argument_group("Models")
@@ -180,6 +212,7 @@ Examples:
         image_size=args.image_size,
         prefer_ema=args.prefer_ema,
         camera_json=args.camera_json,
+        sam_checkpoint=args.sam_checkpoint,  # NEW: preprocessing
     )
 
     # Execute based on input type
@@ -187,6 +220,10 @@ Examples:
         # Path 2a: External image -> MVDiffusion -> GS-LRM
         print(f"\n=== Path 2a: MVDiffusion + GS-LRM (external image) ===")
         print(f"Input: {args.input_image}")
+        if args.sam_checkpoint:
+            print(f"SAM checkpoint: {args.sam_checkpoint}")
+        if args.skip_preprocess:
+            print("Preprocessing: SKIPPED")
         out = pipeline.run(
             args.input_image,
             args.output_dir,
@@ -196,6 +233,8 @@ Examples:
             save_turntable=save_turntable,
             save_mesh=save_mesh,
             turntable_views=args.turntable_views,
+            skip_preprocess=args.skip_preprocess,  # NEW
+            save_preprocess_steps=args.save_preprocess_steps,  # NEW
         )
         print(f"\nDone! Output: {out}")
 
@@ -221,6 +260,8 @@ Examples:
             save_turntable=save_turntable,
             save_mesh=save_mesh,
             turntable_views=args.turntable_views,
+            skip_preprocess=args.skip_preprocess,  # NEW
+            save_preprocess_steps=args.save_preprocess_steps,  # NEW
         )
         print(f"\nDone! Output: {out}")
 
@@ -285,6 +326,8 @@ Examples:
                         save_turntable=save_turntable,
                         save_mesh=save_mesh,
                         turntable_views=args.turntable_views,
+                        skip_preprocess=args.skip_preprocess,  # NEW
+                        save_preprocess_steps=args.save_preprocess_steps,  # NEW
                     )
                 except Exception as e:
                     print(f"Error processing {sample_dir}: {e}")

@@ -9,7 +9,7 @@ Usage:
     CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.analysis.analyze_alpha_thresholds \
         --checkpoint checkpoints/_temp/D7_1_E1_1_paper_random/ckpt_0000000000002300.pt \
         --config configs/mouse/D7_1_E1_1_paper_random.yaml \
-        --data_dir /home/joon/data/preprocessed/FaceLift_mouse/D7_1 \
+        --data_dir ~/data/preprocessed/FaceLift_mouse/D7_1 \
         --output_dir alpha_threshold_comparison \
         --thresholds 0.3 0.5 0.7 0.9
 

@@ -196,7 +196,8 @@ def check_view_coverage(data: dict) -> bool:
                 az += 360
             azimuths.append(az)
     
-    print(f"  Azimuths: {[f{a:.0f}° for a in azimuths]}")
+    azimuth_strs = [f"{a:.0f}°" for a in azimuths]
+    print(f"  Azimuths: {azimuth_strs}")
     
     # Check spacing
     azimuths_sorted = sorted(azimuths)
@@ -214,7 +215,8 @@ def check_view_coverage(data: dict) -> bool:
     if gap_std < 5:
         print(f"  ✓ Even angular spacing: ~{expected_gap:.0f}° gaps")
     else:
-        print(f"  ⚠️ Uneven spacing: gaps={[f{g:.0f}° for g in gaps]}")
+        gap_strs = [f"{g:.0f}°" for g in gaps]
+        print(f"  ⚠️ Uneven spacing: gaps={gap_strs}")
     
     # Check 360° coverage
     total_coverage = sum(gaps)

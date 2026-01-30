@@ -14,10 +14,10 @@ _preprocessing:
 
 training:
   dataset:
-    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/_archive/D6-1/data_mouse_train_fixed.txt
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/_archive/D6-1/data_mouse_train_fixed.txt
 
 validation:
-  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/_archive/D6-1/data_mouse_val_fixed.txt
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/_archive/D6-1/data_mouse_val_fixed.txt
 
 _stats:
   num_train: 3240

@@ -33,6 +33,7 @@
 | [[EXPERIMENT_QUICKSTART]] | 실험 빠른 시작 |
 | [[TRAINING_LOGGING_GUIDE]] | WandB 로깅 |
 | [[VISUALIZATION_SETTINGS]] | 시각화 설정 |
+| [[POSE_SPLATTER_COMPARISON]] | Pose Splatter 비교 실험 가이드 |
 
 ---
 

@@ -15,7 +15,7 @@ Options:
 
 Example:
     blender --background bunny.blend -P render_gslrm_dataset.py -- \\
-        --output_dir /home/joon/data/synthetic/bunny_001 \\
+        --output_dir ~/data/synthetic/bunny_001 \\
         --num_views 6 --elevation 20 --distance 2.7
 
 Requirements:
@@ -109,8 +109,8 @@ def setup_render_settings(config: dict):
     scene.cycles.use_denoising = config["use_denoising"]
     
     # Resolution
-    scene.render.resolution_x = config["resolution"]
-    scene.render.resolution_y = config["resolution"]
+    scene.render.resolution_x = config['resolution']
+    scene.render.resolution_y = config['resolution']
     scene.render.resolution_percentage = 100
     
     # Output format
@@ -121,7 +121,7 @@ def setup_render_settings(config: dict):
     # Transparent background for alpha
     scene.render.film_transparent = True
     
-    print(f"[Setup] Render: {config[resolution]}x{config[resolution]}, "
+    print(f"[Setup] Render: {config['resolution']}x{config['resolution']}, "
           f"{config[render_samples]} samples, GPU Cycles")
 
 
@@ -196,8 +196,8 @@ def extract_camera_params(
     """Extract camera parameters in GS-LRM format."""
     
     # Intrinsics (in pixels)
-    fx = fy = compute_focal_length_px(config["fov_deg"], config["resolution"])
-    cx = cy = config["resolution"] / 2.0
+    fx = fy = compute_focal_length_px(config["fov_deg"], config['resolution'])
+    cx = cy = config['resolution'] / 2.0
     
     # Extrinsics
     # Blender matrix_world is camera-to-world (c2w)
@@ -207,8 +207,8 @@ def extract_camera_params(
     w2c = np.linalg.inv(c2w)
     
     return {
-        "w": config["resolution"],
-        "h": config["resolution"],
+        "w": config['resolution'],
+        "h": config['resolution'],
         "fx": float(fx),
         "fy": float(fy),
         "cx": float(cx),
@@ -218,8 +218,8 @@ def extract_camera_params(
         "file_path": f"images/cam_{view_id:03d}.png",
         "view_id": view_id,
         "azimuth_deg": azimuth_deg,
-        "elevation_deg": config["elevation_deg"],
-        "camera_distance": config["distance"],
+        "elevation_deg": config['elevation_deg'],
+        "camera_distance": config['distance'],
     }
 
 
@@ -241,14 +241,14 @@ def render_multiview_dataset(config: dict):
     output_dir = config["output_dir"]
     num_views = config["num_views"]
     
-    print(f"\n{=*60}")
+    print(f"\n{'='*60}")
     print(f"GS-LRM Synthetic Dataset Rendering")
-    print(f"{=*60}")
+    print(f"{'='*60}")
     print(f"Output: {output_dir}")
     print(f"Views: {num_views}")
-    print(f"Resolution: {config[resolution]}x{config[resolution]}")
-    print(f"Camera: distance={config[distance]}, elevation={config[elevation_deg]}°")
-    print(f"{=*60}\n")
+    print(f"Resolution: {config['resolution']}x{config['resolution']}")
+    print(f"Camera: distance={config['distance']}, elevation={config['elevation_deg']}°")
+    print(f"{'='*60}\n")
     
     # Setup
     os.makedirs(os.path.join(output_dir, "images"), exist_ok=True)
@@ -267,8 +267,8 @@ def render_multiview_dataset(config: dict):
         # Position camera
         cam_pos = spherical_to_cartesian(
             azimuth_deg, 
-            config["elevation_deg"], 
-            config["distance"]
+            config['elevation_deg'], 
+            config['distance']
         )
         cam_obj.location = cam_pos
         cam_obj.rotation_euler = look_at_rotation(cam_pos)
@@ -291,10 +291,10 @@ def render_multiview_dataset(config: dict):
             "generator": "render_gslrm_dataset.py",
             "blender_version": bpy.app.version_string,
             "num_views": num_views,
-            "resolution": config["resolution"],
+            "resolution": config['resolution'],
             "fov_deg": config["fov_deg"],
-            "elevation_deg": config["elevation_deg"],
-            "camera_distance": config["distance"],
+            "elevation_deg": config['elevation_deg'],
+            "camera_distance": config['distance'],
             "fx": frames[0]["fx"],
             "fy": frames[0]["fy"],
             "cx": frames[0]["cx"],
@@ -306,11 +306,11 @@ def render_multiview_dataset(config: dict):
     with open(json_path, "w") as f:
         json.dump(camera_data, f, indent=2)
     
-    print(f"\n{=*60}")
+    print(f"\n{'='*60}")
     print(f"Dataset saved to: {output_dir}")
     print(f"Camera params: {json_path}")
     print(f"Images: {output_dir}/images/cam_*.png")
-    print(f"{=*60}\n")
+    print(f"{'='*60}\n")
     
     return camera_data
 
@@ -366,7 +366,8 @@ def validate_output(camera_data: dict) -> bool:
     
     # Check azimuth coverage
     azimuths = [f["azimuth_deg"] for f in frames]
-    print(f"  ✓ Azimuths: {[f{a:.0f}° for a in azimuths]}")
+    azimuth_strs = [f"{a:.0f}°" for a in azimuths]
+    print(f"  ✓ Azimuths: {azimuth_strs}")
     
     print("\n  ✓ Validation PASSED")
     return True

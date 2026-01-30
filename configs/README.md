@@ -10,7 +10,7 @@ CUDA_VISIBLE_DEVICES=5 torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py --config configs/mouse/D7_1_E2_gt_alpha.yaml
 
 # Config 검증
-python scripts/validate_config.py --all
+# (삭제됨) validate_config.py --all
 ```
 
 ## Directory Structure
@@ -89,7 +89,7 @@ training:
 새 config 작성 후 반드시 검증:
 
 ```bash
-python scripts/validate_config.py configs/mouse/my_new_config.yaml
+# (삭제됨) validate_config.py configs/mouse/my_new_config.yaml
 ```
 
 ## See Also

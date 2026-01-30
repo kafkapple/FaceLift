@@ -557,6 +557,26 @@ PRESETS = {
         "ray_error": "~0 deg",
     },
 
+    "M5_ps": {  # Pose Splatter comparison: 128x128, 1:1:1 temporal split
+        "paradigm": "recentered_affine",
+        "transform": "affine",
+        "scale_mode": "individual",
+        "pp_method": "shift_to_256",
+        "skew_correction": False,
+        "normalize_translation": True,
+        "target_distance": 2.7,
+        "target_fx": 549.0,
+        "image_size": 128,
+        "recenter_cameras": True,
+        "split": {
+            "strategy": "temporal",
+            "ratios": (1/3, 1/3, 1/3),
+            "seed": 42,
+        },
+        "description": "Pose Splatter comparison (128x128, 1:1:1 temporal split)",
+        "active": True,
+    },
+
 # ============================================================
     # M4 Series: Safety Margin Enhanced (2026-01-27)
     # Addresses clipping issue where alpha mask does not capture thin features

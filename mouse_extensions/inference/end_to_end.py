@@ -1,6 +1,7 @@
 """End-to-end inference: single image -> 6 views -> 3D Gaussians.
 
 Chains MVDiffusionInference and GSLRMInference into one pipeline.
+Optionally includes SAM-based preprocessing for raw input images.
 """
 
 from pathlib import Path
@@ -19,7 +20,17 @@ from mouse_extensions.inference.checkpoint_utils import find_mvdiffusion_checkpo
 
 
 class EndToEndPipeline:
-    """MVDiffusion + GS-LRM end-to-end pipeline."""
+    """MVDiffusion + GS-LRM end-to-end pipeline with optional preprocessing.
+    
+    For raw input images (not in M5 format):
+        - SAM-based mouse detection
+        - Background removal (white)
+        - Center alignment + coverage normalization
+    
+    For preprocessed images (already M5 format):
+        - Auto-detection skips preprocessing
+        - Or use skip_preprocess=True explicitly
+    """
 
     def __init__(
         self,
@@ -32,8 +43,9 @@ class EndToEndPipeline:
         image_size: int = 512,
         prefer_ema: bool = True,
         camera_json: Optional[str] = None,
+        sam_checkpoint: Optional[str] = None,
     ):
-        """Initialize both pipelines.
+        """Initialize pipelines.
 
         Args:
             gslrm_config: GS-LRM YAML config path.
@@ -46,6 +58,8 @@ class EndToEndPipeline:
             prefer_ema: Use EMA UNet weights if available.
             camera_json: Path to opencv_cameras.json for E2E camera params.
                          If None, uses M5 default cameras.
+            sam_checkpoint: Path to SAM checkpoint for preprocessing.
+                           If None, preprocessing uses simple resize fallback.
         """
         self.device = device
         self.image_size = image_size
@@ -72,6 +86,19 @@ class EndToEndPipeline:
             )
             if prompt_embed_path:
                 self.mvdiff.load_prompt_embeds(prompt_embed_path)
+                
+        # Optionally load preprocessor
+        self.preprocessor = None
+        if sam_checkpoint:
+            print("=== Loading Preprocessor (SAM) ===")
+            from mouse_extensions.inference.preprocessing import (
+                MouseInferencePreprocessor,
+            )
+            self.preprocessor = MouseInferencePreprocessor(
+                sam_checkpoint=sam_checkpoint,
+                device=device,
+            )
+            print(f"  SAM available: {self.preprocessor.detector.is_available}")
 
     def run(
         self,
@@ -83,6 +110,8 @@ class EndToEndPipeline:
         save_turntable: bool = True,
         save_mesh: bool = True,
         turntable_views: int = 120,
+        skip_preprocess: bool = False,
+        save_preprocess_steps: bool = False,
     ) -> Path:
         """Run full pipeline: single image -> 6 views -> 3D -> save.
 
@@ -95,6 +124,8 @@ class EndToEndPipeline:
             save_turntable: Generate turntable video.
             save_mesh: Save PLY.
             turntable_views: Number of turntable frames.
+            skip_preprocess: If True, skip preprocessing (for M5-format images).
+            save_preprocess_steps: If True, save visualization of preprocessing steps.
 
         Returns:
             Output path.
@@ -108,10 +139,36 @@ class EndToEndPipeline:
         out = Path(output_dir) / sample_name
         out.mkdir(parents=True, exist_ok=True)
 
+        # Step 0: Preprocessing (optional)
+        if not skip_preprocess and self.preprocessor is not None:
+            print("[0/2] Preprocessing input image...")
+            
+            if save_preprocess_steps:
+                preprocess_vis_dir = out / "preprocessing_steps"
+                self.preprocessor.visualize_steps(input_image, preprocess_vis_dir)
+                
+            result = self.preprocessor.preprocess(input_image)
+            
+            if result.detection_used:
+                print(f"  Detection used: scale={result.scale_applied:.2f}, "
+                      f"centroid=({result.centroid[0]:.1f}, {result.centroid[1]:.1f})")
+            else:
+                print("  Using fallback (simple resize or already preprocessed)")
+                
+            # Save preprocessed image
+            preprocessed_path = out / "preprocessed_input.png"
+            Image.fromarray(result.image).save(preprocessed_path)
+            print(f"  Saved preprocessed image to {preprocessed_path}")
+            
+            # Use preprocessed image for MVDiffusion
+            mvdiff_input = preprocessed_path
+        else:
+            mvdiff_input = input_image
+
         # Step 1: Generate 6 views
-        print(f"[1/2] Generating 6 views from {input_image}...")
+        print(f"[1/2] Generating 6 views from {Path(mvdiff_input).name}...")
         views = self.mvdiff.generate_views(
-            input_image,
+            mvdiff_input,
             image_size=self.image_size,
             num_steps=num_steps,
             guidance_scale=guidance_scale,
@@ -166,6 +223,7 @@ class EndToEndPipeline:
         """Run GS-LRM only from a 6-view sample directory.
 
         Uses camera parameters from the sample's opencv_cameras.json.
+        No preprocessing needed (views are already generated).
 
         Args:
             sample_dir: Directory with images/ and opencv_cameras.json.

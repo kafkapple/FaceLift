@@ -232,3 +232,152 @@ Use MVDiffusionInference.compute_cameras(). Never use identity matrices.
 ---
 
 *Updated: 2026-01-29 | Added E2E inference section*
+
+
+---
+
+## Inference: Wild Image → 3D (신규 이미지 추론)
+
+### 개요
+
+학습된 모델로 **임의의 생쥐 이미지**를 3D로 복원하는 파이프라인.
+
+```
+Wild Image → [전처리] → [MVDiffusion] → 6 Views → [GS-LRM] → 3D Gaussians
+```
+
+### 전처리 파이프라인
+
+| 단계 | 처리 | 목적 |
+|------|------|------|
+| 1. SAM Segmentation | 생쥐 영역 검출 | 배경 제거 |
+| 2. Background Removal | 흰색 배경 합성 | M5 형식 일치 |
+| 3. Center Alignment | centroid → (256,256) | 위치 정규화 |
+| 4. Coverage Normalization | scale to ~6% | M5 학습 통계 일치 |
+| 5. Resize | 512×512 | 입력 해상도 |
+
+### E2E Inference 명령어
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# SAM 전처리 포함 (자동 segmentation)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --input_image /path/to/wild_mouse.jpg \
+    --sam_checkpoint checkpoints/sam/sam_vit_b.pth \
+    --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5t/checkpoint-3500 \
+    --gslrm_checkpoint checkpoints/gslrm/M5t_E0_1_facelift \
+    --output_dir outputs/inference_test
+
+# 전처리 단계별 시각화 저장
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --input_image /path/to/wild_mouse.jpg \
+    --sam_checkpoint checkpoints/sam/sam_vit_b.pth \
+    --save_preprocess_steps \
+    ...
+
+# 전처리 건너뛰기 (이미 M5 형식인 경우)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --input_image /path/to/already_preprocessed.png \
+    --skip_preprocess \
+    ...
+```
+
+### 자동 감지
+
+이미 전처리된 이미지(512×512, 흰색 배경, 중앙 물체)는 자동 감지되어 전처리 건너뜀.
+
+---
+
+## Manual Segmentation GUI (수동 어노테이션)
+
+### 목적
+
+SAM 자동 segmentation이 실패하는 경우(엉뚱한 물체 선택), 
+사용자가 직접 **점을 클릭**하여 생쥐 영역을 지정.
+
+### 실행
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# 로컬 네트워크만 (gpu03 내부)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.segment_mouse_web \
+    --sam_checkpoint checkpoints/sam/sam_vit_b.pth \
+    --input_dir /path/to/images \
+    --output_dir /path/to/output \
+    --port 7860
+
+# 외부 접속 (Public URL 생성) ⭐
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.inference.segment_mouse_web \
+    --sam_checkpoint checkpoints/sam/sam_vit_b.pth \
+    --input_dir /path/to/images \
+    --output_dir /path/to/output \
+    --port 7860 \
+    --share
+```
+
+### 접속 방법
+
+| 방법 | URL | 조건 |
+|------|-----|------|
+| **Gradio Share** | `https://xxxxx.gradio.live` | `--share` 옵션 필요, 1주 유효 |
+| SSH 터널 | `http://localhost:7860` | `ssh -L 7860:localhost:7860 gpu03` 후 접속 |
+| 내부 접속 | `http://gpu03:7860` | 같은 네트워크만 |
+
+### Gradio Share 원리
+
+```
+로컬 서버 (gpu03:7860) ←→ Gradio Cloud 터널 ←→ Public URL (*.gradio.live)
+```
+
+- 별도 포트포워딩/방화벽 설정 불필요
+- 데이터는 터널 통과만 (저장 안됨)
+- 1주 후 만료 (재시작 시 새 URL)
+
+### GUI 사용법
+
+| 단계 | 동작 |
+|------|------|
+| 1 | **Mode 선택**: Foreground (Green) / Background (Red) |
+| 2 | **이미지 클릭**: 녹색=생쥐, 빨간색=배경 |
+| 3 | **Generate Mask**: 클릭 점 기반 SAM 마스크 생성 |
+| 4 | **Save & Next**: 512×512 흰배경 이미지 + 마스크 저장 |
+
+### 버튼 설명
+
+| 버튼 | 기능 |
+|------|------|
+| ⬅️ Prev | 이전 이미지 |
+| Skip ➡️ | 현재 이미지 건너뛰기 |
+| 🎭 Generate Mask | SAM 마스크 생성 |
+| ↩️ Undo | 마지막 점 취소 |
+| 🔄 Reset | 모든 점 초기화 |
+| 💾 Save & Next | 저장 후 다음 이미지 |
+
+### 출력 파일
+
+```
+output_dir/
+├── image_001.png          # 512×512 흰배경 이미지
+├── image_001_mask.png     # 이진 마스크
+├── image_002.png
+├── image_002_mask.png
+└── ...
+```
+
+### Checkpoint 다운로드
+
+```bash
+# SAM ViT-B (358MB, 권장)
+wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth \
+    -O checkpoints/sam/sam_vit_b.pth
+
+# SAM ViT-H (2.4GB, 고정밀)
+wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth \
+    -O checkpoints/sam/sam_vit_h.pth
+```
+
+---
+
+*Updated: 2026-01-30 | Added Inference & Manual Segmentation*

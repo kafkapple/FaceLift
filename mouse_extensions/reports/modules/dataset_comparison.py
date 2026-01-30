@@ -339,7 +339,7 @@ safe zoom algorithm (M3_3) to find optimal balance.</p>
 <h3>Preprocessing Commands</h3>
 
 <pre>
-cd /home/joon/dev/FaceLift
+cd ~/dev/FaceLift
 
 # M1 (D7.1) - Affine baseline
 python -m mouse_extensions.preprocessing.preprocess \

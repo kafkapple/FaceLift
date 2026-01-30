@@ -18,15 +18,15 @@ _split:
 
 training:
   dataset:
-    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_train.txt
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_train.txt
 
 validation:
   enabled: true
-  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_val.txt
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_val.txt
   test_enabled: true  # Enable test evaluation at end of training
 
 test:
-  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_test.txt
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_test.txt
 
 _stats:
   num_train: 2880
