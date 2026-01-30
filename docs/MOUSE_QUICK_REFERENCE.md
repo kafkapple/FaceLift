@@ -167,15 +167,33 @@ CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
 
 | GPU | Architecture | Available |
 |-----|-------------|-----------|
-| 0-3 | Blackwell | X (PyTorch unsupported) |
-| 4-7 | A6000 | O |
+| 0-3 | Blackwell (sm_120) | X (PyTorch 미지원) |
+| 4-7 | A6000 (sm_86) | O |
+
+#### ⚠️ facelift 환경 GPU 선택 주의
+
+**문제**: `conda activate facelift` 시 `env_vars.sh`가 `CUDA_VISIBLE_DEVICES=4` 자동 설정
+→ 사용자가 다른 GPU 지정해도 무시됨
+
+**해결**: `export`로 먼저 설정 (conda activate 전에 환경변수 존재해야 함)
+
+```bash
+# 올바른 방법 (GPU 6 사용)
+export CUDA_VISIBLE_DEVICES=6 && nohup accelerate launch ...
+
+# 잘못된 방법 (GPU 4로 덮어씌워짐)
+CUDA_VISIBLE_DEVICES=6 nohup accelerate launch ...
+```
+
+#### GPU 상태 확인
 
 ```bash
 nvidia-smi
 ps aux | grep train_gslrm
+ps aux | grep train_diffusion
 ```
 
-### 폐기 데이터셋 (사용 금지)
+### 폐기 데이터셋
 
 | ID | Issue | Ray Error |
 |----|-------|-----------|
