@@ -165,8 +165,8 @@ class UnifiedPipeline:
         # Apply frame range
         fr = self.config.input.frame_range
         if fr.start is not None or fr.end is not None:
-            start = fr.start or 0
-            end = fr.end or len(samples)
+            start = int(fr.start) if fr.start is not None else 0
+            end = int(fr.end) if fr.end is not None else len(samples)
             samples = samples[start:end]
         
         if fr.step > 1:
@@ -227,11 +227,34 @@ class UnifiedPipeline:
         )
 
     def _find_samples(self, data_dir: Path) -> list[Path]:
-        """Find and sort sample directories."""
+        """Find and sort sample directories.
+        
+        If config.input.data_list is set, filter samples by that list.
+        """
+        # Check for data_list filter
+        data_list_path = self.config.input.get("data_list")
+        valid_samples = None
+        
+        if data_list_path:
+            from pathlib import Path as P
+            list_path = P(data_list_path).expanduser()
+            if list_path.exists():
+                with open(list_path) as f:
+                    # Parse format: /path/to/sample or sample_id
+                    valid_samples = set()
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            # Extract sample ID from path
+                            sample_id = P(line).name
+                            valid_samples.add(sample_id)
+                print(f"Using data_list filter: {len(valid_samples)} samples")
+        
         samples = []
         for d in sorted(data_dir.iterdir()):
             if d.is_dir() and d.name.isdigit():
-                samples.append(d)
+                if valid_samples is None or d.name in valid_samples:
+                    samples.append(d)
         return samples
 
     def _process_with_mvdiffusion(
@@ -261,10 +284,15 @@ class UnifiedPipeline:
         # Render turntable
         turntable_frames = self.renderer.render_turntable(gaussians)
         
+        # Convert PIL views to numpy for grid_6view
+        import numpy as np
+        views_np = np.stack([np.array(v) for v in views])
+        
         result = {
             "gaussians": gaussians,
             "turntable_frames": turntable_frames,
             "generated_views": views,
+            "input_views": views_np,  # For grid_6view (shows MVD output)
         }
         
         if save_per_sample:
@@ -298,7 +326,9 @@ class UnifiedPipeline:
         """Process 6-view sample through GS-LRM."""
         from mouse_extensions.inference.gslrm_pipeline import load_sample_data
         
-        sample = load_sample_data(sample_dir, self.device)
+        images, c2ws, fxfycxcy, index = load_sample_data(sample_dir, device=self.device)
+        from easydict import EasyDict as edict
+        sample = edict({"image": images, "c2w": c2ws, "fxfycxcy": fxfycxcy, "index": index})
         
         # Run GS-LRM
         output = self.gslrm.forward(sample)

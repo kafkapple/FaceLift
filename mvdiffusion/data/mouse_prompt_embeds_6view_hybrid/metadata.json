@@ -1,0 +1,25 @@
+{
+  "preset": "hybrid",
+  "views": [
+    "top-front",
+    "top-front-right",
+    "top-right",
+    "top-back",
+    "top-left",
+    "top-front-left"
+  ],
+  "color_prompts": [
+    "a mouse, top-front view, multi-view capture, color map.",
+    "a mouse, top-front-right view, multi-view capture, color map.",
+    "a mouse, top-right view, multi-view capture, color map.",
+    "a mouse, top-back view, multi-view capture, color map.",
+    "a mouse, top-left view, multi-view capture, color map.",
+    "a mouse, top-front-left view, multi-view capture, color map."
+  ],
+  "shape": [
+    6,
+    77,
+    1024
+  ],
+  "model": "checkpoints/mvdiffusion/pipeckpts"
+}

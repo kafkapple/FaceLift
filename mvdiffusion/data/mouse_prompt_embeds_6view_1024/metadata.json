@@ -1,0 +1,23 @@
+{
+  "mode": "text_only",
+  "preset": "mouse_top_angled",
+  "views": [
+    "top-front",
+    "top-front-right",
+    "top-right",
+    "top-back",
+    "top-left",
+    "top-front-left"
+  ],
+  "description": "Mouse-specific top-angled views, SD 2.1 unclip compatible",
+  "color_prompts": [
+    "a rendering image of a 3D model, top-front view, from above at an angle, color map.",
+    "a rendering image of a 3D model, top-front-right view, from above at an angle, color map.",
+    "a rendering image of a 3D model, top-right view, from above at an angle, color map.",
+    "a rendering image of a 3D model, top-back view, from above at an angle, color map.",
+    "a rendering image of a 3D model, top-left view, from above at an angle, color map.",
+    "a rendering image of a 3D model, top-front-left view, from above at an angle, color map."
+  ],
+  "shape": [6, 77, 1024],
+  "model": "checkpoints/mvdiffusion/pipeckpts (SD 2.1 unclip)"
+}

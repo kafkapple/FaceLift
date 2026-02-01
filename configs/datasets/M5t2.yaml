@@ -1,0 +1,33 @@
+# Dataset: M5t2
+# M5 with temporal 80:10:10 split (more training data, no data leakage)
+# Generated: 2026-02-01
+
+_name: M5t2
+_description: "M5 with temporal 80:10:10 split - more training data, no temporal leakage"
+_category: recentered_affine
+_preprocessing:
+  paradigm: recentered_affine
+  transform: affine
+  target_fx: 548.9938
+  output_size: 512
+  split_strategy: temporal_80_10_10
+
+training:
+  dataset:
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+
+validation:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+
+test:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_test.txt
+
+_stats:
+  num_train: 2880
+  num_val: 360
+  num_test: 360
+  split_ratios: [0.8, 0.1, 0.1]
+  temporal_ranges:
+    train: "000000-002879"
+    val: "002880-003239"
+    test: "003240-003599"

@@ -47,7 +47,7 @@ output:
   
   # Export options
   gaussian: true          # Save .ply and .npz
-  per_sample: true         # Save per-sample outputs (views, gaussians, grids)
+  per_sample: true        # Save per-sample outputs (views, gaussians, grids)
   rerun: true             # Save .rrd for Rerun viewer
   
   # Video options
@@ -55,11 +55,7 @@ output:
     enabled: true
     fps: 24
     # Types: turntable, time_fixed, time_rotating, full_all, grid_6view
-    types:
-      - turntable
-      - time_fixed
-      - time_rotating
-      - grid_6view
+    types: [turntable, time_fixed, time_rotating, grid_6view]
   
   # Grid image options
   grid:

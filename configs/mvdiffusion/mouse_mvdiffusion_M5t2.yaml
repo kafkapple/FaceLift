@@ -1,60 +1,51 @@
 # =============================================================================
-# Mouse MVDiffusion Configuration - M5t (1:1:1 Pose Splatter Split) (Affine) Preprocessed Data
-# Finetune from FaceLift pretrained with GS-LRM M5 data for camera consistency
+# Mouse MVDiffusion - M5t2 (Temporal 80:10:10 Split + Mouse Prompt)
 # =============================================================================
+# Key differences from M5t_mouse_prompt:
+#   - Split: Temporal 80:10:10 (train=2880, val=360, test=360)
+#   - No data leakage: consecutive frames in same split
+#   - More training data than 1:1:1 split
 #
-# Version: v1.0 (M5t - temporal 1:1:1 split)
-# Created: 2026-01-28
-# Preprocessing: M5 (Affine, D7.1 preset)
-#   - Resolution: 512x512, 6 views
-#   - Camera: fx=549, cx=cy=256, trans_norm=2.7 (GS-LRM pretrained compatible)
-#   - Transform: Affine (no homography, no zoom)
-#   - Data: /home/joon/data/preprocessed/FaceLift_mouse/M5/
-# GS-LRM Baseline: M5_E1_2_alpha (Alpha IoU=0.8398, F1=0.9129)
-# Purpose: Finetune MVDiffusion with same preprocessed data as GS-LRM
-#   so that generated 6-view images have consistent camera parameters
-#   for the pipeline: single image -> MVDiffusion (6 views) -> GS-LRM (3D)
+# Version: v1.0
+# Created: 2026-02-01
 #
 
-# Basic model configuration
 n_views: 6
 img_wh: 512
 reference_view_idx: 0
-dataset_type: 'mouse'
+dataset_type: "mouse"
 
-# Model paths
-pretrained_model_name_or_path: 'checkpoints/mvdiffusion/pipeckpts'
+pretrained_model_name_or_path: "checkpoints/mvdiffusion/pipeckpts"
 pretrained_unet_path: null
 revision: null
 
-# Prompt embeddings
-prompt_embed_path: "mvdiffusion/data/fixed_prompt_embeds_6view/clr_embeds.pt"
+# Mouse-specific prompt embeddings (top-angled views, 1024-dim)
+prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_1024/clr_embeds.pt"
 
 # =============================================================================
-# Dataset - M5 (Affine) GS-LRM preprocessed data (512x512, 6-view)
-# Same camera params as GS-LRM training for consistent pipeline
+# Dataset - M5t2 (Temporal 80:10:10 split, no data leakage)
 # =============================================================================
 train_dataset:
-  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt
-  bg_color: 'three_choices'
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+  bg_color: "three_choices"
   augmentation: true
   aug_brightness: [0.9, 1.1]
   aug_contrast: [0.9, 1.1]
   aug_hflip: false
 
 validation_dataset:
-  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_val.txt
-  bg_color: 'white'
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+  bg_color: "white"
 
 # =============================================================================
 # Output
 # =============================================================================
-checkpoint_prefix: ''
-output_dir: 'checkpoints/mvdiffusion/mouse_M5t'
-val_out_dir: 'checkpoints/mvdiffusion/mouse_M5t/val/'
+checkpoint_prefix: ""
+output_dir: "checkpoints/mvdiffusion/mouse_M5t2"
+val_out_dir: "checkpoints/mvdiffusion/mouse_M5t2/val/"
 
 # =============================================================================
-# Training Parameters (same as pixel_based config)
+# Training Parameters
 # =============================================================================
 seed: 42
 train_batch_size: 4
@@ -73,7 +64,6 @@ allow_tf32: true
 use_ema: true
 dataloader_num_workers: 8
 
-# Optimizer
 adam_beta1: 0.9
 adam_beta2: 0.999
 adam_weight_decay: 1.e-2
@@ -86,19 +76,21 @@ prediction_type: null
 # =============================================================================
 vis_dir: vis
 logging_dir: logs
-mixed_precision: 'fp16'
-report_to: 'wandb'
+mixed_precision: "fp16"
+report_to: "wandb"
 local_rank: -1
-checkpointing_steps: 2000
-checkpoints_total_limit: 2
-# Option A: Fresh finetune from pretrained (recommended)
+checkpointing_steps: 1000
+checkpoints_total_limit: 3
 resume_from_checkpoint: null
-# Option B: Resume from pixel_based checkpoint-3000
-# resume_from_checkpoint: checkpoints/mvdiffusion/mouse_pixel_based/checkpoint-3000
 enable_xformers_memory_efficient_attention: true
 validation_steps: 200
 validation_sanity_check: true
-tracker_project_name: 'FaceLift-MVDiffusion'
+tracker_project_name: "FaceLift-Mouse"
+
+# WandB
+wandb_exp_name: "mvdiff_M5t2"
+wandb_group: "mvdiffusion"
+wandb_job_type: "finetune_M5t2"
 
 # =============================================================================
 # Training Specifics
@@ -106,11 +98,10 @@ tracker_project_name: 'FaceLift-MVDiffusion'
 trainable_modules: null
 use_classifier_free_guidance: true
 condition_drop_rate: 0.05
-drop_type: 'drop_as_a_whole'
+drop_type: "drop_as_a_whole"
 camera_embedding_lr_mult: 1.
 scale_input_latents: true
 
-# Pipeline
 pipe_kwargs:
   num_views: ${n_views}
 validation_guidance_scales: [1., 3.]
@@ -118,7 +109,6 @@ validation_grid_nrow: ${n_views}
 pipe_validation_kwargs:
   eta: 1.0
 
-# UNet
 unet_from_pretrained_kwargs:
   unclip: true
   num_views: ${n_views}
@@ -131,8 +121,3 @@ unet_from_pretrained_kwargs:
   sparse_mv_attention: true
   selfattn_block: custom
   addition_downsample: false
-
-# WandB
-wandb_exp_name: "mvdiff_M5t_finetune"
-wandb_group: "mvdiffusion"
-wandb_job_type: "finetune_M5t"

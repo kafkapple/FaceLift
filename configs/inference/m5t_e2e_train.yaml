@@ -1,0 +1,40 @@
+# E2E Temporal Sequence - TRAIN split (best quality)
+_base_: default.yaml
+
+input:
+  mode: batch
+  data_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5t
+  data_list: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt
+  view_idx: 0
+  frame_range:
+    start: 0
+    end: 100
+    step: 1
+
+pipeline:
+  mvdiffusion:
+    enabled: true
+    checkpoint: checkpoints/mvdiffusion/mouse_M5t/checkpoint-8000
+    num_steps: 50
+    guidance_scale: 3.0
+    seed: 42
+  gslrm:
+    checkpoint: /node_data/joon/checkpoints/FaceLift/gslrm/M5t_E0_1_facelift/best_psnr.pt
+    config: configs/base/gslrm_mouse.yaml
+
+rendering:
+  resolution: 384
+  num_views: 36
+  elevation: 20.0
+  radius: 2.7
+  rotation_speed: 0.25
+
+output:
+  dir: outputs/m5t_e2e_train
+  gaussian: true
+  per_sample: false
+  rerun: true
+  video:
+    enabled: true
+    fps: 10
+    types: [turntable, time_fixed, time_rotating, grid_6view]

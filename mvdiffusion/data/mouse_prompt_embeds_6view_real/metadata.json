@@ -1,0 +1,25 @@
+{
+  "preset": "real_image",
+  "views": [
+    "top-front",
+    "top-front-right",
+    "top-right",
+    "top-back",
+    "top-left",
+    "top-front-left"
+  ],
+  "color_prompts": [
+    "a laboratory mouse photographed from top-front angle, multi-camera capture, white background.",
+    "a laboratory mouse photographed from top-front-right angle, multi-camera capture, white background.",
+    "a laboratory mouse photographed from top-right angle, multi-camera capture, white background.",
+    "a laboratory mouse photographed from top-back angle, multi-camera capture, white background.",
+    "a laboratory mouse photographed from top-left angle, multi-camera capture, white background.",
+    "a laboratory mouse photographed from top-front-left angle, multi-camera capture, white background."
+  ],
+  "shape": [
+    6,
+    77,
+    1024
+  ],
+  "model": "checkpoints/mvdiffusion/pipeckpts"
+}
