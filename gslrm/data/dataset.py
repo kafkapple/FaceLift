@@ -123,6 +123,7 @@ class RandomViewDataset(Dataset):
         self.num_views = dataset_config.get("num_views", self.config.training.get("num_views", 8))
         self.num_input_views = dataset_config.get("num_input_views", self.config.training.get("num_input_views", 4))
         self.target_has_input = dataset_config.get("target_has_input", True)
+        self.fixed_input_views = dataset_config.get("fixed_input_views", None)  # e.g., [0,1,2,3,4] for Pose-Splatter comparison
     
     def __len__(self):
         """Return the number of samples in the dataset."""
@@ -142,9 +143,14 @@ class RandomViewDataset(Dataset):
             cam_positions.append(c2w[:3, 3])
         cam_positions = np.stack(cam_positions, axis=0)  # [N, 3]
 
-        # Randomly select input views
+        # Select input views (fixed or random)
         all_indices = list(range(len(cameras)))
-        input_indices = random.sample(all_indices, self.num_input_views)
+        if self.fixed_input_views is not None:
+            # Use fixed view indices for reproducible comparison (e.g., Pose-Splatter)
+            input_indices = [i for i in self.fixed_input_views if i < len(cameras)][:self.num_input_views]
+        else:
+            # Randomly select input views
+            input_indices = random.sample(all_indices, self.num_input_views)
         selected_indices = input_indices.copy()
 
         # Select additional views with good overlap
