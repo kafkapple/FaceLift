@@ -123,13 +123,13 @@ Examples:
                              help="Directory containing multiple samples")
     input_group.add_argument("--start_frame", type=int, default=None,
                              help="Start frame index for batch processing")
-    input_group.add_argument("--end_frame", type=int, default=None,
+    input_group.add_argument("--end_frame", type=int, default=200,
                              help="End frame index for batch processing (exclusive)")
     input_group.add_argument("--frame_step", type=int, default=1,
                              help="Frame step for batch processing (default: 1)")
     input_group.add_argument("--split", type=str, default=None,
                              help="Split file path (overrides start/end/step)")
-    input_group.add_argument("--input_view_idx", type=int, default=None,
+    input_group.add_argument("--input_view_idx", type=int, default=0,
                              help="View index (0-5) to use as input for MVDiffusion. "
                                   "When set with --sample_dir, uses that view for MVDiffusion instead of all 6 views.")
 
@@ -138,7 +138,7 @@ Examples:
     preprocess_group.add_argument("--sam_checkpoint", type=str, default=None,
                                   help="SAM checkpoint for mouse detection. "
                                        "If None, uses simple resize fallback.")
-    preprocess_group.add_argument("--skip_preprocess", action="store_true",
+    preprocess_group.add_argument("--skip_preprocess", action="store_true", default=True,
                                   help="Skip preprocessing entirely (for M5-format images)")
     preprocess_group.add_argument("--save_preprocess_steps", action="store_true",
                                   help="Save visualization of preprocessing steps")
