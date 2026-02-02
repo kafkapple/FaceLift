@@ -84,6 +84,71 @@ CUDA_VISIBLE_DEVICES=0 torchrun --standalone --nproc_per_node=1 \
 
 ---
 
+## WandB Auto-Resume (GS-LRM & MVDiffusion 공통)
+
+### 동작 방식
+
+**자동 저장/로드**: checkpoint 디렉토리에 `wandb_run_id.txt` 저장
+
+```
+첫 학습 시:
+  wandb.init() → 새 run 생성 → wandb_run_id.txt 저장
+
+Resume 시:
+  wandb_run_id.txt 확인 → run_id 로드 → 이전 run 이어서
+```
+
+### 저장 위치
+
+| 모델 | 위치 |
+|------|------|
+| GS-LRM | `{checkpoint_dir}/wandb_run_id.txt` |
+| MVDiffusion | `{checkpoint_prefix}/{output_dir}/wandb_run_id.txt` |
+
+### Resume 명령어 (동일)
+
+**GS-LRM**:
+```bash
+# 첫 실행이든 resume이든 동일한 명령어
+CUDA_VISIBLE_DEVICES=5 nohup torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M5t2 -e E0_1_facelift \
+    > logs/M5t2_E0_1.log 2>&1 &
+```
+
+**MVDiffusion**:
+```bash
+# 첫 실행이든 resume이든 동일한 명령어
+export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py \
+    --config configs/mvdiffusion/mouse_mvdiffusion_M5t2.yaml \
+    > logs/mvdiff_M5t2.log 2>&1 &
+```
+
+### 수동 run_id 지정 (이전 실험용)
+
+`wandb_run_id.txt`가 없는 이전 실험은 수동 생성:
+
+```bash
+# 1. WandB UI에서 run_id 확인
+# https://wandb.ai/joon/FaceLift-Mouse → run 클릭 → Overview → Run ID (8자리)
+
+# 2. 수동 저장
+echo "yz9fl25q" > /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/wandb_run_id.txt
+
+# 3. 일반 명령어로 resume
+CUDA_VISIBLE_DEVICES=5 nohup torchrun ... train_gslrm.py -d M5t2 -e E0_1_facelift ...
+```
+
+### 현재 상태
+
+| Model | Dataset | wandb_run_id.txt | 상태 |
+|-------|---------|------------------|------|
+| GS-LRM | M5t2 | ✅ `yz9fl25q` | resume 가능 |
+| MVDiffusion | M5t2 | ❌ 없음 | 새 run으로 시작 (checkpoint는 resume) |
+
+---
+
 ## 검증 명령어
 
 ```bash
@@ -779,6 +844,29 @@ CUDA_VISIBLE_DEVICES=4 nohup torchrun --standalone --nproc_per_node=1 \
     train_gslrm.py -d M5t2 -e E0_1_facelift > logs/M5t2_E0_1.log 2>&1 &
 ```
 
+### MVDiffusion 뷰 일관성 개선 (M5t2_consistent)
+
+6개 뷰 생성 시 일부 뷰가 불안정한 문제 해결을 위한 설정.
+
+**변경 사항**:
+
+| 설정 | 기존 (M5t2) | 개선 (M5t2_consistent) | 효과 |
+|------|-------------|----------------------|------|
+| `condition_drop_rate` | 0.05 | **0.0** | CFG dropout 제거 → 일관된 conditioning |
+| `sparse_mv_attention` | true | **false** | 모든 뷰 쌍 attention → 멀리 떨어진 뷰도 일관성 |
+
+**Trade-off**:
+- ⬆️ VRAM 사용량, ⬇️ 출력 다양성, ⬆️ **뷰 일관성**
+
+**실행**:
+```bash
+export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py \
+    --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_consistent.yaml \
+    > logs/mvdiff_M5t2_consistent.log 2>&1 &
+```
+
 ---
 
 ## Pose-Splatter 비교 실험
@@ -801,4 +889,224 @@ python mouse_extensions/scripts/run_comparison.py
 
 ---
 
-*Updated: 2026-02-01*
+## Slow Playback Temporal Videos (느린 재생 시퀀스)
+
+### 목적
+연속 프레임의 turntable 렌더링을 **느리고 부드럽게** 시각화.
+- 프레임별 품질 분석
+- 시간축 일관성 확인
+- 발표/데모용 영상 생성
+
+### 설정 파일
+
+| Config | Checkpoint | Test Split | 학습량 |
+|--------|------------|------------|-------|
+| **m5t_temporal_slow.yaml** | M5t (11,800 step) | 1:1:1 test (1,204 프레임) | ✅ 충분 |
+| m5t2_temporal_slow.yaml | M5t2 (400 step) | 80:10:10 test (360 프레임) | ⚠️ 초기 |
+
+### 주요 파라미터
+
+| 파라미터 | 기본값 | 느린재생 | 설명 |
+|----------|--------|---------|------|
+| --fps | 24 | **10** | 비디오 FPS (낮을수록 느림) |
+| --rotation_speed | 0.5 | **0.3** | 회전 속도 (낮을수록 천천히) |
+| --num_views | 36 | **60** | 360도 분할 (36=10도, 60=6도) |
+| --end_frame | 전체 | 200 | 처리할 프레임 수 |
+| --no_gaussian | - | **사용** | .ply/.npz 저장 끔 (rerun으로 대체) |
+| --save_rerun | True | True | .rrd 저장 (프레임별 분석에 최적) |
+
+**기타 기본값**: `--resolution 384`, `--elevation 20.0`, `--radius 2.7`, `--config configs/base/gslrm_mouse.yaml`
+
+### 모델별 차이점
+
+| 항목 | M5t (권장) | M5t2 |
+|------|-----------|------|
+| Checkpoint | `M5t_E0_1_facelift` | `M5t2_E0_1_facelift` |
+| Split | `data_mouse_1to1_test.txt` | `data_mouse_t2_test.txt` |
+| Test 프레임 | 1,204개 | 360개 |
+| 학습 상태 | ✅ 11,800 step | ⚠️ 400 step (중단됨) |
+
+### 실행 명령어 (통합)
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# MODEL: M5t 또는 M5t2
+# SPLIT: 1to1 또는 t2
+MODEL=M5t
+SPLIT=1to1
+
+export CUDA_VISIBLE_DEVICES=4 && \
+source ~/anaconda3/etc/profile.d/conda.sh && conda activate facelift && \
+nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+    --checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/${MODEL}_E0_1_facelift/best_psnr.pt \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_${SPLIT}_test.txt \
+    --start_frame 0 --end_frame 200 \
+    --fps 10 --rotation_speed 0.3 --num_views 60 \
+    --no_gaussian \
+    --output_dir outputs/temporal_${MODEL}_slow \
+    > logs/temporal_${MODEL}_slow.log 2>&1 &
+
+# 로그 확인
+tail -f logs/temporal_${MODEL}_slow.log
+```
+
+**M5t2 사용시**: `MODEL=M5t2`, `SPLIT=t2`로 변경
+
+### 옵션 변형
+
+| 목적 | 추가 옵션 |
+|------|----------|
+| 비디오만 (용량 최소) | `--no_gaussian --no_rerun` |
+| Gaussian 파일 필요 | `--save_gaussian` |
+| 전체 프레임 | `--end_frame` 제거 또는 1204(M5t)/360(M5t2) |
+
+### 속도 조절 가이드
+
+| 용도 | fps | rotation_speed | num_views | 결과 |
+|------|-----|----------------|-----------|------|
+| 빠른 미리보기 | 24 | 0.5 | 36 | 기본 (일반 속도) |
+| 발표용 | 15 | 0.4 | 48 | 약간 느림 |
+| **분석용** | **10** | **0.3** | **60** | **권장 (느림)** |
+| 디버깅 | 5 | 0.2 | 72 | 매우 느림 |
+
+### 전체 프레임 처리
+
+```bash
+# M5t 전체 (1,204 프레임) - 약 2시간 소요
+... --end_frame 1204 ...
+
+# M5t2 전체 (360 프레임) - 약 30분 소요
+# --end_frame 제거 또는 --end_frame 360
+```
+
+### 출력 구조
+
+```
+outputs/temporal_M5t_slow/
+├── turntable.mp4           # 360도 회전 (느리게)
+├── time_fixed_0.mp4        # 시간축 (각도 0도 고정)
+├── time_rotating.mp4       # 시간+회전 동시 변화
+├── grid_6view.mp4          # 입력 6뷰 그리드
+├── rerun/                  # 기본 활성화 (프레임별 분석)
+│   └── sequence.rrd        # Rerun 인터랙티브 뷰어
+└── gaussians/              # --save_gaussian 시에만 (기본 비활성화)
+    ├── frame_000000.ply    # 3D 뷰어용
+    ├── frame_000000.npz    # 분석용
+    └── ...
+```
+
+### Rerun 뷰어로 확인
+
+```bash
+# 로컬에서 직접
+rerun outputs/temporal_M5t_slow/rerun/sequence.rrd
+
+# SSH 터널 (원격 서버)
+ssh -L 9090:localhost:9090 gpu03
+rerun --web-viewer --port 9090 outputs/temporal_M5t_slow/rerun/sequence.rrd
+# 브라우저: http://localhost:9090
+```
+
+---
+
+*Updated: 2026-02-02*
+
+
+---
+
+## E2E Inference 체크포인트 현황 (260202)
+
+### 사용 가능한 체크포인트
+
+| Model | Dataset | Checkpoint | Steps | 상태 |
+|-------|---------|------------|-------|------|
+| **GS-LRM** | M5t | `/node_data/joon/.../M5t_E0_1_facelift/best_psnr.pt` | 11,800 | ✅ 권장 |
+| **GS-LRM** | M5t2 | `/node_data/joon/.../M5t2_E0_1_facelift/best_psnr.pt` | 400+ | ✅ 사용가능 |
+| **MVDiffusion** | M5t | `.../mvdiffusion/mouse_M5t/checkpoint-8000` | 8,000 | ✅ 권장 |
+| **MVDiffusion** | M5t2 | `.../mvdiffusion/mouse_M5t2/checkpoint-5000` | 5,000 | ✅ 사용가능 |
+| MVDiffusion | M5t2_consistent | `.../mouse_M5t2_consistent/` | 학습중 | 🔄 대기 |
+
+### E2E 추론 명령어 (M5t 예시)
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# M5t E2E (MVDiffusion + GS-LRM)
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 200 \
+    --gslrm_checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/M5t_E0_1_facelift/best_psnr.pt \
+    --gslrm_config configs/base/gslrm_mouse.yaml \
+    --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t/checkpoint-8000 \
+    --prompt_embed_path mouse_prompt_embeds_6view_1024 \
+    --prefer_ema \
+    --skip_preprocess \
+    --turntable_views 60 \
+    --output_dir outputs/e2e_M5t \
+    > logs/e2e_M5t.log 2>&1 &
+```
+
+**M5t2 사용시**: checkpoint 경로만 변경
+- `M5t_E0_1_facelift` → `M5t2_E0_1_facelift`
+- `mouse_M5t/checkpoint-8000` → `mouse_M5t2/checkpoint-5000`
+
+---
+
+## 비디오 출력 종류
+
+### simple_temporal 출력
+
+| 파일 | 설명 | 축 |
+|------|------|-----|
+| `turntable.mp4` | 각 프레임의 360도 회전 연결 | 회전 (시간 고정) |
+| `time_fixed_0.mp4` | 고정 각도(0도)에서 시간 변화 | 시간 (회전 고정) |
+| `time_rotating.mp4` | **시간+회전 동시 변화** | 시간 ↔ 회전 |
+| `full_all.mp4` | 모든 시간 × 모든 각도 | T×V 전체 |
+| `grid_first.png` | 첫 프레임 360도 그리드 | 정지 이미지 |
+
+### time_rotating 계산 방식
+
+```python
+for t in range(T):           # 시간 프레임
+    angle = (t * V // T) % V  # 시간에 비례해서 각도 증가
+    frame = turntables[t][angle]
+```
+- **T**: 시간 프레임 수 (예: 200)
+- **V**: 뷰 수 (예: 60)
+- 효과: 시간이 지나면서 서서히 회전
+
+---
+
+## Slow Motion 수정 (260202)
+
+### 문제
+`--rotation_speed 0.5` 사용 시 **잔상(ghosting)** 발생
+
+### 원인
+`interpolate_frames_for_speed()` 함수가 프레임 간 **블렌딩** 수행:
+```python
+blended = (1-t) * frame[lower] + t * frame[upper]  # 두 프레임 혼합\!
+```
+
+### 수정
+기본값을 **nearest neighbor**로 변경 (블렌딩 없음):
+```python
+def interpolate_frames_for_speed(..., interpolate: bool = False):
+    if interpolate:
+        # 블렌딩 (잔상 발생)
+    else:
+        # Nearest neighbor (잔상 없음) ← 기본값
+        nearest = int(np.round(idx))
+        new_frames.append(frames[nearest])
+```
+
+### 결과
+- `--rotation_speed 0.3`: 프레임 반복으로 느린 재생 (잔상 없음)
+- 블렌딩 원할 시: 코드에서 `interpolate=True` 명시 필요
+
+---
+
+*Updated: 2026-02-02 | Added E2E checkpoint status, video types, slow motion fix*

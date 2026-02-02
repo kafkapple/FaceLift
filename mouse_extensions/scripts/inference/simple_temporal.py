@@ -394,16 +394,17 @@ def find_sample_dirs(data_dir: Path) -> list:
     return dirs
 
 
-def interpolate_frames_for_speed(frames: np.ndarray, speed_factor: float) -> np.ndarray:
+def interpolate_frames_for_speed(frames: np.ndarray, speed_factor: float, interpolate: bool = False) -> np.ndarray:
     """
-    Interpolate frames to adjust rotation speed.
+    Adjust rotation speed by repeating or sampling frames.
     
     Args:
         frames: [N, H, W, C] array
         speed_factor: 0.5 = half speed (2x frames), 2.0 = double speed (0.5x frames)
+        interpolate: If True, blend frames (causes ghosting). If False, use nearest frame.
     
     Returns:
-        Interpolated frames
+        Adjusted frames
     """
     if speed_factor == 1.0:
         return frames
@@ -418,15 +419,21 @@ def interpolate_frames_for_speed(frames: np.ndarray, speed_factor: float) -> np.
     new_frames = []
     
     for idx in indices:
-        lower = int(np.floor(idx))
-        upper = min(int(np.ceil(idx)), num_original - 1)
-        t = idx - lower
-        
-        if lower == upper or t < 0.001:
-            new_frames.append(frames[lower])
+        if interpolate:
+            # Linear interpolation (causes ghosting!)
+            lower = int(np.floor(idx))
+            upper = min(int(np.ceil(idx)), num_original - 1)
+            t = idx - lower
+            
+            if lower == upper or t < 0.001:
+                new_frames.append(frames[lower])
+            else:
+                blended = (1 - t) * frames[lower].astype(np.float32) + t * frames[upper].astype(np.float32)
+                new_frames.append(blended.astype(np.uint8))
         else:
-            blended = (1 - t) * frames[lower].astype(np.float32) + t * frames[upper].astype(np.float32)
-            new_frames.append(blended.astype(np.uint8))
+            # Nearest neighbor (no ghosting)
+            nearest = int(np.round(idx))
+            new_frames.append(frames[nearest])
     
     return np.stack(new_frames)
 
