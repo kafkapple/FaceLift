@@ -121,181 +121,109 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
 ```bash
 cd /home/joon/dev/FaceLift
 
-# GS-LRM only (가장 간단 - M5t 기본)
+# GS-LRM only (가장 간단)
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    > logs/gslrm_M5t.log 2>&1 &
+    > logs/gslrm.log 2>&1 &
 
-# E2E (1-view → MVDiffusion → 3D)
+# E2E (1-view → 3D)
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 --end_frame 200 \
-    --input_view_idx 0 \
-    --prompt_embed_path mouse_prompt_embeds_6view_1024 --prefer_ema --skip_preprocess \
-    > logs/e2e_M5t.log 2>&1 &
+    --input_view_idx 0 --prompt_embed_path mouse_prompt_embeds_6view_1024 \
+    --prefer_ema --skip_preprocess \
+    > logs/e2e.log 2>&1 &
 ```
+
+### 3.1 공통 옵션
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
-| `--model` | M5t | M5t 또는 M5t2 |
+| `--model` | M5t | **M5t** 또는 **M5t2** |
 | `--end_frame` | 200 | 처리할 프레임 수 (-1 = 전체) |
-| `--fps` | 10 | 비디오 FPS (slow) |
+| `--split` | (없음) | Split 파일 경로 (start/end 대신 사용) |
+| `--fps` | 10 | 비디오 FPS |
 | `--rotation_speed` | 0.3 | 회전 속도 |
 | `--input_view_idx` | 0 | E2E 입력 뷰 (0-5) |
 
-### 3.1 체크포인트 현황
+**Split 파일 경로**:
+- M5t: `data_mouse_1to1_{train,val,test}.txt`
+- M5t2: `data_mouse_t2_{train,val,test}.txt`
 
-| Model | Dataset | Checkpoint | Step | 상태 |
-|-------|---------|------------|------|------|
-| GS-LRM | M5t | `M5t_E0_1_facelift/best_psnr.pt` | 12401 | ✅ 완료 |
-| GS-LRM | M5t2 | `M5t2_E0_1_facelift/best_psnr.pt` | 901 | ⏳ 학습중 |
-| MVDiffusion | M5t | `mouse_M5t/checkpoint-8000` | 8000 | ✅ 완료 |
-| MVDiffusion | M5t2 | `mouse_M5t2/checkpoint-5000` | 5000 | ✅ 완료 |
-| MVDiffusion | M5t2_consistent | (none) | 493 | ⚠️ 재시작 |
+### 3.2 체크포인트 현황
+
+| Model | Dataset | Checkpoint | 상태 |
+|-------|---------|------------|------|
+| GS-LRM | M5t | `M5t_E0_1_facelift/best_psnr.pt` | ✅ |
+| GS-LRM | M5t2 | `M5t2_E0_1_facelift/best_psnr.pt` | ⏳ |
+| MVDiffusion | M5t | `mouse_M5t/checkpoint-8000` | ✅ |
+| MVDiffusion | M5t2 | `mouse_M5t2/checkpoint-5000` | ✅ |
 
 경로: `/node_data/joon/checkpoints/FaceLift/{gslrm|mvdiffusion}/`
 
-### 3.2 GS-LRM Only (6-view → 3D)
+### 3.3 GS-LRM Only (6-view → 3D)
 
-**기본 (M5t, 200 frames)**
+**기본 실행**
 ```bash
-cd /home/joon/dev/FaceLift
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    > logs/temporal_M5t.log 2>&1 &
+    --model {M5t|M5t2} \
+    > logs/gslrm_{model}.log 2>&1 &
 ```
 
-**M5t2 모델**
+**Val/Test Split 전체**
 ```bash
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    --model M5t2 \
-    > logs/temporal_M5t2.log 2>&1 &
-```
-
-**M5t Val Split 전체**
-```bash
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    --model M5t \
-    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_val.txt \
+    --model {M5t|M5t2} \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/{split_file} \
     --end_frame -1 \
-    --output_dir outputs/gslrm_M5t_val \
-    > logs/gslrm_M5t_val.log 2>&1 &
+    --output_dir outputs/gslrm_{model}_{split} \
+    > logs/gslrm_{model}_{split}.log 2>&1 &
 ```
 
-**M5t Test Split 전체**
+**변수 조합**:
+| model | split_file |
+|-------|------------|
+| M5t | `data_mouse_1to1_val.txt`, `data_mouse_1to1_test.txt` |
+| M5t2 | `data_mouse_t2_val.txt`, `data_mouse_t2_test.txt` |
+
+### 3.4 E2E (1-view → MVDiffusion → GS-LRM → 3D)
+
+**뷰 선택 (`--input_view_idx`)**
+
+| 뷰 | 각도 | 설명 |
+|----|------|------|
+| **0** | Top-front | ⭐ 기본 (정보량 최대) |
+| 1-2 | Top-left/right | 측면 |
+| 3 | Top-back | 후면 |
+| 4-5 | Side-left/right | 낮은 각도 |
+
+**기본 실행**
 ```bash
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    --model M5t \
-    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt \
-    --end_frame -1 \
-    --output_dir outputs/gslrm_M5t_test \
-    > logs/gslrm_M5t_test.log 2>&1 &
-```
-
-**M5t2 Val Split 전체**
-```bash
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    --model M5t2 \
-    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt \
-    --end_frame -1 \
-    --output_dir outputs/gslrm_M5t2_val \
-    > logs/gslrm_M5t2_val.log 2>&1 &
-```
-
-**M5t2 Test Split 전체**
-```bash
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    --model M5t2 \
-    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_test.txt \
-    --end_frame -1 \
-    --output_dir outputs/gslrm_M5t2_test \
-    > logs/gslrm_M5t2_test.log 2>&1 &
-```
-
-기본값: fps=10, rotation_speed=0.3, num_views=60
-
-### 3.3 E2E (1-view → MVDiffusion → GS-LRM → 3D)
-
-**⭐ 뷰 선택 옵션 (`--input_view_idx`)**
-
-| 뷰 | 각도 | 설명 | 권장 |
-|----|------|------|------|
-| **0** | Top-front | 정면 위에서 | ⭐ 기본 (정보량 최대) |
-| 1 | Top-left | 좌측 위에서 | 측면 테스트 |
-| 2 | Top-right | 우측 위에서 | 측면 테스트 |
-| 3 | Top-back | 후면 위에서 | 후면 테스트 |
-| 4 | Side-left | 좌측 옆에서 | 낮은 각도 |
-| 5 | Side-right | 우측 옆에서 | 낮은 각도 |
-
-**기본 (M5t, view 0, 200 frames)**
-```bash
-cd /home/joon/dev/FaceLift
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --model M5t \
+    --model {M5t|M5t2} \
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --start_frame 0 --end_frame 200 \
-    --input_view_idx 0 \
+    --input_view_idx {0-5} \
     --prompt_embed_path mouse_prompt_embeds_6view_1024 \
     --prefer_ema --skip_preprocess \
     --turntable_views 60 \
-    --output_dir outputs/e2e_M5t \
-    > logs/e2e_M5t.log 2>&1 &
+    --output_dir outputs/e2e_{model}_view{idx} \
+    > logs/e2e_{model}_view{idx}.log 2>&1 &
 ```
 
-**M5t2 모델 (view 0)**
+**Val/Test Split 전체**
 ```bash
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --model M5t2 \
+    --model {M5t|M5t2} \
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
-    --start_frame 0 --end_frame 200 \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/{split_file} \
     --input_view_idx 0 \
     --prompt_embed_path mouse_prompt_embeds_6view_1024 \
     --prefer_ema --skip_preprocess \
     --turntable_views 60 \
-    --output_dir outputs/e2e_M5t2 \
-    > logs/e2e_M5t2.log 2>&1 &
+    --output_dir outputs/e2e_{model}_{split} \
+    > logs/e2e_{model}_{split}.log 2>&1 &
 ```
 
-**M5t Val Split 전체 (view 0)**
-```bash
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --model M5t \
-    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
-    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_val.txt \
-    --input_view_idx 0 \
-    --prompt_embed_path mouse_prompt_embeds_6view_1024 \
-    --prefer_ema --skip_preprocess \
-    --turntable_views 60 \
-    --output_dir outputs/e2e_M5t_val \
-    > logs/e2e_M5t_val.log 2>&1 &
-```
-
-**M5t Test Split 전체 (view 0)**
-```bash
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --model M5t \
-    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
-    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt \
-    --input_view_idx 0 \
-    --prompt_embed_path mouse_prompt_embeds_6view_1024 \
-    --prefer_ema --skip_preprocess \
-    --turntable_views 60 \
-    --output_dir outputs/e2e_M5t_test \
-    > logs/e2e_M5t_test.log 2>&1 &
-```
-
-**M5t2 Val Split 전체 (view 0)**
-```bash
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --model M5t2 \
-    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
-    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt \
-    --input_view_idx 0 \
-    --prompt_embed_path mouse_prompt_embeds_6view_1024 \
-    --prefer_ema --skip_preprocess \
-    --turntable_views 60 \
-    --output_dir outputs/e2e_M5t2_val \
-    > logs/e2e_M5t2_val.log 2>&1 &
-```
-
-**M5t2 Test Split 전체 (view 0)**
+**예시 (M5t2 test, view 0)**:
 ```bash
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t2 \
@@ -309,27 +237,13 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
     > logs/e2e_M5t2_test.log 2>&1 &
 ```
 
-**다른 뷰로 테스트 (예: back view)**
-```bash
-# view 3 = Top-back
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --model M5t \
-    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
-    --start_frame 0 --end_frame 200 \
-    --input_view_idx 3 \
-    --prompt_embed_path mouse_prompt_embeds_6view_1024 \
-    --prefer_ema --skip_preprocess \
-    --output_dir outputs/e2e_M5t_view3 \
-    > logs/e2e_M5t_view3.log 2>&1 &
-```
-
-### 3.4 Wild Image → 3D (SAM 전처리 포함)
+### 3.5 Wild Image → 3D
 
 ```bash
 export CUDA_VISIBLE_DEVICES=6 && python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --input_image /path/to/wild_mouse.jpg \
+    --input_image /path/to/mouse.jpg \
     --sam_checkpoint checkpoints/sam/sam_vit_b.pth \
-    --output_dir outputs/wild_inference
+    --output_dir outputs/wild
 ```
 
 → 상세: [MOUSE_REFERENCE_DETAILS.md#inference](MOUSE_REFERENCE_DETAILS.md#inference)
