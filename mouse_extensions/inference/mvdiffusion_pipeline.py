@@ -140,8 +140,11 @@ class MVDiffusionInference:
         """Load pre-computed prompt embeddings.
 
         Args:
-            path: Path to clr_embeds.pt file.
+            path: Path to clr_embeds.pt file or directory containing it.
         """
+        path = Path(path)
+        if path.is_dir():
+            path = path / "clr_embeds.pt"
         self._prompt_embeds = torch.load(path, weights_only=True).to(
             self.device, dtype=self.dtype
         )
