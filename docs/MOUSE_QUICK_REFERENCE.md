@@ -121,16 +121,20 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
 ```bash
 cd /home/joon/dev/FaceLift
 
-# GS-LRM only (가장 간단)
+# GS-LRM only (6-view → 3D, 가장 간단)
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
     > logs/gslrm.log 2>&1 &
 
 # E2E (1-view → 3D)
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 --end_frame 200 \
+    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --end_frame 200 \
+    --input_view_idx 0 \
     --prefer_ema --skip_preprocess \
     > logs/e2e.log 2>&1 &
 ```
+
+**기본값 자동 적용**: `--model M5t`, `--prompt_embed_path`, 체크포인트 경로
 
 ### 3.1 공통 옵션
 
