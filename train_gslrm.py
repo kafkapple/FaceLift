@@ -568,6 +568,19 @@ class GSLRMTrainer:
         os.makedirs(wandb_dir, exist_ok=True)
         
         # Initialize wandb with cleaner configuration
+        # Auto-resume: check checkpoint dir for saved run_id, then config, then new run
+        checkpoint_dir = self.config.training.checkpointing.checkpoint_dir
+        wandb_id_file = os.path.join(checkpoint_dir, "wandb_run_id.txt")
+        
+        # Priority: 1) saved run_id from checkpoint, 2) config run_id, 3) new run
+        run_id = None
+        if os.path.exists(wandb_id_file):
+            with open(wandb_id_file, 'r') as f:
+                run_id = f.read().strip()
+            print(f"[WandB] Found saved run_id: {run_id}")
+        if not run_id:
+            run_id = self.config.training.logging.wandb.get("run_id")
+        
         wandb.init(
             project=self.config.training.logging.wandb.project,
             name=self.config.training.logging.wandb.exp_name,
@@ -575,7 +588,18 @@ class GSLRMTrainer:
             job_type=self.config.training.logging.wandb.job_type,
             config=config_copy,
             dir=wandb_dir,
+            id=run_id,
+            resume="allow" if run_id else None,
         )
+        
+        # Save run_id for future resume
+        with open(wandb_id_file, 'w') as f:
+            f.write(wandb.run.id)
+        
+        if run_id:
+            print(f"[WandB] Resumed run: {run_id}")
+        else:
+            print(f"[WandB] New run: {wandb.run.id}")
         
         # Log source code
         wandb.run.log_code(".")

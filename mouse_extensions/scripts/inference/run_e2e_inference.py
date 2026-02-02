@@ -58,6 +58,17 @@ from pathlib import Path
 import torch
 
 
+
+# Import defaults for simplified CLI
+try:
+    from .defaults import (
+        DEFAULT_CHECKPOINTS, DEFAULT_SPLITS, DEFAULT_DATA_DIR,
+        get_checkpoint, get_split
+    )
+    HAS_DEFAULTS = True
+except ImportError:
+    HAS_DEFAULTS = False
+
 def main():
     parser = argparse.ArgumentParser(
         description="Mouse-FaceLift E2E Inference",
@@ -132,10 +143,12 @@ Examples:
 
     # Model options
     model_group = parser.add_argument_group("Models")
+    model_group.add_argument("--model", type=str, choices=["M5t", "M5t2"], default="M5t",
+                             help="Model preset: M5t or M5t2 (auto-sets checkpoints)")
     model_group.add_argument("--gslrm_config", type=str, default="configs/base/gslrm_mouse.yaml",
                              help="GS-LRM YAML config (default: configs/base/gslrm_mouse.yaml)")
-    model_group.add_argument("--gslrm_checkpoint", type=str, required=True,
-                             help="GS-LRM checkpoint (path, dir, or experiment name like M5t_E0_1_facelift)")
+    model_group.add_argument("--gslrm_checkpoint", type=str, default=None,
+                             help="GS-LRM checkpoint (default: auto from --model)")
     model_group.add_argument("--mvdiffusion_checkpoint", type=str, default=None,
                              help="MVDiffusion checkpoint dir (required for 1-view input)")
     model_group.add_argument("--mvdiffusion_base", type=str, 
@@ -176,6 +189,21 @@ Examples:
                            help="Device (default: cuda)")
 
     args = parser.parse_args()
+
+    # Apply defaults from --model
+    if HAS_DEFAULTS:
+        if args.gslrm_checkpoint is None:
+            args.gslrm_checkpoint = str(get_checkpoint(args.model, "gslrm"))
+            print(f"Using default GS-LRM checkpoint for {args.model}")
+        if args.mvdiffusion_checkpoint is None:
+            args.mvdiffusion_checkpoint = str(get_checkpoint(args.model, "mvdiffusion"))
+            print(f"Using default MVDiffusion checkpoint for {args.model}")
+        if args.data_dir and args.data_dir == "auto":
+            args.data_dir = str(DEFAULT_DATA_DIR)
+    else:
+        if args.gslrm_checkpoint is None:
+            print("ERROR: --gslrm_checkpoint required (defaults.py not found)")
+            return
 
     # Validate input
     if not any([args.input_image, args.sample_dir, args.data_dir]):

@@ -1,13 +1,17 @@
 # =============================================================================
-# Mouse MVDiffusion - M5t2 (Temporal 80:10:10 Split + Mouse Prompt)
+# Mouse MVDiffusion - M5t2 Consistent (View Consistency Enhanced)
 # =============================================================================
-# Key differences from M5t_mouse_prompt:
-#   - Split: Temporal 80:10:10 (train=2880, val=360, test=360)
-#   - No data leakage: consecutive frames in same split
-#   - More training data than 1:1:1 split
+# Based on M5t2 with view consistency improvements:
+#   - condition_drop_rate: 0.0 (no CFG dropout → consistent conditioning)
+#   - sparse_mv_attention: false (full pairwise attention → better cross-view)
+#
+# Trade-offs:
+#   - More VRAM usage (full attention)
+#   - Potentially less diverse outputs (no CFG training)
+#   - Expected: more consistent multi-view generation
 #
 # Version: v1.0
-# Created: 2026-02-01
+# Created: 2026-02-02
 #
 
 n_views: 6
@@ -23,7 +27,7 @@ revision: null
 prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_1024/clr_embeds.pt"
 
 # =============================================================================
-# Dataset - M5t2 (Temporal 80:10:10 split, no data leakage)
+# Dataset - M5t2 (Temporal 80:10:10 split)
 # =============================================================================
 train_dataset:
   path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
@@ -41,8 +45,8 @@ validation_dataset:
 # Output
 # =============================================================================
 checkpoint_prefix: ""
-output_dir: "checkpoints/mvdiffusion/mouse_M5t2"
-val_out_dir: "checkpoints/mvdiffusion/mouse_M5t2/val/"
+output_dir: "checkpoints/mvdiffusion/mouse_M5t2_consistent"
+val_out_dir: "checkpoints/mvdiffusion/mouse_M5t2_consistent/val/"
 
 # =============================================================================
 # Training Parameters
@@ -88,17 +92,20 @@ validation_sanity_check: true
 tracker_project_name: "FaceLift-MVDiffusion"
 
 # WandB
-wandb_exp_name: "mvdiff_M5t2"
+wandb_exp_name: "mvdiff_M5t2_consistent"
 wandb_group: "mvdiffusion"
-wandb_job_type: "finetune_M5t2"
+wandb_job_type: "finetune_M5t2_consistent"
 
 # =============================================================================
-# Training Specifics
+# View Consistency Enhanced Settings
 # =============================================================================
 trainable_modules: null
+
+# CHANGED: Disable CFG dropout for consistent conditioning across views
 use_classifier_free_guidance: true
-condition_drop_rate: 0.05
+condition_drop_rate: 0.0      # Was 0.05 → 0.0 (no dropout)
 drop_type: "drop_as_a_whole"
+
 camera_embedding_lr_mult: 1.
 scale_input_latents: true
 
@@ -118,6 +125,7 @@ unet_from_pretrained_kwargs:
   cd_attention_last: false
   cd_attention_mid: false
   multiview_attention: true
-  sparse_mv_attention: true
+  # CHANGED: Full pairwise attention for better cross-view consistency
+  sparse_mv_attention: false  # Was true → false (full attention)
   selfattn_block: custom
   addition_downsample: false

@@ -40,6 +40,16 @@ import cv2
 from tqdm import tqdm
 from PIL import Image
 
+# Import defaults for simplified CLI
+try:
+    from .defaults import (
+        DEFAULT_CHECKPOINTS, DEFAULT_SPLITS, DEFAULT_DATA_DIR,
+        SLOW_DEFAULTS, get_checkpoint, get_split
+    )
+    HAS_DEFAULTS = True
+except ImportError:
+    HAS_DEFAULTS = False
+
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -461,18 +471,22 @@ Examples:
         """,
     )
     
-    # Model and data
-    parser.add_argument("--checkpoint", type=str, required=True,
-                        help="Checkpoint path, directory, or experiment name")
+    # Model selection (recommended - auto-sets checkpoint/data/split)
+    parser.add_argument("--model", type=str, choices=["M5t", "M5t2"], default="M5t",
+                        help="Model preset: M5t or M5t2 (auto-sets checkpoint/data/split)")
+    
+    # Model and data (optional when --model is used)
+    parser.add_argument("--checkpoint", type=str, default=None,
+                        help="Checkpoint path (default: auto from --model)")
     parser.add_argument("--config", type=str, default="configs/base/gslrm_mouse.yaml",
                         help="Config file path (default: configs/base/gslrm_mouse.yaml)")
-    parser.add_argument("--data_dir", type=str, required=True,
-                        help="Preprocessed dataset directory")
+    parser.add_argument("--data_dir", type=str, default=None,
+                        help="Dataset directory (default: auto from --model)")
     
     # Frame selection
     parser.add_argument("--start_frame", type=int, default=None,
                         help="Start frame index (default: auto-detect)")
-    parser.add_argument("--end_frame", type=int, default=None,
+    parser.add_argument("--end_frame", type=int, default=200,
                         help="End frame index (default: auto-detect)")
     parser.add_argument("--frame_step", type=int, default=1,
                         help="Frame step (default: 1)")
@@ -480,8 +494,8 @@ Examples:
                         help="Split file path (overrides start/end/step)")
     
     # Rendering settings
-    parser.add_argument("--num_views", type=int, default=36,
-                        help="360-degree subdivisions (default: 36 = 10° per view)")
+    parser.add_argument("--num_views", type=int, default=60,
+                        help="360-degree subdivisions (default: 60 = 6° per view, smooth)")
     parser.add_argument("--resolution", type=int, default=384,
                         help="Rendering resolution (default: 384)")
     parser.add_argument("--elevation", type=float, default=20.0,
@@ -490,10 +504,10 @@ Examples:
                         help="Camera distance (default: 2.7)")
     
     # Video settings
-    parser.add_argument("--fps", type=int, default=24,
-                        help="Video FPS (default: 24)")
-    parser.add_argument("--rotation_speed", type=float, default=0.5,
-                        help="Rotation speed factor: 0.5=half speed, 1.0=normal (default: 0.5)")
+    parser.add_argument("--fps", type=int, default=10,
+                        help="Video FPS (default: 10, slow playback)")
+    parser.add_argument("--rotation_speed", type=float, default=0.3,
+                        help="Rotation speed factor: 0.3=slow, 0.5=half, 1.0=normal (default: 0.3)")
     parser.add_argument("--fixed_angles", type=int, nargs="+", default=[0],
                         help="Fixed angle views for time videos (default: [0])")
     
@@ -514,6 +528,22 @@ Examples:
                         help="Output directory (default: outputs/simple_temporal)")
     
     args = parser.parse_args()
+
+    # Apply defaults from --model if checkpoint/data_dir not specified
+    if HAS_DEFAULTS:
+        if args.checkpoint is None:
+            args.checkpoint = str(get_checkpoint(args.model, "gslrm"))
+            print(f"Using default checkpoint for {args.model}: {args.checkpoint}")
+        if args.data_dir is None:
+            args.data_dir = str(DEFAULT_DATA_DIR)
+            print(f"Using default data_dir: {args.data_dir}")
+        if args.split is None:
+            args.split = str(get_split(args.model))
+            print(f"Using default split for {args.model}: {args.split}")
+    else:
+        if args.checkpoint is None or args.data_dir is None:
+            print("ERROR: --checkpoint and --data_dir required (defaults.py not found)")
+            return
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

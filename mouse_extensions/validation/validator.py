@@ -431,7 +431,7 @@ class ValidationRunner:
             if cfg.get("label_position", "top") == "top":
                 grid = add_row_labels_to_grid(grid, cam_order, rows, cols, h)
             else:
-                grid = add_row_labels_to_grid(grid, cam_order, rows, cols, h)
+                grid = add_left_row_labels(grid, cam_order, rows, cols, h)
         
         Image.fromarray(grid).save(os.path.join(output_dir, f"turntable_{item_uid}.jpg"))
     

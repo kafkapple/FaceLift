@@ -143,8 +143,11 @@ def add_row_labels_to_grid(
     loop: bool = True
 ) -> np.ndarray:
     """
-    Add row labels like 'Cam 1->3' to the top of each row in the grid.
-    
+    Add row labels to the top of each row in the grid.
+
+    Camera transitions (e.g., 'Cam 1->3') are shown only when they change.
+    Angle ranges are always shown for every row in parentheses.
+
     Args:
         grid_image: [H, W, 3] uint8 image
         camera_order: e.g., [1, 3, 5, 0, 4, 2] for 360 deg traversal
@@ -153,85 +156,98 @@ def add_row_labels_to_grid(
         row_height: Height of each cell in pixels
         label_height: Height of label bar in pixels
         loop: Whether camera path loops back to start
-    
+
     Returns:
         Image with label bars added (height increases by label_height * grid_rows)
     """
     h, w = grid_image.shape[:2]
-    
+
     # Build camera order including loop-back if needed
     full_order = list(camera_order)
     if loop and full_order[0] != full_order[-1]:
         full_order = full_order + [full_order[0]]
-    
+
     # Calculate frames per segment
     total_frames = grid_rows * grid_cols
     num_segments = len(full_order) - 1
     frames_per_segment = total_frames / num_segments if num_segments > 0 else total_frames
-    
+
     # Build segment info for each row
     row_labels = []
+    prev_cam_text = None
     for row_idx in range(grid_rows):
         row_start_frame = row_idx * grid_cols
         row_end_frame = row_start_frame + grid_cols - 1
-        
+
         # Find which segment(s) this row spans
         start_seg = int(row_start_frame / frames_per_segment) if frames_per_segment > 0 else 0
         end_seg = int(row_end_frame / frames_per_segment) if frames_per_segment > 0 else 0
-        
+
         start_seg = min(start_seg, num_segments - 1)
         end_seg = min(end_seg, num_segments - 1)
-        
+
         if start_seg == end_seg:
             from_cam = full_order[start_seg]
             to_cam = full_order[start_seg + 1]
         else:
             from_cam = full_order[start_seg]
             to_cam = full_order[end_seg + 1]
-        
+
         # Calculate angle range for this row
         start_angle = int((row_start_frame / total_frames) * 360)
         end_angle = int((row_end_frame / total_frames) * 360)
-        # Store as tuple: (camera_text, angle_text)
-        row_labels.append((f"Cam {from_cam} -> {to_cam}", f"{start_angle}° - {end_angle}°"))
-    
+
+        # Camera text: only show if different from previous row (avoid duplication)
+        cam_text_full = f"Cam {from_cam} -> {to_cam}"
+        if cam_text_full != prev_cam_text:
+            cam_text = cam_text_full
+            prev_cam_text = cam_text_full
+        else:
+            cam_text = ""  # Empty if same as previous row
+
+        # Angle text: always show with angles in parentheses
+        angle_text = f"({start_angle} - {end_angle} deg)"
+
+        row_labels.append((cam_text, angle_text))
+
     # Create new image with label bars
     new_height = h + label_height * grid_rows
     result = np.zeros((new_height, w, 3), dtype=np.uint8)
-    
+
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 1.5  # Larger font for better visibility
     font_thick = 2
-    
+
     for row_idx in range(grid_rows):
         # Position of this row's label bar
         label_y = row_idx * (row_height + label_height)
         # Position of this row's image data
         img_y = label_y + label_height
-        
+
         # Copy image row
         src_start = row_idx * row_height
         src_end = src_start + row_height
         result[img_y:img_y + row_height, :] = grid_image[src_start:src_end, :]
-        
+
         # Draw label bar (dark background)
         result[label_y:label_y + label_height, :] = (30, 30, 30)
-        
-        # Add text (2 lines: camera info + angle info)
+
         cam_text, angle_text = row_labels[row_idx]
-        
-        # Line 1: Camera info (larger font)
-        font_scale_cam = 1.3
-        (tw1, th1), _ = cv2.getTextSize(cam_text, font, font_scale_cam, font_thick)
-        text_y1 = label_y + th1 + 5
-        cv2.putText(result, cam_text, (10, text_y1), font, font_scale_cam, (255, 255, 255), font_thick)
-        
-        # Line 2: Angle info (slightly smaller, different color)
-        font_scale_angle = 1.0
-        (tw2, th2), _ = cv2.getTextSize(angle_text, font, font_scale_angle, 1)
-        text_y2 = label_y + th1 + th2 + 12
-        cv2.putText(result, angle_text, (10, text_y2), font, font_scale_angle, (200, 200, 100), 1)
-    
+
+        if cam_text:
+            # Show camera transition + angle on same line
+            display_text = f"{cam_text}  {angle_text}"
+            font_scale = 1.3
+            color = (255, 255, 255)
+        else:
+            # Only show angle (continuation of previous camera transition)
+            display_text = angle_text
+            font_scale = 1.1
+            color = (200, 200, 100)  # Dimmer color for continuation rows
+
+        (tw, th), _ = cv2.getTextSize(display_text, font, font_scale, font_thick)
+        text_y = label_y + (label_height + th) // 2
+        cv2.putText(result, display_text, (10, text_y), font, font_scale, color, font_thick)
+
     return result
 
 

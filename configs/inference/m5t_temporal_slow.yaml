@@ -1,0 +1,58 @@
+# M5t GS-LRM Temporal Sequence - Slow Playback
+# Checkpoint: M5t (11,800 step) - well trained
+# Split: 1:1:1 test (1,204 frames)
+#
+# Usage (nohup with log):
+#   cd /home/joon/dev/FaceLift
+#   export CUDA_VISIBLE_DEVICES=4 && \
+#   source ~/anaconda3/etc/profile.d/conda.sh && conda activate facelift && \
+#   nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+#       --checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/M5t_E0_1_facelift/best_psnr.pt \
+#       --config configs/base/gslrm_mouse.yaml \
+#       --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+#       --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt \
+#       --start_frame 0 --end_frame 200 \
+#       --fps 10 --rotation_speed 0.3 --num_views 60 \
+#       --no_gaussian \
+#       --output_dir outputs/temporal_M5t_slow \
+#       > logs/temporal_M5t_slow.log 2>&1 &
+
+_base_: default.yaml
+
+input:
+  mode: batch
+  data_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5
+  split_file: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt
+  view_idx: null  # Use all 6 views
+  frame_range:
+    start: 0
+    end: 200      # 200 frames for testing, remove or set null for full (1204)
+    step: 1
+
+pipeline:
+  mvdiffusion:
+    enabled: false
+  gslrm:
+    checkpoint: /node_data/joon/checkpoints/FaceLift/gslrm/M5t_E0_1_facelift/best_psnr.pt
+    config: configs/base/gslrm_mouse.yaml
+
+rendering:
+  resolution: 384         # Render resolution (default: 384)
+  num_views: 60           # 6 deg per view, smoother rotation (default: 36 = 10 deg)
+  elevation: 20.0         # Camera elevation angle (default: 20.0)
+  radius: 2.7             # Camera distance from origin (default: 2.7)
+  rotation_speed: 0.3     # Slower rotation for analysis (default: 0.5)
+  fixed_angles: [0]       # Angles for time_fixed videos (default: [0])
+
+output:
+  dir: outputs/temporal_M5t_slow
+  gaussian: false         # Disabled - use rerun for frame-by-frame viewing
+  per_sample: false       # Per-sample subdirectories
+  rerun: true             # Save .rrd for Rerun viewer - best for analysis
+  video:
+    enabled: true
+    fps: 10               # Slow playback for analysis (default: 24)
+    types: [turntable, time_fixed, time_rotating, grid_6view]
+  grid:
+    enabled: true
+    cols: 6

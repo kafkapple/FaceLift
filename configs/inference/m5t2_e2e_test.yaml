@@ -1,0 +1,40 @@
+# E2E Temporal - M5t2 80:10:10 TEST split (final evaluation)
+_base_: default.yaml
+
+input:
+  mode: batch
+  data_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5
+  data_list: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_test.txt
+  view_idx: 0
+  frame_range:
+    start: 0
+    end: 100
+    step: 1
+
+pipeline:
+  mvdiffusion:
+    enabled: true
+    checkpoint: checkpoints/mvdiffusion/mouse_M5t2/checkpoint-8000
+    num_steps: 50
+    guidance_scale: 3.0
+    seed: 42
+  gslrm:
+    checkpoint: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_ps5cam/best_psnr.pt
+    config: configs/base/gslrm_mouse.yaml
+
+rendering:
+  resolution: 384
+  num_views: 36
+  elevation: 20.0
+  radius: 2.7
+  rotation_speed: 0.25
+
+output:
+  dir: outputs/m5t2_e2e_test
+  gaussian: true
+  per_sample: false
+  rerun: true
+  video:
+    enabled: true
+    fps: 10
+    types: [turntable, time_fixed, time_rotating, grid_6view]

@@ -972,7 +972,7 @@ def main(cfg: TrainingConfig):
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / cfg.gradient_accumulation_steps)
     num_train_epochs = math.ceil(cfg.max_train_steps / num_update_steps_per_epoch)
 
-    # Initialize trackers with resume support
+    # Initialize trackers with auto-resume support
     if accelerator.is_main_process:
         tracker_config = {}
         wandb_init_kwargs = {
@@ -980,13 +980,34 @@ def main(cfg: TrainingConfig):
             "job_type": cfg.wandb_job_type,
             "group": cfg.wandb_group
         }
-        # Add resume support if wandb_run_id is specified
-        if cfg.wandb_run_id:
-            wandb_init_kwargs["id"] = cfg.wandb_run_id
-            wandb_init_kwargs["resume"] = "must"
-            logger.info(f"Resuming wandb run: {cfg.wandb_run_id}")
+        
+        # Auto-resume: check output_dir for saved run_id
+        wandb_id_file = os.path.join(model_dir, "wandb_run_id.txt")
+        run_id = None
+        if os.path.exists(wandb_id_file):
+            with open(wandb_id_file, 'r') as f:
+                run_id = f.read().strip()
+            logger.info(f"[WandB] Found saved run_id: {run_id}")
+        if not run_id:
+            run_id = cfg.wandb_run_id
+        
+        if run_id:
+            wandb_init_kwargs["id"] = run_id
+            wandb_init_kwargs["resume"] = "allow"
+            logger.info(f"[WandB] Resuming run: {run_id}")
+        
         accelerator.init_trackers(project_name=cfg.tracker_project_name, config=tracker_config,
             init_kwargs={"wandb": wandb_init_kwargs})
+        
+        # Save run_id for future resume
+        if accelerator.is_main_process:
+            for tracker in accelerator.trackers:
+                if tracker.name == "wandb":
+                    with open(wandb_id_file, 'w') as f:
+                        f.write(tracker.run.id)
+                    if not run_id:
+                        logger.info(f"[WandB] New run: {tracker.run.id}")
+                    break
 
 
     # Set up training

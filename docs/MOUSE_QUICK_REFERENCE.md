@@ -87,6 +87,28 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
 
 ## 3. Inference
 
+### Quick Cheatsheet
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# GS-LRM (가장 간단)
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal > logs/gslrm.log 2>&1 &
+
+# E2E (1-view → 3D)
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 --end_frame 200 \
+    --prompt_embed_path mouse_prompt_embeds_6view_1024 --prefer_ema --skip_preprocess \
+    > logs/e2e.log 2>&1 &
+```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--model` | M5t | M5t 또는 M5t2 |
+| `--end_frame` | 200 | 처리할 프레임 수 |
+| `--fps` | 10 | 비디오 FPS (slow) |
+| `--rotation_speed` | 0.3 | 회전 속도 |
+
 ### 3.1 체크포인트 현황
 
 | Model | Dataset | Checkpoint | 상태 |
@@ -100,44 +122,54 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
 
 ### 3.2 GS-LRM Only (6-view → 3D)
 
+**기본 (M5t, slow playback 200 frames)**
 ```bash
 cd /home/joon/dev/FaceLift
-
-MODEL=M5t    # 또는 M5t2
-SPLIT=1to1   # M5t: 1to1, M5t2: t2
-
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    --checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/${MODEL}_E0_1_facelift/best_psnr.pt \
-    --config configs/base/gslrm_mouse.yaml \
-    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
-    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_${SPLIT}_test.txt \
-    --start_frame 0 --end_frame 200 \
-    --fps 10 --rotation_speed 0.3 --num_views 60 \
-    --no_gaussian \
-    --output_dir outputs/temporal_${MODEL}_slow \
-    > logs/temporal_${MODEL}_slow.log 2>&1 &
+    > logs/temporal_M5t.log 2>&1 &
 ```
+
+**M5t2 모델**
+```bash
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+    --model M5t2 > logs/temporal_M5t2.log 2>&1 &
+```
+
+**커스텀 설정**
+```bash
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+    --model M5t2 --end_frame 500 --fps 24 --rotation_speed 0.5 \
+    --output_dir outputs/custom > logs/custom.log 2>&1 &
+```
+
+기본값: fps=10, rotation_speed=0.3, num_views=60, end_frame=200
 
 ### 3.3 E2E (1-view → MVDiffusion → GS-LRM → 3D)
 
+**기본 (M5t 모델)**
 ```bash
 cd /home/joon/dev/FaceLift
-
-MODEL=M5t    # 또는 M5t2
-MVDIFF_CKPT=checkpoint-8000  # M5t: 8000, M5t2: 5000
-
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --start_frame 0 --end_frame 200 \
-    --gslrm_checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/${MODEL}_E0_1_facelift/best_psnr.pt \
-    --gslrm_config configs/base/gslrm_mouse.yaml \
-    --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_${MODEL}/${MVDIFF_CKPT} \
     --prompt_embed_path mouse_prompt_embeds_6view_1024 \
     --prefer_ema --skip_preprocess \
     --turntable_views 60 \
-    --output_dir outputs/e2e_${MODEL} \
-    > logs/e2e_${MODEL}.log 2>&1 &
+    > logs/e2e_M5t.log 2>&1 &
 ```
+
+**M5t2 모델**
+```bash
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --model M5t2 \
+    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --start_frame 0 --end_frame 200 \
+    --prompt_embed_path mouse_prompt_embeds_6view_1024 \
+    --prefer_ema --skip_preprocess \
+    > logs/e2e_M5t2.log 2>&1 &
+```
+
+⚠️ E2E는 `--data_dir`과 프레임 범위는 명시 필요 (GS-LRM only와 다름)
 
 ### 3.4 Wild Image → 3D (SAM 전처리 포함)
 
