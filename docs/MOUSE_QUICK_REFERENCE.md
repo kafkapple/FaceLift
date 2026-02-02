@@ -128,7 +128,6 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
 # E2E (1-view → 3D)
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 --end_frame 200 \
-    --input_view_idx 0 --prompt_embed_path mouse_prompt_embeds_6view_1024 \
     --prefer_ema --skip_preprocess \
     > logs/e2e.log 2>&1 &
 ```
@@ -202,7 +201,7 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --start_frame 0 --end_frame 200 \
     --input_view_idx {0-5} \
-    --prompt_embed_path mouse_prompt_embeds_6view_1024 \
+    \
     --prefer_ema --skip_preprocess \
     --turntable_views 60 \
     --output_dir outputs/e2e_{model}_view{idx} \
@@ -216,7 +215,7 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --split ~/data/preprocessed/FaceLift_mouse/M5/{split_file} \
     --input_view_idx 0 \
-    --prompt_embed_path mouse_prompt_embeds_6view_1024 \
+    \
     --prefer_ema --skip_preprocess \
     --turntable_views 60 \
     --output_dir outputs/e2e_{model}_{split} \
@@ -230,7 +229,7 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_test.txt \
     --input_view_idx 0 \
-    --prompt_embed_path mouse_prompt_embeds_6view_1024 \
+    \
     --prefer_ema --skip_preprocess \
     --turntable_views 60 \
     --output_dir outputs/e2e_M5t2_test \

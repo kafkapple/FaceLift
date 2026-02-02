@@ -55,3 +55,6 @@ def get_split(model: str = "M5t") -> Path:
 def expand_path(path: str) -> str:
     """Expand ~ and environment variables in path."""
     return os.path.expanduser(os.path.expandvars(path))
+
+# Prompt embed paths
+PROMPT_EMBED_PATH = Path("/home/joon/dev/FaceLift/mvdiffusion/data/mouse_prompt_embeds_6view_1024")

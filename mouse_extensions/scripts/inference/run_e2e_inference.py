@@ -63,7 +63,7 @@ import torch
 try:
     from .defaults import (
         DEFAULT_CHECKPOINTS, DEFAULT_SPLITS, DEFAULT_DATA_DIR,
-        get_checkpoint, get_split
+        PROMPT_EMBED_PATH, get_checkpoint, get_split
     )
     HAS_DEFAULTS = True
 except ImportError:
@@ -157,7 +157,7 @@ Examples:
                              default="checkpoints/mvdiffusion/pipeckpts",
                              help="Base pipeline for MVDiffusion")
     model_group.add_argument("--prompt_embed_path", type=str, default=None,
-                             help="Pre-computed prompt embeddings")
+                             help="Pre-computed prompt embeddings (default: mouse_prompt_embeds_6view_1024)")
     model_group.add_argument("--prefer_ema", action="store_true", default=True,
                              help="Use EMA UNet weights if available")
 
@@ -206,6 +206,17 @@ Examples:
         if args.gslrm_checkpoint is None:
             print("ERROR: --gslrm_checkpoint required (defaults.py not found)")
             return
+
+    # Apply default prompt embed path
+    if args.prompt_embed_path is None and HAS_DEFAULTS:
+        args.prompt_embed_path = str(PROMPT_EMBED_PATH)
+        print(f"Using default prompt embeds: {args.prompt_embed_path}")
+    elif args.prompt_embed_path and not Path(args.prompt_embed_path).exists():
+        # Try relative to FaceLift root
+        facelift_root = Path("/home/joon/dev/FaceLift")
+        full_path = facelift_root / "mvdiffusion/data" / args.prompt_embed_path
+        if full_path.exists():
+            args.prompt_embed_path = str(full_path)
 
     # Validate input
     if not any([args.input_image, args.sample_dir, args.data_dir]):
