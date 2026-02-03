@@ -77,12 +77,15 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
     > logs/mvdiff_M5t2.log 2>&1 &
 ```
 
-**M5t2_consistent (처음부터 - 체크포인트 없음)**
+**M5t2_consistent (⚠️ 실험적 - CFG=0, FullAttn)**
 ```bash
+# 주의: CFG dropout=0, sparse_mv_attention=false 설정
+# 결과 검증 필요 - 3.7절 참조
 export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
     --config_file configs/accelerate/1gpu.yaml \
     train_diffusion.py \
     --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_consistent.yaml \
+    --resume_from_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_consistent/checkpoint-6000 \
     > logs/mvdiff_M5t2_consistent.log 2>&1 &
 ```
 
@@ -101,13 +104,13 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
 
 ### 2.3 체크포인트 현황 요약
 
-| Model | Dataset | Last Ckpt | 권장 |
-|-------|---------|-----------|------|
-| GS-LRM | M5t2 | iter_901 | ⏳ Resume |
-| GS-LRM | M5t | iter_12401 | ✅ 완료 |
-| MVDiff | M5t2 | ckpt-5000 | ✅/Resume |
-| MVDiff | M5t2_consistent | (none) | 🆕 시작 |
-| MVDiff | M5t | ckpt-8000 | ✅ 완료 |
+| Model | Dataset | Last Ckpt | 상태 | 비고 |
+|-------|---------|-----------|------|------|
+| GS-LRM | M5t | iter_12401 | ✅ 완료 | best_psnr.pt |
+| GS-LRM | M5t2 | iter_901 | ⏳ Resume | - |
+| MVDiff | M5t | ckpt-8000 | ✅ 완료 | **Baseline** |
+| MVDiff | M5t2 | ckpt-5000 | ✅/Resume | CFG=0.05 |
+| MVDiff | M5t2_consistent | ckpt-6000 | ⚠️ 검증필요 | CFG=0, FullAttn |
 
 → 상세: [MOUSE_REFERENCE_DETAILS.md#training](MOUSE_REFERENCE_DETAILS.md#training)
 
