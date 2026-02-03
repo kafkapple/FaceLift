@@ -69,6 +69,115 @@ try:
 except ImportError:
     HAS_DEFAULTS = False
 
+
+def generate_temporal_videos(output_dir: str, fps: int = 10, fixed_angles: list = None):
+    """Generate combined temporal videos from per-sample turntables.
+    
+    Args:
+        output_dir: Directory containing sample subdirectories with turntable.mp4
+        fps: Output video FPS
+        fixed_angles: List of angles for time_fixed videos (default: [0])
+    """
+    import cv2
+    import numpy as np
+    from pathlib import Path
+    
+    if fixed_angles is None:
+        fixed_angles = [0]
+    
+    output_path = Path(output_dir)
+    
+    # Find all turntable videos
+    sample_dirs = sorted([d for d in output_path.iterdir() if d.is_dir()])
+    turntable_paths = []
+    for sample_dir in sample_dirs:
+        # Check for turntable.mp4 directly or in cam_* subdirectory (E2E mode)
+        turntable = sample_dir / "turntable.mp4"
+        if not turntable.exists():
+            cam_dirs = list(sample_dir.glob("cam_*/turntable.mp4"))
+            if cam_dirs:
+                turntable = cam_dirs[0]
+        if turntable.exists():
+            turntable_paths.append(turntable)
+    
+    if len(turntable_paths) < 2:
+        print(f"Need at least 2 turntables for temporal videos, found {len(turntable_paths)}")
+        return
+    
+    print(f"\n=== Generating temporal videos from {len(turntable_paths)} samples ===")
+    
+    # Load all turntables
+    all_turntables = []
+    for tp in turntable_paths:
+        cap = cv2.VideoCapture(str(tp))
+        frames = []
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        cap.release()
+        if frames:
+            all_turntables.append(np.stack(frames))
+    
+    if not all_turntables:
+        print("No turntable frames loaded")
+        return
+    
+    T = len(all_turntables)  # Number of time steps
+    V = all_turntables[0].shape[0]  # Number of views per turntable
+    H, W = all_turntables[0].shape[1:3]
+    
+    print(f"Loaded {T} turntables, {V} views each, {H}x{W}")
+    
+    from mouse_extensions.utils.video_utils import encode_video_imageio as imageseq2video
+    
+    # === Output 1: First frame 360° turntable ===
+    imageseq2video(all_turntables[0], str(output_path / "turntable_first.mp4"), fps=fps)
+    print("Saved: turntable_first.mp4")
+    
+    # === Output 2: Fixed angle, time variation ===
+    for angle_idx in fixed_angles:
+        angle_idx = angle_idx % V
+        fixed_frames = np.stack([t[angle_idx] for t in all_turntables])
+        suffix = f"_angle{angle_idx}" if len(fixed_angles) > 1 else ""
+        imageseq2video(fixed_frames, str(output_path / f"time_fixed{suffix}.mp4"), fps=fps)
+        print(f"Saved: time_fixed{suffix}.mp4 (angle={angle_idx}/{V})")
+    
+    # === Output 3: Rotating with time ===
+    rotating_frames = []
+    for t in range(T):
+        angle = (t * V // T) % V
+        rotating_frames.append(all_turntables[t][angle])
+    rotating_frames = np.stack(rotating_frames)
+    imageseq2video(rotating_frames, str(output_path / "time_rotating.mp4"), fps=fps)
+    print("Saved: time_rotating.mp4")
+    
+    # === Output 4: Full (all time × all angles) ===
+    full_frames = np.concatenate(all_turntables, axis=0)
+    imageseq2video(full_frames, str(output_path / "full_all.mp4"), fps=fps)
+    print(f"Saved: full_all.mp4 ({T}x{V}={T*V} frames)")
+    
+    # === Output 5: Grid video (6 views per frame) ===
+    try:
+        grid_frames = []
+        for t in range(T):
+            # Take 6 evenly spaced views
+            view_indices = [int(i * V / 6) for i in range(6)]
+            views = [all_turntables[t][vi] for vi in view_indices]
+            # Create 2x3 grid
+            row1 = np.concatenate(views[:3], axis=1)
+            row2 = np.concatenate(views[3:], axis=1)
+            grid = np.concatenate([row1, row2], axis=0)
+            grid_frames.append(grid)
+        grid_frames = np.stack(grid_frames)
+        imageseq2video(grid_frames, str(output_path / "grid_6view.mp4"), fps=fps)
+        print("Saved: grid_6view.mp4")
+    except Exception as e:
+        print(f"Grid video skipped: {e}")
+    
+    print("Temporal videos complete!")
+
 def main():
     parser = argparse.ArgumentParser(
         description="Mouse-FaceLift E2E Inference",
@@ -178,6 +287,8 @@ Examples:
                               help="Skip PLY mesh saving")
     output_group.add_argument("--turntable_views", type=int, default=120,
                               help="Number of turntable frames (default: 120)")
+    output_group.add_argument("--fps", type=int, default=10,
+                              help="Video FPS for temporal outputs (default: 10)")
 
     # Generation options (MVDiffusion)
     gen_group = parser.add_argument_group("Generation (MVDiffusion)")
@@ -420,7 +531,17 @@ Examples:
                     traceback.print_exc()
         
         print(f"\nAll outputs saved to: {args.output_dir}")
+        
+        # Generate combined temporal videos
+        if len(samples) >= 2 and save_turntable:
+            generate_temporal_videos(
+                args.output_dir, 
+                fps=getattr(args, "fps", 10),
+                fixed_angles=[0]
+            )
 
 
 if __name__ == "__main__":
     main()
+
+
