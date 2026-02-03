@@ -202,3 +202,96 @@ export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.infere
 ---
 
 *Created: 2026-02-03 | FaceLift Mouse Project*
+
+---
+
+## 9. 후속 학습 실험 (결과에 따라)
+
+### 9.1 Exp-C: CFG 복원 (H1 확인 시)
+
+**설정**: `condition_drop_rate: 0.05` 복원, `sparse_mv_attention: false` 유지
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# 새 config 생성 (M5t2_cfgr.yaml)
+export CUDA_VISIBLE_DEVICES=6 && nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py \
+    --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_cfgr.yaml \
+    > logs/mvdiff_M5t2_cfgr.log 2>&1 &
+```
+
+**필요 config 변경**:
+```yaml
+# mouse_mvdiffusion_M5t2_cfgr.yaml
+condition_drop_rate: 0.05  # 복원 (consistent는 0.0)
+sparse_mv_attention: false  # full 유지
+output_dir: /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_cfgr
+```
+
+### 9.2 Exp-D: Sparse Attention 복원 (H2 확인 시)
+
+**설정**: `sparse_mv_attention: true` 복원, `condition_drop_rate: 0.0` 유지
+
+---
+
+## 10. 근거 및 이론적 배경
+
+### 10.1 Classifier-Free Guidance (CFG) 원리
+
+**논문**: Ho & Salimans, 2022 - "Classifier-Free Diffusion Guidance"
+
+**핵심 메커니즘**:
+```
+# Training phase
+if random() < p_drop:
+    condition = ∅  # null/unconditional
+else:
+    condition = actual_condition
+
+# Inference phase
+ε_guided = ε_uncond + guidance_scale × (ε_cond - ε_uncond)
+```
+
+**왜 p_drop > 0 이 필수인가**:
+1. `ε_uncond` 추정 필요 → unconditional 학습 경험 필수
+2. `p_drop=0`이면 `ε_uncond`를 학습하지 않음
+3. Inference에서 `guidance_scale > 1.0` 적용해도 `ε_uncond`가 부정확
+4. 결과: guidance 효과 감소, conditioning 약화
+
+**표준 값**:
+- Stable Diffusion: `p_drop=0.1`
+- MVDiffusion 원본: `p_drop=0.05`
+- 일반적 범위: `0.05 ~ 0.15`
+
+### 10.2 Sparse vs Full Multi-view Attention
+
+**MVDiffusion 원본 설계 (Shi et al., 2023)**:
+- Sparse Attention: 인접 뷰 쌍만 attention, O(N) complexity, Regularization 효과
+- Full Attention: 모든 뷰 쌍 간 attention, O(N²) complexity, 과적합 위험
+
+---
+
+## 11. 방법론 상세
+
+### 11.1 변수 통제 전략
+
+| 변수 | 값 | 이유 |
+|------|-----|------|
+| Test data | `data_mouse_1to1_test.txt` | 공정 비교 |
+| GS-LRM | `M5t_E0_1_facelift/best_psnr.pt` | MVDiffusion 영향만 측정 |
+| Input view | 0 (top-front) | 정보량 최대 |
+| Sample count | 10 frames | 빠른 검증 |
+
+### 11.2 결과 해석 가이드
+
+| 패턴 | 해석 | Action |
+|------|------|--------|
+| Exp-A ≈ Ctrl, Exp-B < Ctrl | CFG가 주 원인 | CFG 복원 학습 |
+| Exp-A ≈ Ctrl, Exp-B train > test | Full Attn 과적합 | Sparse 복원 |
+| Exp-A < Ctrl | Prompt/Split 영향 | 원인 분리 필요 |
+
+---
+
+*Updated: 2026-02-03*
