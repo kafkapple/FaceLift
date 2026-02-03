@@ -15,6 +15,10 @@ from .deformation_trainer import (
     DeformationTrainer,
     TrainerConfig,
 )
+from .gslrm_integration import (
+    GSLRMGaussianGenerator,
+    GaussianCache,
+)
 
 __all__ = [
     # Core network
@@ -29,4 +33,7 @@ __all__ = [
     # Training
     "DeformationTrainer",
     "TrainerConfig",
+    # GS-LRM integration
+    "GSLRMGaussianGenerator",
+    "GaussianCache",
 ]
