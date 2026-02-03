@@ -53,6 +53,8 @@ Usage:
 """
 
 import argparse
+import json
+from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -70,7 +72,21 @@ except ImportError:
     HAS_DEFAULTS = False
 
 
-def generate_temporal_videos(output_dir: str, fps: int = 10, fixed_angles: list = None):
+
+def interpolate_frames_for_speed(frames, speed_factor):
+    """Adjust rotation speed by sampling frames."""
+    import numpy as np
+    if speed_factor == 1.0:
+        return frames
+    num_original = frames.shape[0]
+    num_target = int(num_original / speed_factor)
+    if num_target <= 1:
+        return frames[:1]
+    indices = np.linspace(0, num_original - 1, num_target)
+    return np.stack([frames[int(np.round(idx))] for idx in indices])
+
+
+def generate_temporal_videos(output_dir: str, fps: int = 10, fixed_angles: list = None, rotation_speed: float = 1.0, grid_views: int = 36):
     """Generate combined temporal videos from per-sample turntables.
 
     Args:
@@ -134,6 +150,12 @@ def generate_temporal_videos(output_dir: str, fps: int = 10, fixed_angles: list 
     
     print(f"Loaded {T} turntables, {V} views each, {H}x{W}")
     
+    # Apply rotation speed
+    if rotation_speed != 1.0:
+        all_turntables = [interpolate_frames_for_speed(t, rotation_speed) for t in all_turntables]
+        V = all_turntables[0].shape[0]
+        print(f"Applied rotation_speed={rotation_speed}: {V} views after speed adjustment")
+    
     from mouse_extensions.utils.video_utils import encode_video_imageio as imageseq2video
     
     # === Output 1: First frame 360° turntable ===
@@ -157,23 +179,41 @@ def generate_temporal_videos(output_dir: str, fps: int = 10, fixed_angles: list 
     imageseq2video(rotating_frames, str(output_path / "time_rotating.mp4"), fps=fps)
     print("Saved: time_rotating.mp4")
 
-    # === Output 4: Grid video (6 views per frame) ===
+    # === Output 4: Turntable grid image (first frame) ===
     try:
-        grid_frames = []
-        for t in range(T):
-            # Take 6 evenly spaced views
-            view_indices = [int(i * V / 6) for i in range(6)]
-            views = [all_turntables[t][vi] for vi in view_indices]
-            # Create 2x3 grid
-            row1 = np.concatenate(views[:3], axis=1)
-            row2 = np.concatenate(views[3:], axis=1)
-            grid = np.concatenate([row1, row2], axis=0)
-            grid_frames.append(grid)
-        grid_frames = np.stack(grid_frames)
-        imageseq2video(grid_frames, str(output_path / "grid_6view.mp4"), fps=fps)
-        print("Saved: grid_6view.mp4")
+        first = all_turntables[0]
+        grid_v = min(grid_views, V)
+        cols = 6
+        rows = (grid_v + cols - 1) // cols
+        
+        # Sample evenly spaced views
+        if V > grid_v:
+            indices = np.linspace(0, V - 1, grid_v, dtype=int)
+            grid_arr = first[indices]
+        else:
+            grid_arr = first
+            grid_v = V
+        
+        # Pad to fill grid
+        total_cells = rows * cols
+        if grid_v < total_cells:
+            pad_count = total_cells - grid_v
+            pad_frame = np.zeros_like(grid_arr[0])
+            grid_arr = np.concatenate([grid_arr, np.stack([pad_frame] * pad_count)])
+        
+        # Create grid image
+        grid_rows = []
+        for r in range(rows):
+            row_frames = [grid_arr[r * cols + c] for c in range(cols)]
+            grid_rows.append(np.concatenate(row_frames, axis=1))
+        grid_image = np.concatenate(grid_rows, axis=0)
+        
+        # Save as image
+        from PIL import Image
+        Image.fromarray(grid_image).save(str(output_path / "turntable_grid.jpg"), quality=95)
+        print(f"Saved: turntable_grid.jpg ({rows}x{cols} grid, {grid_v} views)")
     except Exception as e:
-        print(f"Grid video skipped: {e}")
+        print(f"Grid image skipped: {e}")
     
     print("Temporal videos complete!")
 
@@ -284,10 +324,14 @@ Examples:
                               help="Skip turntable video generation")
     output_group.add_argument("--no_mesh", action="store_true",
                               help="Skip PLY mesh saving")
-    output_group.add_argument("--turntable_views", type=int, default=120,
-                              help="Number of turntable frames (default: 120)")
+    output_group.add_argument("--turntable_views", type=int, default=60,
+                              help="Number of turntable frames (default: 60)")
     output_group.add_argument("--fps", type=int, default=10,
                               help="Video FPS for temporal outputs (default: 10)")
+    output_group.add_argument("--rotation_speed", type=float, default=0.3,
+                              help="Rotation speed factor: 0.3=slow, 0.5=half, 1.0=normal (default: 0.3)")
+    output_group.add_argument("--grid_views", type=int, default=36,
+                              help="Number of views in turntable grid image (default: 36 = 6x6)")
 
     # Generation options (MVDiffusion)
     gen_group = parser.add_argument_group("Generation (MVDiffusion)")
@@ -330,6 +374,29 @@ Examples:
         if full_path.exists():
             args.prompt_embed_path = str(full_path)
 
+    # Auto-generate output_dir if using default
+    if args.output_dir == "outputs/e2e_inference":
+        date_suffix = datetime.now().strftime("%y%m%d")
+        mode = "e2e" if args.input_view_idx is not None else "gslrm"
+        split_name = "test"
+        if args.split:
+            split_path = Path(args.split)
+            fname = split_path.name if split_path.exists() else args.split
+            if "_train" in fname:
+                split_name = "train"
+            elif "_val" in fname:
+                split_name = "val"
+            elif "_test" in fname:
+                split_name = "test"
+        name_parts = [mode, args.model, split_name]
+        if args.input_view_idx is not None:
+            name_parts.append(f"view{args.input_view_idx}")
+        if args.num_frames:
+            name_parts.append(f"n{args.num_frames}")
+        name_parts.append(date_suffix)
+        args.output_dir = f"outputs/{'_'.join(name_parts)}"
+        print(f"Auto output_dir: {args.output_dir}")
+
     # Validate input
     if not any([args.input_image, args.sample_dir, args.data_dir]):
         parser.error("Must specify one of: --input_image, --sample_dir, or --data_dir")
@@ -353,6 +420,19 @@ Examples:
 
     save_turntable = not args.no_turntable
     save_mesh = not args.no_mesh
+
+    # Save config to output directory
+    output_path = Path(args.output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    config_dict = {
+        "command": "python -m mouse_extensions.scripts.inference.run_e2e_inference",
+        "timestamp": datetime.now().isoformat(),
+        "args": vars(args),
+    }
+    config_file = output_path / "run_config.json"
+    with open(config_file, "w") as f:
+        json.dump(config_dict, f, indent=2, default=str)
+    print(f"Config saved: {config_file}")
 
     # Initialize pipeline
     pipeline = EndToEndPipeline(
@@ -542,7 +622,9 @@ Examples:
             generate_temporal_videos(
                 args.output_dir, 
                 fps=getattr(args, "fps", 10),
-                fixed_angles=[0]
+                fixed_angles=[0],
+                rotation_speed=getattr(args, "rotation_speed", 1.0),
+                grid_views=getattr(args, "grid_views", 36),
             )
 
 

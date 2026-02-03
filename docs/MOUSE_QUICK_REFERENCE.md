@@ -169,19 +169,19 @@ export CUDA_VISIBLE_DEVICES=4 && nohup accelerate launch \
 | `--num_frames` 추가 | - | **신규** | 리스트 슬라이싱 (프레임 번호 대신 개수) |
 | `--end_frame` + split | 무시됨 | **적용됨** | Split 모드에서도 제한 가능 |
 | Batch 출력 구조 | 플랫 | `samples/` | 정리된 폴더 구조 |
-| Temporal 비디오 | simple만 | **run_e2e도** | turntable_first, time_rotating 등 자동 생성 |
+| Temporal 비디오 | ✅ 통합됨 | ✅ | turntable_first, time_rotating, turntable_grid 자동 생성 |
 | `--save_gaussian` | 기본 True | **기본 False** | 명시적 옵션 필요 |
 
 ### 3.0.1 추론 스크립트 개요
 
 | 스크립트 | 용도 | 입력 | 출력 |
 |----------|------|------|------|
-| `simple_temporal.py` | GS-LRM temporal | 6-view GT | turntable_first, time_rotating, grid_6view 비디오 |
+| ~~~~ | ⚠️ DEPRECATED | - | → 로 이동됨 |
 | `run_e2e_inference.py` | E2E 또는 GS-LRM only | 1-view 또는 6-view | ✅ 동일 (temporal 비디오 포함) |
 | `run.py` (unified) | Config 기반 통합 | config YAML | config에 따름 |
 
 **권장 스크립트**:
-- **GS-LRM only (GT 상한선)**: `simple_temporal.py`
+- **GS-LRM only (GT 상한선)**: `run_e2e_inference.py` (without --input_view_idx)
 - **E2E (단일 뷰 → 3D)**: `run_e2e_inference.py --input_view_idx {0-5}`
 - **E2E (설정 기반)**: `run.py --config configs/inference/e2e.yaml`
 
@@ -191,7 +191,7 @@ export CUDA_VISIBLE_DEVICES=4 && nohup accelerate launch \
 cd /home/joon/dev/FaceLift
 
 # GS-LRM only (6-view → 3D)
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     > logs/gslrm.log 2>&1 &
 
 # E2E (1-view → 3D) - 최소 필수 옵션
@@ -215,7 +215,7 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
 | `--input_view_idx` | **None** | E2E 입력 뷰 (0-5). ⚠️ **미지정 시 GS-LRM only** |
 | `--turntable_views` | 60 | Turntable 뷰 수 (run_e2e) |
 | `--rotation_speed` | 0.3 | 회전 속도 (0.3=느림, 1.0=보통) |
-| `--grid_views` | 36 | Grid 이미지 뷰 수 (simple_temporal, 6x6) |
+| ~~~~ | ⚠️ DEPRECATED | - | → 로 이동됨 |
 
 **Split 명명 규칙**:
 | 명칭 | 분할 | 샘플 수 | 용도 |
@@ -252,14 +252,14 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
 
 **기본 실행**
 ```bash
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model {M5t|M5t2} \
     > logs/gslrm_{model}.log 2>&1 &
 ```
 
 **Val/Test Split 전체**
 ```bash
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model {M5t|M5t2} \
     --split ~/data/preprocessed/FaceLift_mouse/M5/{split_file} \
     --end_frame -1 \
@@ -345,7 +345,7 @@ export CUDA_VISIBLE_DEVICES=6 && python -m mouse_extensions.scripts.inference.ru
 
 ### 3.5.5 출력 구조
 
-**simple_temporal (GS-LRM temporal)**
+**run_e2e_inference (GS-LRM temporal)**
 ```
 outputs/gslrm_M5t_test/
 ├── turntable_first.mp4 # 첫 프레임 360°
@@ -392,13 +392,13 @@ outputs/e2e_M5t_test_view0_260203/   # ⭐ Auto naming: {mode}_{model}_{split}_v
 cd /home/joon/dev/FaceLift
 
 # GS-LRM only (GT 6뷰 → 3D, E2E 상한선) - Test split
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t --num_frames 20 \
     --output_dir outputs/gslrm_M5t_test \
     > logs/gslrm_M5t_test.log 2>&1 &
 
 # GS-LRM only - Train split (overfitting check)
-export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t \
     --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt \
     --num_frames 200 \
@@ -423,11 +423,11 @@ export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.infere
     > logs/e2e_M5t_val.log 2>&1 &
 
 # test
-export CUDA_VISIBLE_DEVICES=4 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
-    --input_view_idx 0 --num_frames 200 \
+    --input_view_idx 0 --num_frames 20 \
     --output_dir outputs/e2e_M5t_view0 \
-    > logs/e2e_M5t_view0.log 2>&1 &
+    > logs/e2e_M5t_test.log 2>&1 &
 
 # Train split E2E (overfitting check) - input_view_idx 필수!
 export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
