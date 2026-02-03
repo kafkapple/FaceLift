@@ -490,6 +490,8 @@ Examples:
                         help="End frame index (default: auto-detect)")
     parser.add_argument("--frame_step", type=int, default=1,
                         help="Frame step (default: 1)")
+    parser.add_argument("--num_frames", type=int, default=None,
+                        help="Number of frames from start (list slicing, overrides start/end_frame)")
     parser.add_argument("--split", type=str, default=None,
                         help="Split file path (overrides start/end/step)")
     
@@ -516,7 +518,7 @@ Examples:
                         help="Save Gaussian .ply and .npz files (default: True)")
     parser.add_argument("--no_gaussian", action="store_true",
                         help="Disable Gaussian file saving")
-    parser.add_argument("--save_rerun", action="store_true", default=True,
+    parser.add_argument("--save_rerun", action="store_true", default=False,
                         help="Save Rerun .rrd files for interactive viewing (default: True)")
     parser.add_argument("--no_rerun", action="store_true",
                         help="Disable Rerun .rrd file saving")
@@ -565,6 +567,15 @@ Examples:
         with open(split_path) as f:
             lines = [l.strip().rstrip("/") for l in f if l.strip()]
         frame_indices = sorted([int(Path(l).name) for l in lines])
+        # Apply num_frames (list slicing) - takes priority over start/end_frame
+        if args.num_frames is not None:
+            frame_indices = frame_indices[:args.num_frames]
+        else:
+            # Apply start_frame/end_frame filter to split file (frame number filtering)
+            if args.start_frame is not None:
+                frame_indices = [i for i in frame_indices if i >= args.start_frame]
+            if args.end_frame is not None:
+                frame_indices = [i for i in frame_indices if i < args.end_frame]
         frame_indices = frame_indices[:: args.frame_step]
         print(f"Split file: {len(frame_indices)} frames (step {args.frame_step})")
     elif args.start_frame is None or args.end_frame is None:
@@ -575,14 +586,23 @@ Examples:
         all_indices = [idx for idx, _ in sample_dirs]
         start = args.start_frame if args.start_frame is not None else all_indices[0]
         end = args.end_frame if args.end_frame is not None else all_indices[-1] + 1
-        frame_indices = [idx for idx in all_indices if start <= idx < end]
+        # Apply num_frames (list slicing) - takes priority
+        if args.num_frames is not None:
+            frame_indices = all_indices[:args.num_frames]
+        else:
+            frame_indices = [idx for idx in all_indices if start <= idx < end]
         frame_indices = frame_indices[:: args.frame_step]
         print(
             f"Auto-detected {len(all_indices)} samples, using {len(frame_indices)} "
             f"(range {start}-{end}, step {args.frame_step})"
         )
     else:
-        frame_indices = list(range(args.start_frame, args.end_frame, args.frame_step))
+        # Apply num_frames (list slicing) - takes priority
+        if args.num_frames is not None:
+            frame_indices = list(range(args.start_frame, args.start_frame + args.num_frames))
+        else:
+            frame_indices = list(range(args.start_frame, args.end_frame))
+        frame_indices = frame_indices[:: args.frame_step]
         print(f"Processing {len(frame_indices)} frames")
 
     # Handle --no_* flags

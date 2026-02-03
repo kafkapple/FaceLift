@@ -125,11 +125,13 @@ Examples:
                              help="Start frame index for batch processing")
     input_group.add_argument("--end_frame", type=int, default=200,
                              help="End frame index for batch processing (exclusive)")
+    input_group.add_argument("--num_frames", type=int, default=None,
+                             help="Number of frames from start (list slicing, overrides start/end_frame)")
     input_group.add_argument("--frame_step", type=int, default=1,
                              help="Frame step for batch processing (default: 1)")
     input_group.add_argument("--split", type=str, default=None,
                              help="Split file path (overrides start/end/step)")
-    input_group.add_argument("--input_view_idx", type=int, default=0,
+    input_group.add_argument("--input_view_idx", type=int, default=None,
                              help="View index (0-5) to use as input for MVDiffusion. "
                                   "When set with --sample_dir, uses that view for MVDiffusion instead of all 6 views.")
 
@@ -320,11 +322,31 @@ Examples:
         print(f"\nDone! Output: {out}")
 
     elif args.data_dir:
-        # Batch processing
-        samples = find_sample_dirs(args.data_dir)
+        # Batch processing - load samples from split file or find all
+        if args.split:
+            split_path = Path(args.split)
+            if not split_path.exists():
+                split_path = Path(args.data_dir) / args.split
+            if not split_path.exists():
+                print(f"ERROR: Split file not found: {args.split}")
+                return
+            with open(split_path) as f:
+                lines = [l.strip().rstrip("/") for l in f if l.strip()]
+            samples = []
+            for line in lines:
+                sample_name = Path(line).name
+                sample_path = Path(args.data_dir) / sample_name
+                if sample_path.exists():
+                    samples.append(str(sample_path))
+            samples = sorted(samples, key=lambda x: int(Path(x).name))
+        else:
+            samples = find_sample_dirs(args.data_dir)
         
+        # Apply num_frames (list slicing) - takes priority over start/end_frame
+        if args.num_frames is not None:
+            samples = samples[:args.num_frames]
         # Apply frame range filtering
-        if args.start_frame is not None or args.end_frame is not None:
+        elif args.start_frame is not None or args.end_frame is not None:
             start = args.start_frame if args.start_frame is not None else 0
             end = args.end_frame if args.end_frame is not None else len(samples)
             samples = samples[start:end]
@@ -337,6 +359,8 @@ Examples:
         print(f"\nFound {total} samples to process")
         if args.split:
             print(f"  Split: {args.split}")
+        if args.num_frames is not None:
+            print(f"  Num frames: {args.num_frames}")
         elif args.start_frame or args.end_frame:
             print(f"  Frame range: [{args.start_frame}:{args.end_frame}]")
         if args.frame_step > 1:

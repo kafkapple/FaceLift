@@ -1,7 +1,7 @@
 # Mouse Quick Reference
 
 > 명령어 중심 빠른 참조. 상세 이론/설정은 → [MOUSE_REFERENCE_DETAILS.md](MOUSE_REFERENCE_DETAILS.md)
-> Last updated: 2026-02-02
+> Last updated: 2026-02-03
 
 ---
 
@@ -116,6 +116,29 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
 
 ## 3. Inference
 
+### ⚠️ 중요 변경사항 (2026-02-03)
+
+| 변경 | 이전 | 이후 | 영향 |
+|------|------|------|------|
+| `--input_view_idx` 기본값 | 0 | **None** | 미지정 시 GS-LRM only |
+| `--split` 옵션 | 표시만 | **실제 적용** | Split 파일에서 샘플 로드 |
+| `--num_frames` 추가 | - | **신규** | 리스트 슬라이싱 (프레임 번호 대신 개수) |
+| `--end_frame` + split | 무시됨 | **적용됨** | Split 모드에서도 제한 가능 |
+| Batch 출력 구조 | 플랫 | `samples/` | 정리된 폴더 구조 |
+
+### 3.0.1 추론 스크립트 개요
+
+| 스크립트 | 용도 | 입력 | 출력 |
+|----------|------|------|------|
+| `simple_temporal.py` | GS-LRM temporal | 6-view GT | turntable, time_rotating 비디오 |
+| `run_e2e_inference.py` | E2E 또는 GS-LRM only | 1-view 또는 6-view | 동일 |
+| `run.py` (unified) | Config 기반 통합 | config YAML | config에 따름 |
+
+**권장 스크립트**:
+- **GS-LRM only (GT 상한선)**: `simple_temporal.py`
+- **E2E (단일 뷰 → 3D)**: `run_e2e_inference.py --input_view_idx {0-5}`
+- **E2E (설정 기반)**: `run.py --config configs/inference/e2e.yaml`
+
 ### Quick Cheatsheet
 
 ```bash
@@ -130,23 +153,40 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     > logs/e2e.log 2>&1 &
 ```
-
-**E2E 기본값**: `--model M5t`, `--end_frame 200`, `--input_view_idx 0`, `--prefer_ema`, `--skip_preprocess`, `--prompt_embed_path`
+**기본값**: `--model M5t`, `--split test`, `--end_frame 200`, `--prefer_ema`, `--skip_preprocess`
+⚠️ **E2E 모드 필수**: `--input_view_idx {0-5}` 지정해야 E2E 동작 (미지정 시 GS-LRM only)
 
 ### 3.1 공통 옵션
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
 | `--model` | M5t | **M5t** 또는 **M5t2** |
-| `--end_frame` | 200 | 처리할 프레임 수 (-1 = 전체) |
-| `--split` | (없음) | Split 파일 경로 (start/end 대신 사용) |
+| `--num_frames` | None | 프레임 개수 (리스트 슬라이싱, start/end보다 우선) |
+| `--end_frame` | 200 | 처리할 프레임 인덱스 상한 |
+| `--split` | test | Split 파일 (자동 적용) |
 | `--fps` | 10 | 비디오 FPS |
 | `--rotation_speed` | 0.3 | 회전 속도 |
-| `--input_view_idx` | 0 | E2E 입력 뷰 (0-5) |
+| `--input_view_idx` | **None** | E2E 입력 뷰 (0-5). ⚠️ **미지정 시 GS-LRM only** |
 
-**Split 파일 경로**:
+**Split 명명 규칙**:
+| 명칭 | 분할 | 샘플 수 | 용도 |
+|------|------|---------|------|
+| **1to1** | temporal 1:1:1 | 1198/1198/1204 | Pose-Splatter 비교 |
+| **t2** | temporal 80:10:10 | 2880/360/360 | ⭐ 권장 (train 최대화) |
+
+**Split 파일 경로 (M5 디렉토리 내)**:
 - M5t: `data_mouse_1to1_{train,val,test}.txt`
 - M5t2: `data_mouse_t2_{train,val,test}.txt`
+⚡ **자동 기본값**: `--split` 미지정 시 `--model`에 따라 test split 자동 적용
+  - M5t → `data_mouse_1to1_test.txt`
+  - M5t2 → `data_mouse_t2_test.txt`
+
+💡 **왜 모델이 split을 결정하나?**: 각 모델은 특정 split 전략으로 학습됨
+  - M5t = temporal 1:1:1로 학습 → 1to1 split 사용
+  - M5t2 = temporal 80:10:10으로 학습 → t2 split 사용
+  - 데이터 디렉토리(M5)는 동일, split 파일만 다름
+  - **잘못된 split 사용 시 data leakage 위험** (train 데이터로 평가)
+
 
 ### 3.2 체크포인트 현황
 
@@ -181,8 +221,8 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
 **변수 조합**:
 | model | split_file |
 |-------|------------|
-| M5t | `data_mouse_1to1_val.txt`, `data_mouse_1to1_test.txt` |
-| M5t2 | `data_mouse_t2_val.txt`, `data_mouse_t2_test.txt` |
+| M5t | `data_mouse_1to1_train.txt`, `data_mouse_1to1_val.txt`, `data_mouse_1to1_test.txt` |
+| M5t2 | `data_mouse_t2_train.txt`, `data_mouse_t2_val.txt`, `data_mouse_t2_test.txt` |
 
 ### 3.4 E2E (1-view → MVDiffusion → GS-LRM → 3D)
 
@@ -236,6 +276,12 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
     --output_dir outputs/e2e_M5t2_test \
     > logs/e2e_M5t2_test.log 2>&1 &
 ```
+또는
+```
+export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+--model M5t2 --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+> logs/e2e_M5t2_test.log 2>&1 &
+```
 
 ### 3.5 Wild Image → 3D
 
@@ -247,6 +293,86 @@ export CUDA_VISIBLE_DEVICES=6 && python -m mouse_extensions.scripts.inference.ru
 ```
 
 → 상세: [MOUSE_REFERENCE_DETAILS.md#inference](MOUSE_REFERENCE_DETAILS.md#inference)
+
+### 3.5.5 출력 구조
+
+**simple_temporal (GS-LRM temporal)**
+```
+outputs/gslrm_M5t_test/
+├── gaussians/          # 프레임별 .ply, .npz
+│   ├── frame_XXXXXX.ply
+│   └── frame_XXXXXX.npz
+├── turntable_first.mp4 # 첫 프레임 360°
+├── time_fixed.mp4      # 고정 각도, 시간 변화
+├── time_rotating.mp4   # 회전하며 시간 변화
+├── full_all.mp4        # 전체 (프레임×각도)
+├── grid_6view.mp4      # 입력 6뷰 그리드
+└── grid_first.jpg      # 첫 프레임 turntable 그리드
+```
+
+**run_e2e_inference (batch)**
+```
+outputs/e2e_M5t_view0/
+└── samples/            # ⭐ batch 시 samples/ 하위
+    ├── 000000/
+    │   └── cam_000/
+    │       ├── turntable.mp4
+    │       └── gaussians.ply
+    └── ...
+```
+
+### 3.6 추천 시각화 실험
+
+| 실험 | 목적 |
+|------|------|
+| **GS-LRM only** | MVDiffusion 없이 GT 6뷰 → 3D (E2E 상한선) |
+| **Train split** | overfitting check (학습 데이터 재현 확인) |
+| **다른 입력 뷰** | view 0 (top-front) vs view 5 등 비교 |
+| **Val split** | 학습 중 본 데이터로 sanity check |
+| **M5t2 모델** | 더 많은 train 데이터로 학습된 모델 |
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# GS-LRM only (GT 6뷰 → 3D, E2E 상한선)
+export CUDA_VISIBLE_DEVICES=5 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+    --model M5t --end_frame 20 \
+    --output_dir outputs/gslrm_M5t_test \
+    > logs/gslrm_M5t_test.log 2>&1 &
+
+# E2E view 0 (Top-front, 정보량 최대)
+export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --model M5t --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --input_view_idx 0 --end_frame 20 \
+    --output_dir outputs/e2e_M5t_view0 \
+    > logs/e2e_M5t_view0.log 2>&1 &
+
+# Val split E2E (sanity check) - input_view_idx 필수!
+export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --model M5t --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_val.txt \
+    --input_view_idx 0 --num_frames 10 \
+    --output_dir outputs/e2e_M5t_val \
+    > logs/e2e_M5t_val.log 2>&1 &
+
+# Train split E2E (overfitting check) - input_view_idx 필수!
+export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --model M5t --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt \
+    --input_view_idx 0 --num_frames 10 \
+    --output_dir outputs/e2e_M5t_train \
+    > logs/e2e_M5t_train.log 2>&1 &
+```
+
+**⚠️ `--num_frames` vs `--end_frame` 사용 시점**:
+| 옵션 | 동작 | 사용 시점 |
+|------|------|-----------|
+| `--num_frames N` | 리스트 처음 N개 | Split 파일 사용 시 (프레임 번호 무관) |
+| `--end_frame N` | 인덱스 N 미만 | 연속 인덱스 범위 지정 시 |
+
+예: Split 파일에 `002396, 002401, ...` 포함 → `--end_frame 20`은 **0개** (번호가 20 미만인 프레임 없음)
+→ 대신 `--num_frames 20` 사용 (처음 20개 샘플)
+
 
 
 ---
@@ -324,5 +450,5 @@ rerun --web-viewer --port 9090 outputs/.../sequence.rrd
 
 ---
 
-*Quick Reference | 2026-02-02*
+*Quick Reference | 2026-02-03*
 *상세: [MOUSE_REFERENCE_DETAILS.md](MOUSE_REFERENCE_DETAILS.md)*

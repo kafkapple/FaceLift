@@ -79,7 +79,7 @@ class GaussianExporter:
         f_dc = gaussian_model._features_dc.detach().cpu().numpy()
         # SH2RGB conversion: colors = 0.5 + C0 * f_dc where C0 = 0.28209479177387814
         C0 = 0.28209479177387814
-        colors = np.clip(0.5 + C0 * f_dc.squeeze(-1), 0, 1)
+        colors = np.clip(0.5 + C0 * f_dc.squeeze(1), 0, 1)
         
         # Get opacities (apply sigmoid if needed)
         opacities = gaussian_model.get_opacity.detach().cpu().numpy()
@@ -253,7 +253,7 @@ class RerunExporter:
         
         # Log each frame with timeline
         for frame_idx, npz_file in enumerate(npz_files):
-            rr.set_time_sequence("frame", frame_idx)
+            rr.set_time("frame", sequence=frame_idx)
             
             data = np.load(npz_file)
             means = data["means"]
