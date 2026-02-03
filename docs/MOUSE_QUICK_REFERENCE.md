@@ -339,8 +339,8 @@ outputs/e2e_M5t_view0/
 cd /home/joon/dev/FaceLift
 
 # GS-LRM only (GT 6뷰 → 3D, E2E 상한선) - Test split
-export CUDA_VISIBLE_DEVICES=5 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    --model M5t --num_frames 20 \
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+    --model M5t --num_frames 200 \
     --output_dir outputs/gslrm_M5t_test \
     > logs/gslrm_M5t_test.log 2>&1 &
 
@@ -348,14 +348,14 @@ export CUDA_VISIBLE_DEVICES=5 && nohup python -m mouse_extensions.scripts.infere
 export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
     --model M5t \
     --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt \
-    --num_frames 20 \
+    --num_frames 200 \
     --output_dir outputs/gslrm_M5t_train \
     > logs/gslrm_M5t_train.log 2>&1 &
 
 # E2E view 0 (Top-front, 정보량 최대)
-export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+export CUDA_VISIBLE_DEVICES=4 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
-    --input_view_idx 0 --num_frames 20 \
+    --input_view_idx 0 --num_frames 200 \
     --output_dir outputs/e2e_M5t_view0 \
     > logs/e2e_M5t_view0.log 2>&1 &
 
@@ -385,7 +385,69 @@ export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.infere
 예: Split 파일에 `002396, 002401, ...` 포함 → `--end_frame 20`은 **0개** (번호가 20 미만인 프레임 없음)
 → 대신 `--num_frames 20` 사용 (처음 20개 샘플)
 
+### 3.7 우선순위 실험: MVDiffusion Ablation (260203)
 
+**배경**: M5t2_consistent 모델 결과가 baseline보다 안 좋아 보임.
+**상세**: `docs/research/260203_MVDiffusion_CFG_Ablation.md`
+
+#### 설정 비교
+
+| 모델 | CFG Dropout | Sparse Attn | Prompt | Split | 최신 ckpt |
+|------|-------------|-------------|--------|-------|-----------|
+| **M5t** (baseline) | 0.05 | ✅ true | original | 1to1 | 8000 |
+| M5t2 | 0.05 | ✅ true | mouse | t2 | 5000 |
+| M5t2_consistent | **0.0** | ❌ false | mouse | t2 | 6000 |
+
+#### 가설
+
+| 가설 | 변경점 | 예상 영향 |
+|------|--------|-----------|
+| **H1** | CFG dropout 0.05→0.0 | guidance 효과 감소 |
+| **H2** | Sparse→Full attention | 과적합 위험 |
+
+#### 비교 실험 (동일 테스트 데이터)
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# === Ctrl: M5t baseline (CFG=0.05, sparse=true) ===
+export CUDA_VISIBLE_DEVICES=4 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --model M5t \
+    --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t/checkpoint-8000 \
+    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt \
+    --input_view_idx 0 --num_frames 10 \
+    --output_dir outputs/compare_mvdiff/ctrl_M5t_8k \
+    > logs/compare_ctrl_M5t.log 2>&1 &
+
+# === Exp-A: M5t2 (CFG=0.05, sparse=true, mouse prompt) ===
+export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --model M5t \
+    --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2/checkpoint-5000 \
+    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt \
+    --input_view_idx 0 --num_frames 10 \
+    --output_dir outputs/compare_mvdiff/exp_A_M5t2_5k \
+    > logs/compare_expA_M5t2.log 2>&1 &
+
+# === Exp-B: M5t2_consistent (CFG=0.0, sparse=false) ===
+export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --model M5t \
+    --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_consistent/checkpoint-6000 \
+    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt \
+    --input_view_idx 0 --num_frames 10 \
+    --output_dir outputs/compare_mvdiff/exp_B_M5t2_consistent_6k \
+    > logs/compare_expB_M5t2_consistent.log 2>&1 &
+```
+
+#### 평가 기준
+
+| 지표 | 확인 방법 |
+|------|-----------|
+| View Consistency | 6뷰 간 형태/색상 일관성 |
+| 3D Quality | GS-LRM turntable 렌더링 |
+| Artifact | Ghosting, 불일치 영역 |
 
 ---
 
