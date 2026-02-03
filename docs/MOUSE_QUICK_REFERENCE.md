@@ -335,16 +335,24 @@ outputs/e2e_M5t_view0/
 ```bash
 cd /home/joon/dev/FaceLift
 
-# GS-LRM only (GT 6뷰 → 3D, E2E 상한선)
+# GS-LRM only (GT 6뷰 → 3D, E2E 상한선) - Test split
 export CUDA_VISIBLE_DEVICES=5 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    --model M5t --end_frame 20 \
+    --model M5t --num_frames 20 \
     --output_dir outputs/gslrm_M5t_test \
     > logs/gslrm_M5t_test.log 2>&1 &
+
+# GS-LRM only - Train split (overfitting check)
+export CUDA_VISIBLE_DEVICES=5 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+    --model M5t \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt \
+    --num_frames 20 \
+    --output_dir outputs/gslrm_M5t_train \
+    > logs/gslrm_M5t_train.log 2>&1 &
 
 # E2E view 0 (Top-front, 정보량 최대)
 export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
-    --input_view_idx 0 --end_frame 20 \
+    --input_view_idx 0 --num_frames 20 \
     --output_dir outputs/e2e_M5t_view0 \
     > logs/e2e_M5t_view0.log 2>&1 &
 

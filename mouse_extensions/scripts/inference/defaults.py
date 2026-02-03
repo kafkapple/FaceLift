@@ -16,15 +16,19 @@ DEFAULT_CHECKPOINTS = {
     },
     "M5t2": {
         "gslrm": CHECKPOINT_ROOT / "gslrm/M5t2_E0_1_facelift/best_psnr.pt",
-        "mvdiffusion": CHECKPOINT_ROOT / "mvdiffusion/mouse_M5t2/checkpoint-5000",
+        "mvdiffusion": CHECKPOINT_ROOT / "mvdiffusion/mouse_M5t2/checkpoint-4000",
     },
 }
 
-# Default splits
+# Default splits (test split for inference)
 DEFAULT_SPLITS = {
     "M5t": DATA_ROOT / "M5/data_mouse_1to1_test.txt",
     "M5t2": DATA_ROOT / "M5/data_mouse_t2_test.txt",
 }
+
+# Split naming convention:
+#   1to1 = temporal 1:1:1 (Pose-Splatter comparison)
+#   t2   = temporal 80:10:10 (maximize training data)
 
 # Default data directory
 DEFAULT_DATA_DIR = DATA_ROOT / "M5"
