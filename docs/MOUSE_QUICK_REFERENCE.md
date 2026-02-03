@@ -125,13 +125,14 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
 | `--num_frames` 추가 | - | **신규** | 리스트 슬라이싱 (프레임 번호 대신 개수) |
 | `--end_frame` + split | 무시됨 | **적용됨** | Split 모드에서도 제한 가능 |
 | Batch 출력 구조 | 플랫 | `samples/` | 정리된 폴더 구조 |
-| Temporal 비디오 | simple만 | **run_e2e도** | time_rotating, full_all 등 자동 생성 |
+| Temporal 비디오 | simple만 | **run_e2e도** | turntable_first, time_rotating 등 자동 생성 |
+| `--save_gaussian` | 기본 True | **기본 False** | 명시적 옵션 필요 |
 
 ### 3.0.1 추론 스크립트 개요
 
 | 스크립트 | 용도 | 입력 | 출력 |
 |----------|------|------|------|
-| `simple_temporal.py` | GS-LRM temporal | 6-view GT | turntable, time_rotating, full_all 비디오 |
+| `simple_temporal.py` | GS-LRM temporal | 6-view GT | turntable_first, time_rotating, grid_6view 비디오 |
 | `run_e2e_inference.py` | E2E 또는 GS-LRM only | 1-view 또는 6-view | ✅ 동일 (temporal 비디오 포함) |
 | `run.py` (unified) | Config 기반 통합 | config YAML | config에 따름 |
 
@@ -300,23 +301,25 @@ export CUDA_VISIBLE_DEVICES=6 && python -m mouse_extensions.scripts.inference.ru
 **simple_temporal (GS-LRM temporal)**
 ```
 outputs/gslrm_M5t_test/
-├── gaussians/          # 프레임별 .ply, .npz
-│   ├── frame_XXXXXX.ply
-│   └── frame_XXXXXX.npz
 ├── turntable_first.mp4 # 첫 프레임 360°
 ├── time_fixed.mp4      # 고정 각도, 시간 변화
 ├── time_rotating.mp4   # 회전하며 시간 변화
-├── full_all.mp4        # 전체 (프레임×각도)
 ├── grid_6view.mp4      # 입력 6뷰 그리드
-└── grid_first.jpg      # 첫 프레임 turntable 그리드
+├── grid_first.jpg      # 첫 프레임 turntable 그리드
+└── gaussians/          # --save_gaussian 시에만
+    └── frame_XXXXXX.ply
 ```
 
 **run_e2e_inference (batch)**
 ```
 outputs/e2e_M5t_view0/
-└── samples/            # ⭐ batch 시 samples/ 하위
+├── turntable_first.mp4 # ⭐ temporal 비디오는 루트에
+├── time_fixed.mp4
+├── time_rotating.mp4
+├── grid_6view.mp4
+└── samples/            # 프레임별 폴더는 samples/ 하위
     ├── 000000/
-    │   └── cam_000/
+    │   └── cam_000/    # E2E 모드
     │       ├── turntable.mp4
     │       └── gaussians.ply
     └── ...
@@ -342,7 +345,7 @@ export CUDA_VISIBLE_DEVICES=5 && nohup python -m mouse_extensions.scripts.infere
     > logs/gslrm_M5t_test.log 2>&1 &
 
 # GS-LRM only - Train split (overfitting check)
-export CUDA_VISIBLE_DEVICES=5 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
+export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
     --model M5t \
     --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt \
     --num_frames 20 \
