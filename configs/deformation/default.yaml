@@ -1,0 +1,92 @@
+# Deformation Network Training Configuration
+# Based on FaceLift paper Appendix 3.5
+
+# ============================================================
+# Model Configuration
+# ============================================================
+model:
+  # Deformation Network (8-layer MLP)
+  input_dim: 3
+  hidden_dim: 256
+  num_layers: 8
+  activation: "relu"
+  
+  # Output options
+  predict_position: true
+  predict_opacity: true
+  predict_scale: true
+  anisotropic_scale: false  # Isotropic scale offset
+  predict_rotation: false
+  
+  # Regularization
+  dropout: 0.0
+  zero_init_output: true
+  
+  # Positional encoding (optional)
+  use_positional_encoding: false
+  pe_freq_bands: 10
+
+# ============================================================
+# Training Configuration
+# ============================================================
+training:
+  # Optimization
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-5
+  max_steps: 10000
+  warmup_steps: 500
+  
+  # Batch size
+  batch_size: 4
+  num_workers: 4
+  
+  # Loss weights
+  l2_weight: 1.0
+  perceptual_weight: 0.1
+  temporal_weight: 0.01
+  
+  # Logging
+  log_every: 100
+  save_every: 1000
+  vis_every: 500
+
+# ============================================================
+# Data Configuration
+# ============================================================
+data:
+  # Dataset paths (override for specific experiments)
+  data_dir: "/home/joon/data/preprocessed/FaceLift_mouse/M5"
+  train_split: "data_mouse_t2_train.txt"
+  val_split: "data_mouse_t2_val.txt"
+  
+  # Temporal settings
+  sequence_length: 2
+  frame_stride: 1
+  
+  # Views
+  num_views: 6
+
+# ============================================================
+# GS-LRM Configuration (for generating pseudo GT)
+# ============================================================
+gslrm:
+  # Pre-trained GS-LRM checkpoint
+  checkpoint: "/node_data/joon/checkpoints/FaceLift/gslrm/M5t_E0_1_facelift/best_psnr.pt"
+  
+  # Inference settings
+  resolution: 512
+  sh_degree: 2
+
+# ============================================================
+# Output Configuration
+# ============================================================
+output:
+  dir: "/node_data/joon/checkpoints/FaceLift/deformation/default"
+  wandb_project: "FaceLift-Mouse"
+  wandb_run_name: "deformation_default"
+
+# ============================================================
+# Hardware
+# ============================================================
+device: "cuda"
+seed: 42

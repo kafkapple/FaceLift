@@ -102,6 +102,29 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
 
 ⚠️ **GPU 선택**: `export CUDA_VISIBLE_DEVICES=N &&` 형식 필수 (env_vars.sh 덮어쓰기 방지)
 
+### 2.2.1 우선순위 학습 실험: CFG 복원 (H1 검증 후)
+
+**배경**: M5t2_consistent (CFG=0, FullAttn) 결과가 baseline보다 안 좋음.
+**가설**: CFG dropout 제거가 주 원인 → 복원 후 재학습
+
+**Exp-C: CFG 복원, Full Attention 유지**
+```bash
+cd /home/joon/dev/FaceLift
+
+# 1. Config 생성 (M5t2_cfgr.yaml)
+# condition_drop_rate: 0.05 (복원)
+# sparse_mv_attention: false (full 유지)
+
+# 2. 학습
+export CUDA_VISIBLE_DEVICES=4 && nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py \
+    --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_cfgr.yaml \
+    > logs/mvdiff_M5t2_cfgr.log 2>&1 &
+```
+
+**상세**: `docs/research/260203_MVDiffusion_CFG_Ablation.md` (7절)
+
 ### 2.3 체크포인트 현황 요약
 
 | Model | Dataset | Last Ckpt | 상태 | 비고 |
@@ -116,6 +139,24 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
 
 
 ---
+
+
+### 2.4 4D Extension: Deformation Network (연구 중)
+
+**목적**: 프레임별 독립 재구성 → 시간적 연속성 확보 (temporal flickering 해결)
+
+**논문 (Appendix 3.5)**:
+- Autoregressive generation: G_t → D_t(G_t) → G'_{t+1}
+- 8-layer MLP: position → deformation (Δxyz, Δα, Δs)
+- Pseudo GT: FaceLift 출력으로 supervised learning
+
+**현재 상태**: ❌ 미구현 (논문 코드 미공개)
+
+**구현 계획**: 
+- `mouse_extensions/model/deformation/` 모듈 신규 개발
+- 생쥐 특화: 큰 움직임(99px/frame), positional encoding 추가
+
+**상세**: `docs/research/260203_Deformation_Network_Analysis.md`
 
 ## 3. Inference
 
@@ -172,6 +213,9 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
 | `--fps` | 10 | 비디오 FPS |
 | `--rotation_speed` | 0.3 | 회전 속도 |
 | `--input_view_idx` | **None** | E2E 입력 뷰 (0-5). ⚠️ **미지정 시 GS-LRM only** |
+| `--turntable_views` | 60 | Turntable 뷰 수 (run_e2e) |
+| `--rotation_speed` | 0.3 | 회전 속도 (0.3=느림, 1.0=보통) |
+| `--grid_views` | 36 | Grid 이미지 뷰 수 (simple_temporal, 6x6) |
 
 **Split 명명 규칙**:
 | 명칭 | 분할 | 샘플 수 | 용도 |
@@ -315,8 +359,9 @@ outputs/gslrm_M5t_test/
 
 **run_e2e_inference (batch)**
 ```
-outputs/e2e_M5t_view0/
-├── turntable_first.mp4 # ⭐ temporal 비디오는 루트에
+outputs/e2e_M5t_test_view0_260203/   # ⭐ Auto naming: {mode}_{model}_{split}_view{idx}_{YYMMDD}
+├── run_config.json     # ⭐ 실행 설정 자동 저장
+├── turntable_first.mp4 # temporal 비디오는 루트에
 ├── time_fixed.mp4
 ├── time_rotating.mp4
 ├── grid_6view.mp4
@@ -327,6 +372,11 @@ outputs/e2e_M5t_view0/
     │       └── gaussians.ply
     └── ...
 ```
+
+**Auto 출력 폴더 명명**:
+- `--output_dir` 미지정 시 자동 생성
+- 패턴: `{mode}_{model}_{split}_view{idx}_n{frames}_{YYMMDD}`
+- 예: `e2e_M5t_test_view0_n10_260203`, `gslrm_M5t2_val_260203`
 
 ### 3.6 추천 시각화 실험
 
@@ -343,7 +393,7 @@ cd /home/joon/dev/FaceLift
 
 # GS-LRM only (GT 6뷰 → 3D, E2E 상한선) - Test split
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.simple_temporal \
-    --model M5t --num_frames 200 \
+    --model M5t --num_frames 20 \
     --output_dir outputs/gslrm_M5t_test \
     > logs/gslrm_M5t_test.log 2>&1 &
 
@@ -356,12 +406,14 @@ export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.infere
     > logs/gslrm_M5t_train.log 2>&1 &
 
 # E2E view 0 (Top-front, 정보량 최대)
-export CUDA_VISIBLE_DEVICES=4 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
-    --input_view_idx 0 --num_frames 200 \
-    --output_dir outputs/e2e_M5t_view0 \
-    > logs/e2e_M5t_view0.log 2>&1 &
+    --input_view_idx 0 --num_frames 20 \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt \
+    --output_dir outputs/e2e_M5t_train \
+    > logs/e2e_M5t_train.log 2>&1 &
 
+ 
 # Val split E2E (sanity check) - input_view_idx 필수!
 export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
@@ -369,6 +421,13 @@ export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.infere
     --input_view_idx 0 --num_frames 10 \
     --output_dir outputs/e2e_M5t_val \
     > logs/e2e_M5t_val.log 2>&1 &
+
+# test
+export CUDA_VISIBLE_DEVICES=4 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --model M5t --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --input_view_idx 0 --num_frames 200 \
+    --output_dir outputs/e2e_M5t_view0 \
+    > logs/e2e_M5t_view0.log 2>&1 &
 
 # Train split E2E (overfitting check) - input_view_idx 필수!
 export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
@@ -519,11 +578,12 @@ rerun --web-viewer --port 9090 outputs/.../sequence.rrd
 
 ### Inference 파라미터
 
-| 파라미터 | 기본 | 느린재생 | 설명 |
-|----------|------|---------|------|
-| --fps | 24 | 10 | 비디오 FPS |
-| --rotation_speed | 0.5 | 0.3 | 회전 속도 |
-| --num_views | 36 | 60 | 360° 분할 |
+| 파라미터 | 기본 | 설명 |
+|----------|------|------|
+| --fps | 10 | 비디오 FPS |
+| --turntable_views | 60 | Turntable 뷰 수 (run_e2e) |
+| --rotation_speed | 0.3 | 회전 속도 (0.3=느림, 1.0=보통) |
+| --grid_views | 36 | Grid 이미지 뷰 수 (6x6) |
 
 ---
 
