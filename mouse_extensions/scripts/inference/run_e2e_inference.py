@@ -72,23 +72,27 @@ except ImportError:
 
 def generate_temporal_videos(output_dir: str, fps: int = 10, fixed_angles: list = None):
     """Generate combined temporal videos from per-sample turntables.
-    
+
     Args:
-        output_dir: Directory containing sample subdirectories with turntable.mp4
+        output_dir: Directory containing samples/ subfolder with turntable.mp4 files
         fps: Output video FPS
         fixed_angles: List of angles for time_fixed videos (default: [0])
     """
     import cv2
     import numpy as np
     from pathlib import Path
-    
+
     if fixed_angles is None:
         fixed_angles = [0]
-    
+
     output_path = Path(output_dir)
-    
-    # Find all turntable videos
-    sample_dirs = sorted([d for d in output_path.iterdir() if d.is_dir()])
+
+    # Look for samples in samples/ subfolder first, then root
+    samples_dir = output_path / "samples"
+    if samples_dir.exists():
+        sample_dirs = sorted([d for d in samples_dir.iterdir() if d.is_dir()])
+    else:
+        sample_dirs = sorted([d for d in output_path.iterdir() if d.is_dir() and d.name != "samples"])
     turntable_paths = []
     for sample_dir in sample_dirs:
         # Check for turntable.mp4 directly or in cam_* subdirectory (E2E mode)
@@ -152,13 +156,8 @@ def generate_temporal_videos(output_dir: str, fps: int = 10, fixed_angles: list 
     rotating_frames = np.stack(rotating_frames)
     imageseq2video(rotating_frames, str(output_path / "time_rotating.mp4"), fps=fps)
     print("Saved: time_rotating.mp4")
-    
-    # === Output 4: Full (all time × all angles) ===
-    full_frames = np.concatenate(all_turntables, axis=0)
-    imageseq2video(full_frames, str(output_path / "full_all.mp4"), fps=fps)
-    print(f"Saved: full_all.mp4 ({T}x{V}={T*V} frames)")
-    
-    # === Output 5: Grid video (6 views per frame) ===
+
+    # === Output 4: Grid video (6 views per frame) ===
     try:
         grid_frames = []
         for t in range(T):
@@ -491,9 +490,11 @@ Examples:
                         print(f"Skip {sample_dir}: view {args.input_view_idx} not found")
                         continue
                     
-                    # Create per-sample output directory
+                    # Create per-sample output directory (inside samples/ subfolder)
                     sample_name = sample_path.name
-                    sample_output = Path(args.output_dir) / sample_name
+                    samples_subdir = Path(args.output_dir) / "samples"
+                    samples_subdir.mkdir(parents=True, exist_ok=True)
+                    sample_output = samples_subdir / sample_name
                     
                     pipeline.run(
                         str(view_image),
@@ -514,13 +515,17 @@ Examples:
         else:
             # Batch: GS-LRM only (using all 6 views)
             print(f"=== Batch Path 1: GS-LRM only (6-view) ===")
-            
+
+            # Create samples/ subfolder for consistency
+            samples_subdir = Path(args.output_dir) / "samples"
+            samples_subdir.mkdir(parents=True, exist_ok=True)
+
             from tqdm import tqdm
             for sample_dir in tqdm(samples, desc="Processing"):
                 try:
                     pipeline.run_from_views(
                         sample_dir,
-                        args.output_dir,
+                        str(samples_subdir),
                         save_turntable=save_turntable,
                         save_mesh=save_mesh,
                         turntable_views=args.turntable_views,

@@ -513,9 +513,9 @@ Examples:
     parser.add_argument("--fixed_angles", type=int, nargs="+", default=[0],
                         help="Fixed angle views for time videos (default: [0])")
     
-    # Export options (all enabled by default)
-    parser.add_argument("--save_gaussian", action="store_true", default=True,
-                        help="Save Gaussian .ply and .npz files (default: True)")
+    # Export options
+    parser.add_argument("--save_gaussian", action="store_true", default=False,
+                        help="Save Gaussian .ply and .npz files (default: False)")
     parser.add_argument("--no_gaussian", action="store_true",
                         help="Disable Gaussian file saving")
     parser.add_argument("--save_rerun", action="store_true", default=False,
@@ -730,12 +730,7 @@ Examples:
     imageseq2video(rotating_frames, str(output_dir / "time_rotating.mp4"), fps=args.fps)
     print("Saved: time_rotating.mp4")
 
-    # === Output 4: Full (all time × all angles) ===
-    full_frames = np.concatenate(all_turntables, axis=0)
-    imageseq2video(full_frames, str(output_dir / "full_all.mp4"), fps=args.fps)
-    print(f"Saved: full_all.mp4 ({T}x{V}={T*V} frames)")
-
-    # === Output 5: Grid image (first frame) with angle labels ===
+    # === Output 4: Grid image (first frame) with angle labels ===
     first = all_turntables[0]
     cols = 6
     rows = (V + cols - 1) // cols
@@ -758,7 +753,7 @@ Examples:
     Image.fromarray(grid_labeled).save(str(output_dir / "grid_first.jpg"))
     print(f"Saved: grid_first.jpg ({rows}x{cols} grid with angle labels)")
 
-    # === Output 6: 6-camera input grid (first frame image) ===
+    # === Output 5: 6-camera input grid (first frame image) ===
     num_cams = all_input_views[0].shape[0]
     input_grid_cols = 3
     input_grid_rows = (num_cams + input_grid_cols - 1) // input_grid_cols
@@ -785,7 +780,7 @@ Examples:
     Image.fromarray(input_grid_labeled).save(str(output_dir / "grid_input.jpg"))
     print(f"Saved: grid_input.jpg ({input_grid_rows}x{input_grid_cols} input cameras)")
 
-    # === Output 7: 6-camera input grid video ===
+    # === Output 6: 6-camera input grid video ===
     grid_video_frames = []
     for t in range(len(all_input_views)):
         views = all_input_views[t]
@@ -810,7 +805,6 @@ Examples:
     print(f"  - turntable_first.mp4  : First frame 360° rotation")
     print(f"  - time_fixed.mp4       : Fixed angle, time progression")
     print(f"  - time_rotating.mp4    : Rotating view with time")
-    print(f"  - full_all.mp4         : All frames × all angles")
     print(f"  - grid_6view.mp4       : 6-camera input views")
     print(f"  - grid_first.jpg       : First frame turntable grid with angle labels")
     print(f"  - grid_input.jpg       : Input camera views grid")
