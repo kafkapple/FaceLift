@@ -125,13 +125,14 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
 | `--num_frames` 추가 | - | **신규** | 리스트 슬라이싱 (프레임 번호 대신 개수) |
 | `--end_frame` + split | 무시됨 | **적용됨** | Split 모드에서도 제한 가능 |
 | Batch 출력 구조 | 플랫 | `samples/` | 정리된 폴더 구조 |
+| Temporal 비디오 | simple만 | **run_e2e도** | time_rotating, full_all 등 자동 생성 |
 
 ### 3.0.1 추론 스크립트 개요
 
 | 스크립트 | 용도 | 입력 | 출력 |
 |----------|------|------|------|
-| `simple_temporal.py` | GS-LRM temporal | 6-view GT | turntable, time_rotating 비디오 |
-| `run_e2e_inference.py` | E2E 또는 GS-LRM only | 1-view 또는 6-view | 동일 |
+| `simple_temporal.py` | GS-LRM temporal | 6-view GT | turntable, time_rotating, full_all 비디오 |
+| `run_e2e_inference.py` | E2E 또는 GS-LRM only | 1-view 또는 6-view | ✅ 동일 (temporal 비디오 포함) |
 | `run.py` (unified) | Config 기반 통합 | config YAML | config에 따름 |
 
 **권장 스크립트**:
