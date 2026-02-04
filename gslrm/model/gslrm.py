@@ -1403,6 +1403,7 @@ class GSLRM(nn.Module):
             input=input_data,
             target=target_data,
             gaussians=gaussian_models,
+            gaussian_params_raw=gaussian_splat_result,  # Raw params with gradients for temporal training
             pixelalign_xyz=pixel_aligned_positions,
             img_tokens=image_patch_tokens,
             loss_metrics=loss_metrics,
