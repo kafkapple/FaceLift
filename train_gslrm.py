@@ -47,6 +47,13 @@ try:
 except ImportError:
     MOUSE_LOGGING_AVAILABLE = False
 
+# Temporal training extension
+try:
+    from mouse_extensions.training import enable_temporal_training
+    TEMPORAL_TRAINING_AVAILABLE = True
+except ImportError:
+    TEMPORAL_TRAINING_AVAILABLE = False
+
 # Test evaluation extension
 try:
     from mouse_extensions.scripts.test_evaluation_extension import (
@@ -376,6 +383,21 @@ class GSLRMTrainer:
         # Wrap with DDP (only in distributed mode)
         if not self.single_gpu_mode:
             self.model = DDP(self.model, device_ids=[self.ddp_local_rank])
+
+        # Setup temporal training if configured
+        self._setup_temporal_training()
+
+    def _setup_temporal_training(self):
+        """Setup temporal training components if enabled in config."""
+        if not TEMPORAL_TRAINING_AVAILABLE:
+            return
+        
+        temporal_cfg = self.config.get('temporal', {})
+        if not temporal_cfg.get('enabled', False):
+            return
+        
+        print_rank0("[Temporal] Setting up temporal training...")
+        enable_temporal_training(self, self.config)
 
     def _apply_layer_freeze(self):
         """Apply layer-wise freezing to prevent catastrophic forgetting.

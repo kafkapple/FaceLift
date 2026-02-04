@@ -1,0 +1,49 @@
+# Temporal Training Config for M5t2
+# Adds ARAP + Velocity consistency losses to standard GS-LRM training
+
+# Base config
+defaults:
+  - base_gslrm
+  - dataset: mouse_M5t2
+
+# Temporal training settings
+temporal:
+  enabled: true
+  window: 2              # Number of consecutive frames
+  arap_weight: 0.1       # Edge length preservation
+  velocity_weight: 0.01  # Velocity smoothness
+  warmup_steps: 1000     # Skip temporal loss initially
+  rampup_steps: 500      # Gradually increase weight
+
+# Training overrides for temporal
+training:
+  runtime:
+    batch_size: 1        # Temporal requires batch=1 for consecutive frames
+    num_steps: 10000
+    grad_accum_steps: 2  # Effective batch size = 2
+  
+  logging:
+    vis_every: 500
+    log_every: 50
+  
+  schedule:
+    base_lr: 1e-4
+    warmup_steps: 500
+
+# Validation
+validation:
+  enabled: true
+  val_every: 500
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5
+  split: t2
+
+# Dataset must return consecutive frames
+dataset:
+  temporal_mode: true    # Enable consecutive frame sampling
+  frame_stride: 1        # Adjacent frames
+
+# WandB
+wandb:
+  project: FaceLift-Mouse
+  name: M5t2_temporal_arap
+  tags: [temporal, arap, M5t2]

@@ -1,19 +1,22 @@
-"""Training extensions for Mouse-FaceLift.
+"""Temporal Training Extensions for GS-LRM."""
 
-Modules:
-    TemporalTrainingConfig - Configuration for temporal training
-    TemporalLossComputer - Computes ARAP, velocity, isometry losses
-    create_temporal_dataloader - Dataloader for consecutive frames
-"""
-
-from mouse_extensions.training.temporal_trainer import (
+from .temporal_trainer import (
     TemporalTrainingConfig,
     TemporalLossComputer,
     create_temporal_dataloader,
+)
+
+from .temporal_gslrm_trainer import (
+    TemporalTrainingMixin,
+    enable_temporal_training,
+    create_temporal_train_step,
 )
 
 __all__ = [
     'TemporalTrainingConfig',
     'TemporalLossComputer',
     'create_temporal_dataloader',
+    'TemporalTrainingMixin',
+    'enable_temporal_training',
+    'create_temporal_train_step',
 ]
