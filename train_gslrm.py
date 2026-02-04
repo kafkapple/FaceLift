@@ -294,11 +294,17 @@ class GSLRMTrainer:
     def _setup_dataloaders(self):
         """Setup data loaders for training and validation."""
         # Training dataloader
+        # Check for temporal training mode (requires sequential sampling)
+        temporal_mode = self.config.get('temporal', {}).get('enabled', False)
+        
         if self.single_gpu_mode:
             datasampler = None
-            train_shuffle = True
+            # Disable shuffle for temporal training (needs consecutive frames)
+            train_shuffle = False if temporal_mode else True
+            if temporal_mode:
+                print_rank0("[Temporal] Sequential sampling enabled (shuffle=False)")
         else:
-            datasampler = DistributedSampler(self.dataset)
+            datasampler = DistributedSampler(self.dataset, shuffle=not temporal_mode)
             train_shuffle = False
 
         self.dataloader = DataLoader(
