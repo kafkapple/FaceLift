@@ -1,0 +1,77 @@
+# Temporal Training Config for M5t2
+# Based on working M5t2_E0_1 config with temporal losses added
+
+# Inherit from base
+_target_: gslrm.model.gslrm.GSLRM
+
+model:
+  class_name: gslrm.model.gslrm.GSLRM
+  image_tokenizer:
+    patch_size: 8
+  hard_pixelalign: true
+  clip_xyz: false
+  
+# Temporal training settings
+temporal:
+  enabled: true
+  window: 2
+  arap_weight: 0.1
+  velocity_weight: 0.01
+  warmup_steps: 500      # Start temporal loss after warmup
+  rampup_steps: 500      # Ramp up to full weight
+
+training:
+  dataset:
+    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+    background_color: white
+    num_views: 6
+    num_input_views: 5
+    target_has_input: true
+    
+  dataloader:
+    batch_size_per_gpu: 1
+    num_workers: 4
+    prefetch_factor: 2
+    
+  runtime:
+    num_steps: 8000
+    grad_accum_steps: 2
+    use_amp: true
+    amp_dtype: float16
+    
+  schedule:
+    base_lr: 4.0e-5
+    warmup_steps: 100
+    
+  losses:
+    l2_loss_weight: 1.0
+    perceptual_loss_weight: 0.5
+    lpips_loss_weight: 0.0
+    background_loss_weight: 0.01
+    alpha_loss_weight: 0.1
+    mask_mode: gt
+    
+  logging:
+    vis_every: 200
+    log_every: 20
+    
+  checkpointing:
+    ckpt_every: 1000
+
+validation:
+  enabled: true
+  val_every: 400
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+  
+  metrics:
+    psnr: true
+    ssim: true
+    lpips: true
+    
+checkpoint:
+  resume: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt
+
+wandb:
+  project: FaceLift-Mouse
+  name: M5t2_temporal_v1
+  tags: [temporal, arap, velocity, M5t2]
