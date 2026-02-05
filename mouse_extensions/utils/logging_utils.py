@@ -26,9 +26,16 @@ def get_experiment_info(config) -> Dict[str, Any]:
         return f"v{match.group(1)}" if match else "unknown"
 
     def extract_dataset_name(path: str) -> str:
-        if "/" in path:
-            return path.split("/")[-2]
-        return "unknown"
+        if "/" not in path:
+            return "unknown"
+        parts = path.split("/")
+        folder = parts[-2]
+        filename = parts[-1]
+        if "_t2_" in filename:
+            return f"{folder}t2"
+        elif "_t_" in filename:
+            return f"{folder}t"
+        return folder
 
     # Determine mask source
     # Priority: mask_mode (explicit) > legacy settings
