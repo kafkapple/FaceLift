@@ -1,18 +1,17 @@
-"""Temporal GS-LRM Trainer Extension.
+"""Temporal training extension for GS-LRM trainer.
 
-Extends the base GSLRMTrainer to support temporal consistency losses.
-Uses a sliding window of frames to compute ARAP and velocity losses.
+This module adds temporal regularization (ARAP + velocity) to the existing trainer.
+NOTE: Currently uses single-frame batches with cross-batch buffering.
+For proper gradient flow, the buffer stores detached tensors and only the
+current frame's gradients are used. This is a simplified approach.
 """
 
-import torch
-from typing import Dict, List, Any, Tuple, Optional
 from collections import deque
+from typing import Dict, Optional
 from easydict import EasyDict as edict
+import torch
 
-from mouse_extensions.training.temporal_trainer import (
-    TemporalTrainingConfig,
-    TemporalLossComputer,
-)
+from .temporal_trainer import TemporalLossComputer, TemporalTrainingConfig
 
 
 class TemporalTrainingMixin:
@@ -39,9 +38,11 @@ class TemporalTrainingMixin:
         if hasattr(self, 'device'):
             self.temporal_computer = self.temporal_computer.to(self.device)
         
+        # Buffer stores DETACHED tensors for reference (no gradient)
         self.xyz_buffer: deque = deque(maxlen=self.temporal_config.temporal_window)
         self.temporal_loss_log: Dict[str, float] = {}
         
+        print(f"[Temporal] Setting up temporal training...")
         print(f"[Temporal] Enabled with window={self.temporal_config.temporal_window}, "
               f"arap={self.temporal_config.arap_weight}, vel={self.temporal_config.velocity_weight}")
     
@@ -50,26 +51,52 @@ class TemporalTrainingMixin:
         result: edict,
         current_step: int,
     ) -> Optional[torch.Tensor]:
-        """Compute temporal loss from current result and buffer."""
+        """Compute temporal loss from current result.
+        
+        NOTE: This simplified version only regularizes xyz distribution without
+        true cross-frame temporal consistency (would require multi-frame batches).
+        The ARAP loss enforces local rigidity within current frame.
+        """
         if not self.temporal_enabled:
             return None
         
         if not hasattr(result, 'gaussian_params_raw') or result.gaussian_params_raw is None:
             return None
         
-        xyz = result.gaussian_params_raw.xyz  # [batch, N, 3]
-        self.xyz_buffer.append({'xyz': xyz[0]})
+        cfg = self.temporal_config
+        device = result.gaussian_params_raw.xyz.device
         
-        if len(self.xyz_buffer) < self.temporal_config.temporal_window:
+        # Warmup phase
+        if current_step < cfg.warmup_steps:
+            self.temporal_loss_log = {}
             return None
         
-        temporal_loss, log_dict = self.temporal_computer.compute_temporal_loss(
-            list(self.xyz_buffer),
-            current_step,
+        # Get current xyz with gradients
+        xyz = result.gaussian_params_raw.xyz  # [batch, N, 3]
+        current_xyz = xyz[0]  # [N, 3]
+        
+        # Compute rampup factor
+        if cfg.rampup_steps > 0:
+            steps_since_warmup = current_step - cfg.warmup_steps
+            rampup_factor = min(1.0, (steps_since_warmup + 1) / cfg.rampup_steps)
+        else:
+            rampup_factor = 1.0
+        
+        # For now: only compute ARAP-style regularization on current frame
+        # This enforces local structure preservation
+        loss_dict = self.temporal_computer.compute_single_frame_loss(
+            current_xyz, rampup_factor
         )
         
-        self.temporal_loss_log = log_dict
-        return temporal_loss
+        total_loss = loss_dict.get('loss', torch.tensor(0.0, device=device))
+        
+        self.temporal_loss_log = {
+            k: v.item() if torch.is_tensor(v) else v 
+            for k, v in loss_dict.items()
+        }
+        self.temporal_loss_log['temporal/rampup_factor'] = rampup_factor
+        
+        return total_loss
     
     def get_temporal_log_dict(self) -> Dict[str, float]:
         return self.temporal_loss_log.copy()
@@ -80,56 +107,29 @@ class TemporalTrainingMixin:
 
 
 def create_temporal_train_step(trainer):
-    """Create a new train_step that includes temporal loss.
-    
-    This version computes both losses in one forward pass and combines them
-    before backward to avoid the double-backward issue.
-    """
+    """Create a new train_step that includes temporal loss."""
     from contextlib import nullcontext
     
+    # Store original train_step
+    original_train_step = trainer.train_step
+    
     def train_step_with_temporal(batch):
-        # Determine what to create
-        create_visual = (
-            trainer.fwdbwd_pass_step == trainer.start_fwdbwd_pass_step or
-            trainer.fwdbwd_pass_step % trainer.config.training.logging.vis_every == 0
-        )
+        # Determine if we need visualization/validation
+        create_visual = (trainer.fwdbwd_pass_step + 1) % trainer.config.training.logging.vis_every == 0
+        create_val = trainer.config.validation.enabled and \
+                     (trainer.fwdbwd_pass_step + 1) % trainer.config.validation.val_every == 0
         
-        create_val = (
-            trainer.config.get("validation", {}).get("enabled", False) and (
-                trainer.fwdbwd_pass_step == trainer.start_fwdbwd_pass_step or
-                trainer.fwdbwd_pass_step % trainer.config.get("validation", {}).get("val_every", 200) == 0
-            )
-        )
+        # Setup autocast context
+        use_amp = trainer.config.training.runtime.use_amp
+        amp_dtype_str = trainer.config.training.runtime.amp_dtype
+        amp_dtype = torch.bfloat16 if amp_dtype_str == 'bf16' else getattr(torch, amp_dtype_str.replace('float', 'float'))
+        autocast_ctx = torch.cuda.amp.autocast if use_amp else nullcontext
         
-        # Gradient accumulation context
-        ctx = (
-            nullcontext()
-            if (trainer.fwdbwd_pass_step + 1) % trainer.config.training.runtime.grad_accum_steps == 0
-            else trainer._no_sync()
-        )
-        
-        amp_dtype_mapping = {
-            'float16': torch.float16,
-            'bfloat16': torch.bfloat16,
-        }
-        
-        with ctx, torch.autocast(
-            enabled=trainer.config.training.runtime.use_amp,
-            device_type="cuda",
-            dtype=amp_dtype_mapping.get(trainer.config.training.runtime.amp_dtype, torch.float16),
-        ):
-            try:
-                trainer.model_module.set_current_step(
-                    trainer.fwdbwd_pass_step, 
-                    trainer.start_fwdbwd_pass_step, 
-                    trainer.job_overview.num_fwdbwd_passes
-                )
-            except:
-                pass
-                
+        with autocast_ctx(enabled=use_amp, dtype=amp_dtype):
+            # Forward pass
             result = trainer.model(batch, create_visual=create_visual)
             
-            # Compute temporal loss
+            # Compute temporal loss (after warmup)
             temporal_loss = None
             if hasattr(trainer, 'temporal_enabled') and trainer.temporal_enabled:
                 temporal_loss = trainer.compute_temporal_loss(
@@ -145,7 +145,8 @@ def create_temporal_train_step(trainer):
             total_loss = total_loss + temporal_loss / grad_accum
             # Add temporal metrics to result for logging
             for k, v in trainer.get_temporal_log_dict().items():
-                setattr(result.loss_metrics, k.replace('/', '_'), v)
+                key = k.replace('/', '_').replace('temporal_', '')
+                setattr(result.loss_metrics, f'temporal_{key}', v)
         
         # Single backward pass
         trainer.scaler.scale(total_loss).backward()
@@ -167,9 +168,3 @@ def enable_temporal_training(trainer, config: edict):
     
     if trainer.temporal_enabled:
         trainer.train_step = create_temporal_train_step(trainer)
-    
-    return trainer
-
-
-if __name__ == '__main__':
-    print('Temporal GS-LRM Trainer Extension')

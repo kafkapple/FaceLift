@@ -1,0 +1,62 @@
+# =============================================================================
+# Mouse MVDiffusion - M5t2 Symmetric Pair Augmentation
+# =============================================================================
+# Safer than cyclic: only use front/back views as reference
+# reference_view_idx: [0, 3] (top-front, top-back - ~180° apart)
+# Effect: 2x augmentation with symmetric views
+#
+# Why symmetric is safer:
+#   - Front/back views have similar angular relationships to other views
+#   - Cross-view attention patterns more consistent
+#
+# Version: v1.0
+# Created: 2026-02-05
+#
+
+n_views: 6
+img_wh: 512
+reference_view_idx: [0, 3]  # Symmetric: front (0) and back (3)
+dataset_type: "mouse"
+
+pretrained_model_name_or_path: "checkpoints/mvdiffusion/pipeckpts"
+prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_1024/clr_embeds.pt"
+
+train_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+  bg_color: "three_choices"
+  augmentation: true
+
+validation_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+  bg_color: "white"
+
+output_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_symmetric"
+val_out_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_symmetric/val/"
+
+seed: 42
+train_batch_size: 4
+max_train_steps: 10000
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+learning_rate: 5e-5
+lr_scheduler: "piecewise_constant"
+lr_warmup_steps: 100
+use_ema: true
+
+checkpointing_steps: 1000
+checkpoints_total_limit: 3
+validation_steps: 200
+tracker_project_name: "FaceLift-MVDiffusion"
+
+wandb_exp_name: "mvdiff_M5t2_symmetric"
+
+use_classifier_free_guidance: true
+condition_drop_rate: 0.05
+sparse_mv_attention: false
+
+unet_from_pretrained_kwargs:
+  unclip: true
+  num_views: 6
+  sample_size: 64
+  multiview_attention: true
+  sparse_mv_attention: false

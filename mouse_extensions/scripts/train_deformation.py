@@ -126,8 +126,11 @@ def precompute_gaussian_cache(
     
     This is done once before training to avoid repeated GS-LRM inference.
     """
-    from mouse_extensions.inference.gslrm_pipeline import GSLRMInference
-    from mouse_extensions.data.mouse_dataset import MouseDataset
+    from mouse_extensions.inference.gslrm_pipeline import GSLRMInference, load_sample_data
+    from mouse_extensions.model.deformation.gaussian_params import GaussianParams
+    import torch
+    from pathlib import Path
+    from tqdm import tqdm
     
     gslrm_cfg = cfg.get("gslrm", {})
     data_cfg = cfg.get("data", {})
@@ -155,16 +158,88 @@ def precompute_gaussian_cache(
         print("  All frames already cached!")
         return cache
     
-    # Load GS-LRM model
-    # Note: This requires proper config setup for the GS-LRM model
-    # For now, we provide a placeholder that shows the intended flow
+    # Initialize GS-LRM
+    gslrm_checkpoint = gslrm_cfg.get("checkpoint")
+    gslrm_config = gslrm_cfg.get("config")
     
-    print("\n  [INFO] Full GS-LRM caching requires:")
-    print("    1. GS-LRM config file")
-    print("    2. GS-LRM checkpoint")
-    print("    3. MouseDataset for loading images/cameras")
-    print("\n  See configs/deformation/default.yaml for configuration.")
+    if not gslrm_checkpoint or not Path(gslrm_checkpoint).exists():
+        raise ValueError(f"GS-LRM checkpoint not found: {gslrm_checkpoint}")
+    if not gslrm_config or not Path(gslrm_config).exists():
+        raise ValueError(f"GS-LRM config not found: {gslrm_config}")
     
+    print(f"\n  Loading GS-LRM model...")
+    print(f"    Config: {gslrm_config}")
+    print(f"    Checkpoint: {gslrm_checkpoint}")
+    gslrm = GSLRMInference(
+        config_path=gslrm_config,
+        checkpoint_path=gslrm_checkpoint,
+        device=device,
+        image_size=gslrm_cfg.get("resolution", 512),
+    )
+    
+    # Load sample paths from split file
+    data_dir = data_cfg.get("data_dir")
+    train_split = data_cfg.get("train_split")
+    split_path = Path(data_dir) / train_split
+    
+    print(f"  Loading sample list from {split_path}")
+    
+    with open(split_path) as f:
+        sample_paths = [line.strip() for line in f if line.strip()]
+    
+    print(f"  Processing {len(frames_to_process)} frames...\n")
+    
+    # Process each frame
+    for frame_idx in tqdm(frames_to_process, desc="Generating Gaussians"):
+        if frame_idx >= len(sample_paths):
+            print(f"  Warning: frame {frame_idx} out of range, skipping")
+            continue
+            
+        sample_path = sample_paths[frame_idx]
+        # Handle relative paths
+        if not sample_path.startswith("/"):
+            sample_path = str(Path(data_dir) / sample_path.lstrip("./"))
+        sample_path = sample_path.rstrip("/")
+        
+        try:
+            # Load sample data
+            images, c2ws, fxfycxcys, index = load_sample_data(
+                sample_path,
+                image_size=gslrm_cfg.get("resolution", 512),
+                device=device,
+            )
+            
+            # Run GS-LRM inference
+            result = gslrm.predict(images, c2ws, fxfycxcys, index)
+            
+            # Extract Gaussian parameters from result
+            # result.gaussians is a list of GaussianModel objects (one per batch element)
+            gm = result.gaussians[0]  # batch_size=1
+            
+            # Combine features_dc and features_rest
+            if gm._features_rest is not None:
+                features = torch.cat([gm._features_dc, gm._features_rest], dim=1)
+            else:
+                features = gm._features_dc
+            
+            # Convert to GaussianParams and cache
+            params = GaussianParams(
+                xyz=gm._xyz.cpu(),
+                features=features.cpu(),
+                scaling=gm._scaling.cpu(),
+                rotation=gm._rotation.cpu(),
+                opacity=gm._opacity.cpu(),
+            )
+            
+            cache.put(frame_idx, params, save_to_disk=True)
+            
+        except Exception as e:
+            print(f"\n  Error processing frame {frame_idx}: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+    
+    print(f"\n  Cache complete: {len(cache)} frames cached")
     return cache
 
 

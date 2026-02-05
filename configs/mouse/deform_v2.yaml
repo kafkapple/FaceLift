@@ -1,0 +1,33 @@
+# DeformationNetworkV2 Training Config
+# 8-layer MLP with dual-frame input for temporal consistency
+
+# Data
+gaussians_dir: /node_data/joon/outputs/FaceLift/gaussians/M5t2_temporal
+num_frames: 0  # 0 = auto-detect all frames
+
+# Network Architecture (matches FaceLift paper Appendix 3.5)
+num_layers: 8
+hidden_dim: 256
+use_positional_encoding: true
+use_time_embedding: true
+
+# Training
+num_epochs: 200
+batch_size: 10000  # Gaussians per batch
+learning_rate: 1.0e-4
+weight_decay: 1.0e-5
+
+# Loss weights (ARAP + Velocity for temporal consistency)
+param_weight: 1.0      # MSE on Gaussian parameters
+arap_weight: 0.1       # As-Rigid-As-Possible (edge length preservation)
+velocity_weight: 0.01  # Smooth motion (penalize acceleration)
+
+# Schedule
+warmup_steps: 100
+
+# Checkpointing
+output_dir: /node_data/joon/checkpoints/FaceLift/deform_v2/M5t2
+save_every: 50
+
+# Device
+device: cuda

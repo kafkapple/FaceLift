@@ -16,7 +16,7 @@ DEFAULT_CHECKPOINTS = {
     },
     "M5t2": {
         "gslrm": CHECKPOINT_ROOT / "gslrm/M5t2_E0_1_facelift/best_psnr.pt",
-        "mvdiffusion": CHECKPOINT_ROOT / "mvdiffusion/mouse_M5t2/checkpoint-4000",
+        "mvdiffusion": CHECKPOINT_ROOT / "mvdiffusion/mouse_M5t2_cfgr/checkpoint-10000",
     },
 }
 
@@ -62,3 +62,18 @@ def expand_path(path: str) -> str:
 
 # Prompt embed paths
 PROMPT_EMBED_PATH = Path("/home/joon/dev/FaceLift/mvdiffusion/data/mouse_prompt_embeds_6view_1024")
+
+# Output paths (organized under project)
+OUTPUT_ROOT = FACELIFT_ROOT / "outputs"
+EVAL_OUTPUT = OUTPUT_ROOT / "eval"
+INFERENCE_OUTPUT = OUTPUT_ROOT / "inference"
+TRAINING_OUTPUT = OUTPUT_ROOT / "training"
+
+# Default output directories by experiment type
+DEFAULT_OUTPUT_DIRS = {
+    "eval": EVAL_OUTPUT,
+    "inference": INFERENCE_OUTPUT,
+    "e2e": INFERENCE_OUTPUT / "e2e",
+    "gslrm": INFERENCE_OUTPUT / "gslrm",
+    "mvdiffusion": INFERENCE_OUTPUT / "mvdiffusion",
+}

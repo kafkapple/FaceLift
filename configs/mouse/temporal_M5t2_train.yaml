@@ -1,77 +1,152 @@
-# Temporal Training Config for M5t2
-# Based on working M5t2_E0_1 config with temporal losses added
+# Temporal Training Config based on M5t2_E0_1
+# Base: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/config.yaml
 
-# Inherit from base
-_target_: gslrm.model.gslrm.GSLRM
+debug: false
+inference:
+  enabled: false
 
 model:
+  add_refsrc_marker: false
   class_name: gslrm.model.gslrm.GSLRM
-  image_tokenizer:
-    patch_size: 8
+  clip_xyz: true
+  gaussians:
+    n_gaussians: 2
+    sh_degree: 0
+    upsampler:
+      upsample_factor: 1
   hard_pixelalign: true
-  clip_xyz: false
-  
-# Temporal training settings
+  image_tokenizer:
+    image_size: 512
+    in_channels: 9
+    patch_size: 8
+  num_input_views: 4
+  num_views: 6
+  transformer:
+    d: 1024
+    d_head: 64
+    n_layer: 24
+  use_custom_plucker: true
+
+# ===== TEMPORAL TRAINING =====
 temporal:
   enabled: true
-  window: 2
-  arap_weight: 0.1
-  velocity_weight: 0.01
-  warmup_steps: 500      # Start temporal loss after warmup
-  rampup_steps: 500      # Ramp up to full weight
+  window: 2                 # consecutive frames
+  arap_weight: 0.1          # edge length preservation
+  velocity_weight: 0.01     # smoothness penalty
+  warmup_steps: 500         # no temporal loss initially
+  rampup_steps: 500         # gradual increase after warmup
+
+mouse:
+  augmentation:
+    enabled: false
+  auto_generate_mask: false
+  mask_threshold: 250
+  normalize_cameras: false
+  normalize_to_z_up: true
+  pp_correction: none
+  target_camera_distance: 0.0
+  use_mouse_dataset: true
+
+profile: false
+
+test:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_test.txt
 
 training:
-  dataset:
-    dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
-    background_color: white
-    num_views: 6
-    num_input_views: 5
-    target_has_input: true
-    
-  dataloader:
-    batch_size_per_gpu: 1
-    num_workers: 4
-    prefetch_factor: 2
-    
-  runtime:
-    num_steps: 8000
-    grad_accum_steps: 2
-    use_amp: true
-    amp_dtype: float16
-    
-  schedule:
-    base_lr: 4.0e-5
-    warmup_steps: 100
-    
-  losses:
-    l2_loss_weight: 1.0
-    perceptual_loss_weight: 0.5
-    lpips_loss_weight: 0.0
-    background_loss_weight: 0.01
-    alpha_loss_weight: 0.1
-    mask_mode: gt
-    
-  logging:
-    vis_every: 200
-    log_every: 20
-    
   checkpointing:
-    ckpt_every: 1000
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_temporal_v1
+    checkpoint_every: 100
+    resume_ckpt: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_temporal_v1/ckpt_0000000000000500.pt
+  dataloader:
+    batch_size_per_gpu: 1     # reduced for temporal (more memory)
+    num_threads: 16
+    num_workers: 4
+    prefetch_factor: 4
+  dataset:
+    background_color: white
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+    exclude_camera_indices: []
+    maximize_view_overlap: false
+    normalize_distance_to: 0.0
+    random_view_selection: true
+    remove_alpha: false
+    target_has_input: true
+  logging:
+    print_every: 10
+    vis_every: 100
+    wandb:
+      exp_name: M5t2_temporal_v1
+      group: M5t2_temporal
+      job_type: train
+      log_every: 10
+      offline: false
+      project: FaceLift-Mouse
+  losses:
+    alpha_loss_weight: 0.0
+    bg_loss_weight: 0.0
+    clamp_rendering: true
+    distill_loss_weight: 0.0
+    l2_loss_weight: 1.0
+    lpips_loss_weight: 0.0
+    mask_mode: none
+    opacity_reg_type: entropy
+    opacity_reg_weight: 0.0
+    perceptual_loss_weight: 0.5
+    pixelalign_loss_weight: 0.0
+    pointsdist_loss_weight: 0.0
+    ssim_loss_weight: 0.0
+    warmup_pointsdist: false
+  optimizer:
+    beta1: 0.9
+    beta2: 0.95
+    lr: 4.0e-5    # slightly higher for temporal
+    reset_lr: true
+    reset_training_state: true
+    reset_weight_decay: false
+    weight_decay: 0.05
+  runtime:
+    amp_dtype: bf16
+    grad_accum_steps: 2    # compensate for batch_size=1
+    grad_checkpoint_every: 1
+    grad_clip_norm: 50.0
+    torch_compile: false
+    use_amp: true
+    use_tf32: true
+  schedule:
+    early_stop_after_epochs: 50000
+    early_stop_patience: 10
+    l2_warmup_steps: 500
+    max_fwdbwd_passes: 8000   # 8K steps for temporal
+    num_epochs: 50000
+    warmup: 100
 
 validation:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
   enabled: true
   val_every: 400
-  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
-  
-  metrics:
-    psnr: true
-    ssim: true
-    lpips: true
-    
-checkpoint:
-  resume: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt
+  visual_first_batch: true
 
-wandb:
-  project: FaceLift-Mouse
-  name: M5t2_temporal_v1
-  tags: [temporal, arap, velocity, M5t2]
+visualization:
+  turntable:
+    angle_proportional_frames: false
+    camera_order: [0, 4, 2, 1, 3, 5]
+    elevation: 20
+    fps: 30
+    grid_cols: 6
+    grid_rows: 6
+    hold_frames: 15
+    inference_resolution: null
+    inference_views: 150
+    loop: true
+    num_views: 144
+    orbit_fps: 15
+    orbit_views: 120
+    radius: 2.7
+    resolution: null
+    save_dataset_views: false
+    save_dataset_views_video: false
+    save_orbit_turntable: true
+    save_video: true
+    smooth_trajectory: true
+    trajectory_fps: 10
+    video_views: 144

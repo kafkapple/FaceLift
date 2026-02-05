@@ -1,0 +1,120 @@
+# =============================================================================
+# Mouse MVDiffusion - M5t2 Cyclic Reference View Augmentation
+# =============================================================================
+# 
+# Key Changes:
+#   reference_view_idx: [0,1,2,3,4,5] → 6x data augmentation
+#   
+# Mechanism:
+#   - Each sample is seen 6 times, with different views as reference
+#   - Prompt embeddings rotate accordingly
+#   - Multi-view attention learns more robust cross-view relationships
+#
+# Note: Camera angles are non-uniform, but this is handled by:
+#   - Prompt embeddings encode absolute view directions
+#   - Multi-view attention learns implicit view relationships
+#
+# Version: v1.1
+# Created: 2026-02-05
+#
+
+n_views: 6
+img_wh: 512
+reference_view_idx: [0, 1, 2, 3, 4, 5]  # Cyclic: 6x augmentation
+dataset_type: "mouse"
+
+pretrained_model_name_or_path: "checkpoints/mvdiffusion/pipeckpts"
+pretrained_unet_path: null
+revision: null
+
+prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_1024/clr_embeds.pt"
+
+# Dataset - M5t2 (Temporal 80:10:10 split)
+train_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+  bg_color: "three_choices"
+  # Color augmentation (standard)
+  augmentation: true
+  aug_brightness: [0.9, 1.1]
+  aug_contrast: [0.9, 1.1]
+  aug_hflip: false
+
+validation_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+  bg_color: "white"
+
+# Output
+checkpoint_prefix: ""
+output_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_cyclic"
+val_out_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_cyclic/val/"
+
+# Training
+seed: 42
+train_batch_size: 4
+validation_batch_size: 2
+max_train_steps: 10000
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+learning_rate: 5e-5
+step_rules: "1:100000,0.5"
+scale_lr: false
+lr_scheduler: "piecewise_constant"
+lr_warmup_steps: 100
+snr_gamma: 5.0
+use_8bit_adam: false
+allow_tf32: true
+use_ema: true
+dataloader_num_workers: 8
+
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 1.e-2
+adam_epsilon: 1.e-08
+max_grad_norm: 1.0
+prediction_type: null
+
+# Logging
+vis_dir: vis
+logging_dir: logs
+mixed_precision: "fp16"
+report_to: "wandb"
+local_rank: -1
+checkpointing_steps: 1000
+checkpoints_total_limit: 3
+resume_from_checkpoint: null
+enable_xformers_memory_efficient_attention: true
+validation_steps: 200
+validation_sanity_check: true
+tracker_project_name: "FaceLift-MVDiffusion"
+
+wandb_exp_name: "mvdiff_M5t2_cyclic"
+wandb_group: "mvdiffusion"
+wandb_job_type: "finetune_M5t2_cyclic"
+
+# Model Settings
+trainable_modules: null
+use_classifier_free_guidance: true
+condition_drop_rate: 0.05  # CFG enabled
+drop_type: "drop_as_a_whole"
+camera_embedding_lr_mult: 1.
+scale_input_latents: true
+
+pipe_kwargs:
+  num_views: ${n_views}
+validation_guidance_scales: [1., 3.]
+validation_grid_nrow: ${n_views}
+pipe_validation_kwargs:
+  eta: 1.0
+
+unet_from_pretrained_kwargs:
+  unclip: true
+  num_views: ${n_views}
+  sample_size: 64
+  zero_init_conv_in: true
+  init_mvattn_with_selfattn: false
+  cd_attention_last: false
+  cd_attention_mid: false
+  multiview_attention: true
+  sparse_mv_attention: false  # Full attention
+  selfattn_block: custom
+  addition_downsample: false

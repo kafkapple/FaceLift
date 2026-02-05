@@ -59,9 +59,10 @@ class MouseMVDiffusionDataset(Dataset):
         if ref_view_config == "random":
             self.reference_view_idx = "random"
             self.reference_view_choices = list(range(self.n_views))
-        elif isinstance(ref_view_config, list):
+        elif isinstance(ref_view_config, (list, tuple)) or hasattr(ref_view_config, '__iter__') and not isinstance(ref_view_config, str):
+            # Support list, tuple, or OmegaConf ListConfig
             self.reference_view_idx = "random"
-            self.reference_view_choices = ref_view_config
+            self.reference_view_choices = list(ref_view_config)
         else:
             self.reference_view_idx = int(ref_view_config)
             self.reference_view_choices = None

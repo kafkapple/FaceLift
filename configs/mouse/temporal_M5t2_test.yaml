@@ -1,0 +1,51 @@
+# Temporal Training Test Config
+# Based on M5t2_E0_1_facelift with temporal losses
+
+# Dataset
+dataset:
+  name: mouse_gslrm
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5
+  split_file: data_mouse_t2_train.txt
+  val_split_file: data_mouse_t2_val.txt
+  
+# Temporal training settings (NEW)
+temporal:
+  enabled: true
+  temporal_window: 2
+  arap_weight: 0.1
+  velocity_weight: 0.01
+  isometry_weight: 0.0
+  warmup_steps: 500
+  rampup_steps: 500
+
+# Training
+training:
+  runtime:
+    use_amp: true
+    amp_dtype: bf16
+    grad_accum_steps: 1
+    grad_clip_norm: 1.0
+  schedule:
+    num_fwdbwd_passes: 2000
+  logging:
+    vis_every: 200
+  optimizer:
+    lr: 1.0e-4
+    weight_decay: 0.05
+
+# Validation
+validation:
+  enabled: true
+  val_every: 200
+  
+# Losses
+losses:
+  l2_weight: 1.0
+  perceptual_weight: 0.5
+  mask_mode: none
+
+# WandB
+wandb:
+  project: FaceLift-Mouse
+  name: temporal_M5t2_test
+  tags: [temporal, test, M5t2]

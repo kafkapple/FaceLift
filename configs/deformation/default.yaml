@@ -71,7 +71,8 @@ data:
 # ============================================================
 gslrm:
   # Pre-trained GS-LRM checkpoint
-  checkpoint: "/node_data/joon/checkpoints/FaceLift/gslrm/M5t_E0_1_facelift/best_psnr.pt"
+  checkpoint: "/node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt"
+  config: "/node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/config.yaml"
   
   # Inference settings
   resolution: 512

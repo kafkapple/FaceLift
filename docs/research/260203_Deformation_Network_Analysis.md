@@ -453,3 +453,91 @@ def arap_loss(
 ---
 
 *Created: 2026-02-03 | FaceLift Mouse Project | Research Notes*
+
+---
+
+## 11. Data Naming Convention (260204 추가)
+
+### M5 / M5t / M5t2 구분
+
+| 이름 | 타입 | 설명 |
+|------|------|------|
+| **M5** | 전처리 데이터 폴더 | `/home/joon/data/preprocessed/FaceLift_mouse/M5/` |
+| **M5t** | Config/실험 이름 | M5 + **1to1 split** (1:1:1, 균등 배분) |
+| **M5t2** | Config/실험 이름 | M5 + **t2 split** (80:10:10, 학습 최대화) |
+
+### Split 파일 위치
+모든 split 파일은 **M5 폴더 안에** 있음:
+```
+M5/
+├── data_mouse_1to1_{train,val,test}.txt  ← M5t용
+└── data_mouse_t2_{train,val,test}.txt    ← M5t2용
+```
+
+### Split 비율
+| Split | Train | Val | Test | 권장 용도 |
+|-------|-------|-----|------|----------|
+| 1to1 | 1198 | 1198 | 1204 | 균등 비교 실험 |
+| t2 | 2880 | 360 | 360 | **프로덕션 학습** ✅ |
+
+### 중요: --split 파라미터 필수
+```bash
+# ❌ split 없으면 전체 샘플 사용 → train/val/test 구분 안됨
+--data_dir ~/data/preprocessed/FaceLift_mouse/M5 --num_frames 20
+
+# ✅ split 명시해야 올바른 데이터 사용
+--data_dir ~/data/preprocessed/FaceLift_mouse/M5 --split data_mouse_t2_train.txt --num_frames 20
+```
+
+---
+
+## 12. Training Commands (260204 Updated)
+
+### 권장: 2단계 순차 실행 (한 번에)
+```bash
+cd /home/joon/dev/FaceLift
+
+# Step 1 (캐시 ~2h) + Step 2 (학습 ~4h) 순차 실행
+export CUDA_VISIBLE_DEVICES=6 && nohup bash -c '
+    echo "=== Step 1: Precompute Gaussian Cache ===" && \
+    python -m mouse_extensions.scripts.train_deformation \
+        --config configs/deformation/default.yaml \
+        --precompute_cache && \
+    echo "=== Step 2: Train Deformation Network ===" && \
+    python -m mouse_extensions.scripts.train_deformation \
+        --config configs/deformation/default.yaml
+' > logs/deformation_full.log 2>&1 &
+
+# 진행 확인
+tail -f logs/deformation_full.log
+```
+
+### 개별 실행 (필요시)
+```bash
+# Step 1만
+export CUDA_VISIBLE_DEVICES=5 && python -m mouse_extensions.scripts.train_deformation \
+    --config configs/deformation/default.yaml --precompute_cache
+
+# Step 2만 (캐시 완료 후)
+export CUDA_VISIBLE_DEVICES=5 && python -m mouse_extensions.scripts.train_deformation \
+    --config configs/deformation/default.yaml
+```
+
+### 캐시 위치
+`/node_data/joon/checkpoints/FaceLift/deformation/default/gaussian_cache/`
+
+### Config 필수 요소 (260204 Fix)
+
+`configs/deformation/default.yaml`에서 GS-LRM 설정 필수:
+
+```yaml
+gslrm:
+  checkpoint: "/path/to/best_psnr.pt"  # GS-LRM 체크포인트
+  config: "/path/to/config.yaml"       # GS-LRM config (필수!)
+  resolution: 512                       # 이미지 해상도
+```
+
+⚠️ **주의**: `gslrm.config` 누락 시 GSLRMInference 로딩 실패 (silent crash)
+
+---
+

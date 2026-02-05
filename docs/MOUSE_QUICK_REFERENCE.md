@@ -73,7 +73,7 @@ export CUDA_VISIBLE_DEVICES=7 && nohup accelerate launch \
     --config_file configs/accelerate/1gpu.yaml \
     train_diffusion.py \
     --config configs/mvdiffusion/mouse_mvdiffusion_M5t2.yaml \
-    --resume_from_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2/checkpoint-5000 \
+    --resume_from_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_cfgr/checkpoint-10000 \
     > logs/mvdiff_M5t2.log 2>&1 &
 ```
 
@@ -141,22 +141,40 @@ export CUDA_VISIBLE_DEVICES=4 && nohup accelerate launch \
 ---
 
 
-### 2.4 4D Extension: Deformation Network (연구 중)
+### 2.4 Deformation Network (Temporal Consistency)
 
 **목적**: 프레임별 독립 재구성 → 시간적 연속성 확보 (temporal flickering 해결)
 
-**논문 (Appendix 3.5)**:
-- Autoregressive generation: G_t → D_t(G_t) → G'_{t+1}
-- 8-layer MLP: position → deformation (Δxyz, Δα, Δs)
-- Pseudo GT: FaceLift 출력으로 supervised learning
+**현재 상태**: ✅ 구현 완료, 학습 진행 중
 
-**현재 상태**: ❌ 미구현 (논문 코드 미공개)
+**아키텍처**:
+- 8-layer MLP (397K params)
+- Input: Gaussian xyz [N, 3] → Output: Δxyz, Δα, Δs [N, 5]
+- Autoregressive: G_t → D(G_t) → G'_{t+1}
 
-**구현 계획**: 
-- `mouse_extensions/model/deformation/` 모듈 신규 개발
-- 생쥐 특화: 큰 움직임(99px/frame), positional encoding 추가
+**학습 명령어**:
+```bash
+# Deformation 학습 (캐시 생성 + MLP 학습)
+cd /home/joon/dev/FaceLift
+CUDA_VISIBLE_DEVICES=6 nohup python -m mouse_extensions.scripts.train_deformation \
+    --config configs/deformation/default.yaml > logs/deformation_train.log 2>&1 &
 
-**상세**: `docs/research/260203_Deformation_Network_Analysis.md`
+# 진행 확인
+grep -oP '\d+/10000' logs/deformation_train.log | tail -1
+tail -f logs/deformation_train.log
+```
+
+**학습 설정** (`configs/deformation/default.yaml`):
+| 항목 | 값 |
+|------|-----|
+| GS-LRM | M5t2_E0_1_facelift/best_psnr.pt |
+| 데이터 | M5 + t2 split (2880 frames) |
+| Steps | 10000 |
+| 캐시 | ~158GB (56MB × 2880 frames) |
+| 속도 | ~4 it/s, ~40분 total |
+
+**상세**: `docs/guides/DEFORMATION_INTEGRATION_GUIDE.md`
+
 
 ## 3. Inference
 
@@ -242,9 +260,9 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
 | Model | Dataset | Checkpoint | 상태 |
 |-------|---------|------------|------|
 | GS-LRM | M5t | `M5t_E0_1_facelift/best_psnr.pt` | ✅ |
-| GS-LRM | M5t2 | `M5t2_E0_1_facelift/best_psnr.pt` | ⏳ |
+| GS-LRM | M5t2 | `M5t2_E0_1_facelift/best_psnr.pt` | ✅ |
 | MVDiffusion | M5t | `mouse_M5t/checkpoint-8000` | ✅ |
-| MVDiffusion | M5t2 | `mouse_M5t2/checkpoint-5000` | ✅ |
+| MVDiffusion | M5t2 | `mouse_M5t2_cfgr/checkpoint-10000` | ✅ |
 
 경로: `/node_data/joon/checkpoints/FaceLift/{gslrm|mvdiffusion}/`
 
@@ -314,7 +332,7 @@ export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.infere
 
 **예시 (M5t2 test, view 0)**:
 ```bash
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t2 \
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_test.txt \
@@ -392,14 +410,17 @@ outputs/e2e_M5t_test_view0_260203/   # ⭐ Auto naming: {mode}_{model}_{split}_v
 cd /home/joon/dev/FaceLift
 
 # GS-LRM only (GT 6뷰 → 3D, E2E 상한선) - Test split
-export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --model M5t --num_frames 20 \
+export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --model M5t --num_frames 200 \
+    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
+    --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt \
     --output_dir outputs/gslrm_M5t_test \
     > logs/gslrm_M5t_test.log 2>&1 &
 
 # GS-LRM only - Train split (overfitting check)
 export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t \
+    --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_train.txt \
     --num_frames 200 \
     --output_dir outputs/gslrm_M5t_train \
@@ -426,7 +447,7 @@ export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.infere
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --input_view_idx 0 --num_frames 20 \
-    --output_dir outputs/e2e_M5t_view0 \
+    --output_dir outputs/e2e_M5t_test \
     > logs/e2e_M5t_test.log 2>&1 &
 
 # Train split E2E (overfitting check) - input_view_idx 필수!
@@ -436,6 +457,9 @@ export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.infere
     --input_view_idx 0 --num_frames 10 \
     --output_dir outputs/e2e_M5t_train \
     > logs/e2e_M5t_train.log 2>&1 &
+
+
+
 ```
 
 **⚠️ `--num_frames` vs `--end_frame` 사용 시점**:
@@ -447,72 +471,101 @@ export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.infere
 예: Split 파일에 `002396, 002401, ...` 포함 → `--end_frame 20`은 **0개** (번호가 20 미만인 프레임 없음)
 → 대신 `--num_frames 20` 사용 (처음 20개 샘플)
 
-### 3.7 우선순위 실험: MVDiffusion Ablation (260203)
+### 3.7 MVDiffusion CFG Ablation (260204 Updated)
 
-**배경**: M5t2_consistent 모델 결과가 baseline보다 안 좋아 보임.
+**배경**: M5t2_consistent 결과가 baseline보다 안 좋음 → CFG/Attention 영향 검증
 **상세**: `docs/research/260203_MVDiffusion_CFG_Ablation.md`
+
+#### 통제 변수 ⚠️
+
+**GS-LRM 고정** (MVDiffusion 품질만 비교):
+```
+/node_data/joon/checkpoints/FaceLift/gslrm/M5t_E0_1_facelift/best_psnr.pt
+```
 
 #### 설정 비교
 
-| 모델 | CFG Dropout | Sparse Attn | Prompt | Split | 최신 ckpt |
-|------|-------------|-------------|--------|-------|-----------|
-| **M5t** (baseline) | 0.05 | ✅ true | original | 1to1 | 8000 |
-| M5t2 | 0.05 | ✅ true | mouse | t2 | 5000 |
-| M5t2_consistent | **0.0** | ❌ false | mouse | t2 | 6000 |
+| 실험 | CFG | Sparse | ckpt | 역할 |
+|------|-----|--------|------|------|
+| **Ctrl** | 0.05 | true | M5t/8000 | Baseline |
+| **Exp-A** | 0.05 | true | M5t2/5000 | Split+Prompt |
+| **Exp-B** | 0.0 | false | M5t2_consistent/6000 | H1+H2 검증 |
 
-#### 가설
-
-| 가설 | 변경점 | 예상 영향 |
-|------|--------|-----------|
-| **H1** | CFG dropout 0.05→0.0 | guidance 효과 감소 |
-| **H2** | Sparse→Full attention | 과적합 위험 |
-
-#### 비교 실험 (동일 테스트 데이터)
+#### 명령어
 
 ```bash
 cd /home/joon/dev/FaceLift
+source ~/anaconda3/etc/profile.d/conda.sh && conda activate facelift
 
-# === Ctrl: M5t baseline (CFG=0.05, sparse=true) ===
+# === Ctrl: M5t baseline ===
 export CUDA_VISIBLE_DEVICES=4 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t \
     --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t/checkpoint-8000 \
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt \
-    --input_view_idx 0 --num_frames 10 \
+    --input_view_idx 0 --num_frames 200 \
     --output_dir outputs/compare_mvdiff/ctrl_M5t_8k \
     > logs/compare_ctrl_M5t.log 2>&1 &
 
-# === Exp-A: M5t2 (CFG=0.05, sparse=true, mouse prompt) ===
+# === Exp-A: M5t2 ===
 export CUDA_VISIBLE_DEVICES=6 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t \
-    --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2/checkpoint-5000 \
+    --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_cfgr/checkpoint-10000 \
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt \
-    --input_view_idx 0 --num_frames 10 \
+    --input_view_idx 0 --num_frames 200 \
     --output_dir outputs/compare_mvdiff/exp_A_M5t2_5k \
     > logs/compare_expA_M5t2.log 2>&1 &
 
-# === Exp-B: M5t2_consistent (CFG=0.0, sparse=false) ===
+# === Exp-B: M5t2_consistent ===
 export CUDA_VISIBLE_DEVICES=7 && nohup python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --model M5t \
     --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_consistent/checkpoint-6000 \
     --data_dir ~/data/preprocessed/FaceLift_mouse/M5 \
     --split ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_1to1_test.txt \
-    --input_view_idx 0 --num_frames 10 \
+    --input_view_idx 0 --num_frames 200 \
     --output_dir outputs/compare_mvdiff/exp_B_M5t2_consistent_6k \
     > logs/compare_expB_M5t2_consistent.log 2>&1 &
 ```
 
-#### 평가 기준
+#### Split 옵션
 
-| 지표 | 확인 방법 |
-|------|-----------|
-| View Consistency | 6뷰 간 형태/색상 일관성 |
-| 3D Quality | GS-LRM turntable 렌더링 |
-| Artifact | Ghosting, 불일치 영역 |
+| Split | 파일명 | 샘플 수 |
+|-------|--------|---------|
+| **1to1 test** (기본) | `data_mouse_1to1_test.txt` | 1204 |
+| 1to1 train | `data_mouse_1to1_train.txt` | 1198 |
+| t2 train | `data_mouse_t2_train.txt` | 2880 |
+
+### 3.8 Temporal Inference (Deformation Network)
+
+**목적**: 비디오 시퀀스의 시간적 일관성 확보
+
+#### 3.8.1 현재 상태
+
+| 구성요소 | 상태 | 비고 |
+|----------|------|------|
+| Deformation Network | ✅ 완료 | checkpoint_010000.pt |
+| Gaussian Cache | ✅ 완료 | 2880 frames (158GB) |
+| 추론 스크립트 | ✅ 완료 | run_temporal_inference.py |
+| **평가 모듈** | ✅ **완료** | temporal_evaluator.py |
+| **WandB 로깅** | ✅ **완료** | FaceLift-Mouse 프로젝트 |
+
+#### 3.8.2 평가 결과 (2880 프레임)
+
+| 메트릭 | Before | After | 변화 |
+|--------|--------|-------|------|
+| **Temporal Jitter** | 0.0167 | 0.0012 | **-92.7%** |
+| Mean Displacement | - | 0.110 | - |
+
+#### 3.8.3 명령어
+
+**추론**: 
+**평가**: 
+
+**상세**: 
+
 
 ---
-
 ## 4. Utilities
 
 ### 4.1 프로세스 관리

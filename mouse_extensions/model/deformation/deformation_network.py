@@ -239,6 +239,10 @@ class DeformationNetwork(nn.Module):
         
         return result
     
+    def get_info(self) -> str:
+        """Get info string for logging."""
+        return repr(self)
+
     def get_num_params(self) -> int:
         """Get total number of parameters."""
         return sum(p.numel() for p in self.parameters())
@@ -307,3 +311,320 @@ def _test_deformation_network():
 
 if __name__ == "__main__":
     _test_deformation_network()
+
+
+# ============================================================
+# V2: Deformation Network with Per-Frame Information
+# ============================================================
+
+@dataclass
+class DeformationConfigV2:
+    """Configuration for DeformationNetworkV2 with per-frame information."""
+    
+    # Architecture
+    hidden_dim: int = 256
+    num_layers: int = 8
+    activation: Literal["relu", "gelu", "silu"] = "relu"
+    
+    # Input options
+    use_positional_encoding: bool = True
+    pe_freq_bands: int = 6
+    use_time_embedding: bool = True
+    time_embed_dim: int = 32
+    
+    # Output options
+    predict_position: bool = True   # Δxyz
+    predict_opacity: bool = True    # Δα
+    predict_scale: bool = True      # Δs
+    anisotropic_scale: bool = False
+    predict_rotation: bool = False
+    
+    # Regularization
+    dropout: float = 0.0
+    
+    # Initialization
+    zero_init_output: bool = True
+    
+    @property
+    def output_dim(self) -> int:
+        dim = 0
+        if self.predict_position:
+            dim += 3
+        if self.predict_opacity:
+            dim += 1
+        if self.predict_scale:
+            dim += 3 if self.anisotropic_scale else 1
+        if self.predict_rotation:
+            dim += 4
+        return dim
+    
+    @property
+    def raw_input_dim(self) -> int:
+        """Raw input dim before positional encoding."""
+        # G_t.xyz (3) + G_{t+1}.xyz (3) = 6
+        return 6
+    
+    @property
+    def effective_input_dim(self) -> int:
+        """Input dim after positional encoding + time embedding."""
+        dim = self.raw_input_dim
+        if self.use_positional_encoding:
+            dim = dim + dim * 2 * self.pe_freq_bands
+        if self.use_time_embedding:
+            dim += self.time_embed_dim
+        return dim
+
+
+class TimeEmbedding(nn.Module):
+    """Sinusoidal time embedding for temporal information."""
+    
+    def __init__(self, embed_dim: int = 32, max_time: int = 10000):
+        super().__init__()
+        self.embed_dim = embed_dim
+        
+        # Precompute frequency bands
+        half_dim = embed_dim // 2
+        freqs = torch.exp(
+            -torch.arange(half_dim) * (torch.log(torch.tensor(max_time)) / half_dim)
+        )
+        self.register_buffer("freqs", freqs)
+    
+    def forward(self, t: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            t: [N] or [N, 1] time indices (can be float)
+        Returns:
+            embedding: [N, embed_dim]
+        """
+        if t.dim() == 1:
+            t = t.unsqueeze(-1)  # [N, 1]
+        
+        # t: [N, 1], freqs: [D/2] -> [N, D/2]
+        args = t * self.freqs.unsqueeze(0)
+        
+        # sin and cos: [N, D/2] each
+        embedding = torch.cat([torch.sin(args), torch.cos(args)], dim=-1)
+        return embedding
+
+
+class DeformationNetworkV2(nn.Module):
+    """
+    V2 Deformation Network with per-frame information.
+    
+    Key differences from V1:
+    - Input: G_t.xyz AND G_{t+1}.xyz (both frames)
+    - Time embedding for temporal position
+    - Predicts correction from G_t to better match G_{t+1}
+    
+    Usage:
+        net = DeformationNetworkV2(config)
+        deformation = net(G_t.xyz, G_t1.xyz, time_index)
+        G_t1_corrected = G_t.apply_deformation(deformation)
+    """
+    
+    def __init__(self, config: Optional[DeformationConfigV2] = None):
+        super().__init__()
+        
+        self.config = config or DeformationConfigV2()
+        cfg = self.config
+        
+        # Positional encoding for spatial features
+        if cfg.use_positional_encoding:
+            self.pos_encoder = PositionalEncoding(
+                input_dim=cfg.raw_input_dim,
+                freq_bands=cfg.pe_freq_bands,
+            )
+        else:
+            self.pos_encoder = None
+        
+        # Time embedding
+        if cfg.use_time_embedding:
+            self.time_embed = TimeEmbedding(embed_dim=cfg.time_embed_dim)
+        else:
+            self.time_embed = None
+        
+        # Build 8-layer MLP
+        layers = []
+        in_dim = cfg.effective_input_dim
+        
+        # First layer
+        layers.append(nn.Linear(in_dim, cfg.hidden_dim))
+        layers.append(self._get_activation(cfg.activation))
+        if cfg.dropout > 0:
+            layers.append(nn.Dropout(cfg.dropout))
+        
+        # Hidden layers (num_layers - 2)
+        for _ in range(cfg.num_layers - 2):
+            layers.append(nn.Linear(cfg.hidden_dim, cfg.hidden_dim))
+            layers.append(self._get_activation(cfg.activation))
+            if cfg.dropout > 0:
+                layers.append(nn.Dropout(cfg.dropout))
+        
+        # Output layer
+        layers.append(nn.Linear(cfg.hidden_dim, cfg.output_dim))
+        
+        self.mlp = nn.Sequential(*layers)
+        
+        # Initialize weights
+        self._init_weights()
+    
+    def _get_activation(self, name: str) -> nn.Module:
+        activations = {
+            "relu": nn.ReLU(),
+            "gelu": nn.GELU(),
+            "silu": nn.SiLU(),
+        }
+        return activations.get(name, nn.ReLU())
+    
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode="fan_in", nonlinearity="relu")
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+        
+        # Zero-initialize output for identity deformation
+        if self.config.zero_init_output:
+            last_linear = None
+            for m in reversed(list(self.mlp.modules())):
+                if isinstance(m, nn.Linear):
+                    last_linear = m
+                    break
+            if last_linear is not None:
+                nn.init.zeros_(last_linear.weight)
+                nn.init.zeros_(last_linear.bias)
+    
+    def forward(
+        self,
+        xyz_t: torch.Tensor,
+        xyz_t1: torch.Tensor,
+        time_index: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Predict deformation using both frame positions.
+        
+        Args:
+            xyz_t: [N, 3] Gaussian positions at time t
+            xyz_t1: [N, 3] Gaussian positions at time t+1 (target reference)
+            time_index: [N] or scalar, time index for embedding
+            
+        Returns:
+            deformations: [N, output_dim] predicted offsets
+        """
+        N = xyz_t.shape[0]
+        device = xyz_t.device
+        
+        # Concatenate both frame positions
+        x = torch.cat([xyz_t, xyz_t1], dim=-1)  # [N, 6]
+        
+        # Apply positional encoding
+        if self.pos_encoder is not None:
+            x = self.pos_encoder(x)
+        
+        # Add time embedding
+        if self.time_embed is not None:
+            if time_index is None:
+                time_index = torch.zeros(N, device=device)
+            elif time_index.dim() == 0:
+                time_index = time_index.expand(N)
+            
+            t_emb = self.time_embed(time_index)  # [N, time_embed_dim]
+            x = torch.cat([x, t_emb], dim=-1)
+        
+        return self.mlp(x)
+    
+    def parse_output(self, deformations: torch.Tensor) -> dict:
+        """Parse network output into named components."""
+        cfg = self.config
+        result = {}
+        idx = 0
+        
+        if cfg.predict_position:
+            result["position"] = deformations[:, idx:idx+3]
+            idx += 3
+        
+        if cfg.predict_opacity:
+            result["opacity"] = deformations[:, idx:idx+1]
+            idx += 1
+        
+        if cfg.predict_scale:
+            scale_dim = 3 if cfg.anisotropic_scale else 1
+            result["scale"] = deformations[:, idx:idx+scale_dim]
+            idx += scale_dim
+        
+        if cfg.predict_rotation:
+            result["rotation"] = deformations[:, idx:idx+4]
+            idx += 4
+        
+        return result
+    
+    def get_info(self) -> str:
+        """Get info string for logging."""
+        return repr(self)
+
+    def get_num_params(self) -> int:
+        return sum(p.numel() for p in self.parameters())
+    
+    def __repr__(self) -> str:
+        cfg = self.config
+        return (
+            f"DeformationNetworkV2("
+            f"layers={cfg.num_layers}, "
+            f"hidden={cfg.hidden_dim}, "
+            f"input={cfg.effective_input_dim}, "
+            f"output={cfg.output_dim}, "
+            f"params={self.get_num_params():,}"
+            f")"
+        )
+
+
+def _test_deformation_network_v2():
+    """Unit test for DeformationNetworkV2."""
+    print("\nTesting DeformationNetworkV2...")
+    
+    # Test 1: Create network
+    config = DeformationConfigV2()
+    net = DeformationNetworkV2(config)
+    print(f"  Created: {net}")
+    print(f"  Input dim: {config.effective_input_dim} (raw={config.raw_input_dim})")
+    
+    # Test 2: Forward pass
+    N = 1000
+    xyz_t = torch.randn(N, 3)
+    xyz_t1 = torch.randn(N, 3)
+    time_idx = torch.ones(N) * 5
+    
+    output = net(xyz_t, xyz_t1, time_idx)
+    assert output.shape == (N, config.output_dim), f"Expected {(N, config.output_dim)}, got {output.shape}"
+    print(f"  Forward: ({N}, 3) + ({N}, 3) -> {output.shape}")
+    
+    # Test 3: Zero initialization
+    assert torch.allclose(output, torch.zeros_like(output), atol=1e-6), "Output should be ~0"
+    print(f"  Zero init: mean={output.mean().item():.6f}, std={output.std().item():.6f}")
+    
+    # Test 4: Parse output
+    parsed = net.parse_output(output)
+    print(f"  Parsed: {list(parsed.keys())}")
+    
+    # Test 5: Gradient flow
+    xyz_t.requires_grad_(True)
+    xyz_t1.requires_grad_(True)
+    output = net(xyz_t, xyz_t1, time_idx)
+    loss = output.sum()
+    loss.backward()
+    assert xyz_t.grad is not None and xyz_t1.grad is not None, "Gradients should flow"
+    print(f"  Gradient flow: ✓ (both inputs)")
+    
+    # Test 6: Without time embedding
+    config_no_time = DeformationConfigV2(use_time_embedding=False)
+    net_no_time = DeformationNetworkV2(config_no_time)
+    output_no_time = net_no_time(xyz_t.detach(), xyz_t1.detach())
+    print(f"  Without time: input_dim={config_no_time.effective_input_dim}")
+    
+    print("All V2 tests passed! ✓")
+    return True
+
+
+if __name__ == "__main__":
+    _test_deformation_network()
+    _test_deformation_network_v2()

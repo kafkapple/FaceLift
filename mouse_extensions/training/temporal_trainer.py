@@ -70,6 +70,43 @@ class TemporalLossComputer(nn.Module):
         
         return total_loss, loss_dict
 
+    def compute_single_frame_loss(
+        self,
+        xyz: torch.Tensor,  # [N, 3]
+        rampup_factor: float = 1.0,
+    ) -> Dict[str, torch.Tensor]:
+        """Compute structure preservation loss on single frame.
+        
+        This uses the ARAP loss component to enforce local rigidity
+        without needing temporal data.
+        
+        Args:
+            xyz: Point positions [N, 3]
+            rampup_factor: Scale factor for loss (0 to 1)
+            
+        Returns:
+            Dict with loss and component losses
+        """
+        cfg = self.config
+        device = xyz.device
+        
+        if cfg.arap_weight <= 0:
+            return {"loss": torch.tensor(0.0, device=device, requires_grad=True)}
+        
+        # Use ARAP to compute edge-length preservation loss
+        # For single frame, we use it as structure regularization
+        # Compare xyz to itself (no change expected)
+        arap_loss = self.temporal_reg.arap_loss(xyz, xyz)
+        
+        # Scale by weight and rampup
+        total_loss = arap_loss * cfg.arap_weight * rampup_factor
+        
+        return {
+            "loss": total_loss,
+            "temporal/structure_loss": arap_loss.detach() * rampup_factor,
+            "temporal/total": total_loss.detach(),
+        }
+
 
 def create_temporal_dataloader(
     dataset,

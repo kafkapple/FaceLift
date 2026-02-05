@@ -1,0 +1,44 @@
+# Multi-frame Temporal Training Config
+# Based on M5t2_E0_1_facelift (PSNR 27+)
+
+# Inherit from working config
+_base_: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/config.yaml
+
+model:
+  # Start from pretrained checkpoint
+  checkpoint_path: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt
+
+# Override training settings for temporal
+training:
+  # Use t2 split (80:10:10) for training data
+  dataset_path: /home/joon/data/preprocessed/FaceLift_mouse/M5
+  train_file_list: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+  
+  # Batch size 1 for memory (2 frames per step)
+  batch_size: 1
+  
+  # Training schedule
+  total_steps: 5000
+  lr: 4.0e-5
+  
+  # Logging
+  save_every: 500
+  log_every: 10
+  
+  # Workers
+  num_workers: 4
+  
+  # Grad accumulation
+  grad_accum_steps: 2
+
+# Temporal regularization
+temporal:
+  enabled: true
+  arap_weight: 0.1
+  velocity_weight: 0.01
+  warmup_steps: 500
+  rampup_steps: 500
+
+# Validation (disabled for speed)
+validation:
+  enabled: false
