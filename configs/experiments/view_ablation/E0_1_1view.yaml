@@ -1,0 +1,22 @@
+# =============================================================================
+# E0_1_1view: View Ablation - 1 Input View (Sanity Check)
+# =============================================================================
+# 이론적으로 불가능한 설정 - 구현 검증 목적
+# 단일 뷰로는 깊이 모호성 해결 불가 → PSNR 급격히 낮아야 정상 (10-15)
+# 만약 높으면 (>18): 버그 가능성
+
+model:
+  num_views: 6
+  num_input_views: 1
+
+training:
+  dataset:
+    random_view_selection: true
+
+  losses:
+    mask_mode: none
+    alpha_loss_weight: 0.0
+    bg_loss_weight: 0.0
+
+wandb:
+  name_suffix: _1view
