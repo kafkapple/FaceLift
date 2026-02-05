@@ -409,8 +409,9 @@ class UnifiedPipeline:
             
             if "turntable" in video_types:
                 # First frame turntable
-                self.exporter.save_video(all_turntables[0], "turntable_first")
-                outputs["turntable_first"] = str(self.exporter.output_dir / "turntable_first.mp4")
+                # DISABLED: self.exporter.save_video(all_turntables[0], "turntable_first")
+                # outputs["turntable_first"] = str(self.exporter.output_dir / "turntable_first.mp4")
+                pass  # turntable_first disabled
             
             if "time_fixed" in video_types:
                 # Fixed angle over time

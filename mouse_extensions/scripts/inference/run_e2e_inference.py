@@ -158,9 +158,9 @@ def generate_temporal_videos(output_dir: str, fps: int = 10, fixed_angles: list 
     
     from mouse_extensions.utils.video_utils import encode_video_imageio as imageseq2video
     
-    # === Output 1: First frame 360° turntable ===
-    imageseq2video(all_turntables[0], str(output_path / "turntable_first.mp4"), fps=fps)
-    print("Saved: turntable_first.mp4")
+    # === Output 1: First frame 360° turntable (DISABLED - not useful) ===
+    # imageseq2video(all_turntables[0], str(output_path / "turntable_first.mp4"), fps=fps)
+    # print("Saved: turntable_first.mp4")  # DISABLED
     
     # === Output 2: Fixed angle, time variation ===
     for angle_idx in fixed_angles:
