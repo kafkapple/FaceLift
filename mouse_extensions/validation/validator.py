@@ -294,7 +294,7 @@ class ValidationRunner:
                 gaussians, c2ws, fxfycxcy,
                 rendering_resolution=render_res, num_views=num_views,
                 camera_order=camera_order, loop=loop,
-                show_overlay=True, original_resolution=input_res,
+                show_overlay=cfg.get("show_frame_overlay", False), original_resolution=input_res,
             )
         else:
             center = gaussians._xyz.mean(dim=0).detach().cpu().numpy()
