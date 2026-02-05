@@ -7,7 +7,7 @@ Computes PSNR, SSIM, LPIPS between rendered and ground truth images.
 import torch
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Tuple
+from typing import Dict, List, Optional, Union, Tuple, Any
 from dataclasses import dataclass, field
 import json
 from PIL import Image
@@ -514,6 +514,92 @@ class MetricsComputer:
             experiment_dir, dataset_root, split,
             views_to_compare=[0, 1, 2, 3, 4, 5]
         )
+
+
+
+    def compute_per_view_metrics(
+        self,
+        target_image: "torch.Tensor",
+        rendered: "torch.Tensor",
+        gt_mask: "torch.Tensor" = None,
+    ) -> Dict[str, Any]:
+        """
+        Compute per-view metrics for validation.
+
+        Called by validator.py for computing batch metrics during training.
+
+        Args:
+            target_image: Ground truth RGB (V, C, H, W) tensor in [0, 1]
+            rendered: Rendered RGB (V, C, H, W) tensor in [0, 1]
+            gt_mask: Optional ground truth mask (V, 1, H, W) tensor
+
+        Returns:
+            Dict with:
+                - psnr, lpips, ssim: averaged values
+                - per_view_psnr, per_view_lpips, per_view_ssim: per-view lists
+                - mask_iou, l1: additional metrics
+        """
+        num_views = target_image.size(0)
+
+        per_view_psnr = []
+        per_view_lpips = []
+        per_view_ssim = []
+        per_view_l1 = []
+        per_view_iou = []
+
+        for v in range(num_views):
+            gt_v = target_image[v]  # (C, H, W)
+            pred_v = rendered[v]    # (C, H, W)
+
+            # Convert to numpy (H, W, C)
+            gt_np = gt_v.detach().cpu().permute(1, 2, 0).numpy()
+            pred_np = pred_v.detach().cpu().permute(1, 2, 0).numpy()
+
+            # Mask for this view
+            mask_v = None
+            if gt_mask is not None:
+                mask_v = gt_mask[v].detach().cpu().squeeze().numpy()
+
+            # PSNR
+            psnr_v = self._compute_psnr(pred_np, gt_np, mask_v)
+            per_view_psnr.append(psnr_v)
+
+            # SSIM
+            ssim_v = self._compute_ssim(pred_np, gt_np, mask_v)
+            per_view_ssim.append(ssim_v)
+
+            # LPIPS
+            lpips_v = self._compute_lpips(pred_np, gt_np) if self.compute_lpips_flag else 0.0
+            per_view_lpips.append(lpips_v)
+
+            # L1
+            if mask_v is not None:
+                mask_3d = mask_v[..., np.newaxis] if mask_v.ndim == 2 else mask_v
+                l1_v = float(np.sum(np.abs(pred_np - gt_np) * mask_3d) / (np.sum(mask_3d) * 3 + 1e-8))
+            else:
+                l1_v = float(np.mean(np.abs(pred_np - gt_np)))
+            per_view_l1.append(l1_v)
+
+            # IoU (if mask available)
+            if gt_mask is not None:
+                gt_mask_binary = mask_v > 0.5
+                pred_intensity = pred_np.mean(axis=-1)
+                pred_mask_binary = pred_intensity > 0.1
+                intersection = np.sum(gt_mask_binary & pred_mask_binary)
+                union = np.sum(gt_mask_binary | pred_mask_binary)
+                iou_v = float(intersection / (union + 1e-8))
+                per_view_iou.append(iou_v)
+
+        return {
+            "psnr": float(np.mean(per_view_psnr)),
+            "lpips": float(np.mean(per_view_lpips)),
+            "ssim": float(np.mean(per_view_ssim)),
+            "l1": float(np.mean(per_view_l1)),
+            "mask_iou": float(np.mean(per_view_iou)) if per_view_iou else 0.0,
+            "per_view_psnr": per_view_psnr,
+            "per_view_lpips": per_view_lpips,
+            "per_view_ssim": per_view_ssim,
+        }
 
 
 def compute_metrics_for_experiment(
