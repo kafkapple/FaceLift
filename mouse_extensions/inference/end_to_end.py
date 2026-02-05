@@ -219,6 +219,7 @@ class EndToEndPipeline:
         save_turntable: bool = True,
         save_mesh: bool = True,
         turntable_views: int = 120,
+        num_input_views: int = None,
     ) -> Path:
         """Run GS-LRM only from a 6-view sample directory.
 
@@ -231,6 +232,7 @@ class EndToEndPipeline:
             save_turntable: Generate turntable video.
             save_mesh: Save PLY.
             turntable_views: Number of turntable frames.
+            num_input_views: Number of input views to use (2-6, None=all).
 
         Returns:
             Output path.
@@ -241,6 +243,26 @@ class EndToEndPipeline:
         images, c2ws, fxfycxcys, index = load_sample_data(
             sample_dir, self.image_size, self.device
         )
+        
+        # View ablation: select subset of views
+        if num_input_views is not None and num_input_views < images.shape[1]:
+            total_views = images.shape[1]
+            # Select evenly distributed views
+            if num_input_views == 2:
+                view_indices = [0, 3]  # Diagonal
+            elif num_input_views == 3:
+                view_indices = [0, 2, 4]  # 120 degrees apart
+            else:
+                # Evenly spaced
+                step = total_views / num_input_views
+                view_indices = [int(i * step) for i in range(num_input_views)]
+            
+            print(f"  View ablation: using {num_input_views} views: {view_indices}")
+            images = images[:, view_indices]
+            c2ws = c2ws[:, view_indices]
+            fxfycxcys = fxfycxcys[:, view_indices]
+            index = index[:, view_indices]
+        
         result = self.gslrm.predict(images, c2ws, fxfycxcys, index)
 
         return self.gslrm.save_outputs(

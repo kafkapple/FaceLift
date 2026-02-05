@@ -310,6 +310,8 @@ Examples:
                              help="Pre-computed prompt embeddings (default: mouse_prompt_embeds_6view_1024)")
     model_group.add_argument("--prefer_ema", action="store_true", default=True,
                              help="Use EMA UNet weights if available")
+    model_group.add_argument("--num_input_views", type=int, default=None,
+                             help="Number of input views for GS-LRM (2-6, default: all available)")
 
     # Camera options
     camera_group = parser.add_argument_group("Camera")
@@ -508,6 +510,7 @@ Examples:
             save_turntable=save_turntable,
             save_mesh=save_mesh,
             turntable_views=args.turntable_views,
+            num_input_views=args.num_input_views,
         )
         print(f"\nDone! Output: {out}")
 
@@ -609,6 +612,7 @@ Examples:
                         save_turntable=save_turntable,
                         save_mesh=save_mesh,
                         turntable_views=args.turntable_views,
+                        num_input_views=args.num_input_views,
                     )
                 except Exception as e:
                     print(f"Error processing {sample_dir}: {e}")
