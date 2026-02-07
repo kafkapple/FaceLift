@@ -90,6 +90,23 @@ class GSLRMTrainer:
     def __init__(self, config: edict, args: argparse.Namespace):
         self.config = config
         self.args = args
+        
+        # Ensure training.runtime exists with defaults
+        if "runtime" not in self.config.training:
+            self.config.training.runtime = edict({})
+        runtime_defaults = {
+            "use_tf32": True,
+            "use_amp": True,
+            "amp_dtype": "bf16",
+            "torch_compile": False,
+            "grad_accum_steps": 1,
+            "grad_clip_norm": 1.0,
+            "allowed_gradnorm_factor": 20
+        }
+        for key, val in runtime_defaults.items():
+            if key not in self.config.training.runtime:
+                self.config.training.runtime[key] = val
+
         self.setup_distributed()
         self.setup_cuda()
         
@@ -1371,6 +1388,14 @@ class GSLRMTrainer:
         self._barrier()
         
         self.model.train()
+
+        # Zero-shot validation: evaluate pretrained model before any training
+        if self.config.get("validation", {}).get("validate_before_training", False):
+            print("Running zero-shot validation (before any training)")
+            self.run_validation()
+            if self.config.training.schedule.get("early_stop_after_epochs", int(1e10)) <= 0:
+                print("early_stop_after_epochs <= 0: skipping training loop")
+                return
         
         while self.fwdbwd_pass_step <= self.job_overview.num_fwdbwd_passes:
             tic = time.time()
@@ -1432,55 +1457,95 @@ class GSLRMTrainer:
 
 
 
-def load_modular_config(dataset: str, experiment: str, base_dir: str = "configs") -> DictConfig:
+def load_modular_config(
+    dataset: str = None,
+    experiment: str = None,
+    base_dir: str = "configs",
+    base_path: str = None
+) -> DictConfig:
     """Load and merge modular configuration files.
-    
-    Merges configs in order: base <- dataset <- experiment
+
+    Supports two modes:
+    1. Standard modular: dataset + experiment (uses default base)
+       Merges: base <- dataset <- experiment
+    2. Flexible modular: base_path + experiment (custom base, no dataset)
+       Merges: base <- experiment
+
     Auto-generates paths for checkpoints and wandb logging.
-    
+
     Args:
-        dataset: Dataset name (e.g., "D7_1", "D7_t")
-        experiment: Experiment name (e.g., "E3_2_5v_alpha")
-        base_dir: Base directory for configs (default: "configs")
-        
+        dataset: Dataset name (e.g., "D7_1", "D7_t"). Optional if base_path provided.
+        experiment: Experiment name or path (e.g., "E3_2_5v_alpha" or full path)
+        base_dir: Base directory for modular configs (default: "configs")
+        base_path: Custom path to base config file. If provided, overrides default base.
+
     Returns:
         Merged OmegaConf DictConfig
     """
     import os
-    
-    base_path = os.path.join(base_dir, "base", "gslrm_mouse.yaml")
-    dataset_path = os.path.join(base_dir, "datasets", f"{dataset}.yaml")
-    experiment_path = os.path.join(base_dir, "experiments", f"{experiment}.yaml")
-    
-    # Check files exist
-    for path, name in [(base_path, "base"), (dataset_path, "dataset"), (experiment_path, "experiment")]:
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"{name.title()} config not found: {path}")
-    
-    # Load and merge configs
-    base_cfg = OmegaConf.load(base_path)
-    dataset_cfg = OmegaConf.load(dataset_path)
+
+    # Determine base config path
+    if base_path is not None:
+        # Flexible mode: use provided base path
+        resolved_base_path = base_path
+    else:
+        # Standard mode: use default base
+        resolved_base_path = os.path.join(base_dir, "base", "gslrm_mouse.yaml")
+
+    # Determine experiment path (can be name or full path)
+    if os.path.exists(experiment):
+        experiment_path = experiment
+    else:
+        experiment_path = os.path.join(base_dir, "experiments", f"{experiment}.yaml")
+
+    # Check base exists
+    if not os.path.exists(resolved_base_path):
+        raise FileNotFoundError(f"Base config not found: {resolved_base_path}")
+    if not os.path.exists(experiment_path):
+        raise FileNotFoundError(f"Experiment config not found: {experiment_path}")
+
+    # Load base config
+    base_cfg = OmegaConf.load(resolved_base_path)
+    print_rank0(f"  Base: {resolved_base_path}")
+
+    # Load and merge dataset config (only if provided)
+    if dataset:
+        dataset_path = os.path.join(base_dir, "datasets", f"{dataset}.yaml")
+        if not os.path.exists(dataset_path):
+            raise FileNotFoundError(f"Dataset config not found: {dataset_path}")
+        dataset_cfg = OmegaConf.load(dataset_path)
+        merged = OmegaConf.merge(base_cfg, dataset_cfg)
+        print_rank0(f"  Dataset: {dataset_path}")
+    else:
+        merged = base_cfg
+
+    # Load and merge experiment config
     experiment_cfg = OmegaConf.load(experiment_path)
-    
-    # Merge: base <- dataset <- experiment
-    merged = OmegaConf.merge(base_cfg, dataset_cfg, experiment_cfg)
-    
-    # Auto-generate paths
-    run_name = f"{dataset}_{experiment}"
-    
+    merged = OmegaConf.merge(merged, experiment_cfg)
+    print_rank0(f"  Experiment: {experiment_path}")
+
+    # Auto-generate run name
+    if dataset:
+        run_name = f"{dataset}_{experiment}"
+    else:
+        # Extract names from paths for flexible mode
+        base_name = os.path.splitext(os.path.basename(resolved_base_path))[0]
+        exp_name = os.path.splitext(os.path.basename(experiment_path))[0]
+        run_name = f"{base_name}_{exp_name}"
+
     # Set checkpoint directory
     if "checkpointing" not in merged.training:
         merged.training.checkpointing = {}
     merged.training.checkpointing.checkpoint_dir = f"checkpoints/gslrm/{run_name}"
-    
+
     # Set wandb group and experiment name
     if "logging" not in merged.training:
         merged.training.logging = {}
     if "wandb" not in merged.training.logging:
         merged.training.logging.wandb = {}
-    merged.training.logging.wandb.group = dataset
+    merged.training.logging.wandb.group = dataset if dataset else os.path.basename(os.path.dirname(resolved_base_path))
     merged.training.logging.wandb.exp_name = run_name
-    
+
     # Remove metadata fields (starting with _)
     def remove_metadata(cfg):
         if isinstance(cfg, DictConfig):
@@ -1489,25 +1554,22 @@ def load_modular_config(dataset: str, experiment: str, base_dir: str = "configs"
                 del cfg[k]
             for v in cfg.values():
                 remove_metadata(v)
-    
+
     remove_metadata(merged)
-    
+
     print_rank0(f"[Config] Loaded modular config: {run_name}")
-    print_rank0(f"  Base: {base_path}")
-    print_rank0(f"  Dataset: {dataset_path}")
-    print_rank0(f"  Experiment: {experiment_path}")
-    
+
     return merged
 
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="GSLRM Training Script")
-    
+
     # Legacy mode: single config file
     parser.add_argument("--config", "-c", type=str, default="",
                        help="Path to YAML configuration file (legacy mode)")
-    
+
     # Modular mode: dataset + experiment
     parser.add_argument("--dataset", "-d", type=str, default="",
                        help="Dataset config name (e.g., D7_1, D7_t)")
@@ -1515,21 +1577,35 @@ def parse_arguments() -> argparse.Namespace:
                        help="Experiment config name (e.g., E3_2_5v_alpha)")
     parser.add_argument("--config-dir", type=str, default="configs",
                        help="Base directory for modular configs")
-    
+
+    # Flexible modular mode: base + experiment (custom base path)
+    parser.add_argument("--base", "-b", type=str, default="",
+                       help="Path to base config file (used with -e for flexible modular mode)")
+
     # Common arguments
-    parser.add_argument("--load", type=str, default="", 
+    parser.add_argument("--load", type=str, default="",
                        help="Force load weights from specific path")
     parser.add_argument("--set", "-s", type=str, action="append", nargs=2,
                        metavar=("KEY", "VALUE"), help="Override config values")
-    
+
     args = parser.parse_args()
-    
-    # Validate: either config or (dataset + experiment) must be provided
-    if not args.config and not (args.dataset and args.experiment):
-        parser.error("Either --config or (--dataset and --experiment) must be provided")
-    
-    if args.config and (args.dataset or args.experiment):
-        parser.error("Cannot use --config with --dataset/--experiment. Choose one mode.")
+
+    # Validate: one of three modes must be used
+    # 1. Legacy: --config
+    # 2. Modular: --dataset + --experiment
+    # 3. Flexible: --base + --experiment
+    has_legacy = bool(args.config)
+    has_modular = bool(args.dataset and args.experiment)
+    has_flexible = bool(args.base and args.experiment)
+
+    if not (has_legacy or has_modular or has_flexible):
+        parser.error("Must provide one of: --config, (--dataset and --experiment), or (--base and --experiment)")
+
+    if sum([has_legacy, has_modular, has_flexible]) > 1:
+        parser.error("Cannot mix config modes. Choose one: --config, (-d and -e), or (-b and -e)")
+
+    if args.base and args.dataset:
+        parser.error("Cannot use --base with --dataset. Use --base with --experiment only.")
     
     return args
 
@@ -1581,18 +1657,31 @@ def main():
     """Main training function."""
     # Parse arguments
     args = parse_arguments()
-    
-    # Load config (modular or legacy mode)
-    if args.dataset and args.experiment:
-        # Modular mode
-        merged_cfg = load_modular_config(args.dataset, args.experiment, args.config_dir)
+
+    # Load config based on mode
+    if args.base and args.experiment:
+        # Flexible modular mode: custom base + experiment
+        merged_cfg = load_modular_config(
+            dataset=None,
+            experiment=args.experiment,
+            base_dir=args.config_dir,
+            base_path=args.base
+        )
+        config = edict(OmegaConf.to_container(merged_cfg, resolve=True))
+    elif args.dataset and args.experiment:
+        # Standard modular mode: dataset + experiment
+        merged_cfg = load_modular_config(
+            dataset=args.dataset,
+            experiment=args.experiment,
+            base_dir=args.config_dir
+        )
         config = edict(OmegaConf.to_container(merged_cfg, resolve=True))
     else:
-        # Legacy mode
+        # Legacy mode: single config file
         config = load_and_process_config(args.config, args.set)
-    
-    # Apply overrides if any (for modular mode, overrides already applied in legacy)
-    if args.dataset and args.experiment and args.set:
+
+    # Apply overrides if any (for modular modes, overrides already applied in legacy)
+    if (args.dataset and args.experiment or args.base and args.experiment) and args.set:
         for key_value in args.set:
             key_parts = key_value[0].split(".")
             value = key_value[1]

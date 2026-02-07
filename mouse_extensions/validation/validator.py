@@ -155,8 +155,14 @@ class ValidationRunner:
         rendered = model_results.render[batch_idx]
         gt_mask = full_target[:, 3:4, :, :] if full_target.size(1) == 4 else None
 
-        # Use centralized compute_per_view_metrics method
-        return metrics_computer.compute_per_view_metrics(target_image, rendered, gt_mask)
+        # Extract rendered alpha for mask_iou (always computed when available)
+        batch_alpha = None
+        if hasattr(model_results, 'rendered_alpha') and model_results.rendered_alpha is not None:
+            batch_alpha = model_results.rendered_alpha[batch_idx]
+
+        return metrics_computer.compute_per_view_metrics(
+            target_image, rendered, gt_mask, rendered_alpha=batch_alpha
+        )
     
     def _save_visualizations(
         self, output_directory, item_uid, batch_idx,
@@ -212,8 +218,9 @@ class ValidationRunner:
             rendered_alpha=batch_alpha, view_indices=view_ids
         )
         
-        mask_mode = self.config.training.losses.get("mask_mode", None)
-        num_rows = 5 if (full_target.size(1) == 4 and mask_mode != "none") else 3
+        # Always show mask overlay when alpha data is available
+        has_mask_data = full_target.size(1) == 4 or batch_alpha is not None
+        num_rows = 5 if has_mask_data else 3
         
         comparison = self.model.loss_calculator._add_error_scale_annotation(
             comparison, error_stats, h, num_rows

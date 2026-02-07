@@ -100,10 +100,15 @@ def compute_pred_mask(
     if config.mask_mode == "gt" and gt_mask is not None:
         # Use GT mask for consistent visualization
         return (gt_mask > 0.5).float()
-    elif config.mask_mode == "alpha" and rendered_alpha is not None:
+    elif config.mask_mode == "rgb":
+        # Explicit RGB mode
+        color_distance = (rendering - 1.0).abs().mean(dim=-3, keepdim=True)
+        return (color_distance > config.rgb_threshold).float()
+    elif rendered_alpha is not None:
+        # Default: use alpha when available (for "alpha", "none", or unset mask_mode)
         return (rendered_alpha > config.alpha_threshold).float()
     else:
-        # RGB-based detection (removebg style) - fallback for rgb_pred mode
+        # Fallback: RGB-based detection
         color_distance = (rendering - 1.0).abs().mean(dim=-3, keepdim=True)
         return (color_distance > config.rgb_threshold).float()
 
@@ -355,7 +360,8 @@ def create_training_visual(
     rows_list = [target_bv, rendering_bv]
     num_rows = 2
     
-    show_mask = config.mask_mode != "none" and (gt_mask is not None or rendered_alpha is not None)
+    # Always show mask overlay when mask/alpha data is available
+    show_mask = gt_mask is not None or rendered_alpha is not None
     
     if show_mask:
         # Process masks
@@ -476,23 +482,27 @@ def create_validation_visual(
     # Build rows
     rows_list = [gt_rgb, rendering]
     
-    show_mask = config.mask_mode != "none" and gt_mask is not None
+    # Always show mask overlay when mask/alpha data is available
+    show_mask = gt_mask is not None or rendered_alpha is not None
     
     if show_mask:
-        # GT mask overlay
-        masked_gt = create_mask_overlay(gt_rgb, gt_mask, config)
-        rows_list.append(masked_gt)
+        # GT mask overlay (only if gt_mask available)
+        if gt_mask is not None:
+            masked_gt = create_mask_overlay(gt_rgb, gt_mask, config)
+            rows_list.append(masked_gt)
         
-        # Pred mask overlay
-        # Pass gt_mask for mask_mode="gt" consistency
+        # Pred mask overlay (always when show_mask)
         pred_mask = compute_pred_mask(rendering, rendered_alpha, config, gt_mask)
         masked_rendering = create_mask_overlay(rendering, pred_mask, config)
         rows_list.append(masked_rendering)
         
         # Error with union mask
-        gt_binary = (gt_mask > 0.5).float()
-        pred_binary = (pred_mask > 0.5).float()
-        union_mask = ((gt_binary + pred_binary) > 0.5).float()
+        if gt_mask is not None:
+            gt_binary = (gt_mask > 0.5).float()
+            pred_binary = (pred_mask > 0.5).float()
+            union_mask = ((gt_binary + pred_binary) > 0.5).float()
+        else:
+            union_mask = pred_mask
         
         error_stats = compute_error_stats(error_raw, union_mask)
         error_heatmap = create_error_heatmap(error_raw, union_mask, config)

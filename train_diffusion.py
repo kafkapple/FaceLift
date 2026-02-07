@@ -1189,6 +1189,27 @@ def main(cfg: TrainingConfig):
         os.makedirs(pipeline_dir, exist_ok=True)
         pipeline.save_pretrained(pipeline_dir)
 
+        # Replace static (pretrained) components with symlinks to canonical location
+        # Only trained UNet needs per-experiment copy (~3.3GB vs ~5.3GB full)
+        canonical_dir = os.path.join(os.path.dirname(model_dir), "pipeckpts")
+        if os.path.isdir(canonical_dir) and os.path.realpath(canonical_dir) != os.path.realpath(pipeline_dir):
+            static_components = [
+                "image_encoder", "feature_extractor", "image_noising_scheduler",
+                "image_normalizer", "scheduler", "text_encoder", "tokenizer", "vae",
+                "model_index.json",
+            ]
+            for comp in static_components:
+                src = os.path.join(canonical_dir, comp)
+                dst = os.path.join(pipeline_dir, comp)
+                if not os.path.exists(src):
+                    continue
+                if os.path.isdir(dst):
+                    shutil.rmtree(dst)
+                elif os.path.isfile(dst):
+                    os.remove(dst)
+                os.symlink(src, dst)
+            logger.info(f"Symlinked static pipeckpts components to {canonical_dir} (saved ~2GB)")
+
     accelerator.end_training()
 
 
