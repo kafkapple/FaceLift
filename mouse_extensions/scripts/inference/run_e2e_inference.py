@@ -271,7 +271,7 @@ Examples:
                              help="Directory containing multiple samples")
     input_group.add_argument("--start_frame", type=int, default=None,
                              help="Start frame index for batch processing")
-    input_group.add_argument("--end_frame", type=int, default=200,
+    input_group.add_argument("--end_frame", type=int, default=None,
                              help="End frame index for batch processing (exclusive)")
     input_group.add_argument("--num_frames", type=int, default=None,
                              help="Number of frames from start (list slicing, overrides start/end_frame)")
