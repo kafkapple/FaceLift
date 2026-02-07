@@ -487,6 +487,7 @@ training:
 
 ```yaml
 training:
+# ⚠️ NOTE: max_steps is DEAD CONFIG in train_gslrm.py. Use max_fwdbwd_passes instead.
   optimizer:           # lr 조정 필요시
   runtime:             # grad_clip 필요시
   schedule:            # max_steps 조정시
