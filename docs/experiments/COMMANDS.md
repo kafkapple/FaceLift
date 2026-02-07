@@ -99,6 +99,16 @@ export CUDA_VISIBLE_DEVICES=4 && python -m mouse_extensions.scripts.inference.ru
     --guidance_scale 3.0
 ```
 
+### Phase 1 평가
+
+```bash
+# cfgr vs baseline 비교 (추론 완료 후)
+python -m mouse_extensions.scripts.eval.compute_e2e_metrics \
+    --output_dir outputs/h5_e2e/cfgr_ckpt10000 outputs/h5_e2e/baseline_ckpt5000 \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --skip_input_view 0
+```
+
 ### Phase 2B: 신규 학습 (baseline 승 시)
 
 ```bash
