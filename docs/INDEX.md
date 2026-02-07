@@ -2,6 +2,7 @@
 
 > **MoC (Map of Content)** - 중앙 허브
 > **Updated**: 260207
+> **Server**: 26개 (실험/데이터/실행 가이드) | **Obsidian**: 26+22개 (이론/연구/노트)
 
 ---
 
@@ -31,6 +32,9 @@
 | **[[experiments/H4_VIEW_ABLATION]]** | View 수 최적화 | 🔄 실행 대기 |
 | [[experiments/H5_MVDIFFUSION]] | MVDiffusion 개선 | 🔄 진행중 |
 | [[experiments/H6_ALPHA_MASK]] | Alpha mask | ⏳ 대기 |
+| [[experiments/H7_SSIM_WEIGHT]] | SSIM weight | ⏳ 대기 |
+| [[experiments/H8_LITERATURE_SURVEY]] | 문헌 기반 개선 | ⏳ 대기 |
+| [[experiments/H8_REDUCED_VIEW_GENERATION]] | 축소 뷰 생성 | ⏳ 대기 |
 
 ### 실험 가이드 (experiments/)
 | 문서 | 내용 |
@@ -38,32 +42,30 @@
 | **[[experiments/COMMANDS]]** | ⭐ 명령어 SSOT |
 | [[experiments/EXPERIMENT_REGISTRY]] | 실험 설정/결과 |
 | [[experiments/EXPERIMENT_CONFIG_GUIDE]] | Config 시스템 상세 |
+| [[experiments/EVALUATION_GUIDE]] | 평가 기준/Split |
 | [[experiments/INFERENCE_E2E_GUIDE]] | E2E 추론 |
+| [[experiments/RTX3060_GUIDE]] | RTX 3060 설정 |
+| [[experiments/TRAINING_LOGGING_GUIDE]] | 학습 로깅 |
+| [[experiments/TRAINING_STEPS_CONVENTION]] | Step 규약 |
+| [[experiments/UNIFORM_EXPERIMENT_PROTOCOL]] | 통합 실험 프로토콜 |
+| [[experiments/VISUALIZATION_SETTINGS]] | 시각화 설정 |
+| [[experiments/TEMPORAL_EXPERIMENTS_PLAN]] | Temporal 실험 계획 |
 
 ### datasets/
 | 문서 | 내용 |
 |------|------|
 | [[datasets/PREPROCESSING_REGISTRY]] | 전처리 SSOT |
 | [[datasets/M5_SERIES_SPEC]] | M5 시리즈 스펙 |
+| [[datasets/RAW_DATA]] | Raw 데이터 정보 |
 
-### guides/
+### guides/ (실행 가이드)
 | 문서 | 내용 |
 |------|------|
+| [[guides/MVDIFFUSION_FINETUNE_GUIDE]] | MVDiffusion finetune |
+| [[guides/MOUSE_DATASET_GUIDE]] | 데이터셋 가이드 |
+| [[guides/M5_MIGRATION_GUIDE]] | M5 마이그레이션 |
 | [[guides/POSE_SPLATTER_GUIDE]] | Pose Splatter 비교 |
 | [[guides/DEFORMATION_INTEGRATION_GUIDE]] | Temporal consistency |
-
-### research/
-| 날짜 | 주제 |
-|------|------|
-| [[research/260205_Research_Notes]] | H1 진단, View Ablation |
-| [[research/260204_Research_Notes]] | 4D Gaussian Methods |
-| [[research/260203_Research_Notes]] | Deformation, CFG |
-
-### 보고서 (outputs/reports/)
-| 문서 | 내용 |
-|------|------|
-| [[../outputs/reports/h1_diagnosis_report]] | H3 병목 분석 |
-| [[../outputs/reports/view_ablation_report]] | View Ablation |
 
 ---
 
@@ -78,4 +80,4 @@
 
 ---
 
-*MoC v3.0 | 260207*
+*MoC v4.0 | 260207*
