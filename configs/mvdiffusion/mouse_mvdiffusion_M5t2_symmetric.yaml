@@ -1,3 +1,5 @@
+# ⚠️ WARNING: 2 variable changes from baseline (sparse_mv_attention=false + reference_view_idx=[0,3])
+# No single-variable sparse variant exists for symmetric yet.
 # =============================================================================
 # Mouse MVDiffusion - M5t2 Symmetric Pair Augmentation
 # =============================================================================
@@ -44,7 +46,7 @@ lr_warmup_steps: 100
 use_ema: true
 
 checkpointing_steps: 1000
-checkpoints_total_limit: 3
+checkpoints_total_limit: 2
 validation_steps: 200
 tracker_project_name: "FaceLift-MVDiffusion"
 

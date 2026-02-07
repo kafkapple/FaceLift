@@ -1,0 +1,18 @@
+# H7: SSIM weight ablation - ssim_loss_weight=1.0 (10x base)
+# Purpose: Equal weight with L2 (extreme structural emphasis)
+model:
+  num_input_views: 4
+training:
+  losses:
+    ssim_loss_weight: 1.0
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/4view_ssim10
+wandb:
+  name: uniform_v2_4view_ssim10
+  tags:
+  - uniform_v2
+  - M5t2
+  - h7_ssim
+  - seed42
+  - ssim_weight_1.0
+  - 4view

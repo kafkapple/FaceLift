@@ -1,0 +1,82 @@
+# Uniform Experiment Base Config
+# All view ablation experiments should use this as base
+
+# === Training Schedule (UNIFORM) ===
+training:
+  schedule:
+    max_steps: 15000  # Fixed for all experiments
+    val_every: 100    # Validation every 100 steps
+    vis_every: 500    # Visualization every 500 steps
+    
+  checkpointing:
+    checkpoint_dir: null  # Override in experiment config
+    checkpoint_every: 500
+    resume_ckpt: checkpoints/gslrm/ckpt_0000000000021125.pt  # Pretrained
+    
+  dataloader:
+    batch_size_per_gpu: 2
+    num_workers: 8
+    num_threads: 16
+    prefetch_factor: 8
+    
+  runtime:
+    use_amp: true
+    amp_dtype: bf16
+    seed: 42  # Fixed seed for reproducibility
+
+# === Dataset (M5t2) ===
+  dataset:
+    background_color: white
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+
+validation:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+  target_has_input: true  # Include all 6 views in target
+  
+test:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_test.txt
+
+# === Model Base ===
+model:
+  class_name: gslrm.model.gslrm.GSLRM
+  num_views: 6
+  # num_input_views: Override in experiment config
+  
+  clip_xyz: true
+  hard_pixelalign: true
+  use_custom_plucker: true
+  add_refsrc_marker: false
+  
+  image_tokenizer:
+    image_size: 512
+    in_channels: 9
+    patch_size: 8
+    
+  transformer:
+    d: 1024
+    d_head: 64
+    n_layer: 24
+    
+  gaussians:
+    n_gaussians: 2
+    sh_degree: 0
+    upsampler:
+      upsample_factor: 1
+
+# === Mouse-specific ===
+mouse:
+  use_mouse_dataset: true
+  normalize_cameras: false
+  normalize_to_z_up: true
+  pp_correction: none
+  auto_generate_mask: false
+  mask_threshold: 250
+  augmentation:
+    enabled: false
+
+# === Logging ===
+wandb:
+  project: FaceLift-Mouse
+  tags:
+    - uniform_ablation
+    - M5t2

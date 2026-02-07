@@ -1,0 +1,19 @@
+# 4-view with FIXED view selection (random_view_selection=false)
+# Purpose: Compare with 4view_v2 (random=true) to measure randomization effect
+model:
+  num_input_views: 4
+training:
+  dataset:
+    random_view_selection: false
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/4view_fixed
+wandb:
+  name: uniform_v2_4view_fixed
+  tags:
+  - uniform_v2
+  - M5t2
+  - h4_view_ablation
+  - seed42
+  - 4view
+  - fixed_views
+  - ablation_random

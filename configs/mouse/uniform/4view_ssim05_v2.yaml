@@ -1,0 +1,18 @@
+# H7: SSIM weight ablation - ssim_loss_weight=0.5 (5x base)
+# Purpose: Strong structural preservation (near equal weight to L2)
+model:
+  num_input_views: 4
+training:
+  losses:
+    ssim_loss_weight: 0.5
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/4view_ssim05
+wandb:
+  name: uniform_v2_4view_ssim05
+  tags:
+  - uniform_v2
+  - M5t2
+  - h7_ssim
+  - seed42
+  - ssim_weight_0.5
+  - 4view

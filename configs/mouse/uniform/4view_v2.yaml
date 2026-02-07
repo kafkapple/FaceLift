@@ -1,0 +1,15 @@
+# 4-view uniform experiment v2 (matches original E0_1_facelift)
+model:
+  num_input_views: 4
+training:
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/4view
+wandb:
+  name: uniform_v2_4view
+  tags:
+  - uniform_v2
+  - M5t2
+  - h4_view_ablation
+  - seed42
+  - 4view
+  - E0_1_equivalent

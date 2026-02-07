@@ -1,0 +1,14 @@
+# 5-view uniform experiment v2
+model:
+  num_input_views: 5
+training:
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/5view
+wandb:
+  name: uniform_v2_5view
+  tags:
+  - uniform_v2
+  - M5t2
+  - h4_view_ablation
+  - seed42
+  - 5view

@@ -1,27 +1,37 @@
-# ⚠️ WARNING: 2 variable changes from baseline (sparse_mv_attention=false + reference_view_idx=random)
-# For single-variable ablation, use mouse_mvdiffusion_M5t2_randref_sparse.yaml instead.
 # =============================================================================
-# Mouse MVDiffusion - M5t2 Random Reference View (6x Augmentation)
+# Mouse MVDiffusion - M5t2 Random Reference View (Sparse Attention Preserved)
 # =============================================================================
-# Key change: reference_view_idx: "random" instead of 0
-# Effect: 6x data augmentation by using different views as input
-# Expected: Better generalization, reduced E2E frame overlap
+# H5: Random Reference View Augmentation (sparse attention preserved)
+# Purpose: Test if random reference view improves diversity
+# Change from baseline: reference_view_idx: 0 → "random"
+# Architecture: sparse_mv_attention: true (SAME as baseline)
+#
+# Hypothesis: Randomizing reference view provides 6x data augmentation
+#   without architectural change. Model learns view-invariant conditioning.
+#
+# Single-variable ablation from baseline (M5t2):
+#   - sparse_mv_attention: true  (SAME)
+#   - reference_view_idx: random (CHANGED)
 #
 # Version: v1.0
-# Created: 2026-02-05
+# Created: 2026-02-07
 #
 
 n_views: 6
 img_wh: 512
-reference_view_idx: "random"  # KEY CHANGE: 6x data augmentation
+reference_view_idx: "random"  # ⭐ KEY CHANGE: random reference (was: 0)
 dataset_type: "mouse"
 
 pretrained_model_name_or_path: "checkpoints/mvdiffusion/pipeckpts"
 pretrained_unet_path: null
 revision: null
 
+# Mouse-specific prompt embeddings (top-angled views, 1024-dim)
 prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_1024/clr_embeds.pt"
 
+# =============================================================================
+# Dataset - M5t2 (Temporal 80:10:10 split, no data leakage)
+# =============================================================================
 train_dataset:
   path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
   bg_color: "three_choices"
@@ -34,10 +44,16 @@ validation_dataset:
   path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
   bg_color: "white"
 
+# =============================================================================
+# Output
+# =============================================================================
 checkpoint_prefix: ""
-output_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_randref"
-val_out_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_randref/val/"
+output_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_randref_sparse"
+val_out_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_randref_sparse/val/"
 
+# =============================================================================
+# Training Parameters
+# =============================================================================
 seed: 42
 train_batch_size: 4
 validation_batch_size: 2
@@ -62,23 +78,31 @@ adam_epsilon: 1.e-08
 max_grad_norm: 1.0
 prediction_type: null
 
+# =============================================================================
+# Logging and Validation
+# =============================================================================
 vis_dir: vis
 logging_dir: logs
 mixed_precision: "fp16"
 report_to: "wandb"
 local_rank: -1
 checkpointing_steps: 1000
-checkpoints_total_limit: 2
+checkpoints_total_limit: 3
 resume_from_checkpoint: null
 enable_xformers_memory_efficient_attention: true
 validation_steps: 200
 validation_sanity_check: true
 tracker_project_name: "FaceLift-MVDiffusion"
 
-wandb_exp_name: "mvdiff_M5t2_randref"
+# WandB
+wandb_exp_name: "mvdiff_M5t2_randref_sparse"
 wandb_group: "mvdiffusion"
-wandb_job_type: "finetune_M5t2_randref"
+wandb_job_type: "finetune_M5t2_randref_sparse"
+wandb_run_id: null
 
+# =============================================================================
+# Training Specifics
+# =============================================================================
 trainable_modules: null
 use_classifier_free_guidance: true
 condition_drop_rate: 0.05
@@ -102,6 +126,6 @@ unet_from_pretrained_kwargs:
   cd_attention_last: false
   cd_attention_mid: false
   multiview_attention: true
-  sparse_mv_attention: false
+  sparse_mv_attention: true   # ⭐ SAME as baseline (sparse preserved)
   selfattn_block: custom
   addition_downsample: false

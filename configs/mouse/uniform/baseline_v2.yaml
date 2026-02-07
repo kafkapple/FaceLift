@@ -1,0 +1,21 @@
+model:
+  num_input_views: 6
+training:
+  schedule:
+    max_fwdbwd_passes: 1
+    early_stop_after_epochs: 0
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/baseline
+validation:
+  validate_before_training: true
+  val_every: 1
+wandb:
+  name: uniform_v2_baseline_zeroshot
+  tags:
+  - uniform_v2
+  - M5t2
+  - seed42
+  - baseline
+  - pretrained_only
+  - zero_shot
+  - true_zero_shot

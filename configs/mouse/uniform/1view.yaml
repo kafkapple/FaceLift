@@ -1,0 +1,12 @@
+# -view experiment config
+# Use with: --config configs/mouse/uniform/base_uniform.yaml --config configs/mouse/uniform/view.yaml
+
+model:
+  num_input_views: 1
+
+training:
+  checkpointing:
+    checkpoint_dir: checkpoints/gslrm/uniform_ablation/1view
+
+wandb:
+  name: uniform_1view

@@ -1,17 +1,21 @@
 # =============================================================================
-# Mouse MVDiffusion - M5t2 Consistent (View Consistency Enhanced)
+# Mouse MVDiffusion - M5t2 Extended 20k Steps (Sparse Attention Preserved)
 # =============================================================================
-# Based on M5t2 with view consistency improvements:
-#   - condition_drop_rate: 0.0 (no CFG dropout → consistent conditioning)
-#   - sparse_mv_attention: false (full pairwise attention → better cross-view)
+# H5: Longer Training (sparse attention preserved)
+# Purpose: Test if baseline architecture is simply undertrained
+# Change from baseline: max_train_steps: 10000 → 20000
+# Architecture: sparse_mv_attention: true (SAME as baseline)
 #
-# Trade-offs:
-#   - More VRAM usage (full attention)
-#   - Potentially less diverse outputs (no CFG training)
-#   - Expected: more consistent multi-view generation
+# Hypothesis: 10K steps may not be sufficient. 20K steps doubles
+#   training without any architectural change.
+#
+# Single-variable ablation from baseline (M5t2):
+#   - sparse_mv_attention: true  (SAME)
+#   - reference_view_idx: 0      (SAME)
+#   - max_train_steps: 20000     (CHANGED)
 #
 # Version: v1.0
-# Created: 2026-02-02
+# Created: 2026-02-07
 #
 
 n_views: 6
@@ -27,7 +31,7 @@ revision: null
 prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_1024/clr_embeds.pt"
 
 # =============================================================================
-# Dataset - M5t2 (Temporal 80:10:10 split)
+# Dataset - M5t2 (Temporal 80:10:10 split, no data leakage)
 # =============================================================================
 train_dataset:
   path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
@@ -45,8 +49,8 @@ validation_dataset:
 # Output
 # =============================================================================
 checkpoint_prefix: ""
-output_dir: "checkpoints/mvdiffusion/mouse_M5t2_consistent"
-val_out_dir: "checkpoints/mvdiffusion/mouse_M5t2_consistent/val/"
+output_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_20k_sparse"
+val_out_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_20k_sparse/val/"
 
 # =============================================================================
 # Training Parameters
@@ -54,7 +58,7 @@ val_out_dir: "checkpoints/mvdiffusion/mouse_M5t2_consistent/val/"
 seed: 42
 train_batch_size: 4
 validation_batch_size: 2
-max_train_steps: 10000
+max_train_steps: 20000  # ⭐ KEY CHANGE: 2x training (was: 10000)
 gradient_accumulation_steps: 4
 gradient_checkpointing: true
 learning_rate: 5e-5
@@ -92,20 +96,18 @@ validation_sanity_check: true
 tracker_project_name: "FaceLift-MVDiffusion"
 
 # WandB
-wandb_exp_name: "mvdiff_M5t2_consistent"
+wandb_exp_name: "mvdiff_M5t2_20k_sparse"
 wandb_group: "mvdiffusion"
-wandb_job_type: "finetune_M5t2_consistent"
+wandb_job_type: "finetune_M5t2_20k_sparse"
+wandb_run_id: null
 
 # =============================================================================
-# View Consistency Enhanced Settings
+# Training Specifics
 # =============================================================================
 trainable_modules: null
-
-# CHANGED: Disable CFG dropout for consistent conditioning across views
 use_classifier_free_guidance: true
-condition_drop_rate: 0.0      # Was 0.05 → 0.0 (no dropout)
+condition_drop_rate: 0.05
 drop_type: "drop_as_a_whole"
-
 camera_embedding_lr_mult: 1.
 scale_input_latents: true
 
@@ -125,7 +127,6 @@ unet_from_pretrained_kwargs:
   cd_attention_last: false
   cd_attention_mid: false
   multiview_attention: true
-  # CHANGED: Full pairwise attention for better cross-view consistency
-  sparse_mv_attention: false  # Was true → false (full attention)
+  sparse_mv_attention: true   # ⭐ SAME as baseline (sparse preserved)
   selfattn_block: custom
   addition_downsample: false

@@ -1,0 +1,22 @@
+# H6: 4-view + GT-masked L2 loss + alpha supervision
+# Purpose: Focus L2 on foreground + alpha supervision (full mask pipeline)
+model:
+  num_input_views: 4
+training:
+  losses:
+    mask_mode: gt
+    alpha_loss_weight: 0.1
+    masked_l2_loss: true
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/4view_maskgt
+wandb:
+  name: uniform_v2_4view_maskgt
+  tags:
+  - uniform_v2
+  - M5t2
+  - h6_alpha_mask
+  - seed42
+  - 4view
+  - mask_gt
+  - alpha_supervision
+  - masked_l2
