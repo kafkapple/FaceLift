@@ -326,6 +326,8 @@ Examples:
                               help="Skip turntable video generation")
     output_group.add_argument("--no_mesh", action="store_true",
                               help="Skip PLY mesh saving")
+    output_group.add_argument("--no_metrics", action="store_true",
+                              help="Skip metrics computation after batch inference")
     output_group.add_argument("--turntable_views", type=int, default=60,
                               help="Number of turntable frames (default: 60)")
     output_group.add_argument("--fps", type=int, default=10,
@@ -621,6 +623,26 @@ Examples:
         
         print(f"\nAll outputs saved to: {args.output_dir}")
         
+        # Compute metrics (GT vs rendered)
+        if args.data_dir and not getattr(args, "no_metrics", False):
+            try:
+                from mouse_extensions.scripts.eval.compute_e2e_metrics import compute_e2e_metrics, print_summary
+                print("\n=== Computing metrics (GT vs rendered) ===")
+                summary = compute_e2e_metrics(
+                    output_dir=args.output_dir,
+                    data_dir=args.data_dir,
+                    skip_input_view=args.input_view_idx,
+                    device=args.device,
+                )
+                if summary:
+                    import json
+                    metrics_path = Path(args.output_dir) / "metrics.json"
+                    with open(metrics_path, "w") as f:
+                        json.dump(summary, f, indent=2)
+                    print_summary(summary, label=Path(args.output_dir).name)
+            except Exception as e:
+                print(f"Warning: metrics computation failed: {e}")
+
         # Generate combined temporal videos
         if len(samples) >= 2 and save_turntable:
             generate_temporal_videos(
