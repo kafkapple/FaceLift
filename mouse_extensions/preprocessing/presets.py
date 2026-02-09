@@ -389,7 +389,7 @@ PRESETS = {
         "single_folder": True,
         "normalize_after_zoom": True,
         "force_pp_to_target": False,
-        "description": "MVG-correct global zoom (PP=256). Docs: M3_SERIES_SPEC.md",
+        "description": "MVG-correct global zoom (PP=256). Docs: M5_SERIES_SPEC.md",
         "active": True,
     },
 
@@ -413,7 +413,7 @@ PRESETS = {
         "single_folder": True,
         "normalize_after_zoom": True,
         "force_pp_to_target": False,  # Not needed with center-aligned zoom
-        "description": "MVG-correct per-sample zoom (PP=256). Docs: M3_SERIES_SPEC.md",
+        "description": "MVG-correct per-sample zoom (PP=256). Docs: M5_SERIES_SPEC.md",
         "active": True,
     },
 

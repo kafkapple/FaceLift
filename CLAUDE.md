@@ -216,4 +216,4 @@ python -m mouse_extensions.preprocessing.preprocess \
 
 ---
 
-*Last Updated: 2026-01-26 | 상세 문서는 [[INDEX]] 참조*
+*Last Updated: 2026-02-09 | 상세 문서는 [[INDEX]] 참조*
