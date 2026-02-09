@@ -92,9 +92,9 @@ print(f"Report: {report_path}")
 
 ## Related Documents
 
-- `docs/datasets/DATASET_MASTER_REFERENCE.md` - 데이터셋 SSOT
-- `docs/datasets/M3_SERIES_SPEC.md` - M3 시리즈 명세
-- `docs/theory/PP_FX_MVG_ANALYSIS.md` - MVG 이론 종합
+- `docs/datasets/PREPROCESSING_REGISTRY.md` - 데이터셋/전처리 SSOT
+- `docs/datasets/M5_SERIES_SPEC.md` - M5 시리즈 명세
+- `docs/theory/METRICS_PROTOCOL.md` - 평가 메트릭 프로토콜
 
 ---
 
