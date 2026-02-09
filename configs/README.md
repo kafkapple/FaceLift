@@ -167,6 +167,20 @@ training:
     alpha_loss_weight: 0.0
 ```
 
+## Visualization Config
+
+base config의 visualization.turntable 섹션:
+
+### Rotation Direction
+- rotation_direction: ccw (default) -> physical CCW from above
+- 내부적으로 orbit 렌더링 시 clockwise=True 변환 (math CW = physical CCW)
+
+### Smooth Trajectory
+- smooth_trajectory: true -> CubicSpline (translation) + RotationSpline (rotation)
+- hold_frames: 15 -> 각 카메라에서 1.5초 정지 (10fps)
+- false -> pairwise linear SLERP + smoothstep easing
+- Spline 실패 시 자동 linear fallback
+
 ## 참고
 
 - **Temporal training**: 별도 스크립트 (`mouse_extensions/scripts/train_temporal_gslrm.py`) 사용, Legacy mode만 지원

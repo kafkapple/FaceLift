@@ -99,6 +99,21 @@ docs/
 θ_error = arctan(sqrt((Δcx/fx)² + (Δcy/fy)²))
 ```
 
+### 2.4 Rotation Direction Convention
+
+**Orbit vs Camera 좌표계 차이 (2026-02-09 수정):**
+
+| 함수 | 좌표계 | CCW 의미 |
+|------|--------|----------|
+| get_turntable_cameras | cos->x, sin->y (from +X) | Standard math CCW |
+| compute_camera_order | atan2(x,y) (from +Y) | 90 deg rotated |
+
+**규칙**: rotation_direction=ccw 일 때:
+- Camera order는 물리적 CCW (위에서 반시계)
+- Orbit은 clockwise=True 전달 (math CW = physical CCW)
+
+**Smooth Trajectory**: smooth_trajectory: true (base config) -> CubicSpline + RotationSpline, smoothstep easing. Linear SLERP fallback.
+
 ---
 
 ## 3. Environment
