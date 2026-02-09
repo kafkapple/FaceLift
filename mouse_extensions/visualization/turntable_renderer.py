@@ -557,12 +557,12 @@ class TemporalVideoRenderer:
     @staticmethod
     def load_turntable_videos(
         output_dir: str,
-        video_name: str = "turntable_orbit.mp4",
+        video_pattern: str = "turntable_orbit_*.mp4",
     ) -> List[np.ndarray]:
         """Load turntable videos from samples/ subdirectory.
 
-        Searches for video_name, then falls back to legacy "turntable.mp4".
-        Returns list of [V, H, W, 3] uint8 arrays.
+        Searches for video_pattern (glob), then falls back to legacy "turntable.mp4".
+        Returns list of [V, H, W, 3] uint8 arrays sorted by sample directory.
         """
         output_path = Path(output_dir)
         samples_dir = output_path / "samples"
@@ -576,18 +576,19 @@ class TemporalVideoRenderer:
 
         all_turntables: List[np.ndarray] = []
         for sd in sample_dirs:
-            video_path = sd / video_name
-            if not video_path.exists():
-                video_path = sd / "turntable.mp4"  # legacy fallback
-            if not video_path.exists():
-                cam_paths = list(sd.glob(f"cam_*/{video_name}"))
-                if not cam_paths:
-                    cam_paths = list(sd.glob("cam_*/turntable.mp4"))
-                if cam_paths:
-                    video_path = cam_paths[0]
-            if not video_path.exists():
+            # Try glob pattern first (handles uid in filename)
+            matches = sorted(sd.glob(video_pattern))
+            if not matches:
+                matches = sorted(sd.glob("turntable.mp4"))  # legacy fallback
+            if not matches:
+                # Check cam_* subdirectories
+                matches = sorted(sd.glob(f"cam_*/{video_pattern}"))
+                if not matches:
+                    matches = sorted(sd.glob("cam_*/turntable.mp4"))
+            if not matches:
                 continue
 
+            video_path = matches[0]
             cap = cv2.VideoCapture(str(video_path))
             frames = []
             while True:
