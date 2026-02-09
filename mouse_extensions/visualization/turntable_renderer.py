@@ -481,7 +481,7 @@ class TurntableRenderer:
                     imgs = target_images.detach().cpu()
                     if imgs.dtype in (torch.float32, torch.float16, torch.bfloat16):
                         imgs = (imgs.clamp(0, 1) * 255).to(torch.uint8)
-                    imgs = imgs.permute(0, 2, 3, 1).numpy()  # [V, H, W, C]
+                    imgs = imgs.permute(0, 2, 3, 1).numpy()[:, :, :, :3]  # [V, H, W, 3] RGB only
 
                     # Map tensor indices to camera IDs via view_indices
                     cam_to_tensor = {}

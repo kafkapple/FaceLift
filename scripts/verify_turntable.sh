@@ -11,7 +11,7 @@
 
 set -e
 GPU=${1:-6}
-CKPT=${2:-/node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/ckpt_0000000000009200.pt}
+CKPT=${2:-/node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/ckpt_0000000000010080.pt}
 OUT_DIR=outputs/verify_turntable
 PYTHON=/home/joon/anaconda3/envs/facelift/bin/python
 TORCHRUN=/home/joon/anaconda3/envs/facelift/bin/torchrun
@@ -19,6 +19,7 @@ VAL_DATA=/home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
 
 export CUDA_VISIBLE_DEVICES=$GPU
 export PATH="/home/joon/anaconda3/envs/facelift/bin:$PATH"
+export PYTHONPATH=/home/joon/dev/FaceLift:$PYTHONPATH
 
 cd /home/joon/dev/FaceLift
 mkdir -p $OUT_DIR/{train,val,inference}
@@ -79,20 +80,13 @@ model.load_state_dict(sd, strict=False)
 model = model.cuda().eval()
 print('Model loaded')
 
-# Load val data
-from gslrm.data.dataset import RandomViewDataset
-val_dataset = RandomViewDataset(config, split='val')
+# Load val data (MouseViewDataset: single-frame, no temporal issues)
+from mouse_extensions.data.mouse_dataset import MouseViewDataset
+config.training.dataset.random_view_selection = False
+config.training.dataset.maximize_view_overlap = False
+val_dataset = MouseViewDataset(config, split='val')
 
-# Try multiple samples until one loads
-sample = None
-for idx in range(min(50, len(val_dataset))):
-    try:
-        sample = val_dataset[idx]
-        if sample is not None:
-            break
-    except Exception:
-        continue
-
+sample = val_dataset[0]
 if sample is None:
     print('ERROR: No valid sample found')
     sys.exit(1)
@@ -101,7 +95,7 @@ batch = {k: v.unsqueeze(0).cuda() if isinstance(v, torch.Tensor) else v for k, v
 uid = sample.get('uid', 'test')
 print(f'Loaded sample uid={uid}')
 
-with torch.no_grad():
+with torch.no_grad(), torch.cuda.amp.autocast(dtype=torch.bfloat16):
     results = model(batch)
 print('Forward done')
 
@@ -111,14 +105,15 @@ cfg = TurntableVideoConfig.from_config(config)
 print(f'Config: view_smooth={cfg.view_smooth}, rotation_direction={cfg.rotation_direction}')
 
 gaussians = results.gaussians[0]
-dataset_c2ws = batch.get('target_RT', None)
+# MouseViewDataset uses 'c2w'/'fxfycxcy'/'image'; training uses 'target_RT'/'target_fxfycxcy'/'target_image'
+dataset_c2ws = batch.get('target_RT', batch.get('c2w', None))
 if dataset_c2ws is not None:
     dataset_c2ws = dataset_c2ws[0].cpu().numpy()
-dataset_fxfycxcy = batch.get('target_fxfycxcy', None)
+dataset_fxfycxcy = batch.get('target_fxfycxcy', batch.get('fxfycxcy', None))
 if dataset_fxfycxcy is not None:
     dataset_fxfycxcy = dataset_fxfycxcy[0].cpu().numpy()
 
-target_images = batch.get('target_image', None)
+target_images = batch.get('target_image', batch.get('image', None))
 if target_images is not None:
     target_images = target_images[0]
 
