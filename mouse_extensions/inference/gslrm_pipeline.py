@@ -123,6 +123,7 @@ class GSLRMInference:
         turntable_views: int = 120,
         turntable_fps: int = 30,
         image_size: int = 512,
+        camera_indices: list = None,
     ) -> Path:
         """Save inference outputs: PLY, rendered views, turntable, grids, RRD.
 
@@ -145,7 +146,6 @@ class GSLRMInference:
         Returns:
             Output path.
         """
-        from gslrm.model.gaussians_renderer import render_turntable, imageseq2video
 
         out = Path(output_dir) / name
         out.mkdir(parents=True, exist_ok=True)
@@ -178,15 +178,27 @@ class GSLRMInference:
         if result.render is not None:
             comp = result.render[0].detach()
             for i in range(comp.size(0)):
+                # Use camera index for filename when camera_indices provided
+                cam_idx = camera_indices[i] if camera_indices is not None else i
                 view_np = (
                     comp[i].permute(1, 2, 0).cpu().numpy() * 255.0
                 ).clip(0, 255).astype(np.uint8)
-                Image.fromarray(view_np).save(out / f"render_view_{i:02d}.png")
+                Image.fromarray(view_np).save(out / f"render_view_{cam_idx:02d}.png")
 
             if comp.size(0) > 1:
                 grid = rearrange(comp, "v c h w -> h (v w) c")
                 grid_np = (grid.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
                 Image.fromarray(grid_np).save(out / "render_grid.png")
+
+        # Save rendered alpha if available
+        if hasattr(result, 'rendered_alpha') and result.rendered_alpha is not None:
+            alpha = result.rendered_alpha[0].detach()  # [V, 1, H, W]
+            for i in range(alpha.size(0)):
+                cam_idx = camera_indices[i] if camera_indices is not None else i
+                alpha_np = (
+                    alpha[i, 0].cpu().numpy() * 255.0
+                ).clip(0, 255).astype(np.uint8)
+                Image.fromarray(alpha_np, mode='L').save(out / f'render_alpha_{cam_idx:02d}.png')
 
         # GT vs Pred comparison grid
         if save_comparison and comp is not None and input_images is not None:
@@ -201,32 +213,34 @@ class GSLRMInference:
             except Exception as e:
                 print(f"  Warning: comparison grid failed: {e}")
 
-        # Turntable video
-        if save_turntable:
-            print(f"  Generating turntable ({turntable_views} views)...")
+        # Turntable video + grid (unified via TurntableRenderer)
+        if save_turntable or save_turntable_grid:
             try:
-                vis = render_turntable(
-                    filtered,
-                    rendering_resolution=image_size,
-                    num_views=turntable_views,
+                from mouse_extensions.visualization.turntable_renderer import TurntableRenderer, TurntableVideoConfig
+                tt_cfg = TurntableVideoConfig(
+                    save_view_with_input=False,   # No dataset cameras in inference
+                    save_orbit=save_turntable,
+                    save_orbit_with_input=False,   # No labeled input strip in inference
+                    save_grid=save_turntable_grid,
                 )
-                vis = rearrange(vis, "h (v w) c -> v h w c", v=turntable_views)
-                vis = np.ascontiguousarray(vis)
-                video_path = out / "turntable.mp4"
-                imageseq2video(vis, str(video_path), fps=turntable_fps)
-                print(f"  Saved turntable: {video_path}")
+                tt_renderer = TurntableRenderer(tt_cfg)
+                tt_renderer.render_all(
+                    gaussians=filtered,
+                    output_dir=str(out),
+                    uid=name,
+                    rendering_resolution=image_size,
+                    target_images=input_images,
+                )
+                print(f"  Saved turntable outputs")
             except Exception as e:
                 print(f"  Warning: turntable failed: {e}")
 
-        # Multi-elevation turntable grid
+        # Multi-elevation turntable grid (separate from TurntableRenderer — uses multi-elevation)
         if save_turntable_grid:
             try:
                 from mouse_extensions.visualization.inference_viz import (
                     save_multiview_turntable_grid,
                 )
-                # num_azimuth=6 to match GT view count (6 views), no zero-padding
-                # Row 0: GT input views (6)
-                # Row 1-3: turntable renders at elevation 0°, 15°, 30° (6 azimuths each)
                 save_multiview_turntable_grid(
                     filtered,
                     str(out / "turntable_grid.png"),
@@ -236,9 +250,9 @@ class GSLRMInference:
                     render_res=image_size,
                     gt_images=input_images,
                 )
-                print(f"  Saved turntable grid (GT + 3 elevations × 6 azimuths)")
+                print(f"  Saved multi-elevation turntable grid")
             except Exception as e:
-                print(f"  Warning: turntable grid failed: {e}")
+                print(f"  Warning: multi-elevation grid failed: {e}")
 
         # Rerun .rrd sequence
         if save_rrd:

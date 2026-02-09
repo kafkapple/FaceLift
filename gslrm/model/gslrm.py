@@ -65,9 +65,6 @@ from mouse_extensions.visualization import (
     should_visualize_alpha,
     compute_alpha_metrics,
     MOUSE_CAMERA_ORDER,
-    DEFAULT_TURNTABLE_CONFIG,
-    create_grid_from_video,
-    add_angle_overlay_to_grid,
     get_dynamic_camera_order,
 )
 
@@ -86,12 +83,6 @@ from .gaussians_renderer import (
     imageseq2video,
     render_opencv_cam,
     render_turntable,
-    render_dataset_trajectory,
-    get_turntable_with_dataset_views,
-    add_camera_overlay,
-    add_row_labels_to_grid,
-    add_left_row_labels,
-    create_labeled_input_strip,
 )
 from .transform_data import SplitData, TransformInput, TransformTarget
 from .utils_transformer import (
@@ -1502,247 +1493,49 @@ class GSLRM(nn.Module):
         for batch_idx in range(batch_size):
             item_uid = input_data.index[batch_idx, 0, -1].item()
 
-            # Render turntable visualization (8x8 = 64 views for comprehensive coverage)
-            # Get turntable config
-            turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
-            video_views = turntable_cfg.get("video_views", 144)  # Smooth video
-            grid_views = turntable_cfg.get("grid_views", 36)  # Grid (6x6)
-            turntable_views = video_views  # Use video_views for rendering
-            turntable_resolution = turntable_cfg.get("resolution", None)
+            # --- Turntable visualization (unified via TurntableRenderer) ---
+            from mouse_extensions.visualization.turntable_renderer import TurntableRenderer, TurntableVideoConfig
+            turntable_video_cfg = TurntableVideoConfig.from_config(self.config)
+            turntable_resolution = self.config.get("visualization", {}).get("turntable", {}).get("resolution", None)
             if turntable_resolution is None:
-                turntable_resolution = input_data.image.size(3)  # Use input resolution like validation
-            turntable_elevation = turntable_cfg.get("elevation", 20)
-            turntable_radius = turntable_cfg.get("radius", 2.7)
-            trajectory_mode = turntable_cfg.get("trajectory_mode", "dataset_cameras")
-            elevation_end = turntable_cfg.get("elevation_end", None)
-            # Auto-enable dataset views when using dataset_cameras mode
-            include_dataset_views = turntable_cfg.get("include_dataset_views", 
-                                                       trajectory_mode == "dataset_cameras")
-            # Get dataset camera poses if needed
-            # Use ALL cameras for turntable trajectory (not just selected training views)
-            # This ensures smooth interpolation even when training uses fewer views
-            if hasattr(target_data, 'all_c2w') and target_data.all_c2w is not None:
-                dataset_c2ws = target_data.all_c2w[batch_idx].cpu().numpy()  # [all_cams, 4, 4]
-                dataset_fxfycxcy = target_data.all_fxfycxcy[batch_idx].cpu().numpy()  # [all_cams, 4]
+                turntable_resolution = input_data.image.size(3)
+
+            # Get dataset camera poses (prefer all cameras for smooth trajectory)
+            if hasattr(target_data, "all_c2w") and target_data.all_c2w is not None:
+                dataset_c2ws = target_data.all_c2w[batch_idx].cpu().numpy()
+                dataset_fxfycxcy = target_data.all_fxfycxcy[batch_idx].cpu().numpy()
             else:
-                dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()  # [num_cams, 4, 4]
-                dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()  # [num_cams, 4]
-            # Get input resolution for intrinsics scaling
+                dataset_c2ws = target_data.c2w[batch_idx].cpu().numpy()
+                dataset_fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()
+
             input_resolution = input_data.image.size(3)
-            # Check for smooth trajectory mode (interpolate between dataset cameras)
-            smooth_trajectory = turntable_cfg.get("smooth_trajectory", True)
             camera_order = get_dynamic_camera_order(dataset_c2ws, self.config)
-            segments = None  # Set by smooth_trajectory branch
-            # Filter camera_order to only include valid indices (handles exclude_camera_indices)
             num_available_cams = dataset_c2ws.shape[0]
             camera_order = [c for c in camera_order if c < num_available_cams]
-            loop_trajectory = turntable_cfg.get("loop", True)
-            trajectory_fps = turntable_cfg.get("trajectory_fps", 10)  # FPS for trajectory video
-            if smooth_trajectory:
-                # Use smooth interpolation between dataset cameras
-                hold_frames = turntable_cfg.get("hold_frames", 15)  # ~1.5s at 10fps
-                # Optional FOV scale to zoom out (< 1.0) or zoom in (> 1.0)
-                fov_scale = turntable_cfg.get("trajectory_fov_scale", 1.0)
-                scaled_fxfycxcy = dataset_fxfycxcy.copy()
-                if fov_scale != 1.0:
-                    # Scale fx, fy (indices 0, 1) to adjust FOV
-                    scaled_fxfycxcy[:, :2] *= fov_scale
-                # show_overlay: adds "Cam X" text to each frame. Default False to avoid duplication with row labels.
-                show_frame_overlay = turntable_cfg.get("show_frame_overlay", False)
-                turntable_frames, segments = render_dataset_trajectory(
-                    model_results.gaussians[batch_idx],
-                    dataset_c2ws, scaled_fxfycxcy,
-                    rendering_resolution=turntable_resolution,
-                    num_views=turntable_views,
-                    camera_order=camera_order,
-                    loop=loop_trajectory,
-                    show_overlay=show_frame_overlay,  # FIX: configurable, default False
-                    original_resolution=input_resolution,
-                    hold_frames=hold_frames,
-                )
-                # turntable_frames: [num_views, H, W, 3]
-                turntable_image = rearrange(turntable_frames, "v h w c -> h (v w) c")
-                
-            elif include_dataset_views:
-                # Render with dataset views included (first 6 are dataset cameras)
-                num_dataset = dataset_c2ws.shape[0]
-                num_turntable = turntable_views - num_dataset
-                
-                w, h, total_views, combined_fxfycxcy, combined_c2ws, dataset_indices = get_turntable_with_dataset_views(
-                    dataset_c2ws, dataset_fxfycxcy,
-                    num_turntable_views=num_turntable,
-                    w=turntable_resolution, h=turntable_resolution,
-                    radius=turntable_radius, elevation=turntable_elevation,
-                    original_resolution=input_resolution,  # Scale intrinsics for rendering resolution
-                )
-                
-                # Render all views
-                device = model_results.gaussians[batch_idx]._xyz.device
-                combined_fxfycxcy_t = torch.from_numpy(combined_fxfycxcy).float().to(device)
-                combined_c2ws_t = torch.from_numpy(combined_c2ws).float().to(device)
-                
-                frames = []
-                for j in range(total_views):
-                    from .gaussians_renderer import render_opencv_cam
-                    render_result = render_opencv_cam(
-                        model_results.gaussians[batch_idx], h, w, 
-                        combined_c2ws_t[j], combined_fxfycxcy_t[j]
-                    )
-                    frame = render_result["render"].detach().cpu().numpy()
-                    frame = (frame * 255).clip(0, 255).astype(np.uint8)
-                    frame = rearrange(frame, "c h w -> h w c")
-                    # Add overlay for dataset views
-                    if j < num_dataset:
-                        frame = add_camera_overlay(frame, f"Cam {j}")
-                    frames.append(frame)
-                
-                turntable_image = np.concatenate([f[None] for f in frames], axis=0)
-                turntable_image = rearrange(turntable_image, "v h w c -> h (v w) c")
-            else:
-                # Standard turntable
-                # Compute Gaussian center for camera orbit
-                gaussian_center = model_results.gaussians[batch_idx]._xyz.mean(dim=0).detach().cpu().numpy()
-                turntable_image = render_turntable(
-                    model_results.gaussians[batch_idx],
-                    rendering_resolution=turntable_resolution,
-                    num_views=turntable_views,
-                    elevation=turntable_elevation,
-                    radius=turntable_radius,
-                    trajectory_mode=trajectory_mode,
-                    elevation_end=elevation_end,
-                    center=gaussian_center
-                )
-            # Create grid from turntable frames (subsample 144 -> 36 for 6x6 grid)
-            grid_rows = turntable_cfg.get("grid_rows", 6)
-            grid_cols = turntable_cfg.get("grid_cols", 6)
-            turntable_grid, all_frames, h_img = create_grid_from_video(
-                turntable_image, turntable_views, grid_rows, grid_cols, segments=segments
-            )
-            # Add row labels if enabled (e.g., "Cam 1 -> 3")
-            if turntable_cfg.get("add_row_labels", True):
-                # camera_order already computed above (dynamic)
-                # Filter camera_order to only include valid indices
-                camera_order = [c for c in camera_order if c < num_available_cams]
-                label_position = turntable_cfg.get("label_position", "top")  # "top" or "left"
-                if label_position == "left":
-                    turntable_grid = add_left_row_labels(
-                        turntable_grid, camera_order, grid_rows, grid_cols, h_img
-                    )
-                else:
-                    turntable_grid = add_row_labels_to_grid(
-                        turntable_grid, camera_order, grid_rows, grid_cols, h_img
-                    )
-            # Add angle overlay if enabled (default: True)
-            if turntable_cfg.get("add_angle_overlay", False):  # Disabled: angles shown in row labels
-                turntable_grid = add_angle_overlay_to_grid(
-                    turntable_grid, grid_rows, grid_cols
-                )
-            Image.fromarray(turntable_grid).save(
-                os.path.join(output_directory, f"turntable_{item_uid}.jpg")
-            )
-            # Save turntable video (enabled by default)
-            if turntable_cfg.get("save_video", True):
-                # Use all_frames for smooth 144-frame video
-                video_frames = rearrange(all_frames, "h v w c -> v h w c")
-                video_frames = np.ascontiguousarray(video_frames)
-                turntable_fps = turntable_cfg.get("fps", 30)
-                imageseq2video(video_frames, os.path.join(output_directory, f"turntable_{item_uid}.mp4"), fps=trajectory_fps)
-                # Save turntable with input overlay (like validation)
-                # Create labeled input strip showing all views in camera order
-                # Mark which were inputs vs predicted
-                input_strip_h = turntable_resolution // 4  # Height for input strip
-                # Get actual input camera indices (handles random_view_selection)
-                if hasattr(input_data, "index") and input_data.index is not None:
-                    input_indices = input_data.index[batch_idx, :, 0].cpu().numpy().tolist()
-                else:
-                    num_input_views = input_data.image.shape[1]
-                    input_indices = list(range(num_input_views))  # Fallback
-                # Get view indices (tensor position -> camera ID mapping)
-                view_indices = None
-                if hasattr(target_data, "index") and target_data.index is not None:
-                    view_indices = target_data.index[batch_idx, :, 0].cpu().numpy().tolist()
-                labeled_input = create_labeled_input_strip(
-                    target_data.image[batch_idx],  # All 6 views
-                    camera_order=camera_order,
-                    target_h=input_strip_h,
-                    target_w=turntable_resolution,
-                    border=2,
-                    input_indices=input_indices,  # Mark input vs predicted
-                    view_indices=view_indices,  # FIX: Pass tensor->camera mapping
-                )
-                
-                # Combine turntable frames with labeled input
-                input_seq = np.tile(labeled_input[None], (video_frames.shape[0], 1, 1, 1))
-                combined_frames = np.concatenate((video_frames, input_seq), axis=1)
-                imageseq2video(
-                    combined_frames, 
-                    os.path.join(output_directory, f"turntable_with_input_{item_uid}.mp4"), 
-                    fps=trajectory_fps  # Use slower fps for trajectory video
-                )
-                
-                # Also save standard 360-degree orbit turntable (smooth rotation)
-                if turntable_cfg.get("save_orbit_turntable", True):
-                    # Compute center from camera convergence (where all cameras look at)
-                    # This is more robust than using Gaussian positions
-                    orbit_center = compute_camera_convergence_center(dataset_c2ws)
-                    
-                    # Fallback to opacity-weighted Gaussian center if needed
-                    gaussians = model_results.gaussians[batch_idx]
-                    xyz = gaussians._xyz.detach()
-                    opacity = gaussians.get_opacity.detach().squeeze()
-                    weights = opacity / (opacity.sum() + 1e-8)
-                    gaussian_center = (xyz * weights.unsqueeze(-1)).sum(dim=0).cpu().numpy()
-                    
-                    # Use camera convergence center (more stable)
-                    # Can switch to gaussian_center if camera convergence fails
-                    weighted_center = orbit_center
-                    
-                    # Use same radius as dataset cameras (already normalized to ~2.7)
-                    # Don't auto-scale based on object size - trust the normalization
-                    orbit_radius = turntable_cfg.get("orbit_radius", turntable_radius)
-                    
-                    orbit_views = turntable_cfg.get("orbit_views", 120)
-                    orbit_fps = turntable_cfg.get("orbit_fps", 30)
-                    orbit_frames = render_turntable(
-                        gaussians,
-                        rendering_resolution=turntable_resolution,
-                        num_views=orbit_views,
-                        elevation=turntable_elevation,
-                        radius=orbit_radius,
-                        trajectory_mode="turntable",
-                        center=weighted_center,
-                    )
-                    # orbit_frames is [H, V*W, 3], need to reshape to [V, H, W, 3]
-                    orbit_h = orbit_frames.shape[0]
-                    orbit_w = orbit_frames.shape[1] // orbit_views
-                    orbit_frames = orbit_frames.reshape(orbit_h, orbit_views, orbit_w, 3)
-                    orbit_frames = np.transpose(orbit_frames, (1, 0, 2, 3))  # [V, H, W, 3]
-                    orbit_frames = np.ascontiguousarray(orbit_frames)
-                    imageseq2video(
-                        orbit_frames, 
-                        os.path.join(output_directory, f"turntable_orbit_{item_uid}.mp4"), 
-                        fps=orbit_fps
-                    )
-                    
-                    # Also save orbit turntable with input views at bottom
-                    orbit_input_h = turntable_resolution // 4
-                    orbit_labeled_input = create_labeled_input_strip(
-                        target_data.image[batch_idx],  # All 6 views
-                        camera_order=camera_order,
-                        target_h=orbit_input_h,
-                        target_w=turntable_resolution,
-                        border=2,
-                        input_indices=input_indices,  # Mark input vs predicted
-                        view_indices=view_indices,  # FIX: Pass tensor->camera mapping
-                    )
-                    orbit_input_seq = np.tile(orbit_labeled_input[None], (orbit_frames.shape[0], 1, 1, 1))
-                    orbit_combined = np.concatenate((orbit_frames, orbit_input_seq), axis=1)
-                    imageseq2video(
-                        orbit_combined,
-                        os.path.join(output_directory, f"turntable_orbit_with_input_{item_uid}.mp4"),
-                        fps=orbit_fps
-                    )
 
+            # Get input/view indices for labeled strip
+            if hasattr(input_data, "index") and input_data.index is not None:
+                input_indices = input_data.index[batch_idx, :, 0].cpu().numpy().tolist()
+            else:
+                input_indices = list(range(input_data.image.shape[1]))
+            view_indices = None
+            if hasattr(target_data, "index") and target_data.index is not None:
+                view_indices = target_data.index[batch_idx, :, 0].cpu().numpy().tolist()
+
+            renderer = TurntableRenderer(turntable_video_cfg)
+            renderer.render_all(
+                gaussians=model_results.gaussians[batch_idx],
+                output_dir=output_directory,
+                uid=str(item_uid),
+                rendering_resolution=turntable_resolution,
+                dataset_c2ws=dataset_c2ws,
+                dataset_fxfycxcy=dataset_fxfycxcy,
+                original_resolution=input_resolution,
+                target_images=target_data.image[batch_idx],
+                input_indices=input_indices,
+                view_indices=view_indices,
+                camera_order=camera_order,
+            )
 
             # Save individual input images during inference
             if self.config.inference:
@@ -1913,61 +1706,31 @@ class GSLRM(nn.Module):
             model_results.gaussians[batch_idx].apply_all_filters(
                 opacity_thres=0.02, crop_bbx=crop_box, cam_origins=None, nearfar_percent=(0.0001, 1.0)
             ).save_ply(os.path.join(item_output_dir, "gaussians.ply"))
-            # Create turntable visualization
-            # Get turntable config for inference
-            turntable_cfg = self.config.get("visualization", {}).get("turntable", {})
-            num_turntable_views = turntable_cfg.get("inference_views", 150)
-            turntable_resolution = turntable_cfg.get("inference_resolution", None)
-            turntable_elevation = turntable_cfg.get("elevation", 20)
-            turntable_radius = turntable_cfg.get("radius", 2.7)
+            # --- Turntable visualization (unified via TurntableRenderer) ---
+            from mouse_extensions.visualization.turntable_renderer import TurntableRenderer, TurntableVideoConfig
+            turntable_video_cfg = TurntableVideoConfig.from_config(self.config)
+            # Evaluation: orbit only (no dataset camera trajectory available here)
+            turntable_video_cfg.save_view_with_input = False
             render_resolution = input_image.shape[0]
-            # Use configured resolution or default to input resolution
+            turntable_resolution = self.config.get("visualization", {}).get("turntable", {}).get("inference_resolution", None)
             actual_resolution = turntable_resolution if turntable_resolution else render_resolution
-            # Compute Gaussian center for camera orbit
-            gaussian_center = model_results.gaussians[batch_idx]._xyz.mean(dim=0).detach().cpu().numpy()
-            turntable_frames = render_turntable(
-                model_results.gaussians[batch_idx],
+
+            eval_renderer = TurntableRenderer(turntable_video_cfg)
+            eval_renderer.render_all(
+                gaussians=model_results.gaussians[batch_idx],
+                output_dir=item_output_dir,
+                uid=str(item_uid),
                 rendering_resolution=actual_resolution,
-                num_views=num_turntable_views,
-                elevation=turntable_elevation,
-                radius=turntable_radius,
-                center=gaussian_center
             )
-            turntable_frames = rearrange(
-                turntable_frames, "height (views width) channels -> views height width channels", views=num_turntable_views
-            )
-            turntable_frames = np.ascontiguousarray(turntable_frames)
-            # Save basic turntable video
-            turntable_fps = turntable_cfg.get("fps", 30)
-            imageseq2video(turntable_frames, os.path.join(item_output_dir, "turntable.mp4"), fps=turntable_fps)
+
             # Save description and preview if available
             try:
                 description = dataset.get_description(item_uid)["prompt"]
                 if len(description) > 0:
                     with open(os.path.join(item_output_dir, "description.txt"), "w") as f:
                         f.write(description)
-                    
-                    # Create preview image (subsample to 10 views)
-                    preview_frames = turntable_frames[::num_turntable_views // 10]
-                    preview_image = rearrange(preview_frames, "views height width channels -> height (views width) channels")
-                    Image.fromarray(preview_image).save(os.path.join(item_output_dir, "turntable_preview.png"))
             except (AttributeError, KeyError):
                 pass
-            # Create turntable with input overlay
-            border_width = 2
-            target_width = render_resolution
-            target_height = int(input_image.shape[0] / input_image.shape[1] * target_width)
-            resized_input = cv2.resize(
-                input_image, (target_width - border_width * 2, target_height - border_width * 2), interpolation=cv2.INTER_AREA
-            )
-            bordered_input = np.pad(
-                resized_input, ((border_width, border_width), (border_width, border_width), (0, 0)), 
-                mode="constant", constant_values=200
-            )
-            input_sequence = np.tile(bordered_input[None], (turntable_frames.shape[0], 1, 1, 1))
-            combined_frames = np.concatenate((turntable_frames, input_sequence), axis=1)
-            imageseq2video(combined_frames, os.path.join(item_output_dir, "turntable_with_input.mp4"), fps=turntable_fps)
-    
     @torch.no_grad()
     def save_evaluations(self, out_dir: str, result: edict, batch: edict, dataset) -> None:
         """Backward compatibility wrapper for save_evaluation_results."""

@@ -73,149 +73,49 @@ except ImportError:
 
 
 
-def interpolate_frames_for_speed(frames, speed_factor):
-    """Adjust rotation speed by sampling frames."""
-    import numpy as np
-    if speed_factor == 1.0:
-        return frames
-    num_original = frames.shape[0]
-    num_target = int(num_original / speed_factor)
-    if num_target <= 1:
-        return frames[:1]
-    indices = np.linspace(0, num_original - 1, num_target)
-    return np.stack([frames[int(np.round(idx))] for idx in indices])
-
-
 def generate_temporal_videos(output_dir: str, fps: int = 10, fixed_angles: list = None, rotation_speed: float = 1.0, grid_views: int = 36):
     """Generate combined temporal videos from per-sample turntables.
 
-    Args:
-        output_dir: Directory containing samples/ subfolder with turntable.mp4 files
-        fps: Output video FPS
-        fixed_angles: List of angles for time_fixed videos (default: [0])
+    Delegates to TemporalVideoRenderer (centralized in turntable_renderer.py).
     """
-    import cv2
-    import numpy as np
-    from pathlib import Path
+    from mouse_extensions.visualization.turntable_renderer import TemporalVideoRenderer, TurntableVideoConfig
 
     if fixed_angles is None:
         fixed_angles = [0]
 
-    output_path = Path(output_dir)
+    cfg = TurntableVideoConfig(
+        temporal_fps=fps,
+        temporal_rotation_speed=rotation_speed,
+    )
+    temporal = TemporalVideoRenderer(cfg)
 
-    # Look for samples in samples/ subfolder first, then root
-    samples_dir = output_path / "samples"
-    if samples_dir.exists():
-        sample_dirs = sorted([d for d in samples_dir.iterdir() if d.is_dir()])
-    else:
-        sample_dirs = sorted([d for d in output_path.iterdir() if d.is_dir() and d.name != "samples"])
-    turntable_paths = []
-    for sample_dir in sample_dirs:
-        # Check for turntable.mp4 directly or in cam_* subdirectory (E2E mode)
-        turntable = sample_dir / "turntable.mp4"
-        if not turntable.exists():
-            cam_dirs = list(sample_dir.glob("cam_*/turntable.mp4"))
-            if cam_dirs:
-                turntable = cam_dirs[0]
-        if turntable.exists():
-            turntable_paths.append(turntable)
-    
-    if len(turntable_paths) < 2:
-        print(f"Need at least 2 turntables for temporal videos, found {len(turntable_paths)}")
+    # Load turntable videos from samples/
+    all_turntables = temporal.load_turntable_videos(output_dir)
+
+    if len(all_turntables) < 2:
+        print(f"Need at least 2 turntables for temporal videos, found {len(all_turntables)}")
         return
-    
-    print(f"\n=== Generating temporal videos from {len(turntable_paths)} samples ===")
-    
-    # Load all turntables
-    all_turntables = []
-    for tp in turntable_paths:
-        cap = cv2.VideoCapture(str(tp))
-        frames = []
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        cap.release()
-        if frames:
-            all_turntables.append(np.stack(frames))
-    
-    if not all_turntables:
-        print("No turntable frames loaded")
-        return
-    
-    T = len(all_turntables)  # Number of time steps
-    V = all_turntables[0].shape[0]  # Number of views per turntable
+
+    print(f"\n=== Generating temporal videos from {len(all_turntables)} samples ===")
+    T = len(all_turntables)
+    V = all_turntables[0].shape[0]
     H, W = all_turntables[0].shape[1:3]
-    
     print(f"Loaded {T} turntables, {V} views each, {H}x{W}")
-    
-    # Apply rotation speed
-    if rotation_speed != 1.0:
-        all_turntables = [interpolate_frames_for_speed(t, rotation_speed) for t in all_turntables]
-        V = all_turntables[0].shape[0]
-        print(f"Applied rotation_speed={rotation_speed}: {V} views after speed adjustment")
-    
-    from mouse_extensions.utils.video_utils import encode_video_imageio as imageseq2video
-    
-    # === Output 1: First frame 360° turntable (DISABLED - not useful) ===
-    # imageseq2video(all_turntables[0], str(output_path / "turntable_first.mp4"), fps=fps)
-    # print("Saved: turntable_first.mp4")  # DISABLED
-    
-    # === Output 2: Fixed angle, time variation ===
-    for angle_idx in fixed_angles:
-        angle_idx = angle_idx % V
-        fixed_frames = np.stack([t[angle_idx] for t in all_turntables])
-        suffix = f"_angle{angle_idx}" if len(fixed_angles) > 1 else ""
-        imageseq2video(fixed_frames, str(output_path / f"time_fixed{suffix}.mp4"), fps=fps)
-        print(f"Saved: time_fixed{suffix}.mp4 (angle={angle_idx}/{V})")
-    
-    # === Output 3: Rotating with time ===
-    rotating_frames = []
-    for t in range(T):
-        angle = (t * V // T) % V
-        rotating_frames.append(all_turntables[t][angle])
-    rotating_frames = np.stack(rotating_frames)
-    imageseq2video(rotating_frames, str(output_path / "time_rotating.mp4"), fps=fps)
-    print("Saved: time_rotating.mp4")
 
-    # === Output 4: Turntable grid image (first frame) ===
-    try:
-        first = all_turntables[0]
-        grid_v = min(grid_views, V)
-        cols = 6
-        rows = (grid_v + cols - 1) // cols
-        
-        # Sample evenly spaced views
-        if V > grid_v:
-            indices = np.linspace(0, V - 1, grid_v, dtype=int)
-            grid_arr = first[indices]
-        else:
-            grid_arr = first
-            grid_v = V
-        
-        # Pad to fill grid
-        total_cells = rows * cols
-        if grid_v < total_cells:
-            pad_count = total_cells - grid_v
-            pad_frame = np.zeros_like(grid_arr[0])
-            grid_arr = np.concatenate([grid_arr, np.stack([pad_frame] * pad_count)])
-        
-        # Create grid image
-        grid_rows = []
-        for r in range(rows):
-            row_frames = [grid_arr[r * cols + c] for c in range(cols)]
-            grid_rows.append(np.concatenate(row_frames, axis=1))
-        grid_image = np.concatenate(grid_rows, axis=0)
-        
-        # Save as image
-        from PIL import Image
-        Image.fromarray(grid_image).save(str(output_path / "turntable_grid.jpg"), quality=95)
-        print(f"Saved: turntable_grid.jpg ({rows}x{cols} grid, {grid_v} views)")
-    except Exception as e:
-        print(f"Grid image skipped: {e}")
-    
+    results = temporal.render_temporal(
+        all_turntables,
+        output_dir,
+        fps=fps,
+        fixed_angles=fixed_angles,
+        rotation_speed=rotation_speed,
+        grid_views=grid_views,
+    )
+
+    for name, path in results.items():
+        print(f"Saved: {path}")
+
     print("Temporal videos complete!")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -312,6 +212,8 @@ Examples:
                              help="Use EMA UNet weights if available")
     model_group.add_argument("--num_input_views", type=int, default=None,
                              help="Number of input views for GS-LRM (2-6, default: all available)")
+    model_group.add_argument("--camera_indices", type=int, nargs="+", default=None,
+                             help="Camera indices for reduced-view MVDiffusion (e.g., --camera_indices 0 2 3 5)")
 
     # Camera options
     camera_group = parser.add_argument_group("Camera")
@@ -472,6 +374,7 @@ Examples:
             turntable_views=args.turntable_views,
             skip_preprocess=args.skip_preprocess,  # NEW
             save_preprocess_steps=args.save_preprocess_steps,  # NEW
+            camera_indices=args.camera_indices,
         )
         print(f"\nDone! Output: {out}")
 
@@ -499,6 +402,7 @@ Examples:
             turntable_views=args.turntable_views,
             skip_preprocess=args.skip_preprocess,  # NEW
             save_preprocess_steps=args.save_preprocess_steps,  # NEW
+            camera_indices=args.camera_indices,
         )
         print(f"\nDone! Output: {out}")
 
@@ -592,6 +496,7 @@ Examples:
                         turntable_views=args.turntable_views,
                         skip_preprocess=args.skip_preprocess,  # NEW
                         save_preprocess_steps=args.save_preprocess_steps,  # NEW
+                        camera_indices=args.camera_indices,
                     )
                 except Exception as e:
                     print(f"Error processing {sample_dir}: {e}")
@@ -635,7 +540,6 @@ Examples:
                     device=args.device,
                 )
                 if summary:
-                    import json
                     metrics_path = Path(args.output_dir) / "metrics.json"
                     with open(metrics_path, "w") as f:
                         json.dump(summary, f, indent=2)

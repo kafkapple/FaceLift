@@ -9,7 +9,6 @@ Handles:
 
 import os
 import numpy as np
-import cv2
 import torch
 from typing import Dict, Any
 from PIL import Image
@@ -21,75 +20,16 @@ from mouse_extensions.model.visualization_extensions import (
     create_validation_visual,
 )
 from mouse_extensions.visualization import (
-    compute_camera_convergence_center,
-    get_dynamic_camera_order,
     visualize_alpha_comparison,
     compute_alpha_metrics,
     should_visualize_alpha,
-    MOUSE_CAMERA_ORDER,
-    # create_dataset_views_video,  # REMOVED: dataset_views deprecated
 )
 
 # From gslrm
-from gslrm.model.gaussians_renderer import (
-    render_turntable,
-    # render_dataset_views,  # REMOVED: dataset_views deprecated
-    render_dataset_trajectory,
-    imageseq2video,
-    add_row_labels_to_grid,
-    add_left_row_labels,
-    create_labeled_input_strip,  # Added for unified train/val visualization
-)
 
 
 
 
-def _safe_video_save(frames: np.ndarray, filename: str, fps: int = 24) -> bool:
-    """
-    Safely save video with fallback to OpenCV VideoWriter.
-    
-    Returns True if successful, False otherwise.
-    """
-    try:
-        # Try original videoio method first
-        imageseq2video(frames, filename, fps=fps)
-        return True
-    except BrokenPipeError as e:
-        print(f"Warning: videoio failed with BrokenPipeError, trying cv2 fallback: {e}")
-    except Exception as e:
-        print(f"Warning: videoio failed ({type(e).__name__}), trying cv2 fallback: {e}")
-    
-    # Fallback to cv2.VideoWriter
-    try:
-        h, w = frames.shape[1], frames.shape[2]
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(filename, fourcc, fps, (w, h))
-        
-        if not out.isOpened():
-            print(f"Warning: Could not open video writer for {filename}")
-            return False
-        
-        for frame in frames:
-            # Convert to uint8 if needed
-            if frame.dtype == np.float32 or frame.dtype == np.float64:
-                frame_uint8 = (np.clip(frame, 0, 1) * 255).astype(np.uint8)
-            else:
-                frame_uint8 = frame
-            
-            # Convert RGB to BGR for cv2
-            if len(frame_uint8.shape) == 3 and frame_uint8.shape[2] == 3:
-                frame_bgr = cv2.cvtColor(frame_uint8, cv2.COLOR_RGB2BGR)
-            else:
-                frame_bgr = frame_uint8
-            
-            out.write(frame_bgr)
-        
-        out.release()
-        print(f"Successfully saved video using cv2 fallback: {filename}")
-        return True
-    except Exception as e2:
-        print(f"Warning: cv2 fallback also failed for {filename}: {e2}")
-        return False
 
 
 class ValidationRunner:
@@ -278,225 +218,41 @@ class ValidationRunner:
         ).save_ply(os.path.join(output_dir, "gaussians.ply"))
     
     def _create_turntable(self, input_data, target_data, model_results, batch_idx, item_uid, output_dir, input_np):
-        """Create turntable video, grid, and dataset views."""
-        cfg = self.config.get("visualization", {}).get("turntable", {})
-        
+        """Create turntable video, grid, and orbit views (unified via TurntableRenderer)."""
+        from mouse_extensions.visualization.turntable_renderer import TurntableRenderer, TurntableVideoConfig
+
+        turntable_video_cfg = TurntableVideoConfig.from_config(self.config)
         render_res = input_np.shape[0]
         input_res = input_data.image.size(3)
-        
-        smooth = cfg.get("smooth_trajectory", True)
-        loop = cfg.get("loop", True)
-        fps = cfg.get("fps", 30)
-        num_views = cfg.get("video_views", 144)
-        
+
         c2ws = target_data.c2w[batch_idx].cpu().numpy()
-        camera_order = get_dynamic_camera_order(c2ws, self.config)
         fxfycxcy = target_data.fxfycxcy[batch_idx].cpu().numpy()
-        gaussians = model_results.gaussians[batch_idx]
-        
-        # Render frames
-        segments = None
-        if smooth:
-            frames, segments = render_dataset_trajectory(
-                gaussians, c2ws, fxfycxcy,
-                rendering_resolution=render_res, num_views=num_views,
-                camera_order=camera_order, loop=loop,
-                show_overlay=cfg.get("show_frame_overlay", False), original_resolution=input_res,
-            )
-        else:
-            center = gaussians._xyz.mean(dim=0).detach().cpu().numpy()
-            turntable_img = render_turntable(
-                gaussians, rendering_resolution=render_res, num_views=num_views, center=center
-            )
-            frames = rearrange(turntable_img, "h (v w) c -> v h w c", v=num_views)
-        
-        frames = np.ascontiguousarray(frames)
-        
-        # Save video
-        _safe_video_save(frames, os.path.join(output_dir, "turntable.mp4"), fps=fps)
-        
-        # Save grid
-        self._save_grid(frames, cfg, item_uid, output_dir, segments=segments, camera_order=camera_order)
-        
-        # Save with input overlay
-        # Get view indices for proper camera->tensor mapping (unified with training)
+
+        # Get view indices for proper camera->tensor mapping
         view_indices = None
         if hasattr(target_data, "index") and target_data.index is not None:
             view_indices = target_data.index[batch_idx, :, 0].cpu().numpy().tolist()
-        # Get actual input camera indices (handles random_view_selection)
+
+        # Get actual input camera indices
         if hasattr(input_data, "index") and input_data.index is not None:
             input_indices = input_data.index[batch_idx, :, 0].cpu().numpy().tolist()
         else:
-            num_input_views = input_data.image.shape[1]
-            input_indices = list(range(num_input_views))  # Fallback
-        
-        self._save_with_input(
-            frames, input_np, render_res, fps, output_dir,
-            target_images=target_data.image[batch_idx],  # All views (unified with training)
-            camera_order=camera_order,
-            view_indices=view_indices,
+            input_indices = list(range(input_data.image.shape[1]))
+
+        renderer = TurntableRenderer(turntable_video_cfg)
+        renderer.render_all(
+            gaussians=model_results.gaussians[batch_idx],
+            output_dir=output_dir,
+            uid=str(item_uid),
+            rendering_resolution=render_res,
+            dataset_c2ws=c2ws,
+            dataset_fxfycxcy=fxfycxcy,
+            original_resolution=input_res,
+            target_images=target_data.image[batch_idx],
             input_indices=input_indices,
+            view_indices=view_indices,
         )
-        
-        # Dataset views - REMOVED (deprecated)
-        # if cfg.get("save_dataset_views", False):  # REMOVED
-        #     self._save_dataset_views(...)  # REMOVED
-        
-        # Orbit turntable (standard 360-degree rotation)
-        if cfg.get("save_orbit_turntable", True):
-            self._save_orbit_turntable(gaussians, render_res, fps, cfg, item_uid, output_dir, input_np, c2ws, target_images=target_data.image[batch_idx], camera_order=camera_order, view_indices=view_indices, input_indices=input_indices)
-    
 
-    def _save_orbit_turntable(self, gaussians, render_res, fps, cfg, item_uid, output_dir, input_np, c2ws=None, target_images=None, camera_order=None, view_indices=None, input_indices=None):
-        """Save standard 360-degree orbit turntable video."""
-        try:
-            orbit_views = cfg.get("orbit_views", 120)
-            orbit_elevation = cfg.get("elevation", 20)
-            
-            # Use camera convergence center (more stable than opacity-weighted)
-            center = compute_camera_convergence_center(c2ws)
-            
-            # Use same radius as normalized data (~2.7)
-            orbit_radius = cfg.get("orbit_radius", cfg.get("radius", 2.7))
-            
-            orbit_img = render_turntable(
-                gaussians,
-                rendering_resolution=render_res,
-                num_views=orbit_views,
-                elevation=orbit_elevation,
-                radius=orbit_radius,
-                center=center,
-            )
-            orbit_frames = rearrange(orbit_img, "h (v w) c -> v h w c", v=orbit_views)
-            orbit_frames = np.ascontiguousarray(orbit_frames)
-            
-            # Save orbit video
-            _safe_video_save(orbit_frames, os.path.join(output_dir, f"turntable_orbit_{item_uid}.mp4"), fps=fps)
-            
-            # Save orbit with input strip (unified with training)
-            if target_images is not None and camera_order is not None:
-                orbit_input_h = render_res // 4
-                orbit_labeled_input = create_labeled_input_strip(
-                    target_images,
-                    camera_order=camera_order,
-                    target_h=orbit_input_h,
-                    target_w=render_res,
-                    border=2,
-                    input_indices=input_indices,
-                    view_indices=view_indices,
-                )
-                if orbit_labeled_input is not None:
-                    input_seq = np.tile(orbit_labeled_input[None], (orbit_frames.shape[0], 1, 1, 1))
-                    combined = np.concatenate((orbit_frames, input_seq), axis=1)
-                    _safe_video_save(combined, os.path.join(output_dir, f"turntable_orbit_with_input_{item_uid}.mp4"), fps=fps)
-                    return
-            # Fallback: simple resized input
-            border = 2
-            target_h = int(input_np.shape[0] / input_np.shape[1] * render_res)
-            resized = cv2.resize(input_np, (render_res - border * 2, target_h - border * 2), interpolation=cv2.INTER_AREA)
-            bordered = np.pad(resized, ((border, border), (border, border), (0, 0)), mode="constant", constant_values=200)
-            input_seq = np.tile(bordered[None], (orbit_frames.shape[0], 1, 1, 1))
-            combined = np.concatenate((orbit_frames, input_seq), axis=1)
-            _safe_video_save(combined, os.path.join(output_dir, f"turntable_orbit_with_input_{item_uid}.mp4"), fps=fps)
-        except Exception as e:
-            print(f"Warning: Could not save orbit turntable: {e}")
-
-    def _save_grid(self, frames, cfg, item_uid, output_dir, segments=None, camera_order=None):
-        """Create and save turntable grid."""
-        rows = cfg.get("grid_rows", 6)
-        cols = cfg.get("grid_cols", 6)
-        n_grid = rows * cols
-        n_frames = frames.shape[0]
-        
-        if segments is not None and n_frames > n_grid:
-            # Use only transition (non-hold) frames for grid
-            # segments: list of (start_frame, end_frame, from_cam, to_cam, is_hold)
-            transition_indices = []
-            for seg in segments:
-                start, end, _, _, is_hold = seg
-                if not is_hold:
-                    for idx in range(start, end):
-                        if idx < n_frames:
-                            transition_indices.append(idx)
-            if len(transition_indices) >= n_grid:
-                sub_idx = np.linspace(0, len(transition_indices) - 1, n_grid, dtype=int)
-                indices = [transition_indices[i] for i in sub_idx]
-            else:
-                indices = np.linspace(0, n_frames - 1, n_grid, dtype=int).tolist()
-            grid_frames = frames[indices]
-        elif n_frames > n_grid:
-            indices = np.linspace(0, n_frames - 1, n_grid, dtype=int)
-            grid_frames = frames[indices]
-        else:
-            grid_frames = frames[:n_grid]
-        
-        h = grid_frames.shape[1]
-        grid = rearrange(grid_frames, "(r c) h w ch -> (r h) (c w) ch", r=rows, c=cols)
-        
-        if cfg.get("add_row_labels", True):
-            cam_order = camera_order if camera_order is not None else cfg.get("camera_order", MOUSE_CAMERA_ORDER)
-            if cfg.get("label_position", "top") == "top":
-                grid = add_row_labels_to_grid(grid, cam_order, rows, cols, h)
-            else:
-                grid = add_left_row_labels(grid, cam_order, rows, cols, h)
-        
-        Image.fromarray(grid).save(os.path.join(output_dir, f"turntable_{item_uid}.jpg"))
-    
-    def _save_with_input(self, frames, input_np, render_res, fps, output_dir, 
-                        target_images=None, camera_order=None, view_indices=None, input_indices=None):
-        """Save turntable with input overlay (unified with training visualization).
-        
-        Args:
-            frames: Video frames [N, H, W, 3]
-            input_np: Fallback single input image (used if target_images is None)
-            render_res: Rendering resolution
-            fps: Frames per second
-            output_dir: Output directory
-            target_images: Optional [V, C, H, W] tensor of all views (for labeled strip)
-            camera_order: Optional camera order for labeled strip
-            view_indices: Optional tensor->camera mapping
-            input_indices: Optional list of input view indices
-        """
-        # Use labeled input strip if target_images provided (unified with training)
-        if target_images is not None and camera_order is not None:
-            input_strip_h = render_res // 4
-            num_views = target_images.shape[0]
-            if input_indices is None:
-                input_indices = [0]  # Default: first view is input
-            
-            labeled_input = create_labeled_input_strip(
-                target_images,
-                camera_order=camera_order,
-                target_h=input_strip_h,
-                target_w=render_res,
-                border=2,
-                input_indices=input_indices,
-                view_indices=view_indices,
-            )
-            
-            if labeled_input is not None:
-                input_seq = np.tile(labeled_input[None], (frames.shape[0], 1, 1, 1))
-                combined = np.concatenate((frames, input_seq), axis=1)
-                _safe_video_save(combined, os.path.join(output_dir, "turntable_with_input.mp4"), fps=fps)
-                return
-        
-        # Fallback: simple resized input (legacy behavior)
-        border = 2
-        target_h = int(input_np.shape[0] / input_np.shape[1] * render_res)
-        
-        resized = cv2.resize(input_np, (render_res - border * 2, target_h - border * 2), interpolation=cv2.INTER_AREA)
-        bordered = np.pad(resized, ((border, border), (border, border), (0, 0)), mode="constant", constant_values=200)
-        
-        input_seq = np.tile(bordered[None], (frames.shape[0], 1, 1, 1))
-        combined = np.concatenate((frames, input_seq), axis=1)
-        
-        _safe_video_save(combined, os.path.join(output_dir, "turntable_with_input.mp4"), fps=fps)
-    
-    # REMOVED: _save_dataset_views - dataset_views feature deprecated (2026-01-27)
-    # def _save_dataset_views(self, gaussians, c2ws, fxfycxcy, render_res, input_res, cfg, item_uid, output_dir):
-    #     """Save rendered dataset camera views."""
-    #     ...
-    
     def _aggregate_results(self, metrics: Dict) -> Dict[str, float]:
         """Aggregate validation metrics."""
         result = {

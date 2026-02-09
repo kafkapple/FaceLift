@@ -38,6 +38,12 @@ from .video_generator import (
     get_video_generator,
 )
 
+from .turntable_renderer import (
+    TurntableVideoConfig,
+    TurntableRenderer,
+    TemporalVideoRenderer,
+)
+
 from .error_annotation import (
     add_error_scale_annotation,
     compute_pred_mask_for_visualization,
@@ -73,6 +79,10 @@ __all__ = [
     # Error annotation
     "add_error_scale_annotation",
     "compute_pred_mask_for_visualization",
+    # Turntable renderer (unified)
+    "TurntableVideoConfig",
+    "TurntableRenderer",
+    "TemporalVideoRenderer",
     # Unified visualizer (recommended for inference)
     "UnifiedVisualizer",
     "VisualizerConfig",
