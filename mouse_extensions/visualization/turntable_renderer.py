@@ -72,6 +72,7 @@ class TurntableVideoConfig:
     save_orbit_with_input: bool = True
     save_view_with_input: bool = True
     save_grid: bool = True
+    save_multiview_grid: bool = True  # 2x3 grid video of all dataset camera views
 
     # --- Rotation direction (centralized) ---
     rotation_direction: str = "ccw"  # "ccw" (counter-clockwise) or "cw"
@@ -120,6 +121,7 @@ class TurntableVideoConfig:
             save_orbit_with_input=_g("save_orbit_with_input", cls.save_orbit_with_input),
             save_view_with_input=_g("save_view_with_input", _g("save_video", cls.save_view_with_input)),
             save_grid=_g("save_grid", _g("save_video", cls.save_grid)),
+            save_multiview_grid=_g("save_multiview_grid", _g("save_video", cls.save_multiview_grid)),
             rotation_direction=_g("rotation_direction", cls.rotation_direction),
             view_smooth=_g("smooth_trajectory", cls.view_smooth),
             temporal_fps=_g("temporal_fps", cls.temporal_fps),
@@ -298,6 +300,17 @@ class TurntableRenderer:
                 )
                 results["grid"] = path
 
+        # --- 4. Multiview grid video (2x3 simultaneous views) ---
+        if cfg.save_multiview_grid and has_dataset_cameras:
+            mv_path = os.path.join(output_dir, f"turntable_6view_{uid}.mp4")
+            self._render_multiview_grid(
+                gaussians, dataset_c2ws, dataset_fxfycxcy,
+                rendering_resolution, original_resolution,
+                camera_order, target_images, input_indices, view_indices,
+                mv_path,
+            )
+            results["multiview_grid"] = mv_path
+
         return results
 
     # ------------------------------------------------------------------
@@ -414,6 +427,175 @@ class TurntableRenderer:
         except Exception as exc:
             print(f"Warning: input strip creation failed: {exc}")
             return None
+
+    def _render_multiview_grid(
+        self,
+        gaussians,
+        dataset_c2ws: np.ndarray,
+        dataset_fxfycxcy: np.ndarray,
+        rendering_resolution: int,
+        original_resolution: Optional[int],
+        camera_order: Optional[List[int]],
+        target_images,
+        input_indices: Optional[List[int]],
+        view_indices: Optional[List[int]],
+        output_path: str,
+        grid_cols: int = 3,
+        padding: int = 4,
+    ) -> None:
+        """Render 2x3 grid video showing all dataset views simultaneously.
+
+        Top row: GT images (with green/red borders for input/target).
+        Bottom row: Rendered predictions from same camera poses.
+        """
+        from gslrm.model.gaussians_renderer import render_dataset_views
+
+        cfg = self.cfg
+        num_cams = dataset_c2ws.shape[0]
+
+        try:
+            # Render predictions from dataset camera poses
+            pred_frames = render_dataset_views(
+                gaussians, dataset_c2ws, dataset_fxfycxcy,
+                rendering_resolution=rendering_resolution,
+                show_overlay=True,
+                original_resolution=original_resolution,
+            )  # [N, H, W, 3] uint8
+
+            # Reorder by camera_order if provided
+            if camera_order is not None:
+                order = [c for c in camera_order if c < num_cams]
+            else:
+                order = list(range(num_cams))
+
+            n_views = len(order)
+            grid_rows = (n_views + grid_cols - 1) // grid_cols
+            cell_h, cell_w = rendering_resolution, rendering_resolution
+
+            # --- Build GT row ---
+            gt_frames = None
+            if target_images is not None:
+                import torch
+                if isinstance(target_images, torch.Tensor):
+                    # [V, C, H, W] -> [V, H, W, C] uint8
+                    imgs = target_images.detach().cpu()
+                    if imgs.dtype in (torch.float32, torch.float16, torch.bfloat16):
+                        imgs = (imgs.clamp(0, 1) * 255).to(torch.uint8)
+                    imgs = imgs.permute(0, 2, 3, 1).numpy()  # [V, H, W, C]
+
+                    # Map tensor indices to camera IDs via view_indices
+                    cam_to_tensor = {}
+                    if view_indices is not None:
+                        for tensor_idx, cam_id in enumerate(view_indices):
+                            if tensor_idx < imgs.shape[0]:
+                                cam_to_tensor[cam_id] = tensor_idx
+
+                    gt_list = []
+                    for cam_id in order:
+                        tensor_idx = cam_to_tensor.get(cam_id, cam_id)
+                        if tensor_idx < imgs.shape[0]:
+                            img = imgs[tensor_idx]
+                            # Resize to rendering_resolution if needed
+                            if img.shape[0] != cell_h or img.shape[1] != cell_w:
+                                img = np.array(Image.fromarray(img).resize(
+                                    (cell_w, cell_h), Image.LANCZOS))
+                            # Add border: green=input, red=target
+                            border = 3
+                            bordered = img.copy()
+                            is_input = (input_indices is not None and
+                                        tensor_idx in input_indices)
+                            color = (0, 200, 0) if is_input else (200, 0, 0)
+                            bordered[:border, :] = color
+                            bordered[-border:, :] = color
+                            bordered[:, :border] = color
+                            bordered[:, -border:] = color
+                            gt_list.append(bordered)
+                        else:
+                            gt_list.append(np.zeros((cell_h, cell_w, 3), dtype=np.uint8))
+                    gt_frames = np.stack(gt_list)
+
+            # --- Assemble grid frame ---
+            # If we have GT: top = GT, bottom = pred (each in grid_cols layout)
+            # Otherwise: just pred in grid layout
+            pred_ordered = pred_frames[order]
+
+            if gt_frames is not None and gt_frames.shape[0] == pred_ordered.shape[0]:
+                # Side label
+                label_h = 24
+                total_w = grid_cols * cell_w + (grid_cols - 1) * padding
+
+                # GT row
+                gt_row = self._assemble_row(gt_frames, grid_cols, padding)
+                # Pred row
+                pred_row = self._assemble_row(pred_ordered, grid_cols, padding)
+
+                # Add row labels
+                gt_label = self._make_label_bar(total_w, label_h, "GT (green=input)")
+                pred_label = self._make_label_bar(total_w, label_h, "Predicted")
+
+                frame = np.concatenate([
+                    gt_label, gt_row,
+                    pred_label, pred_row,
+                ], axis=0)
+            else:
+                frame = self._assemble_row(pred_ordered, grid_cols, padding)
+
+            # Save as short video (repeat frame for ~2 seconds)
+            n_repeat = max(1, cfg.orbit_fps * 2)
+            video_frames = np.tile(frame[None], (n_repeat, 1, 1, 1))
+            _save_video(video_frames, output_path, fps=cfg.orbit_fps)
+
+        except Exception as exc:
+            print(f"Warning: multiview grid failed: {exc}")
+
+    @staticmethod
+    def _assemble_row(
+        frames: np.ndarray,  # [N, H, W, 3]
+        cols: int,
+        padding: int,
+    ) -> np.ndarray:
+        """Arrange frames into a grid row(s). Returns [grid_H, grid_W, 3]."""
+        n = frames.shape[0]
+        h, w = frames.shape[1], frames.shape[2]
+        rows = (n + cols - 1) // cols
+
+        # Pad to fill grid
+        total = rows * cols
+        if n < total:
+            pad = np.zeros((total - n, h, w, 3), dtype=frames.dtype)
+            frames = np.concatenate([frames, pad], axis=0)
+
+        grid_h = rows * h + (rows - 1) * padding
+        grid_w = cols * w + (cols - 1) * padding
+        grid = np.zeros((grid_h, grid_w, 3), dtype=frames.dtype)
+
+        for i in range(total):
+            r, c = i // cols, i % cols
+            y = r * (h + padding)
+            x = c * (w + padding)
+            grid[y:y + h, x:x + w] = frames[i]
+
+        return grid
+
+    @staticmethod
+    def _make_label_bar(
+        width: int, height: int, text: str,
+        bg_color: tuple = (40, 40, 40),
+        text_color: tuple = (255, 255, 255),
+    ) -> np.ndarray:
+        """Create a text label bar."""
+        bar = np.full((height, width, 3), bg_color, dtype=np.uint8)
+        try:
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            scale = 0.5
+            thickness = 1
+            (tw, th), _ = cv2.getTextSize(text, font, scale, thickness)
+            x = (width - tw) // 2
+            y = (height + th) // 2
+            cv2.putText(bar, text, (x, y), font, scale, text_color, thickness, cv2.LINE_AA)
+        except Exception:
+            pass
+        return bar
 
     def _create_grid(
         self,
