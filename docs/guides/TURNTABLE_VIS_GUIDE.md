@@ -4,28 +4,29 @@ Turntable 영상 생성 및 검증 가이드.
 
 ---
 
-## Quick Test (Train + Val + Inference)
+## Quick Test (Inference + TurntableRenderer)
+
+체크포인트에서 모델을 로드하여 시각화만 실행 (training resume 없음):
 
 ```bash
-# 백그라운드 실행 (GPU 6)
 cd /home/joon/dev/FaceLift
-nohup bash scripts/verify_turntable.sh 6 > /tmp/verify_turntable.log 2>&1 &
-
-# 로그 확인
-tail -f /tmp/verify_turntable.log
+nohup bash scripts/verify_turntable.sh 6 > ./logs/verify_turntable.log 2>&1 &
+tail -f ./logs/verify_turntable.log
 ```
+
+Custom checkpoint:
+```bash
+bash scripts/verify_turntable.sh 6 /path/to/checkpoint.pt
+```
+
+### 테스트 내용
+
+| Step | 경로 | 검증 대상 |
+|------|------|-----------|
+| 1/2 | render_from_checkpoint.py | Inference path (orbit only) |
+| 2/2 | TurntableRenderer.render_all() | Train/Val path (orbit + view_traj + grid) |
 
 ## 개별 실행
-
-### Training (vis_every=100 간격으로 turntable 자동 생성)
-
-```bash
-CUDA_VISIBLE_DEVICES=6 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M5t2 -e E0_1_facelift \
-    --set training.schedule.max_fwdbwd_passes 9302
-```
-
-결과: `/node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/iter_XXXXX/`
 
 ### Inference (standalone)
 
@@ -33,22 +34,29 @@ CUDA_VISIBLE_DEVICES=6 torchrun --standalone --nproc_per_node=1 \
 CUDA_VISIBLE_DEVICES=6 python mouse_extensions/scripts/inference/render_from_checkpoint.py \
     --checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/ckpt_0000000000009200.pt \
     --config configs/base/gslrm_mouse.yaml \
-    --data_path ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt \
+    --data_path /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt \
     --output_dir outputs/verify_turntable/inference \
     --mode turntable --num_samples 1
+```
+
+### Training (vis_every=100 간격으로 turntable 자동 생성)
+
+```bash
+CUDA_VISIBLE_DEVICES=6 /home/joon/anaconda3/envs/facelift/bin/torchrun \
+    --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M5t2 -e E0_1_facelift \
+    --set training.schedule.max_fwdbwd_passes 100
 ```
 
 ## 결과 확인
 
 ```bash
-# Training + Validation
-ls /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/iter_*/turntable_*.mp4
-
-# Inference
+# Quick test 결과
 ls outputs/verify_turntable/inference/
+ls outputs/verify_turntable/renderer/
 
 # Mac으로 복사
-scp gpu03:~/dev/FaceLift/outputs/verify_turntable/*.mp4 .
+scp -r gpu03:~/dev/FaceLift/outputs/verify_turntable/ .
 ```
 
 ## Output 파일 체계
@@ -94,4 +102,4 @@ rotation_direction: "ccw" (default) -> 모든 영상이 physical CCW (위에서 
 
 ---
 
-*Created: 2026-02-09*
+*Created: 2026-02-09 | Updated: 2026-02-10*
