@@ -294,7 +294,7 @@ print(f"Intrinsics shape: {sample['fxfycxcy'].shape}")  # [6, 4]
 
 ✅ MouseViewDataset 구현 완료
 
-→ [Step3: 전처리 스크립트](./Step3_Preprocessing.md)
+→ [전처리 레지스트리](../datasets/PREPROCESSING_REGISTRY.md)
 
 ---
 

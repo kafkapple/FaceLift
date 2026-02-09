@@ -26,15 +26,15 @@
 
 ## 문서 구조
 
-### 연구 가설 (experiments/)
+### 연구 가설 (hypotheses/)
 | 문서 | 내용 | 상태 |
 |------|------|------|
-| **[[experiments/H4_VIEW_ABLATION]]** | View 수 최적화 | 🔄 실행 대기 |
-| [[experiments/H5_MVDIFFUSION]] | MVDiffusion 개선 | 🔄 진행중 |
-| [[experiments/H6_ALPHA_MASK]] | Alpha mask | ⏳ 대기 |
-| [[experiments/H7_SSIM_WEIGHT]] | SSIM weight | ⏳ 대기 |
-| [[experiments/H8_LITERATURE_SURVEY]] | 문헌 기반 개선 | ⏳ 대기 |
-| [[experiments/H8_REDUCED_VIEW_GENERATION]] | 축소 뷰 생성 | ⏳ 대기 |
+| **[[hypotheses/H4_VIEW_ABLATION]]** | View 수 최적화 | 🔄 실행 대기 |
+| [[hypotheses/H5_MVDIFFUSION]] | MVDiffusion 개선 | 🔄 진행중 |
+| [[hypotheses/H6_ALPHA_MASK]] | Alpha mask | ⏳ 대기 |
+| [[hypotheses/H7_SSIM_WEIGHT]] | SSIM weight | ⏳ 대기 |
+| [[hypotheses/H8_LITERATURE_SURVEY]] | 문헌 기반 개선 | ⏳ 대기 |
+| [[hypotheses/H8_REDUCED_VIEW_GENERATION]] | 축소 뷰 생성 | ⏳ 대기 |
 
 ### 실험 가이드 (experiments/)
 | 문서 | 내용 |

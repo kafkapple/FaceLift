@@ -104,7 +104,7 @@
 
 ## Related Documents
 
-- [Research Report](./research/260204_4D_Gaussian_Temporal_Methods.md)
+- Research Report: archived (260204 4D Gaussian Temporal Methods note)
 - [Deformation Network](../mouse_extensions/model/deformation/)
 - [Evaluation Metrics](../mouse_extensions/evaluation/)
 

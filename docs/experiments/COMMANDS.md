@@ -66,7 +66,7 @@ export CUDA_VISIBLE_DEVICES=N && PYTHONUNBUFFERED=1 nohup accelerate launch \
 ## 2.5 H5: MVDiffusion Optimization (다음 실행)
 
 > **목표**: Sparse vs Full attention E2E 비교 → 단일 변수 ablation
-> **문서**: [H5_MVDIFFUSION.md](H5_MVDIFFUSION.md)
+> **문서**: [H5_MVDIFFUSION.md](../hypotheses/H5_MVDIFFUSION.md)
 
 ### Phase 1: E2E 비교 (학습 불필요, GPU 4)
 
@@ -79,7 +79,7 @@ export CUDA_VISIBLE_DEVICES=N && PYTHONUNBUFFERED=1 nohup accelerate launch \
 cd /home/joon/dev/FaceLift
 
 # 1) cfgr E2E (full attention, ckpt-10000)
-export CUDA_VISIBLE_DEVICES=4 && python -m mouse_extensions.scripts.inference.run_e2e_inference \
+export CUDA_VISIBLE_DEVICES=6 && python -m mouse_extensions.scripts.inference.run_e2e_inference \
     --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_cfgr/checkpoint-10000 \
     --gslrm_checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
@@ -129,7 +129,7 @@ export CUDA_VISIBLE_DEVICES=4 && PYTHONUNBUFFERED=1 nohup accelerate launch \
 
 > **기준**: 4view_v2 (Baseline, alpha_w=0, mask=none)
 > **목표**: Alpha supervision / GT mask의 shape quality 효과 측정
-> **문서**: [H6_ALPHA_MASK.md](H6_ALPHA_MASK.md)
+> **문서**: [H6_ALPHA_MASK.md](../hypotheses/H6_ALPHA_MASK.md)
 
 | Config | alpha_w | mask_mode | 가설 |
 |--------|---------|-----------|------|
@@ -164,7 +164,7 @@ export CUDA_VISIBLE_DEVICES=7 && PYTHONUNBUFFERED=1 nohup python \
 
 > **기준**: 4view_v2 (Baseline, ssim_weight=0.1)
 > **목표**: SSIM loss weight 증가 시 구조적 보존 개선 여부
-> **문서**: [H7_SSIM_WEIGHT.md](H7_SSIM_WEIGHT.md)
+> **문서**: [H7_SSIM_WEIGHT.md](../hypotheses/H7_SSIM_WEIGHT.md)
 > **관찰**: train/ssim_loss가 초기 감소 후 증가 → SSIM이 다른 loss에 밀림
 
 | Config | ssim_weight | L2:SSIM 비율 | 가설 |
@@ -197,19 +197,91 @@ export CUDA_VISIBLE_DEVICES=6 && PYTHONUNBUFFERED=1 nohup python \
 
 ---
 
-## 5. H8: Reduced View Generation (계획)
+## 5. H8: Reduced View Generation
 
-> **전제**: H4 Round 1에서 3view PSNR이 4view 대비 -2dB 이내일 때 진행
+> **전제**: ✅ H4 R1 완료 — 3view(19.92) vs 4view(21.50) = 1.58dB gap (<2dB 기준 충족)
 > **목표**: MVDiffusion 6뷰 → 3~4뷰 생성으로 per-view 품질 개선
-> **문서**: [H8_REDUCED_VIEW_GENERATION.md](H8_REDUCED_VIEW_GENERATION.md)
+> **문서**: [H8_REDUCED_VIEW_GENERATION.md](../hypotheses/H8_REDUCED_VIEW_GENERATION.md)
 
-실험 순서:
-1. S0: H4 결과 분석 (3view vs 4view gap)
-2. S1: View selection ablation (고정 뷰 조합, GS-LRM GT only)
-3. S2-S3: MVDiffusion n_views=3/4 fine-tune
-4. S4: E2E 통합 평가
+### S0: H4 결과 분석 ✅
 
-> ⏳ Config/명령어는 S0 완료 후 구체화
+| Views | GS-LRM PSNR (GT input) | Gap vs 6-view |
+|-------|------------------------|---------------|
+| 6-view | 23.46 | - |
+| 5-view | 22.63 | -0.83 |
+| 4-view | 21.50 | -1.96 |
+| **3-view** | **19.92** | **-3.54** |
+| 2-view | 17.70 | -5.76 |
+| 1-view | 11.08 | -12.38 |
+
+**결론**: GS-LRM에서 뷰 수↑ = PSNR↑ (단조 증가). 하지만 MVDiffusion 생성 품질이
+핵심 변수 — per-view 품질 개선이 coverage 손실을 상쇄할 수 있는지 E2E로 검증 필요.
+
+### S2-S3: MVDiffusion n_views=3/4 fine-tune
+
+**코드 변경** (260209):
+- `mvdiffusion/data/mouse_dataset.py`: `camera_indices` 매핑 추가
+- `train_diffusion.py`: `TrainingConfig.camera_indices` 필드 추가
+- 기존 6-view 학습과 backward compatible (camera_indices=None → [0..5])
+
+**뷰 선택**:
+- 4-view: `[0, 2, 3, 5]` — 90° spread (top-front, top-right, top-back, top-front-left)
+- 3-view: `[0, 2, 4]` — 120° spread (top-front, top-right, top-left)
+
+**명령어:**
+```bash
+cd /home/joon/dev/FaceLift
+
+# H8: 4-view MVDiffusion (GPU 4)
+export CUDA_VISIBLE_DEVICES=4 && PYTHONUNBUFFERED=1 nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_4view.yaml \
+    > logs/mvdiff_M5t2_4view.log 2>&1 &
+
+# H8: 3-view MVDiffusion (GPU 5)
+export CUDA_VISIBLE_DEVICES=5 && PYTHONUNBUFFERED=1 nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_3view.yaml \
+    > logs/mvdiff_M5t2_3view.log 2>&1 &
+```
+
+### S4: E2E 평가 (S2-S3 완료 후)
+
+```bash
+# 4-view E2E inference
+export CUDA_VISIBLE_DEVICES=4 && python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5t2_4view/checkpoint-BEST \
+    --gslrm_checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --split data_mouse_t2_test.txt \
+    --output_dir outputs/h8_e2e/4view \
+    --num_input_views 4 \
+    --guidance_scale 3.0
+
+# 3-view E2E inference
+export CUDA_VISIBLE_DEVICES=4 && python -m mouse_extensions.scripts.inference.run_e2e_inference \
+    --mvdiffusion_checkpoint checkpoints/mvdiffusion/mouse_M5t2_3view/checkpoint-BEST \
+    --gslrm_checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt \
+    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --split data_mouse_t2_test.txt \
+    --output_dir outputs/h8_e2e/3view \
+    --num_input_views 3 \
+    --guidance_scale 3.0
+```
+
+### Config 위치
+
+```
+configs/mvdiffusion/
+├── mouse_mvdiffusion_M5t2.yaml          # 6-view baseline
+├── mouse_mvdiffusion_M5t2_4view.yaml    # H8: 4-view [0,2,3,5]
+└── mouse_mvdiffusion_M5t2_3view.yaml    # H8: 3-view [0,2,4]
+
+mvdiffusion/data/
+├── mouse_prompt_embeds_6view_1024/      # 6-view embeddings
+├── mouse_prompt_embeds_4view_1024/      # H8: 4-view (sliced)
+└── mouse_prompt_embeds_3view_1024/      # H8: 3-view (sliced)
+```
 
 ---
 
@@ -296,4 +368,4 @@ watch -n 5 nvidia-smi
 
 ---
 
-*Commands v4.1 | 260207*
+*Commands v4.2 | 260209*

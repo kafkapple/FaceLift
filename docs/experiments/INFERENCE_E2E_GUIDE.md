@@ -1,7 +1,7 @@
 # E2E Inference Guide (추론 가이드)
 
 > **Updated**: 2026-01-29 (v3.0 - 통합 파이프라인)
-> **관련 문서**: [EXPERIMENT_QUICKSTART](./EXPERIMENT_QUICKSTART.md) | [PREPROCESSING_REGISTRY](../datasets/PREPROCESSING_REGISTRY.md)
+> **관련 문서**: [COMMANDS](./COMMANDS.md) | [PREPROCESSING_REGISTRY](../datasets/PREPROCESSING_REGISTRY.md)
 
 ---
 
@@ -250,7 +250,7 @@ mouse_extensions/inference/
 
 | 문서 | 내용 |
 |------|------|
-| [EXPERIMENT_QUICKSTART](./EXPERIMENT_QUICKSTART.md) | 학습 명령어 |
+| [COMMANDS](./COMMANDS.md) | 학습 명령어 |
 | [PREPROCESSING_REGISTRY](../datasets/PREPROCESSING_REGISTRY.md) | 데이터셋 SSOT |
 | [M5_SERIES_SPEC](../datasets/M5_SERIES_SPEC.md) | M5 시리즈 상세 |
 
