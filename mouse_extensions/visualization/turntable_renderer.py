@@ -300,14 +300,16 @@ class TurntableRenderer:
                 )
                 results["grid"] = path
 
-        # --- 4. Multiview grid video (2x3 simultaneous views) ---
-        if cfg.save_multiview_grid and has_dataset_cameras:
+        # --- 4. Multiview grid video (2x3 phase-shifted orbit views) ---
+        if cfg.save_multiview_grid and orbit_frames is not None:
             mv_path = os.path.join(output_dir, f"turntable_6view_{uid}.mp4")
             self._render_multiview_grid(
-                gaussians, dataset_c2ws, dataset_fxfycxcy,
-                rendering_resolution, original_resolution,
-                camera_order, target_images, input_indices, view_indices,
-                mv_path,
+                orbit_frames, mv_path,
+                target_images=target_images,
+                camera_order=camera_order,
+                input_indices=input_indices,
+                view_indices=view_indices,
+                rendering_resolution=rendering_resolution,
             )
             results["multiview_grid"] = mv_path
 
@@ -430,123 +432,140 @@ class TurntableRenderer:
 
     def _render_multiview_grid(
         self,
-        gaussians,
-        dataset_c2ws: np.ndarray,
-        dataset_fxfycxcy: np.ndarray,
-        rendering_resolution: int,
-        original_resolution: Optional[int],
-        camera_order: Optional[List[int]],
-        target_images,
-        input_indices: Optional[List[int]],
-        view_indices: Optional[List[int]],
+        orbit_frames: np.ndarray,  # [N, H, W, 3] uint8 from _render_orbit
         output_path: str,
+        target_images=None,
+        camera_order: Optional[List[int]] = None,
+        input_indices: Optional[List[int]] = None,
+        view_indices: Optional[List[int]] = None,
+        rendering_resolution: int = 384,
+        n_views: int = 6,
         grid_cols: int = 3,
         padding: int = 4,
     ) -> None:
-        """Render 2x3 grid video showing all dataset views simultaneously.
+        """Render 2x3 grid video using phase-shifted orbit frames.
 
-        Top row: GT images (with green/red borders for input/target).
-        Bottom row: Rendered predictions from same camera poses.
+        Each cell shows the same orbit but offset by 360/n_views degrees,
+        giving simultaneous multi-angle views. 120+ frames of real animation.
+        Optionally shows GT comparison as a static label strip.
         """
-        from gslrm.model.gaussians_renderer import render_dataset_views
-
         cfg = self.cfg
-        num_cams = dataset_c2ws.shape[0]
+        n_total = orbit_frames.shape[0]  # e.g. 120
+        cell_h, cell_w = orbit_frames.shape[1], orbit_frames.shape[2]
 
         try:
-            # Render predictions from dataset camera poses
-            pred_frames = render_dataset_views(
-                gaussians, dataset_c2ws, dataset_fxfycxcy,
-                rendering_resolution=rendering_resolution,
-                show_overlay=True,
-                original_resolution=original_resolution,
-            )  # [N, H, W, 3] uint8
-
-            # Reorder by camera_order if provided
-            if camera_order is not None:
-                order = [c for c in camera_order if c < num_cams]
-            else:
-                order = list(range(num_cams))
-
-            n_views = len(order)
+            # Phase offsets: 0, 20, 40, 60, 80, 100 for 6 views / 120 frames
+            offsets = [int(i * n_total / n_views) for i in range(n_views)]
             grid_rows = (n_views + grid_cols - 1) // grid_cols
-            cell_h, cell_w = rendering_resolution, rendering_resolution
 
-            # --- Build GT row ---
-            gt_frames = None
+            # Build GT strip (static, shown once at top)
+            gt_strip = None
             if target_images is not None:
-                import torch
-                if isinstance(target_images, torch.Tensor):
-                    # [V, C, H, W] -> [V, H, W, C] uint8
-                    imgs = target_images.detach().cpu()
-                    if imgs.dtype in (torch.float32, torch.float16, torch.bfloat16):
-                        imgs = (imgs.clamp(0, 1) * 255).to(torch.uint8)
-                    imgs = imgs.permute(0, 2, 3, 1).numpy()[:, :, :, :3]  # [V, H, W, 3] RGB only
+                gt_strip = self._build_gt_strip(
+                    target_images, camera_order, input_indices,
+                    view_indices, cell_h, cell_w, grid_cols, padding,
+                )
 
-                    # Map tensor indices to camera IDs via view_indices
-                    cam_to_tensor = {}
-                    if view_indices is not None:
-                        for tensor_idx, cam_id in enumerate(view_indices):
-                            if tensor_idx < imgs.shape[0]:
-                                cam_to_tensor[cam_id] = tensor_idx
+            # Compose each frame
+            grid_w = grid_cols * cell_w + (grid_cols - 1) * padding
+            grid_h = grid_rows * cell_h + (grid_rows - 1) * padding
+            total_h = grid_h + (gt_strip.shape[0] if gt_strip is not None else 0)
 
-                    gt_list = []
-                    for cam_id in order:
-                        tensor_idx = cam_to_tensor.get(cam_id, cam_id)
-                        if tensor_idx < imgs.shape[0]:
-                            img = imgs[tensor_idx]
-                            # Resize to rendering_resolution if needed
-                            if img.shape[0] != cell_h or img.shape[1] != cell_w:
-                                img = np.array(Image.fromarray(img).resize(
-                                    (cell_w, cell_h), Image.LANCZOS))
-                            # Add border: green=input, red=target
-                            border = 3
-                            bordered = img.copy()
-                            is_input = (input_indices is not None and
-                                        tensor_idx in input_indices)
-                            color = (0, 200, 0) if is_input else (200, 0, 0)
-                            bordered[:border, :] = color
-                            bordered[-border:, :] = color
-                            bordered[:, :border] = color
-                            bordered[:, -border:] = color
-                            gt_list.append(bordered)
-                        else:
-                            gt_list.append(np.zeros((cell_h, cell_w, 3), dtype=np.uint8))
-                    gt_frames = np.stack(gt_list)
+            video_frames = []
+            for t in range(n_total):
+                # Gather phase-shifted frames for this timestep
+                cells = []
+                for offset in offsets:
+                    idx = (t + offset) % n_total
+                    cells.append(orbit_frames[idx])
+                cells = np.stack(cells)  # [n_views, H, W, 3]
 
-            # --- Assemble grid frame ---
-            # If we have GT: top = GT, bottom = pred (each in grid_cols layout)
-            # Otherwise: just pred in grid layout
-            pred_ordered = pred_frames[order]
+                # Assemble into grid
+                grid = self._assemble_row(cells, grid_cols, padding)
 
-            if gt_frames is not None and gt_frames.shape[0] == pred_ordered.shape[0]:
-                # Side label
-                label_h = 24
-                total_w = grid_cols * cell_w + (grid_cols - 1) * padding
+                # Prepend GT strip if available
+                if gt_strip is not None:
+                    frame = np.concatenate([gt_strip, grid], axis=0)
+                else:
+                    frame = grid
 
-                # GT row
-                gt_row = self._assemble_row(gt_frames, grid_cols, padding)
-                # Pred row
-                pred_row = self._assemble_row(pred_ordered, grid_cols, padding)
+                video_frames.append(frame)
 
-                # Add row labels
-                gt_label = self._make_label_bar(total_w, label_h, "GT (green=input)")
-                pred_label = self._make_label_bar(total_w, label_h, "Predicted")
-
-                frame = np.concatenate([
-                    gt_label, gt_row,
-                    pred_label, pred_row,
-                ], axis=0)
-            else:
-                frame = self._assemble_row(pred_ordered, grid_cols, padding)
-
-            # Save as short video (repeat frame for ~2 seconds)
-            n_repeat = max(1, cfg.orbit_fps * 2)
-            video_frames = np.tile(frame[None], (n_repeat, 1, 1, 1))
+            video_frames = np.stack(video_frames)  # [N, total_H, grid_W, 3]
             _save_video(video_frames, output_path, fps=cfg.orbit_fps)
 
         except Exception as exc:
             print(f"Warning: multiview grid failed: {exc}")
+
+    def _build_gt_strip(
+        self,
+        target_images,
+        camera_order: Optional[List[int]],
+        input_indices: Optional[List[int]],
+        view_indices: Optional[List[int]],
+        cell_h: int, cell_w: int,
+        grid_cols: int, padding: int,
+    ) -> Optional[np.ndarray]:
+        """Build a static GT image strip with green/red borders.
+
+        Returns [strip_H, grid_W, 3] or None.
+        """
+        import torch
+
+        if not isinstance(target_images, torch.Tensor):
+            return None
+
+        imgs = target_images.detach().cpu()
+        if imgs.dtype in (torch.float32, torch.float16, torch.bfloat16):
+            imgs = (imgs.clamp(0, 1) * 255).to(torch.uint8)
+        imgs = imgs.permute(0, 2, 3, 1).numpy()[:, :, :, :3]  # [V, H, W, 3] RGB
+
+        num_cams = imgs.shape[0]
+        if camera_order is not None:
+            order = [c for c in camera_order if c < num_cams]
+        else:
+            order = list(range(num_cams))
+
+        # Map tensor indices to camera IDs
+        cam_to_tensor = {}
+        if view_indices is not None:
+            for tensor_idx, cam_id in enumerate(view_indices):
+                if tensor_idx < imgs.shape[0]:
+                    cam_to_tensor[cam_id] = tensor_idx
+
+        # Select up to grid_cols GT images
+        gt_list = []
+        for cam_id in order[:grid_cols]:
+            tensor_idx = cam_to_tensor.get(cam_id, cam_id)
+            if tensor_idx < imgs.shape[0]:
+                img = imgs[tensor_idx]
+                if img.shape[0] != cell_h or img.shape[1] != cell_w:
+                    from PIL import Image as PILImage
+                    img = np.array(PILImage.fromarray(img).resize(
+                        (cell_w, cell_h), PILImage.LANCZOS))
+                # Border: green=input, red=target
+                border = 3
+                bordered = img.copy()
+                is_input = (input_indices is not None and tensor_idx in input_indices)
+                color = (0, 200, 0) if is_input else (200, 0, 0)
+                bordered[:border, :] = color
+                bordered[-border:, :] = color
+                bordered[:, :border] = color
+                bordered[:, -border:] = color
+                gt_list.append(bordered)
+            else:
+                gt_list.append(np.zeros((cell_h, cell_w, 3), dtype=np.uint8))
+
+        if not gt_list:
+            return None
+
+        gt_frames = np.stack(gt_list)
+        gt_row = self._assemble_row(gt_frames, grid_cols, padding)
+
+        # Add label
+        grid_w = grid_cols * cell_w + (grid_cols - 1) * padding
+        label = self._make_label_bar(grid_w, 20, "GT (green=input)")
+        return np.concatenate([label, gt_row], axis=0)
 
     @staticmethod
     def _assemble_row(

@@ -22,7 +22,7 @@ export PATH="/home/joon/anaconda3/envs/facelift/bin:$PATH"
 export PYTHONPATH=/home/joon/dev/FaceLift:$PYTHONPATH
 
 cd /home/joon/dev/FaceLift
-mkdir -p $OUT_DIR/{train,val,inference}
+mkdir -p $OUT_DIR/{inference,renderer}
 
 echo "=== Verify Turntable Visualization ==="
 echo "GPU: $GPU"
