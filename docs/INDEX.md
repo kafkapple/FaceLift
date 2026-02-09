@@ -29,14 +29,14 @@
 ### 연구 가설 (hypotheses/)
 | 문서 | 내용 | 상태 |
 |------|------|------|
-| **[[hypotheses/H4_VIEW_ABLATION]]** | View 수 최적화 | 🔄 실행 대기 |
+| **[[hypotheses/H4_VIEW_ABLATION]]** | View 수 최적화 | 🔄 학습중 (v2 uniform) |
 | [[hypotheses/H5_MVDIFFUSION]] | MVDiffusion 개선 | 🔄 진행중 |
 | [[hypotheses/H6_ALPHA_MASK]] | Alpha mask | ⏳ 대기 |
 | [[hypotheses/H7_SSIM_WEIGHT]] | SSIM weight | ⏳ 대기 |
 | [[hypotheses/H1bis_v2_REVALIDATION]] | H3-bis 재검증 | ✅ 완료 |
 | [[hypotheses/HP_PREPROCESSING_ABLATION]] | 전처리 Ablation | ⏳ 대기 |
 | [[hypotheses/H8_LITERATURE_SURVEY]] | 문헌 기반 개선 | ⏳ 대기 |
-| [[hypotheses/H8_REDUCED_VIEW_GENERATION]] | 축소 뷰 생성 | ⏳ 대기 |
+| [[hypotheses/H8_REDUCED_VIEW_GENERATION]] | 축소 뷰 생성 | 🔄 3-view MVDiff 학습중 |
 
 ### 실험 가이드 (experiments/)
 | 문서 | 내용 |
@@ -77,8 +77,9 @@
 
 ## 핵심 인사이트
 
-### View Ablation (260205)
-- **3-view (21.12) > 4-view (19.58)** (Inference)
+### View Ablation (260209, uniform v2)
+- **뷰 수 ↑ = PSNR ↑ (단조 증가)**: 6-view(23.46) > 5(22.63) > 4(21.50) > 3(19.92)
+- ⚠️ 이전 R1(260205, 비균일): 3-view(21.12) best → v2(uniform)에서 반전됨
 
 ### H3 진단 (260205)
 - **MVDiffusion이 병목** (M5t: +1.41 PSNR gap)

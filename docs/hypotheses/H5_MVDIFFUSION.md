@@ -91,8 +91,8 @@ cd /home/joon/dev/FaceLift
 
 # cfgr E2E (full attention, ckpt-10000)
 export CUDA_VISIBLE_DEVICES=4 && python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --mvdiff_ckpt /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_cfgr/checkpoint-10000 \
-    --gslrm_ckpt /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt \
+    --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_cfgr/checkpoint-10000 \
+    --gslrm_checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
     --split data_mouse_t2_test.txt \
     --output_dir outputs/h5_e2e/cfgr_ckpt10000 \
@@ -100,8 +100,8 @@ export CUDA_VISIBLE_DEVICES=4 && python -m mouse_extensions.scripts.inference.ru
 
 # baseline E2E (sparse attention, ckpt-5000)
 export CUDA_VISIBLE_DEVICES=4 && python -m mouse_extensions.scripts.inference.run_e2e_inference \
-    --mvdiff_ckpt /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2/checkpoint-5000 \
-    --gslrm_ckpt /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt \
+    --mvdiffusion_checkpoint /node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2/checkpoint-5000 \
+    --gslrm_checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
     --split data_mouse_t2_test.txt \
     --output_dir outputs/h5_e2e/baseline_ckpt5000 \

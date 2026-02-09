@@ -12,13 +12,13 @@
 **가설**: 3-4개 뷰가 최적 성능을 보일 것이다.
 
 **근거**:
-- 이전 실험에서 3-view (PSNR 21.12) > 4-view (PSNR 19.58) 관찰
+- 이전 R1(비균일): 3-view (21.12) > 4-view (19.58) → **v2(uniform)에서 반전: 단조 증가**
 - 뷰가 너무 적으면 정보 부족, 너무 많으면 과적합/노이즈 증폭
 - GS-LRM 논문: "4 views are sufficient for high-quality reconstruction"
 
 **검증 방법**: 1-6 view 실험 후 PSNR/SSIM/LPIPS 곡선 분석
 
-**예상 결과**: 1v < 2v < 3v ≈ 4v > 5v > 6v (inverted-U shape)
+**예상 결과**: ~~1v < 2v < 3v ≈ 4v > 5v > 6v (inverted-U shape)~~ → **실제: 단조 증가 (1v < 2v < 3v < 4v < 5v < 6v)**
 
 ---
 
@@ -258,6 +258,28 @@ configs/mouse/uniform/
 
 ---
 
+## 5. Uniform v2 결과 (260209)
+
+> ⚠️ 아래는 val PSNR (학습 중 모니터링). 최종 test evaluation은 학습 완료 후 진행 예정.
+
+| Views | Val PSNR | Best Step | 상태 |
+|-------|----------|-----------|------|
+| **6** | **23.46** | 601 | 🔄 학습중 |
+| 5 | 22.63 | 2901 | 🔄 학습중 |
+| 4 | 21.50 | 3801 | 🔄 학습중 |
+| 3 | 19.92 | 3801 | 🔄 학습중 |
+| 2 | 17.70 | 8801 | ✅ completed |
+| 1 | 11.08 | 2401 | ✅ completed |
+| baseline | 15.99 | 0 | ✅ zero-shot |
+
+### 핵심 발견
+
+1. **단조 증가**: 뷰 수 ↑ = PSNR ↑ (R1과 반전)
+2. **원인**: R1은 비균일 뷰 샘플링, v2는 균일 → 조건 통일의 중요성
+3. **baseline**: zero-shot 4-view = 15.99 → 1-view(11.08)보다 높음
+
+→ 상세 결과: [[RESEARCH_HYPOTHESES|RESEARCH_HYPOTHESES.md]]
+
 ## 6. 참고 문헌
 
 1. GS-LRM: "GS-LRM: Large Reconstruction Model for 3D Gaussian Splatting" (2024)
@@ -266,4 +288,4 @@ configs/mouse/uniform/
 
 ---
 
-*Created: 2026-02-07 | Updated: 2026-02-07 | Project: FaceLift*
+*Created: 2026-02-07 | Updated: 2026-02-09 | Project: FaceLift*
