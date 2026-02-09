@@ -58,21 +58,113 @@ def interpolate_camera_poses(c2w_start: np.ndarray, c2w_end: np.ndarray, t: floa
     return c2w
 
 
+def _smooth_trajectory_spline(
+    dataset_c2ws: np.ndarray,
+    dataset_fxfycxcy: np.ndarray,
+    camera_order: list,
+    num_views: int,
+    hold_frames: int,
+    loop: bool,
+):
+    """
+    Smooth camera trajectory using cubic spline (translation)
+    and RotationSpline (rotation). Produces continuous acceleration
+    instead of pairwise linear jumps.
+    """
+    from scipy.interpolate import CubicSpline
+    from scipy.spatial.transform import RotationSpline as RotSpline
+
+    n_cams = len(camera_order)
+
+    # Build keyframe arrays from camera_order
+    key_trans = np.array([dataset_c2ws[c, :3, 3] for c in camera_order])
+    key_rots = Rotation.from_matrix([dataset_c2ws[c, :3, :3] for c in camera_order])
+    key_intr = np.array([dataset_fxfycxcy[c] for c in camera_order])
+
+    # Arc-length parameterization (chord lengths)
+    dists = np.linalg.norm(np.diff(key_trans, axis=0), axis=1)
+    cum = np.concatenate([[0], np.cumsum(dists)])
+    total = cum[-1] if cum[-1] > 0 else 1.0
+    key_t = cum / total  # [0, 1]
+
+    # Ensure strictly increasing for RotationSpline
+    for i in range(1, len(key_t)):
+        if key_t[i] <= key_t[i - 1]:
+            key_t[i] = key_t[i - 1] + 1e-6
+
+    # Build splines
+    if loop and n_cams >= 3:
+        trans_spline = CubicSpline(key_t, key_trans, bc_type="periodic")
+        intr_spline = CubicSpline(key_t, key_intr, bc_type="periodic")
+    else:
+        trans_spline = CubicSpline(key_t, key_trans, bc_type="not-a-knot")
+        intr_spline = CubicSpline(key_t, key_intr, bc_type="not-a-knot")
+
+    rot_spline = RotSpline(key_t, key_rots)
+
+    # Sample with hold + eased transitions
+    c2ws_out, fxfy_out, segments = [], [], []
+    frame_idx = 0
+    total_hold = hold_frames * (n_cams - 1) if hold_frames > 0 else 0
+    trans_total = max(1, num_views - total_hold)
+
+    for seg_idx in range(n_cams - 1):
+        from_cam = camera_order[seg_idx]
+        to_cam = camera_order[seg_idx + 1]
+        t_start = key_t[seg_idx]
+        t_end = key_t[seg_idx + 1]
+
+        # Hold at from_cam
+        if hold_frames > 0:
+            segments.append((frame_idx, frame_idx + hold_frames, from_cam, from_cam, True))
+            for _ in range(hold_frames):
+                c2w = np.eye(4)
+                c2w[:3, :3] = rot_spline(t_start).as_matrix()
+                c2w[:3, 3] = trans_spline(t_start)
+                c2ws_out.append(c2w)
+                fxfy_out.append(intr_spline(t_start))
+                frame_idx += 1
+
+        # Transition frames
+        seg_frames = trans_total // (n_cams - 1)
+        if seg_idx == n_cams - 2:
+            seg_frames = max(1, num_views - frame_idx)
+
+        segments.append((frame_idx, frame_idx + seg_frames, from_cam, to_cam, False))
+
+        for i in range(seg_frames):
+            # Smoothstep easing: ease-out from hold, ease-in to next hold
+            raw_t = i / seg_frames
+            eased = raw_t * raw_t * (3.0 - 2.0 * raw_t)  # Hermite smoothstep
+            t = t_start + (t_end - t_start) * eased
+
+            c2w = np.eye(4)
+            c2w[:3, :3] = rot_spline(t).as_matrix()
+            c2w[:3, 3] = trans_spline(t)
+            c2ws_out.append(c2w)
+            fxfy_out.append(intr_spline(t))
+            frame_idx += 1
+
+    return np.stack(fxfy_out), np.stack(c2ws_out), segments
+
+
 def get_dataset_camera_trajectory(
     dataset_c2ws: np.ndarray,
     dataset_fxfycxcy: np.ndarray,
     num_views: int = 150,
     camera_order: list = None,
     loop: bool = True,
-    hold_frames: int = 0,  # Frames to hold at each camera position
+    hold_frames: int = 0,
+    smooth: bool = False,
 ):
     """
-    Generate smooth camera trajectory through dataset cameras.
-    
+    Generate camera trajectory through dataset cameras.
+
     Args:
-        hold_frames: Number of frames to pause at each camera position (default: 0)
-                    If > 0, pauses at each camera before transitioning to next
-    
+        hold_frames: Frames to pause at each camera position
+        smooth: If True, use cubic spline + RotationSpline for continuous
+                smooth motion. If False, use pairwise SLERP with smoothstep.
+
     Returns:
         fxfycxcy: [num_views, 4]
         c2ws: [num_views, 4, 4]
@@ -85,43 +177,50 @@ def get_dataset_camera_trajectory(
         full_camera_order = camera_order + [camera_order[0]]
     else:
         full_camera_order = camera_order
-    
+
+    # --- Smooth spline path ---
+    if smooth and len(full_camera_order) >= 3:
+        try:
+            return _smooth_trajectory_spline(
+                dataset_c2ws, dataset_fxfycxcy,
+                full_camera_order, num_views, hold_frames, loop,
+            )
+        except Exception as exc:
+            print(f"Warning: spline trajectory failed ({exc}), falling back to linear")
+
+    # --- Pairwise fallback (with smoothstep easing) ---
     num_segments = len(full_camera_order) - 1
-    
-    # Calculate frames: hold + transition for each segment
+
     if hold_frames > 0:
-        # Total frames = (hold + transition) * num_segments
         transition_frames = max(1, (num_views - hold_frames * num_segments) // num_segments)
     else:
         transition_frames = num_views // num_segments
-    
+
     c2ws, fxfycxcys, segments = [], [], []
     frame_idx = 0
-    
+
     for seg_idx in range(num_segments):
         from_cam = full_camera_order[seg_idx]
         to_cam = full_camera_order[seg_idx + 1]
-        
-        # Hold frames at from_cam position
+
         if hold_frames > 0:
             segments.append((frame_idx, frame_idx + hold_frames, from_cam, from_cam, True))
             for _ in range(hold_frames):
                 c2ws.append(dataset_c2ws[from_cam])
                 fxfycxcys.append(dataset_fxfycxcy[from_cam])
                 frame_idx += 1
-        
-        # Transition frames
+
         seg_frames = transition_frames if seg_idx < num_segments - 1 else max(1, num_views - frame_idx)
         segments.append((frame_idx, frame_idx + seg_frames, from_cam, to_cam, False))
-        
+
         for i in range(seg_frames):
-            t = i / seg_frames
+            raw_t = i / seg_frames
+            t = raw_t * raw_t * (3.0 - 2.0 * raw_t)  # smoothstep
             c2ws.append(interpolate_camera_poses(dataset_c2ws[from_cam], dataset_c2ws[to_cam], t))
             fxfycxcys.append((1 - t) * dataset_fxfycxcy[from_cam] + t * dataset_fxfycxcy[to_cam])
             frame_idx += 1
-    
-    return np.stack(fxfycxcys), np.stack(c2ws), segments
 
+    return np.stack(fxfycxcys), np.stack(c2ws), segments
 
 def add_camera_overlay(image: np.ndarray, text: str) -> np.ndarray:
     """Add camera transition text overlay (e.g., Cam 0 -> Cam 1)."""
@@ -264,6 +363,7 @@ def get_turntable_cameras(
     trajectory_mode: TrajectoryMode = "turntable",
     up_vector=np.array([0, 0, 1]),
     center=None,  # Center point for camera orbit (default: origin)
+    clockwise=False,  # True = CW in math coords = physical CCW from above
 ):
     """
     Generate camera poses for visualization.
@@ -292,7 +392,11 @@ def get_turntable_cameras(
     
     # Generate azimuth and elevation based on trajectory mode
     if trajectory_mode == "turntable":
-        azimuths = np.linspace(270, 630, num_views, endpoint=False)
+        if clockwise:
+            # CW in math = physical CCW (matches real camera arrangement)
+            azimuths = np.linspace(270, 270 - 360, num_views, endpoint=False)
+        else:
+            azimuths = np.linspace(270, 270 + 360, num_views, endpoint=False)
         elevations = np.ones(num_views) * elevation
         
     elif trajectory_mode == "spiral":
@@ -1237,11 +1341,11 @@ deferred_gaussian_render = DeferredGaussianRender.apply
 @torch.no_grad()
 @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
 def render_turntable(pc: GaussianModel, rendering_resolution=384, num_views=8, elevation=20, radius=2.7,
-                     trajectory_mode="turntable", elevation_end=None, center=None):
+                     trajectory_mode="turntable", elevation_end=None, center=None, clockwise=False):
     w, h, v, fxfycxcy, c2w = get_turntable_cameras(
         h=rendering_resolution, w=rendering_resolution, num_views=num_views,
         elevation=elevation, elevation_end=elevation_end, radius=radius,
-        trajectory_mode=trajectory_mode, center=center,
+        trajectory_mode=trajectory_mode, center=center, clockwise=clockwise,
     )
 
     device = pc._xyz.device
@@ -1337,6 +1441,7 @@ def render_dataset_trajectory(
     show_overlay: bool = True,
     original_resolution: int = None,  # Original image resolution for intrinsics scaling
     hold_frames: int = 0,  # Frames to hold at each camera position
+    smooth: bool = False,  # Spline-based smooth interpolation
 ):
     """
     Render video traversing through dataset camera positions.
@@ -1367,7 +1472,8 @@ def render_dataset_trajectory(
     
     # Generate trajectory with optional hold frames
     fxfycxcy, c2ws, segments = get_dataset_camera_trajectory(
-        dataset_c2ws, scaled_fxfycxcy, num_views, camera_order, loop, hold_frames
+        dataset_c2ws, scaled_fxfycxcy, num_views, camera_order, loop, hold_frames,
+        smooth=smooth,
     )
     
     fxfycxcy = torch.from_numpy(fxfycxcy).float().to(device)

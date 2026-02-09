@@ -75,6 +75,7 @@ class TurntableVideoConfig:
 
     # --- Rotation direction (centralized) ---
     rotation_direction: str = "ccw"  # "ccw" (counter-clockwise) or "cw"
+    view_smooth: bool = True  # Spline-based smooth view trajectory
 
     # --- Temporal batch ---
     temporal_fps: int = 10
@@ -120,6 +121,7 @@ class TurntableVideoConfig:
             save_view_with_input=_g("save_view_with_input", _g("save_video", cls.save_view_with_input)),
             save_grid=_g("save_grid", _g("save_video", cls.save_grid)),
             rotation_direction=_g("rotation_direction", cls.rotation_direction),
+            view_smooth=_g("smooth_trajectory", cls.view_smooth),
             temporal_fps=_g("temporal_fps", cls.temporal_fps),
             temporal_rotation_speed=_g("temporal_rotation_speed", _g("rotation_speed", cls.temporal_rotation_speed)),
             input_strip_height_ratio=_g("input_strip_height_ratio", cls.input_strip_height_ratio),
@@ -322,6 +324,10 @@ class TurntableRenderer:
             center = gaussians._xyz.mean(dim=0).detach().cpu().numpy()
 
         try:
+            # Physical CCW (from above) = CW in standard math XY coords
+            # Camera layout uses atan2(x,y) convention (angle from +Y axis),
+            # while orbit uses cos->x, sin->y (angle from +X axis).
+            clockwise = (cfg.rotation_direction == "ccw")
             orbit_image = render_turntable(
                 gaussians,
                 rendering_resolution=resolution,
@@ -330,6 +336,7 @@ class TurntableRenderer:
                 radius=cfg.orbit_radius,
                 trajectory_mode="turntable",
                 center=center,
+                clockwise=clockwise,
             )
             # orbit_image: [H, V*W, 3] -> [V, H, W, 3]
             h = orbit_image.shape[0]
@@ -371,6 +378,7 @@ class TurntableRenderer:
                 show_overlay=cfg.view_show_overlay,
                 original_resolution=original_resolution,
                 hold_frames=cfg.view_hold_frames,
+                smooth=cfg.view_smooth,
             )
             return np.ascontiguousarray(frames), segments
         except Exception as exc:
