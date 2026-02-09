@@ -69,6 +69,7 @@ scp -r gpu03:~/dev/FaceLift/outputs/verify_turntable/ .
 | turntable_orbit_with_input_{uid}.mp4 | orbit + labeled input strip |
 | turntable_view_with_input_{uid}.mp4 | 6 cam trajectory + hold(15f) + input strip |
 | turntable_{uid}.jpg | 6x6 grid image |
+| turntable_6view_{uid}.mp4 | 2x3 multiview grid (GT top + Pred bottom) |
 
 ### B. Temporal (배치 추론 전용)
 
