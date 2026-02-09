@@ -141,11 +141,23 @@ FaceLift/
 
 ## 5. Quick Commands
 
-### Training (Modular Mode 권장)
+### Training
+
+3가지 config mode 지원 (상호 배타, **상세**: `configs/README.md`):
+
 ```bash
-# Modular Mode: -d dataset -e experiment
+# Mode 2: Modular (권장) — base + dataset + experiment merge
 CUDA_VISIBLE_DEVICES=4 torchrun --standalone --nproc_per_node=1 \
-    train_gslrm.py -d M3_2 -e E0_1_facelift
+    train_gslrm.py -d M5t2 -e E0_1_facelift
+
+# Mode 1: Legacy — 단일 standalone config
+train_gslrm.py --config configs/mouse/D7_1_E2_gt_alpha.yaml
+
+# Mode 3: Flexible — custom base + experiment
+train_gslrm.py -b configs/base/gslrm_mouse.yaml -e E0_1_facelift
+
+# CLI override (모든 mode에서 사용 가능)
+train_gslrm.py -d M5t2 -e E0_1_facelift --set training.schedule.max_fwdbwd_passes 400
 ```
 
 ### Preprocessing
@@ -190,7 +202,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 |------|------|
 | **데이터셋 명명** | M-Series: M1, M2, M3_1, M3_2 |
 | **실험 명명** | `E{Cat}_{Num}_{keywords}` |
-| **Config** | Modular Mode: `-d dataset -e experiment` |
+| **Config** | 3 modes: Modular(`-d`+`-e`), Legacy(`--config`), Flexible(`-b`+`-e`) → `configs/README.md` |
 | **문서 날짜** | 파일명 `YYMMDD`, 본문 `YYYY-MM-DD` |
 | **Git** | Conventional commits, Co-Authored-By 포함 |
 

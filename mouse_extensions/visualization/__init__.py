@@ -4,9 +4,9 @@ Mouse Extensions Visualization Module
 Provides:
 - Alpha mask visualization
 - Turntable configuration and trajectory generation
-- Unified video generation for train/val
+- TurntableRenderer: unified turntable video/grid generation (train/val/inference)
+- TemporalVideoRenderer: multi-frame batch temporal videos
 - Error annotation utilities
-- Unified visualization (train/val consistent)
 - Gaussian export (PLY, NPZ, Rerun .rrd)
 """
 
@@ -31,13 +31,6 @@ from .turntable_config import (
     add_angle_overlay_to_grid,
 )
 
-from .video_generator import (
-    create_turntable_video,
-    create_grid_image,
-    VideoGeneratorContext,
-    get_video_generator,
-)
-
 from .turntable_renderer import (
     TurntableVideoConfig,
     TurntableRenderer,
@@ -47,15 +40,6 @@ from .turntable_renderer import (
 from .error_annotation import (
     add_error_scale_annotation,
     compute_pred_mask_for_visualization,
-)
-
-from .unified_visualizer import (
-    UnifiedVisualizer,
-    VisualizerConfig,
-    GaussianExporter,
-    RerunExporter,
-    create_visualizer,
-    get_default_config,
 )
 
 __all__ = [
@@ -71,23 +55,11 @@ __all__ = [
     "interpolate_camera_extrinsics",
     "create_turntable_trajectory",
     "get_grid_row_labels",
-    # Video generation (legacy)
-    "create_turntable_video",
-    "create_grid_image",
-    "VideoGeneratorContext",
-    "get_video_generator",
-    # Error annotation
-    "add_error_scale_annotation",
-    "compute_pred_mask_for_visualization",
-    # Turntable renderer (unified)
+    # Turntable renderer (unified — replaces video_generator + unified_visualizer)
     "TurntableVideoConfig",
     "TurntableRenderer",
     "TemporalVideoRenderer",
-    # Unified visualizer (recommended for inference)
-    "UnifiedVisualizer",
-    "VisualizerConfig",
-    "GaussianExporter",
-    "RerunExporter",
-    "create_visualizer",
-    "get_default_config",
+    # Error annotation
+    "add_error_scale_annotation",
+    "compute_pred_mask_for_visualization",
 ]
