@@ -33,6 +33,8 @@
 | [[hypotheses/H5_MVDIFFUSION]] | MVDiffusion 개선 | 🔄 진행중 |
 | [[hypotheses/H6_ALPHA_MASK]] | Alpha mask | ⏳ 대기 |
 | [[hypotheses/H7_SSIM_WEIGHT]] | SSIM weight | ⏳ 대기 |
+| [[hypotheses/H1bis_v2_REVALIDATION]] | H3-bis 재검증 | ✅ 완료 |
+| [[hypotheses/HP_PREPROCESSING_ABLATION]] | 전처리 Ablation | ⏳ 대기 |
 | [[hypotheses/H8_LITERATURE_SURVEY]] | 문헌 기반 개선 | ⏳ 대기 |
 | [[hypotheses/H8_REDUCED_VIEW_GENERATION]] | 축소 뷰 생성 | ⏳ 대기 |
 
@@ -66,6 +68,10 @@
 | [[guides/M5_MIGRATION_GUIDE]] | M5 마이그레이션 |
 | [[guides/POSE_SPLATTER_GUIDE]] | Pose Splatter 비교 |
 | [[guides/DEFORMATION_INTEGRATION_GUIDE]] | Temporal consistency |
+### theory/
+| 문서 | 내용 |
+|------|------|
+| [[theory/METRICS_PROTOCOL]] | 평가 메트릭 프로토콜 |
 
 ---
 

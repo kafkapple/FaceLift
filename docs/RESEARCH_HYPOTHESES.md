@@ -525,6 +525,7 @@ cfgr 품질 확인 (완료)
 | [H6_ALPHA_MASK.md](./hypotheses/H6_ALPHA_MASK.md) | Alpha Mask |
 | [H7_SSIM_WEIGHT.md](./hypotheses/H7_SSIM_WEIGHT.md) | SSIM Weight |
 | [H8_REDUCED_VIEW_GENERATION.md](./hypotheses/H8_REDUCED_VIEW_GENERATION.md) | 뷰 수 감소 생성 |
+| [H8_LITERATURE_SURVEY.md](./hypotheses/H8_LITERATURE_SURVEY.md) | 문헌 기반 개선 서베이 |
 | [COMMANDS.md](./experiments/COMMANDS.md) | 실험 명령어 SSOT |
 | [EXPERIMENT_REGISTRY.md](./experiments/EXPERIMENT_REGISTRY.md) | 실험 레지스트리 |
 

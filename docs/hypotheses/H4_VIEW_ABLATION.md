@@ -113,7 +113,7 @@ Zero-shot baseline 구현 과정에서 dead config와 코드 구조 문제를 �
 **동작**: pretrained 가중치 로드 -> validation 1회 -> training loop skip -> 종료.
 gradient update 0회. **진정한 zero-shot 평가**.
 
--> 상세: [TRAINING_STEPS_CONVENTION.md](./TRAINING_STEPS_CONVENTION.md)
+-> 상세: [TRAINING_STEPS_CONVENTION.md](../experiments/TRAINING_STEPS_CONVENTION.md)
 
 ### 2.3 평가 메트릭
 

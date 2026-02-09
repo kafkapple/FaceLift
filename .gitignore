@@ -201,3 +201,4 @@ _archive/
 alpha_analysis/
 \!configs/experiments/
 experiments/
+!docs/experiments/

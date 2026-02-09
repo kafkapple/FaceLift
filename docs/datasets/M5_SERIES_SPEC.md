@@ -1,6 +1,6 @@
 # M5 Series Specification (M5 계열 상세 명세)
 
-> **Navigation**: [← Registry](./PREPROCESSING_REGISTRY.md) | [Quick Ref](../MOUSE_QUICK_REFERENCE.md)
+> **Navigation**: [← Registry](./PREPROCESSING_REGISTRY.md) | [Quick Ref](../_archive/MOUSE_QUICK_REFERENCE.md)
 > **목적**: M5, M5_4, M5_5 차이점 및 카메라 정규화 상세 설명
 > **최종 업데이트**: 2026-01-29
 

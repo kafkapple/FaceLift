@@ -34,7 +34,7 @@ GS-LRM 기반 Multi-view Mouse 3D Reconstruction
 
 **모듈 작업 완료 시 필수 수행:**
 
-1. **연구 노트 작성**: `docs/reports/YYMMDD_*.md`
+1. **연구 노트 작성**: `outputs/reports/YYMMDD_*.md`
 2. **Git 커밋**: Conventional commits format
 3. **교육용 문서 작성**:
    - 초보자도 코드 흐름 이해 가능하도록 상세 설명
@@ -52,17 +52,18 @@ GS-LRM 기반 Multi-view Mouse 3D Reconstruction
 
 ### 2.2 문서 체계화 규칙 (Auto-Update)
 
-**⭐ 최우선 참조: [[00_MoC_INDEX.md]]** - Map of Content (모든 문서의 네비게이션 허브)
+**⭐ 최우선 참조: [[INDEX.md]]** - Map of Content (모든 문서의 네비게이션 허브)
 
 **문서 구조:**
 ```
 docs/
-├── 00_MoC_INDEX.md   ← ★ 문서 허브 (항상 최신 유지)
-├── analysis/          # 분석 보고서
+├── INDEX.md           ← ★ 문서 허브 (항상 최신 유지)
+├── RESEARCH_HYPOTHESES.md  ← 가설 MoC
+├── hypotheses/        # 연구 가설 문서 (H1~H8, HP)
+├── experiments/       # 실험 운영 가이드, 명령어
 ├── datasets/          # 데이터셋 명세
-├── theory/            # 이론 문서 (PP, MVG, 카메라)
-├── practical/         # How-to 가이드, Quick Reference
-├── reports/           # 날짜별 연구노트
+├── guides/            # How-to 가이드
+├── theory/            # 이론 문서
 └── _archive/          # 통합/폐기된 문서
 ```
 
@@ -70,13 +71,13 @@ docs/
 
 | 트리거 | 업데이트 대상 | 내용 |
 |--------|-------------|------|
-| 새 문서 생성 | `00_MoC_INDEX.md` | Backlink 추가 |
+| 새 문서 생성 | `INDEX.md` | Backlink 추가 |
 | 전처리 변경 | `PREPROCESSING_REGISTRY.md` | 버전 이력 |
-| 실험 완료 | `practical/EXPERIMENT_REGISTRY.md` | 결과 반영 |
+| 실험 완료 | `experiments/EXPERIMENT_REGISTRY.md` | 결과 반영 |
 | 이론/스펙 추가 | `theory/*.md` | 해당 문서 업데이트 |
 
 **통합 규칙:**
-- 동일 주제 reports 3개 이상 → `theory/` 또는 `analysis/`로 통합
+- 동일 주제 reports 3개 이상 → `theory/`로 통합
 - 통합된 원본 → `_archive/reports/`로 이동
 - **MoC.md에 통합 문서 링크 추가** (필수)
 
@@ -86,7 +87,7 @@ docs/
 
 | 항목 | 체크 | 상세 |
 |------|------|------|
-| **Intrinsics** | fx, fy, cx, cy | 단위, 스케일 확인. [[theory/PP_FX_MVG_ANALYSIS]] |
+| **Intrinsics** | fx, fy, cx, cy | 단위, 스케일 확인. _(삭제됨)_ |
 | **PP (Principal Point)** | 256 vs 가변 | Center-aligned 권장 |
 | **좌표계** | OpenGL vs OpenCV | Y-up vs Z-up 구분 |
 | **정규화** | fx=549, trans=2.7 | Pretrained 호환 필수 |
@@ -156,7 +157,7 @@ python -m mouse_extensions.preprocessing.preprocess \
     --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
 ```
 
-**상세**: [[docs/practical/MOUSE_QUICK_REFERENCE.md]]
+**상세**: [[docs/_archive/MOUSE_QUICK_REFERENCE.md]]
 
 ---
 
@@ -166,24 +167,24 @@ python -m mouse_extensions.preprocessing.preprocess \
 
 | 문서 | 내용 |
 |------|------|
-| [[00_MoC_INDEX]] | 문서 허브 (★ 최우선) |
+| [[INDEX]] | 문서 허브 (★ 최우선) |
 | [[PREPROCESSING_REGISTRY]] | 버전 이력, 프리셋 정의 |
-| [[datasets/M3_SERIES_SPEC]] | M3 시리즈 상세 명세 |
-| [[theory/PP_FX_MVG_ANALYSIS]] | PP/fx 이론 + 버그 분석 |
+| [[datasets/M5_SERIES_SPEC]] | M3 시리즈 상세 명세 |
+| _(삭제됨)_ | PP/fx 이론 + 버그 분석 |
 
 ### 실험 & 결과
 
 | 문서 | 내용 |
 |------|------|
-| [[practical/EXPERIMENT_REGISTRY]] | 실험 설정, 우선순위 |
-| [[practical/MOUSE_QUICK_REFERENCE]] | 명령어 참조 |
-| [[analysis/TRAIN_VAL_GAP_ANALYSIS]] | Train/Val 성능 Gap 분석 |
+| [[experiments/EXPERIMENT_REGISTRY]] | 실험 설정, 우선순위 |
+| [[_archive/MOUSE_QUICK_REFERENCE]] | 명령어 참조 |
+| _(삭제됨)_ | Train/Val 성능 Gap 분석 |
 
 ---
 
 ## 7. Conventions
 
-> **상세**: [[practical/MOUSE_QUICK_REFERENCE.md#Conventions]]
+> **상세**: [[_archive/MOUSE_QUICK_REFERENCE.md#Conventions]]
 
 | 항목 | 규칙 |
 |------|------|
@@ -208,11 +209,11 @@ python -m mouse_extensions.preprocessing.preprocess \
 
 | 이슈 | 상태 | 참조 |
 |------|------|------|
-| D4 PP Bug (cx=cy=256 강제) | ✅ 해결됨 | [[theory/PP_FX_MVG_ANALYSIS]] |
+| D4 PP Bug (cx=cy=256 강제) | ✅ 해결됨 | _(삭제됨)_ |
 | bf16 NaN (opacity_reg) | ✅ 해결됨 | `.float().clamp(1e-4)` |
 | normalize_after_zoom PP | ✅ 해결됨 | [[PREPROCESSING_REGISTRY]] |
 | Per-sample zoom_after_transform | ✅ 해결됨 | [[PREPROCESSING_REGISTRY]] |
 
 ---
 
-*Last Updated: 2026-01-26 | 상세 문서는 [[00_MoC_INDEX]] 참조*
+*Last Updated: 2026-01-26 | 상세 문서는 [[INDEX]] 참조*

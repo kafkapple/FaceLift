@@ -105,8 +105,8 @@
 ## Related Documents
 
 - Research Report: archived (260204 4D Gaussian Temporal Methods note)
-- [Deformation Network](../mouse_extensions/model/deformation/)
-- [Evaluation Metrics](../mouse_extensions/evaluation/)
+- [Deformation Network](../../mouse_extensions/model/deformation/)
+- [Evaluation Metrics](../../mouse_extensions/evaluation/)
 
 ---
 

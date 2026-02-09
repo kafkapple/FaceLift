@@ -94,5 +94,5 @@ training:
 
 ## See Also
 
-- [CONFIG_SCHEMA.md](../docs/practical/config/CONFIG_SCHEMA.md) - 상세 스키마
-- [EXPERIMENT_NAMING_CONVENTION.md](../docs/practical/experiments/EXPERIMENT_NAMING_CONVENTION.md) - 네이밍 규칙
+- CONFIG_SCHEMA.md _(삭제됨)_ - 상세 스키마
+- EXPERIMENT_NAMING_CONVENTION.md _(삭제됨)_ - 네이밍 규칙

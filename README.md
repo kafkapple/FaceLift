@@ -145,7 +145,7 @@ python train_gslrm.py --config configs/mouse/gslrm_recommended.yaml
 
 ### Documentation
 
-See [`docs/00_Index.md`](docs/00_Index.md) for comprehensive step-by-step tutorials:
+See [`docs/INDEX.md`](docs/INDEX.md) for comprehensive step-by-step tutorials:
 
 - **Step 0**: Branch setup from original main
 - **Step 1-5**: MouseViewDataset, Preprocessing, Config, Training

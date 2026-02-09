@@ -1,6 +1,6 @@
 # Experiment Configurations
 
-> **중앙 레지스트리**: [`docs/practical/EXPERIMENT_REGISTRY.md`](../../docs/practical/EXPERIMENT_REGISTRY.md)
+> **중앙 레지스트리**: [`docs/experiments/EXPERIMENT_REGISTRY.md`](../../docs/experiments/EXPERIMENT_REGISTRY.md)
 
 ---
 

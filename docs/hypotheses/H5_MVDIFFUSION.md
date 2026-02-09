@@ -142,7 +142,7 @@ Base: `/node_data/joon/checkpoints/FaceLift/mvdiffusion/`
 
 ## 5. 관련 문서
 
-- [COMMANDS.md](./COMMANDS.md) — 명령어 SSOT
+- [COMMANDS.md](../experiments/COMMANDS.md) — 명령어 SSOT
 - [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) — 전체 가설 맵
 - [mvdiff_checkpoint_comparison.md](../../outputs/reports/mvdiff_checkpoint_comparison.md)
 
