@@ -120,14 +120,14 @@ class GSLRMInference:
         save_turntable_grid: bool = True,
         save_rrd: bool = True,
         gt_images: Optional[torch.Tensor] = None,
-        turntable_views: int = 120,
-        turntable_fps: int = 30,
         image_size: int = 512,
         camera_indices: list = None,
     ) -> Path:
         """Save inference outputs: PLY, rendered views, turntable, grids, RRD.
 
         All save_* options are True by default for comprehensive output.
+        Turntable parameters (views, fps, elevation, radius) are sourced from
+        TurntableVideoConfig via self.config for consistency with train/val paths.
 
         Args:
             result: Model output from predict().
@@ -139,8 +139,6 @@ class GSLRMInference:
             save_turntable_grid: Save multi-elevation turntable grid.
             save_rrd: Save Rerun .rrd sequence (3D Gaussians + rendered views).
             gt_images: Input images [B,V,C,H,W] for comparison (auto-extracted if None).
-            turntable_views: Number of turntable frames.
-            turntable_fps: Video FPS.
             image_size: Rendering resolution.
 
         Returns:
@@ -217,12 +215,12 @@ class GSLRMInference:
         if save_turntable or save_turntable_grid:
             try:
                 from mouse_extensions.visualization.turntable_renderer import TurntableRenderer, TurntableVideoConfig
-                tt_cfg = TurntableVideoConfig(
-                    save_view_with_input=False,   # No dataset cameras in inference
-                    save_orbit=save_turntable,
-                    save_orbit_with_input=False,   # No labeled input strip in inference
-                    save_grid=save_turntable_grid,
-                )
+                tt_cfg = TurntableVideoConfig.from_config(self.config)
+                # Inference-specific overrides
+                tt_cfg.save_view_with_input = False
+                tt_cfg.save_orbit = save_turntable
+                tt_cfg.save_orbit_with_input = False
+                tt_cfg.save_grid = save_turntable_grid
                 tt_renderer = TurntableRenderer(tt_cfg)
                 tt_renderer.render_all(
                     gaussians=filtered,
@@ -241,12 +239,14 @@ class GSLRMInference:
                 from mouse_extensions.visualization.inference_viz import (
                     save_multiview_turntable_grid,
                 )
+                from mouse_extensions.visualization.turntable_renderer import TurntableVideoConfig as _TVC
+                _tt = _TVC.from_config(self.config)
                 save_multiview_turntable_grid(
                     filtered,
                     str(out / "turntable_grid.png"),
                     elevations=[0, 15, 30],
                     num_azimuth=6,
-                    radius=2.7,
+                    radius=_tt.orbit_radius,
                     render_res=image_size,
                     gt_images=input_images,
                 )

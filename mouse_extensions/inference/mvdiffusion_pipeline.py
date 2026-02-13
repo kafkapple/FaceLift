@@ -123,6 +123,10 @@ class MVDiffusionInference:
             str(selected_unet_path), torch_dtype=dtype
         )
         self.pipe.unet = trained_unet
+        # Sync pipeline num_views with UNet config
+        if hasattr(trained_unet, 'config') and hasattr(trained_unet.config, 'num_views'):
+            self.pipe.num_views = trained_unet.config.num_views
+            print(f'  Pipeline num_views synced to {self.pipe.num_views}')
         self.pipe.to(device)
 
         # Enable memory optimization
@@ -170,7 +174,7 @@ class MVDiffusionInference:
             prompt_embed_path: Path to prompt embeddings (optional, uses cached if loaded).
 
         Returns:
-            Generated views tensor [6, C, H, W] in [0, 1].
+            Generated views tensor [V, C, H, W] in [0, 1], V from prompt embeddings.
         """
         # Load prompt embeddings if needed
         if prompt_embed_path and self._prompt_embeds is None:
@@ -199,15 +203,18 @@ class MVDiffusionInference:
         if img.size != (image_size, image_size):
             img = img.resize((image_size, image_size), Image.LANCZOS)
 
-        # Replicate for 6 views
-        input_tensor = TF.to_tensor(img).unsqueeze(0).repeat(6, 1, 1, 1)
+        # Determine number of views from prompt embeddings
+        n_views = self._prompt_embeds.shape[0] if self._prompt_embeds is not None else 6
+
+        # Replicate for n views
+        input_tensor = TF.to_tensor(img).unsqueeze(0).repeat(n_views, 1, 1, 1)
         input_tensor = input_tensor.to(self.device)
 
         generator = torch.Generator(device=self.device).manual_seed(seed)
 
         output = self.pipe(
             image=input_tensor,
-            prompt=[""] * 6,
+            prompt=[""] * n_views,
             prompt_embeds=self._prompt_embeds,
             num_inference_steps=num_steps,
             guidance_scale=guidance_scale,

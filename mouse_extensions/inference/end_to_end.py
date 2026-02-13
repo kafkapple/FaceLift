@@ -109,11 +109,11 @@ class EndToEndPipeline:
         seed: int = 42,
         save_turntable: bool = True,
         save_mesh: bool = True,
-        turntable_views: int = 120,
         skip_preprocess: bool = False,
         save_preprocess_steps: bool = False,
+        camera_indices: list = None,
     ) -> Path:
-        """Run full pipeline: single image -> 6 views -> 3D -> save.
+        """Run full pipeline: single image -> multi-view -> 3D -> save.
 
         Args:
             input_image: Path to single input image.
@@ -123,7 +123,6 @@ class EndToEndPipeline:
             seed: Random seed.
             save_turntable: Generate turntable video.
             save_mesh: Save PLY.
-            turntable_views: Number of turntable frames.
             skip_preprocess: If True, skip preprocessing (for M5-format images).
             save_preprocess_steps: If True, save visualization of preprocessing steps.
 
@@ -166,7 +165,7 @@ class EndToEndPipeline:
             mvdiff_input = input_image
 
         # Step 1: Generate 6 views
-        print(f"[1/2] Generating 6 views from {Path(mvdiff_input).name}...")
+        print(f"[1/2] Generating views from {Path(mvdiff_input).name}...")
         views = self.mvdiff.generate_views(
             mvdiff_input,
             image_size=self.image_size,
@@ -190,14 +189,21 @@ class EndToEndPipeline:
             self.image_size, self.device, camera_json=self.camera_json
         )
 
-        images = views.unsqueeze(0)  # [1, 6, C, H, W]
+        # Select cameras for reduced-view models
+        if camera_indices is not None:
+            c2ws = c2ws[camera_indices]
+            fxfycxcys = fxfycxcys[camera_indices]
+            print(f"  Using camera indices: {camera_indices}")
+
+        n_views = views.shape[0]
+        images = views.unsqueeze(0)  # [1, V, C, H, W]
         c2ws = c2ws.unsqueeze(0)
         fxfycxcys = fxfycxcys.unsqueeze(0)
 
         # Index: (view_idx, scene_idx)
         index = torch.stack([
-            torch.arange(6).long(),
-            torch.zeros(6).long(),
+            torch.arange(n_views).long(),
+            torch.zeros(n_views).long(),
         ], dim=-1).unsqueeze(0).to(self.device)
 
         result = self.gslrm.predict(images, c2ws, fxfycxcys, index)
@@ -208,8 +214,8 @@ class EndToEndPipeline:
             sample_name,
             save_turntable=save_turntable,
             save_mesh=save_mesh,
-            turntable_views=turntable_views,
             image_size=self.image_size,
+            camera_indices=camera_indices,
         )
 
     def run_from_views(
@@ -218,20 +224,19 @@ class EndToEndPipeline:
         output_dir: str,
         save_turntable: bool = True,
         save_mesh: bool = True,
-        turntable_views: int = 120,
         num_input_views: int = None,
     ) -> Path:
         """Run GS-LRM only from a 6-view sample directory.
 
         Uses camera parameters from the sample's opencv_cameras.json.
         No preprocessing needed (views are already generated).
+        Turntable parameters sourced from TurntableVideoConfig (via config YAML).
 
         Args:
             sample_dir: Directory with images/ and opencv_cameras.json.
             output_dir: Output directory.
             save_turntable: Generate turntable video.
             save_mesh: Save PLY.
-            turntable_views: Number of turntable frames.
             num_input_views: Number of input views to use (2-6, None=all).
 
         Returns:
@@ -271,6 +276,5 @@ class EndToEndPipeline:
             sample_name,
             save_turntable=save_turntable,
             save_mesh=save_mesh,
-            turntable_views=turntable_views,
             image_size=self.image_size,
         )

@@ -230,8 +230,6 @@ Examples:
                               help="Skip PLY mesh saving")
     output_group.add_argument("--no_metrics", action="store_true",
                               help="Skip metrics computation after batch inference")
-    output_group.add_argument("--turntable_views", type=int, default=60,
-                              help="Number of turntable frames (default: 60)")
     output_group.add_argument("--fps", type=int, default=10,
                               help="Video FPS for temporal outputs (default: 10)")
     output_group.add_argument("--rotation_speed", type=float, default=0.3,
@@ -371,7 +369,7 @@ Examples:
             seed=args.seed,
             save_turntable=save_turntable,
             save_mesh=save_mesh,
-            turntable_views=args.turntable_views,
+
             skip_preprocess=args.skip_preprocess,  # NEW
             save_preprocess_steps=args.save_preprocess_steps,  # NEW
             camera_indices=args.camera_indices,
@@ -399,7 +397,7 @@ Examples:
             seed=args.seed,
             save_turntable=save_turntable,
             save_mesh=save_mesh,
-            turntable_views=args.turntable_views,
+
             skip_preprocess=args.skip_preprocess,  # NEW
             save_preprocess_steps=args.save_preprocess_steps,  # NEW
             camera_indices=args.camera_indices,
@@ -415,7 +413,7 @@ Examples:
             args.output_dir,
             save_turntable=save_turntable,
             save_mesh=save_mesh,
-            turntable_views=args.turntable_views,
+
             num_input_views=args.num_input_views,
         )
         print(f"\nDone! Output: {out}")
@@ -493,7 +491,7 @@ Examples:
                         seed=args.seed,
                         save_turntable=save_turntable,
                         save_mesh=save_mesh,
-                        turntable_views=args.turntable_views,
+            
                         skip_preprocess=args.skip_preprocess,  # NEW
                         save_preprocess_steps=args.save_preprocess_steps,  # NEW
                         camera_indices=args.camera_indices,
@@ -518,7 +516,7 @@ Examples:
                         str(samples_subdir),
                         save_turntable=save_turntable,
                         save_mesh=save_mesh,
-                        turntable_views=args.turntable_views,
+            
                         num_input_views=args.num_input_views,
                     )
                 except Exception as e:

@@ -123,3 +123,47 @@ __all__ += [
     "compute_depth_regularization",
     "get_turntable_config",
 ]
+
+# Pose Conditioning (camera-aware generation)
+from .pose_conditioning import (
+    CameraPoseConditioner,
+    SphericalPoseEncoder,
+    ExtrinsicPoseEncoder,
+    PluckerRayEncoder,
+    FourierEncoder,
+    create_pose_conditioner_for_unet,
+)
+from .pose_conditioning_integration import (
+    PoseConditioningInjector,
+    load_m5_cameras,
+    create_pose_injector_from_config,
+)
+
+__all__ += [
+    # Pose Conditioning
+    "CameraPoseConditioner",
+    "SphericalPoseEncoder",
+    "ExtrinsicPoseEncoder",
+    "PluckerRayEncoder",
+    "FourierEncoder",
+    "create_pose_conditioner_for_unet",
+    "PoseConditioningInjector",
+    "load_m5_cameras",
+    "create_pose_injector_from_config",
+]
+
+# MV-Adapter (future multi-view replacement - scaffolding)
+from .mv_adapter import (
+    MVAdapterConfig,
+    MVAdapterModule,
+    CameraGuider,
+    create_mv_adapter_for_facelift,
+)
+
+__all__ += [
+    # MV-Adapter
+    "MVAdapterConfig",
+    "MVAdapterModule",
+    "CameraGuider",
+    "create_mv_adapter_for_facelift",
+]

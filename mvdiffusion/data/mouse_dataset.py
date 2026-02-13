@@ -52,13 +52,19 @@ class MouseMVDiffusionDataset(Dataset):
         self.img_wh = config.get("img_wh", 512)
         self.n_views = config.get("n_views", 6)
 
+        # H8: Support non-consecutive camera indices (e.g., [0, 2, 4] for 3-view)
+        # Maps internal index (0..n_views-1) to actual camera index
+        _cam_idx = config.get("camera_indices", None)
+        self.camera_indices = list(_cam_idx) if _cam_idx is not None else list(range(self.n_views))
+        assert len(self.camera_indices) == self.n_views,             f"camera_indices length ({len(self.camera_indices)}) must match n_views ({self.n_views})"
+
         # Reference view configuration (which view to use as input)
         # For mouse, we might want to experiment with different reference views
         # Supports: int (fixed), "random" (random each sample), or list [0,1,2,...] (random from list)
         ref_view_config = config.get("reference_view_idx", 0)
         if ref_view_config == "random":
             self.reference_view_idx = "random"
-            self.reference_view_choices = list(range(self.n_views))
+            self.reference_view_choices = list(range(self.n_views))  # internal indices
         elif isinstance(ref_view_config, (list, tuple)) or hasattr(ref_view_config, '__iter__') and not isinstance(ref_view_config, str):
             # Support list, tuple, or OmegaConf ListConfig
             self.reference_view_idx = "random"
@@ -241,7 +247,8 @@ class MouseMVDiffusionDataset(Dataset):
             current_ref_idx = self.reference_view_idx
 
         # Load reference (input) image
-        ref_image_path = os.path.join(images_dir, f"cam_{current_ref_idx:03d}.png")
+        actual_ref_idx = self.camera_indices[current_ref_idx]
+        ref_image_path = os.path.join(images_dir, f"cam_{actual_ref_idx:03d}.png")
         ref_image = self.load_image(ref_image_path, bg_color)
 
         # Compute rotated target view indices when using random reference view
@@ -255,7 +262,8 @@ class MouseMVDiffusionDataset(Dataset):
         # Load all target images in rotated order
         target_images = []
         for view_idx in rotated_target_indices:
-            target_image_path = os.path.join(images_dir, f"cam_{view_idx:03d}.png")
+            actual_cam_idx = self.camera_indices[view_idx]
+            target_image_path = os.path.join(images_dir, f"cam_{actual_cam_idx:03d}.png")
             target_image = self.load_image(target_image_path, bg_color)
             target_images.append(target_image)
 
@@ -284,6 +292,7 @@ class MouseMVDiffusionDataset(Dataset):
             'imgs_in': input_images.float(),
             'imgs_out': target_images.float(),
             'color_prompt_embeddings': rotated_prompt_embedding,
+            'ref_view_idx': current_ref_idx,
         }
 
 
