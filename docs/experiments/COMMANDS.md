@@ -1,6 +1,6 @@
 # 실험 명령어 (SSOT)
 
-> **최종 업데이트**: 260207
+> **최종 업데이트**: 260213
 > **원칙**: 이 문서가 명령어의 단일 소스
 
 ---
@@ -21,7 +21,7 @@ export CUDA_VISIBLE_DEVICES=N && nohup python \
 > ⚠️ Dead Config 주의: `max_steps`와 `training.schedule.val_every`는 코드에서 무시됨.
 > 실제 종료: `max_fwdbwd_passes` (+1 epoch 올림). 실제 validation: `validation.val_every`.
 
-### MVDiffusion
+### MV-Diffusion
 
 ```bash
 export CUDA_VISIBLE_DEVICES=N && PYTHONUNBUFFERED=1 nohup accelerate launch \
@@ -47,7 +47,7 @@ export CUDA_VISIBLE_DEVICES=N && PYTHONUNBUFFERED=1 nohup accelerate launch \
 | 6 | 1view_v2, 2view_v2 | 1, 2 | 🔄 (GPU 공유) |
 | 7 | 3view_v2, 5view_v2 | 3, 5 | 🔄 (GPU 공유) |
 
-> 📌 MVDiffusion M5t2_cyclic은 H5 실험 (이 표와 별개, GPU 4에서 실행 중)
+> 📌 MV-Diffusion M5t2_cyclic은 H5 실험 (이 표와 별개, GPU 4에서 실행 중)
 
 > ⚠️ **baseline_v2 수정 이력**: (1) `max_steps: 1` = dead config, (2) `max_fwdbwd_passes: 1` = +1 올림으로 1440 steps,
 > (3) `training.schedule.val_every: 1` = dead config path.
@@ -63,7 +63,7 @@ export CUDA_VISIBLE_DEVICES=N && PYTHONUNBUFFERED=1 nohup accelerate launch \
 ---
 
 
-## 2.5 H5: MVDiffusion Optimization (다음 실행)
+## 2.5 H5: MV-Diffusion Optimization (다음 실행)
 
 > **목표**: Sparse vs Full attention E2E 비교 → 단일 변수 ablation
 > **문서**: [H5_MVDIFFUSION.md](../hypotheses/H5_MVDIFFUSION.md)
@@ -109,53 +109,89 @@ python -m mouse_extensions.scripts.eval.compute_e2e_metrics \
     --skip_input_view 0
 ```
 
-### Phase 2B: 신규 학습 (baseline 승 시)
+### Phase 2B: Generalization 실험 (우선순위 순)
+
+> **로드맵**: [GENERALIZATION_ROADMAP](../hypotheses/GENERALIZATION_ROADMAP.md)
+> **카메라 분석**: [RMA_CAMERA_ANALYSIS](../hypotheses/RMA_CAMERA_ANALYSIS.md)
+
+| 순위 | 실험 | Config | 변경점 | 상태 |
+|:---:|------|--------|--------|:----:|
+| **P0** | randref_sparse | `M5t2_randref_sparse` | ref=random (단일 변수) | ⏳ |
+| **P1** | pose_spherical | `M5t2_pose_spherical` | spherical pose + random ref | ⏳ |
+| - | 20k_sparse | `M5t2_20k_sparse` | 학습 시간 연장 (baseline) | ⏳ |
 
 ```bash
-# randref_sparse (reference augmentation)
+cd /home/joon/dev/FaceLift
+
+# P0: randref_sparse — Random reference view (single-variable ablation)
+# Change: reference_view_idx: 0 → "random", sparse_mv_attention: true (SAME)
+# Analysis: docs/hypotheses/RMA_CAMERA_ANALYSIS.md
 export CUDA_VISIBLE_DEVICES=4 && PYTHONUNBUFFERED=1 nohup accelerate launch \
     --config_file configs/accelerate/1gpu.yaml \
     train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_randref_sparse.yaml \
     > logs/mvdiff_M5t2_randref_sparse.log 2>&1 &
 
-# 20k_sparse (longer training)
-export CUDA_VISIBLE_DEVICES=4 && PYTHONUNBUFFERED=1 nohup accelerate launch \
+# P1: pose_spherical — Spherical pose conditioning (non-invasive UNet injection)
+# Change: pose_conditioning.enabled=true, method=spherical, random ref
+# Resumes from M5t2 baseline checkpoint
+# Prereq: mouse_extensions/model/pose_conditioning_integration.py
+# Theory: docs/hypotheses/GENERALIZATION_ROADMAP.md §4
+export CUDA_VISIBLE_DEVICES=7 && PYTHONUNBUFFERED=1 nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_pose_spherical.yaml \
+    > logs/mvdiff_M5t2_pose_spherical.log 2>&1 &
+
+# (Optional) 20k_sparse — Longer training baseline
+export CUDA_VISIBLE_DEVICES=6 && PYTHONUNBUFFERED=1 nohup accelerate launch \
     --config_file configs/accelerate/1gpu.yaml \
     train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_20k_sparse.yaml \
     > logs/mvdiff_M5t2_20k_sparse.log 2>&1 &
 ```
 
-## 3. H6: Alpha/Mask Hypothesis (대기)
+### Phase 2B 모니터링
+
+| 실험 | WandB | 비교 기준 | 핵심 지표 |
+|------|-------|-----------|-----------|
+| randref_sparse | `mvdiff_M5t2_randref_sparse` | Baseline 27.30 | Overall PSNR, per-view PSNR |
+| pose_spherical | `mvdiff_M5t2_pose_spherical` | Baseline 27.30 | Overall PSNR, loss 안정성 |
+| 20k_sparse | `mvdiff_M5t2_20k_sparse` | Baseline @5K | 10K vs 20K 수렴 여부 |
+
+## 3. H6: Alpha/Mask Hypothesis
 
 > **기준**: 4view_v2 (Baseline, alpha_w=0, mask=none)
-> **목표**: Alpha supervision / GT mask의 shape quality 효과 측정
+> **목표**: Alpha supervision의 shape quality (mask_iou) 개선 효과 측정
 > **문서**: [H6_ALPHA_MASK.md](../hypotheses/H6_ALPHA_MASK.md)
 
-| Config | alpha_w | mask_mode | 가설 |
-|--------|---------|-----------|------|
-| 4view_alpha01_v2 | **0.1** | none | LGM 표준: alpha MSE → shape 수렴 가속 |
-| 4view_alpha05_v2 | **0.5** | none | 강한 alpha sup → boundary 선명화 vs PSNR 트레이드오프 |
-| 4view_maskgt_v2 | 0.1 | **gt** | GT masked L2 + alpha → foreground 집중 |
+### v2 → v3 Bugfix (260213)
 
-**명령어:**
+> **Bug**: `mask_mode: none`이면 `compute_mask_from_config()`가 GT mask를 `None`으로 덮어씀
+> → `alpha_loss`와 `mask_iou`가 항상 0.0 (alpha supervision 무효)
+> **Fix**: `gslrm.py`에서 `original_gt_mask`를 보존, alpha/bg/mask_iou에 독립 사용
+> **v2 실험 결과**: 무효 (삭제됨), v3로 재실험
+
+| Config | alpha_w | mask_mode | 비고 | 상태 |
+|--------|:-------:|:---------:|------|:----:|
+| 4view_v2 (baseline) | 0.0 | none | 비교 기준 | **완료** |
+| ~~4view_alpha01_v2~~ | ~~0.1~~ | ~~none~~ | ~~Bug: alpha_loss=0~~ | **삭제** |
+| ~~4view_alpha05_v2~~ | ~~0.5~~ | ~~none~~ | ~~Bug: alpha_loss=0~~ | **삭제** |
+| 4view_alpha05_v3 | **0.5** | none | v3 bugfix | **실행중** (GPU 5) |
+| 4view_alpha10_v3 | **1.0** | none | v3 bugfix (최대) | **실행중** (GPU 6) |
+
+**v3 명령어:**
 ```bash
-# Alpha 0.1 (LGM standard)
+cd /home/joon/dev/FaceLift
+
+# Alpha 0.5 (v3, GPU 5)
 export CUDA_VISIBLE_DEVICES=5 && PYTHONUNBUFFERED=1 nohup python \
     train_gslrm.py -b configs/mouse/uniform/base_uniform_v2.yaml \
-    -e configs/mouse/uniform/4view_alpha01_v2.yaml \
-    > logs/uniform_4view_alpha01_v2.log 2>&1 &
+    -e configs/mouse/uniform/4view_alpha05_v3.yaml \
+    > logs/h6_alpha05_v3.log 2>&1 &
 
-# Alpha 0.5 (strong)
+# Alpha 1.0 (v3, GPU 6)
 export CUDA_VISIBLE_DEVICES=6 && PYTHONUNBUFFERED=1 nohup python \
     train_gslrm.py -b configs/mouse/uniform/base_uniform_v2.yaml \
-    -e configs/mouse/uniform/4view_alpha05_v2.yaml \
-    > logs/uniform_4view_alpha05_v2.log 2>&1 &
-
-# GT mask + alpha
-export CUDA_VISIBLE_DEVICES=7 && PYTHONUNBUFFERED=1 nohup python \
-    train_gslrm.py -b configs/mouse/uniform/base_uniform_v2.yaml \
-    -e configs/mouse/uniform/4view_maskgt_v2.yaml \
-    > logs/uniform_4view_maskgt_v2.log 2>&1 &
+    -e configs/mouse/uniform/4view_alpha10_v3.yaml \
+    > logs/h6_alpha10_v3.log 2>&1 &
 ```
 
 ---
@@ -200,7 +236,7 @@ export CUDA_VISIBLE_DEVICES=6 && PYTHONUNBUFFERED=1 nohup python \
 ## 5. H8: Reduced View Generation
 
 > **전제**: ✅ H4 R1 완료 — 3view(19.92) vs 4view(21.50) = 1.58dB gap (<2dB 기준 충족)
-> **목표**: MVDiffusion 6뷰 → 3~4뷰 생성으로 per-view 품질 개선
+> **목표**: MV-Diffusion 6뷰 → 3~4뷰 생성으로 per-view 품질 개선
 > **문서**: [H8_REDUCED_VIEW_GENERATION.md](../hypotheses/H8_REDUCED_VIEW_GENERATION.md)
 
 ### S0: H4 결과 분석 ✅
@@ -214,10 +250,10 @@ export CUDA_VISIBLE_DEVICES=6 && PYTHONUNBUFFERED=1 nohup python \
 | 2-view | 17.70 | -5.76 |
 | 1-view | 11.08 | -12.38 |
 
-**결론**: GS-LRM에서 뷰 수↑ = PSNR↑ (단조 증가). 하지만 MVDiffusion 생성 품질이
+**결론**: GS-LRM에서 뷰 수↑ = PSNR↑ (단조 증가). 하지만 MV-Diffusion 생성 품질이
 핵심 변수 — per-view 품질 개선이 coverage 손실을 상쇄할 수 있는지 E2E로 검증 필요.
 
-### S2-S3: MVDiffusion n_views=3/4 fine-tune
+### S2-S3: MV-Diffusion n_views=3/4 fine-tune
 
 **코드 변경** (260209):
 - `mvdiffusion/data/mouse_dataset.py`: `camera_indices` 매핑 추가
@@ -232,13 +268,13 @@ export CUDA_VISIBLE_DEVICES=6 && PYTHONUNBUFFERED=1 nohup python \
 ```bash
 cd /home/joon/dev/FaceLift
 
-# H8: 4-view MVDiffusion (GPU 4)
+# H8: 4-view MV-Diffusion (GPU 4)
 export CUDA_VISIBLE_DEVICES=4 && PYTHONUNBUFFERED=1 nohup accelerate launch \
     --config_file configs/accelerate/1gpu.yaml \
     train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_4view.yaml \
     > logs/mvdiff_M5t2_4view.log 2>&1 &
 
-# H8: 3-view MVDiffusion (GPU 5)
+# H8: 3-view MV-Diffusion (GPU 5)
 export CUDA_VISIBLE_DEVICES=5 && PYTHONUNBUFFERED=1 nohup accelerate launch \
     --config_file configs/accelerate/1gpu.yaml \
     train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_3view.yaml \
@@ -368,4 +404,49 @@ watch -n 5 nvidia-smi
 
 ---
 
-*Commands v4.2 | 260209*
+---
+
+## 12. Turntable Visualization
+
+> *Source: TURNTABLE_VIS_GUIDE.md (merged 2026-02-11)*
+
+### Quick Test (verify_turntable.sh)
+
+```bash
+cd /home/joon/dev/FaceLift
+nohup bash scripts/verify_turntable.sh 6 > ./logs/verify_turntable.log 2>&1 &
+tail -f ./logs/verify_turntable.log
+
+# Custom checkpoint
+bash scripts/verify_turntable.sh 6 /path/to/checkpoint.pt
+```
+
+| Step | Script | Verifies |
+|------|--------|----------|
+| 1/2 | render_from_checkpoint.py | Inference path (orbit only) |
+| 2/2 | TurntableRenderer.render_all() | Train/Val path (orbit + view_traj + grid) |
+
+### Standalone Inference
+
+```bash
+CUDA_VISIBLE_DEVICES=6 python mouse_extensions/scripts/inference/render_from_checkpoint.py \
+    --checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/ckpt_0000000000009200.pt \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_path /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt \
+    --output_dir outputs/verify_turntable/inference \
+    --mode turntable --num_samples 1
+```
+
+### Result Check
+
+```bash
+ls outputs/verify_turntable/inference/
+ls outputs/verify_turntable/renderer/
+scp -r gpu03:~/dev/FaceLift/outputs/verify_turntable/ .
+```
+
+> **See also**: [VISUALIZATION_SETTINGS.md](VISUALIZATION_SETTINGS.md) for turntable config, output file system, rotation direction.
+
+---
+
+*Commands v4.4 | 260213*
