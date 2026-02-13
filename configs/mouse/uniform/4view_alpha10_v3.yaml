@@ -1,0 +1,21 @@
+# H6: 4-view + alpha supervision (weight=1.0, maximum)
+# Purpose: Test maximum alpha supervision weight (same scale as L2 loss)
+# v3: mask_mode stays "none" for RGB losses; alpha_loss uses GT mask via code fix
+model:
+  num_input_views: 4
+training:
+  losses:
+    alpha_loss_weight: 1.0
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/4view_alpha10_v3
+wandb:
+  name: uniform_v2_4view_alpha10_v3
+  tags:
+  - uniform_v2
+  - M5t2
+  - h6_alpha_mask_v3
+  - seed42
+  - 4view
+  - alpha_supervision
+  - weight_1.0
+  - bugfix_original_gt_mask

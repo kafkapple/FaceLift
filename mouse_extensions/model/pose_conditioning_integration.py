@@ -1,0 +1,350 @@
+# =============================================================================
+# Pose Conditioning Integration for MVDiffusion UNet
+# =============================================================================
+# Non-invasive integration: wraps UNet forward to inject pose embeddings
+# into encoder_hidden_states WITHOUT modifying original UNet code.
+#
+# Usage in train_diffusion.py:
+#   from mouse_extensions.model.pose_conditioning_integration import (
+#       PoseConditioningInjector, load_m5_cameras
+#   )
+#   cameras = load_m5_cameras("mouse_extensions/inference/cameras/m5_cameras.json")
+#   injector = PoseConditioningInjector(method="spherical", cameras=cameras)
+#   # In training loop:
+#   prompt_embeddings = injector.inject(prompt_embeddings, ref_view_idx, n_views)
+#
+# Created: 2026-02-13
+# =============================================================================
+
+import json
+import torch
+import torch.nn as nn
+import numpy as np
+from pathlib import Path
+from typing import Optional, Dict, List, Union
+
+from mouse_extensions.model.pose_conditioning import (
+    CameraPoseConditioner,
+    SphericalPoseEncoder,
+)
+
+
+# =============================================================================
+# Camera Utilities
+# =============================================================================
+
+def load_m5_cameras(
+    json_path: str = "mouse_extensions/inference/cameras/m5_cameras.json",
+) -> Dict:
+    """
+    Load M5 camera rig definition.
+
+    Returns:
+        dict with keys:
+          - c2w: [N_views, 4, 4] tensor (camera-to-world)
+          - w2c: [N_views, 4, 4] tensor (world-to-camera)
+          - intrinsics: [N_views, 4] tensor (fx, fy, cx, cy)
+          - n_views: int
+    """
+    path = Path(json_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Camera file not found: {json_path}")
+
+    with open(path) as f:
+        data = json.load(f)
+
+    frames = data["frames"]
+    n_views = len(frames)
+
+    w2c_list = []
+    intrinsics_list = []
+
+    for frame in frames:
+        w2c = torch.tensor(frame["w2c"], dtype=torch.float32)
+        w2c_list.append(w2c)
+        intrinsics_list.append(
+            torch.tensor([frame["fx"], frame["fy"], frame["cx"], frame["cy"]],
+                         dtype=torch.float32)
+        )
+
+    w2c = torch.stack(w2c_list)  # [N, 4, 4]
+    c2w = torch.inverse(w2c)     # [N, 4, 4]
+    intrinsics = torch.stack(intrinsics_list)  # [N, 4]
+
+    return {
+        "c2w": c2w,
+        "w2c": w2c,
+        "intrinsics": intrinsics,
+        "n_views": n_views,
+    }
+
+
+def get_rotated_cameras(
+    c2w: torch.Tensor,       # [N, 4, 4]
+    ref_view_idx: int,
+    n_views: int,
+) -> torch.Tensor:
+    """
+    Rotate camera order to match random reference view augmentation.
+
+    When reference_view_idx="random" and the dataset rotates target view
+    indices as [ref, ref+1, ..., ref+n-1] mod n_views, the cameras must
+    be rotated correspondingly.
+
+    Args:
+        c2w: All cameras [N, 4, 4]
+        ref_view_idx: Current reference view index
+        n_views: Number of views
+
+    Returns:
+        [N, 4, 4] rotated cameras matching the dataset's view order
+    """
+    rotated_indices = [(ref_view_idx + i) % n_views for i in range(n_views)]
+    return c2w[rotated_indices]
+
+
+# =============================================================================
+# Pose Conditioning Injector
+# =============================================================================
+
+class PoseConditioningInjector(nn.Module):
+    """
+    Non-invasive pose conditioning for MVDiffusion UNet.
+
+    Injects pose embeddings into encoder_hidden_states by concatenation
+    along the sequence dimension. This avoids any modification to the
+    UNet architecture — the extra tokens are simply attended to via
+    cross-attention.
+
+    Integration methods:
+      - "concat": Concatenate pose embed as extra token to prompt sequence
+      - "add": Add pose embed to existing prompt embeddings (requires match)
+      - "replace_last": Replace last prompt token with pose embed
+
+    Args:
+        method: Pose encoding method ("spherical", "extrinsic", "plucker")
+        cameras: Camera dict from load_m5_cameras()
+        embed_dim: Embedding dimension (must match UNet cross_attention_dim)
+        integration: How to combine pose embed with prompt ("concat")
+    """
+
+    def __init__(
+        self,
+        method: str = "spherical",
+        cameras: Optional[Dict] = None,
+        embed_dim: int = 1024,
+        integration: str = "concat",
+        camera_json_path: str = "mouse_extensions/inference/cameras/m5_cameras.json",
+    ):
+        super().__init__()
+        self.method = method
+        self.integration = integration
+        self.embed_dim = embed_dim
+
+        # Load cameras if not provided
+        if cameras is None:
+            cameras = load_m5_cameras(camera_json_path)
+
+        # Store cameras as buffer (moved to device with model)
+        self.register_buffer("c2w", cameras["c2w"])       # [N, 4, 4]
+        self.register_buffer("intrinsics", cameras["intrinsics"])  # [N, 4]
+        self.n_views = cameras["n_views"]
+
+        # Create pose encoder
+        self.conditioner = CameraPoseConditioner(
+            method=method,
+            embed_dim=embed_dim,
+            num_views=self.n_views,
+        )
+
+        # Precompute fixed camera pose embeddings (for non-random ref)
+        # Will be computed lazily and cached
+        self._cached_embeddings = None
+
+    def _compute_pose_embeddings(
+        self,
+        view_indices: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        """
+        Compute pose embeddings for given view indices.
+
+        Args:
+            view_indices: Which views to encode. None = all views in order.
+
+        Returns:
+            [N_views, embed_dim] pose embeddings
+        """
+        if view_indices is not None:
+            cameras = self.c2w[view_indices]  # [N, 4, 4]
+        else:
+            cameras = self.c2w  # [N, 4, 4]
+
+        # Add batch dim: [1, N, 4, 4]
+        cameras_batched = cameras.unsqueeze(0)
+
+        # Compute embeddings: [1, N, embed_dim]
+        embeddings = self.conditioner(cameras_batched)
+
+        return embeddings.squeeze(0)  # [N, embed_dim]
+
+    def get_fixed_embeddings(self) -> torch.Tensor:
+        """Get cached embeddings for fixed camera order (no rotation)."""
+        if self._cached_embeddings is None:
+            with torch.no_grad():
+                self._cached_embeddings = self._compute_pose_embeddings()
+        return self._cached_embeddings
+
+    @torch.no_grad()
+    def inject(
+        self,
+        encoder_hidden_states: torch.Tensor,  # [B*N, seq_len, embed_dim]
+        ref_view_idx: Union[int, torch.Tensor] = 0,
+        n_views: int = 6,
+        batch_size: Optional[int] = None,
+    ) -> torch.Tensor:
+        """
+        Inject pose conditioning into encoder_hidden_states.
+
+        For training, call this BEFORE passing to UNet:
+            encoder_hidden_states = injector.inject(
+                prompt_embeddings, ref_view_idx, n_views
+            )
+            model_output = unet(sample, t, encoder_hidden_states=encoder_hidden_states, ...)
+
+        Args:
+            encoder_hidden_states: Original prompt embeddings [B*N, seq_len, C]
+            ref_view_idx: Reference view index (int or tensor for per-batch)
+            n_views: Number of views
+            batch_size: Batch size B (inferred from encoder_hidden_states if None)
+
+        Returns:
+            Modified encoder_hidden_states with pose conditioning
+        """
+        BN, seq_len, C = encoder_hidden_states.shape
+        if batch_size is None:
+            batch_size = BN // n_views
+        device = encoder_hidden_states.device
+
+        # Compute or retrieve pose embeddings
+        if isinstance(ref_view_idx, int) and ref_view_idx == 0:
+            # Fixed reference — use cached embeddings
+            pose_embeds = self.get_fixed_embeddings().to(device)  # [N, C]
+            # Expand for batch: [B*N, C]
+            pose_embeds = pose_embeds.unsqueeze(0).expand(batch_size, -1, -1)
+            pose_embeds = pose_embeds.reshape(BN, C)
+        else:
+            # Random reference — compute rotated embeddings per batch
+            if isinstance(ref_view_idx, int):
+                # Same rotation for all batches
+                rotated_cameras = get_rotated_cameras(
+                    self.c2w, ref_view_idx, self.n_views
+                )
+                rotated_cameras = rotated_cameras.unsqueeze(0)  # [1, N, 4, 4]
+                pose_embeds = self.conditioner(rotated_cameras)   # [1, N, C]
+                pose_embeds = pose_embeds.expand(batch_size, -1, -1)  # [B, N, C]
+                pose_embeds = pose_embeds.reshape(BN, C)
+            else:
+                # Per-batch rotation (tensor of indices)
+                all_embeds = []
+                for b in range(batch_size):
+                    idx = ref_view_idx[b].item() if torch.is_tensor(ref_view_idx) else ref_view_idx
+                    rotated = get_rotated_cameras(self.c2w, idx, self.n_views)
+                    embeds = self._compute_pose_embeddings()
+                    rotated_embeds = embeds[
+                        [(idx + i) % self.n_views for i in range(self.n_views)]
+                    ]
+                    all_embeds.append(rotated_embeds)
+                pose_embeds = torch.stack(all_embeds).reshape(BN, C).to(device)
+
+        # Inject based on integration method
+        if self.integration == "concat":
+            # Add pose embedding as extra token: [BN, seq_len+1, C]
+            pose_token = pose_embeds.unsqueeze(1)  # [BN, 1, C]
+            return torch.cat([encoder_hidden_states, pose_token], dim=1)
+
+        elif self.integration == "add":
+            # Add to first token (usually CLS/start token)
+            out = encoder_hidden_states.clone()
+            out[:, 0, :] = out[:, 0, :] + pose_embeds
+            return out
+
+        elif self.integration == "replace_last":
+            # Replace last token with pose embedding
+            out = encoder_hidden_states.clone()
+            out[:, -1, :] = pose_embeds
+            return out
+
+        else:
+            raise ValueError(f"Unknown integration method: {self.integration}")
+
+    def extra_repr(self) -> str:
+        return (
+            f"method={self.method}, integration={self.integration}, "
+            f"embed_dim={self.embed_dim}, n_views={self.n_views}"
+        )
+
+
+# =============================================================================
+# Training Integration Helpers
+# =============================================================================
+
+def create_pose_injector_from_config(
+    config: dict,
+    device: str = "cuda",
+) -> Optional[PoseConditioningInjector]:
+    """
+    Create PoseConditioningInjector from training config dict.
+
+    Config keys:
+        pose_conditioning:
+            enabled: true
+            method: "spherical"       # spherical | extrinsic | plucker
+            integration: "concat"     # concat | add | replace_last
+            camera_json: "mouse_extensions/inference/cameras/m5_cameras.json"
+
+    Returns:
+        PoseConditioningInjector or None if not enabled
+    """
+    pose_cfg = config.get("pose_conditioning", {})
+    if not pose_cfg.get("enabled", False):
+        return None
+
+    injector = PoseConditioningInjector(
+        method=pose_cfg.get("method", "spherical"),
+        integration=pose_cfg.get("integration", "concat"),
+        embed_dim=pose_cfg.get("embed_dim", 1024),
+        camera_json_path=pose_cfg.get(
+            "camera_json",
+            "mouse_extensions/inference/cameras/m5_cameras.json"
+        ),
+    )
+
+    return injector.to(device)
+
+
+# =============================================================================
+# Usage Example (for reference)
+# =============================================================================
+#
+# In train_diffusion.py, add these minimal changes:
+#
+# 1. After model setup:
+#   pose_injector = create_pose_injector_from_config(vars(cfg))
+#   if pose_injector is not None:
+#       pose_injector = pose_injector.to(accelerator.device)
+#
+# 2. In training loop (around line 665):
+#   if pose_injector is not None:
+#       prompt_embeddings = pose_injector.inject(
+#           prompt_embeddings,
+#           ref_view_idx=batch.get('ref_view_idx', 0),
+#           n_views=cfg.n_views,
+#           batch_size=batch_size,
+#       )
+#   model_output = models['unet'](
+#       noisy_latents, timesteps,
+#       encoder_hidden_states=prompt_embeddings,
+#       class_labels=image_embeddings,
+#   )
+#
+# 3. Dataset must return 'ref_view_idx' in batch dict for random ref mode.
