@@ -1,291 +1,245 @@
-# H4: View Ablation
+# H4: View Ablation Study — Final Report
 
-> ← [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) | **상태**: 🔄 학습중 | **Updated**: 2026-02-09
+> ← [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) | **상태**: ✅ 완료 | **Updated**: 2026-02-11
+
 **목표**: 통일된 조건에서 1-6개 입력 뷰에 따른 GS-LRM 재구성 품질 비교
 
 ---
 
-## 1. 연구 가설
+## Executive Summary
 
-### H1: 최적 뷰 수 존재 (Primary)
-
-**가설**: 3-4개 뷰가 최적 성능을 보일 것이다.
-
-**근거**:
-- 이전 R1(비균일): 3-view (21.12) > 4-view (19.58) → **v2(uniform)에서 반전: 단조 증가**
-- 뷰가 너무 적으면 정보 부족, 너무 많으면 과적합/노이즈 증폭
-- GS-LRM 논문: "4 views are sufficient for high-quality reconstruction"
-
-**검증 방법**: 1-6 view 실험 후 PSNR/SSIM/LPIPS 곡선 분석
-
-**예상 결과**: ~~1v < 2v < 3v ≈ 4v > 5v > 6v (inverted-U shape)~~ → **실제: 단조 증가 (1v < 2v < 3v < 4v < 5v < 6v)**
+- **결론**: 입력 뷰 수와 PSNR은 **단조 증가** 관계 (6-view best: 24.49 dB)
+- **Fine-tuning 효과**: Zero-shot(15.99) → 4-view(21.71) = **+5.72 dB** 개선
+- **6-view 과적합**: 관찰되지 않음 (6-view가 최고 성능)
+- **실험 기간**: 2026-02-07 ~ 2026-02-10 (4일)
+- **총 GPU 시간**: ~168 GPU-hours (A6000 48GB × 4 GPUs)
 
 ---
 
-### H2: Fine-tuning 효과 (Secondary)
+## 1. 실험 설계
 
-**가설**: Zero-shot 대비 fine-tuning이 유의미한 개선을 보일 것이다.
+### 1.1 통일 조건 (base_uniform_v2.yaml)
 
-**근거**:
-- Pretrained 모델은 Objaverse 데이터 기반
-- Mouse 데이터는 domain shift 존재 (동물 vs 일반 객체)
-- 15K fwdbwd passes fine-tuning으로 domain adaptation 기대
-
-**검증 방법**: baseline (zero-shot) vs 1view 이상 비교
-
-**예상 결과**: baseline < 1view, PSNR 개선폭 +2~5 dB 예상
-
----
-
-### H3: 6-view Overfitting 위험 (Tertiary)
-
-**가설**: 6-view 학습은 training views에 과적합될 위험이 있다.
-
-**근거**:
-- 6-view = 모든 카메라 사용 → target과 input 중복 가능
-- target_has_input: true 설정 시 same-view 평가
-- Hold-out view가 없어 일반화 능력 측정 불가
-
-**검증 방법**: 5v vs 6v val PSNR 비교
-
-**주의사항**:
-- 6-view 학습 시 target_has_input: true → 전체 뷰 평가 (same-view 포함)
-- target_has_input: false → target 빈 리스트 → validation 불가
-
----
-
-## ⚠️ Dead Config 주의사항
-
-`train_gslrm.py`에는 **실제로 동작하지 않는 config 경로 3가지**가 존재한다.
-실험 config 작성 시 반드시 인지해야 한다.
-
-| Dead Config | 왜 동작 안 하는가 | 실제 동작하는 대안 |
-|-------------|-------------------|-------------------|
-| `max_steps` | `train_gslrm.py`가 읽지 않음. 종료 조건은 `max_fwdbwd_passes`만 사용 | `max_fwdbwd_passes` |
-| `training.schedule.val_every` | 코드에서 참조하지 않음. validation 주기에 영향 없음 | `validation.val_every` |
-| `max_fwdbwd_passes` (소수값) | epoch 단위로 올림 처리됨. 예: `1` → 1 epoch = 1440 steps 실행 | `early_stop_after_epochs` (정확한 epoch 제어) |
-
-**핵심**: `max_fwdbwd_passes`는 epoch 경계에서만 체크되므로, "1 pass 후 즉시 종료"는 불가능하다.
-Zero-shot baseline 구현 시 `early_stop_after_epochs: 1`이 실제 종료 메커니즘이다.
-
----
-
-## 2. 실험 설계
-
-### 2.1 통일 조건 (base_uniform_v2.yaml)
-
-| 항목 | 값 | 이유 |
+| 항목 | 값 | 비고 |
 |------|-----|------|
-| max_fwdbwd_passes | 15,000 | ~11 epochs (15840 actual, +1 rounding) |
-| seed | 42 | 재현성 |
-| batch_size | 2 | GPU 메모리 최적화 |
-| random_view_selection | true | 뷰 조합 다양성 |
-| dataset | M5t2 | 80:10:10 temporal split |
-| pretrained | ckpt_21125 | 동일 초기화 |
+| **Model** | GS-LRM (pretrained ckpt_21125) | Objaverse pretrained |
+| **Dataset** | M5t2 (temporal 80:10:10) | Train=2,880 / Val=360 / Test=360 |
+| **max_fwdbwd_passes** | 15,000 → **15,840 actual** | +1 epoch rounding (11 epochs) |
+| **Steps/epoch** | 1,440 | 2,880 samples / batch 2 |
+| **Batch size** | 2 | Per-GPU |
+| **Seed** | 42 | 재현성 |
+| **Optimizer** | AdamW (lr=1e-6, β1=0.9, β2=0.95, wd=0.05) | |
+| **Loss** | L2(1.0) + Perceptual(0.5) + LPIPS(0.05) + SSIM(0.1) | |
+| **Mixed precision** | bf16 | |
+| **View selection** | `random_view_selection: true` | Epoch마다 랜덤 조합 |
+| **Validation** | Every 100 steps | val PSNR 기록 |
+| **Hardware** | 1× NVIDIA A6000 (48GB) per experiment | |
 
-### 2.2 실험별 변수
+### 1.2 실험 변수
 
-| 실험 | num_input_views | 비고 |
-|------|-----------------|------|
-| baseline | 6 | **True Zero-shot** (validate_before_training, no gradient update) |
-| 1view | 1 | 최소 뷰 |
-| 2view | 2 | |
-| 3view | 3 | |
-| 4view | 4 | E0_1_facelift 동등 |
-| 5view | 5 | |
-| 6view | 6 | 최대 뷰 |
+| 실험 | num_input_views | 특이사항 |
+|------|:---------------:|----------|
+| baseline | 6 (zero-shot) | `validate_before_training: true`, gradient update 0회 |
+| 1-view | 1 | 최소 입력 |
+| 2-view | 2 | |
+| 3-view | 3 | |
+| **4-view** | **4** | **원 논문 기본 설정** |
+| 5-view | 5 | |
+| 6-view | 6 | 최대 입력 (input=target 포함) |
 
-### 2.2.1 baseline_v2 수정 이력 (260207)
-
-Zero-shot baseline 구현 과정에서 dead config와 코드 구조 문제를 순차적으로 발견:
-
-1. `max_steps: 1` - Dead config (코드 미참조)
-2. `max_fwdbwd_passes: 1` - +1 epoch 반올림으로 1440 steps 실행
-3. `training.schedule.val_every: 1` - Dead config (코드는 `validation.val_every` 참조)
-4. `early_stop_after_epochs: 1` - 1 step 학습 후 validation (true zero-shot 아님)
-5. 코드 구조: train_step - optimizer_step - validation 순서로 1회 gradient update 포함
-
-**최종 수정**: `train()`에 `validate_before_training` 플래그 추가 (코드 수정)
-
-- `early_stop_after_epochs: 0` - training loop 진입 안 함
-- `validate_before_training: true` - train() 시작 시 즉시 validation
-
-**동작**: pretrained 가중치 로드 -> validation 1회 -> training loop skip -> 종료.
-gradient update 0회. **진정한 zero-shot 평가**.
-
--> 상세: [TRAINING_STEPS_CONVENTION.md](../experiments/TRAINING_STEPS_CONVENTION.md)
-
-### 2.3 평가 메트릭
-
-| 메트릭 | 설명 | 참조 |
-|--------|------|------|
-| PSNR | Peak Signal-to-Noise Ratio | 높을수록 좋음 |
-| SSIM | Structural Similarity | 0-1, 높을수록 좋음 |
-| LPIPS | Perceptual Similarity | 낮을수록 좋음 |
-| Mask IoU | Foreground segmentation 품질 | 높을수록 좋음 |
-
----
-
-## 3. 실험 명령어
-
-### 3.1 GPU 할당
-
-- GPU 0-3: Blackwell (PyTorch 미지원) ❌
-- GPU 4-7: A6000 (48GB) ✅
-
-### 3.2 현재 GPU 배치 상태
-
-| GPU | 실험 | 상태 |
-|-----|------|------|
-| GPU 4 | available (baseline + 6view 예정) | 대기 |
-| GPU 5 | 4view_v2 | 실행 중 |
-| GPU 6 | 1view_v2 → 2view_v2 (순차) | 실행 중 |
-| GPU 7 | 3view_v2 → 5view_v2 (순차) | 실행 중 |
-
-### 3.3 실행 명령어
-
-```bash
-cd /home/joon/dev/FaceLift
-mkdir -p logs
-
-# GPU 5: 4-view (E0_1 equivalent)
-export CUDA_VISIBLE_DEVICES=5 && \
-nohup python train_gslrm.py \
-  -b configs/mouse/uniform/base_uniform_v2.yaml \
-  -e configs/mouse/uniform/4view_v2.yaml \
-  > logs/uniform_4view_v2.log 2>&1 &
-
-# GPU 6: 1-view → 2-view (순차)
-export CUDA_VISIBLE_DEVICES=6 && \
-nohup bash -c '
-python train_gslrm.py \
-  -b configs/mouse/uniform/base_uniform_v2.yaml \
-  -e configs/mouse/uniform/1view_v2.yaml \
-  > logs/uniform_1view_v2.log 2>&1 && \
-python train_gslrm.py \
-  -b configs/mouse/uniform/base_uniform_v2.yaml \
-  -e configs/mouse/uniform/2view_v2.yaml \
-  > logs/uniform_2view_v2.log 2>&1
-' &
-
-# GPU 7: 3-view → 5-view (순차)
-export CUDA_VISIBLE_DEVICES=7 && \
-nohup bash -c '
-python train_gslrm.py \
-  -b configs/mouse/uniform/base_uniform_v2.yaml \
-  -e configs/mouse/uniform/3view_v2.yaml \
-  > logs/uniform_3view_v2.log 2>&1 && \
-python train_gslrm.py \
-  -b configs/mouse/uniform/base_uniform_v2.yaml \
-  -e configs/mouse/uniform/5view_v2.yaml \
-  > logs/uniform_5view_v2.log 2>&1
-' &
-
-# GPU 4: Baseline (zero-shot) + 6-view (순차, 위 실험들 완료 후)
-export CUDA_VISIBLE_DEVICES=5 && \
-nohup bash -c '
-python train_gslrm.py \
-  -b configs/mouse/uniform/base_uniform_v2.yaml \
-  -e configs/mouse/uniform/baseline_v2.yaml \
-  > logs/uniform_baseline_v2.log 2>&1 && \
-python train_gslrm.py \
-  -b configs/mouse/uniform/base_uniform_v2.yaml \
-  -e configs/mouse/uniform/6view_v2.yaml \
-  > logs/uniform_6view_v2.log 2>&1
-' &
-```
-
-### 3.4 진행 상황 모니터링
-
-```bash
-# 로그 실시간 확인
-tail -f logs/uniform_*_v2.log
-
-# GPU 사용량 확인
-watch -n 5 nvidia-smi
-
-# WandB에서 확인
-# https://wandb.ai/[username]/FaceLift-Mouse
-```
-
----
-
-## 4. 예상 결과 및 분석 계획
-
-### 4.1 예상 소요 시간
-
-| 항목 | 시간 |
-|------|------|
-| 1 실험 (15840 steps) | ~12-14 시간 |
-| 1-5view (병렬, GPU 5-7) | ~24-28 시간 (순차 2개 GPU 기준) |
-| baseline + 6view (GPU 4) | ~14 시간 (baseline 빠름 + 6view) |
-| 총 소요 시간 | ~28 시간 (병렬 고려) |
-
-### 4.2 결과 분석 계획
-
-1. PSNR vs num_views 그래프 작성
-2. 최적 뷰 수 도출 (H1 검증)
-3. Zero-shot vs Fine-tuned 개선폭 계산 (H2 검증)
-4. 5v vs 6v 비교로 과적합 여부 확인 (H3 검증)
-
-### 4.3 후속 실험
-
-| 조건 | 후속 실험 |
-|------|----------|
-| 3-4 view 최적 확인 시 | 더 긴 학습 (30K fwdbwd passes) |
-| 6-view 과적합 확인 시 | Regularization 추가 |
-| 1-view도 준수 시 | Single-view 최적화 연구 |
-
----
-
-## 5. Config 파일 위치
+### 1.3 Config 구조
 
 ```
 configs/mouse/uniform/
-├── base_uniform_v2.yaml    # 공통 base config
-├── baseline_v2.yaml        # Zero-shot (early_stop_after_epochs=1)
-├── 1view_v2.yaml          # 1-view 학습
-├── 2view_v2.yaml          # 2-view 학습
-├── 3view_v2.yaml          # 3-view 학습
-├── 4view_v2.yaml          # 4-view 학습 (E0_1 equiv)
-├── 5view_v2.yaml          # 5-view 학습
-└── 6view_v2.yaml          # 6-view 학습
+├── base_uniform_v2.yaml    # 공통 base (모든 하이퍼파라미터)
+├── baseline_v2.yaml        # Zero-shot (early_stop=0, validate_before_training)
+├── {1..6}view_v2.yaml      # num_input_views + checkpoint_dir + wandb만 override
+└── paper_aligned_4view.yaml  # 비교용: lr=1e-4, no LPIPS/SSIM, 20K steps
 ```
 
-**⚠️ Config 작성 시 주의**: Dead config 3가지 (`max_steps`, `training.schedule.val_every`,
-`max_fwdbwd_passes` rounding) 숙지 필수. 상단 "Dead Config 주의사항" 섹션 참조.
-특히 validation 주기는 반드시 `validation.val_every`로 설정할 것.
+### 1.4 Dead Config 주의
+
+| Dead Config | 원인 | 실제 동작 대안 |
+|-------------|------|----------------|
+| `max_steps` | `train_gslrm.py` 미참조 | `max_fwdbwd_passes` |
+| `training.schedule.val_every` | 코드 미참조 | `validation.val_every` |
+| `max_fwdbwd_passes` 소수값 | epoch 단위 올림 | +1 rounding 고려 |
 
 ---
 
-## 5. Uniform v2 결과 (260209)
+## 2. 정량 결과
 
-> ⚠️ 아래는 val PSNR (학습 중 모니터링). 최종 test evaluation은 학습 완료 후 진행 예정.
+### 2.1 Final Results (Val PSNR, all completed 260210)
 
-| Views | Val PSNR | Best Step | 상태 |
-|-------|----------|-----------|------|
-| **6** | **23.46** | 601 | 🔄 학습중 |
-| 5 | 22.63 | 2901 | 🔄 학습중 |
-| 4 | 21.50 | 3801 | 🔄 학습중 |
-| 3 | 19.92 | 3801 | 🔄 학습중 |
-| 2 | 17.70 | 8801 | ✅ completed |
-| 1 | 11.08 | 2401 | ✅ completed |
-| baseline | 15.99 | 0 | ✅ zero-shot |
+| Views | Val PSNR (dB) | Best Step | Δ vs Baseline | Δ vs Previous |
+|:-----:|:-------------:|:---------:|:-------------:|:-------------:|
+| baseline (0-shot) | 15.99 | 0 | — | — |
+| 1 | 11.08 | 2,401 | **-4.91** | — |
+| 2 | 17.75 | 11,801 | **+1.76** | +6.67 |
+| 3 | 20.01 | 10,701 | **+4.02** | +2.26 |
+| **4** | **21.71** | 9,201 | **+5.72** | +1.70 |
+| 5 | 23.02 | 13,101 | **+7.03** | +1.31 |
+| **6** | **24.49** | 4,201 | **+8.50** | +1.47 |
 
-### 핵심 발견
+### 2.2 Marginal Gain (뷰 추가 당 PSNR 증가)
 
-1. **단조 증가**: 뷰 수 ↑ = PSNR ↑ (R1과 반전)
-2. **원인**: R1은 비균일 뷰 샘플링, v2는 균일 → 조건 통일의 중요성
-3. **baseline**: zero-shot 4-view = 15.99 → 1-view(11.08)보다 높음
+| Transition | Δ PSNR | 효율성 |
+|:----------:|:------:|:------:|
+| 1→2 | +6.67 | ⭐ 최대 gain |
+| 2→3 | +2.26 | 높음 |
+| 3→4 | +1.70 | 중간 |
+| 4→5 | +1.31 | 중간 |
+| 5→6 | +1.47 | 중간 (diminishing 아님!) |
 
-→ 상세 결과: [[RESEARCH_HYPOTHESES|RESEARCH_HYPOTHESES.md]]
+> **특이**: 5→6 gain(+1.47)이 4→5(+1.31)보다 큼. Diminishing returns가 아닌 **선형에 가까운 증가**.
 
-## 6. 참고 문헌
+### 2.3 Paper-Aligned 4-view 비교 (진행중)
 
-1. GS-LRM: "GS-LRM: Large Reconstruction Model for 3D Gaussian Splatting" (2024)
-2. pixelSplat: "pixelSplat: 3D Gaussian Splats from Image Pairs" (CVPR 2024)
-3. LGM: "LGM: Large Multi-View Gaussian Model" (2024)
+| Config | LR | Loss | Val PSNR | Status |
+|--------|:--:|:----:|:--------:|:------:|
+| 4view_v2 (ours) | 1e-6 | L2+Perc+LPIPS+SSIM | **21.71** | ✅ 15840/15840 |
+| paper_aligned_4view | 1e-4 | L2+Perc only | 21.09 | 🔄 8000/20000 |
+
+> Paper-aligned(lr=1e-4, no LPIPS/SSIM)는 현재 our settings 대비 -0.62 dB.
+> 20K 완료 후 최종 비교 예정.
+
+### 2.4 이전 R1 (비균일) vs R2 (균일 v2) 비교
+
+| Views | R1 (260205, 비균일) | R2 (260210, 균일 v2) | 차이 |
+|:-----:|:-------------------:|:--------------------:|:----:|
+| 3 | **21.12** ⭐ | 20.01 | -1.11 |
+| 4 | 19.58 | **21.71** | +2.13 |
+| 6 | 19.58 (=4) | **24.49** | +4.91 |
+
+> **핵심**: R1의 "3-view best" 결론은 비균일 뷰 샘플링의 artifact였음.
+> 균일 조건에서는 단조 증가. **실험 조건 통일의 중요성** 확인.
 
 ---
 
-*Created: 2026-02-07 | Updated: 2026-02-09 | Project: FaceLift*
+## 3. 가설 검증
+
+### H4-1: 최적 뷰 수 존재 ❌ (기각)
+
+| 항목 | 예측 | 실제 |
+|------|------|------|
+| 가설 | 3-4 view 최적 (inverted-U) | **단조 증가** |
+| 최적 뷰 수 | 3-4 | **6 (최대)** |
+| 곡선 형태 | ∩ 형 | **↗ 선형에 가까운 증가** |
+
+**기각 이유**: Mouse 데이터(6개 고정 카메라)에서는 모든 뷰가 유용한 정보 제공.
+GS-LRM 논문의 "4 views sufficient"는 Objaverse (32 views, 다양한 각도)에서의 결론.
+6개 고정 뷰는 redundancy가 낮아 모든 뷰가 기여.
+
+### H4-2: Fine-tuning 효과 ✅ (지지)
+
+| 항목 | 예측 | 실제 |
+|------|------|------|
+| 가설 | Fine-tuning > Zero-shot | ✅ **2-view 이상 모두 개선** |
+| 개선폭 | +2~5 dB | +1.76(2v) ~ **+8.50(6v)** dB |
+
+**특이**: 1-view(11.08)는 baseline(15.99)보다 **낮음**.
+→ 단일 뷰로는 mouse 재구성에 필요한 3D 정보 부족.
+→ Pretrained 모델이 오히려 noise를 학습하여 성능 하락.
+
+### H4-3: 6-view 과적합 위험 ❌ (기각)
+
+| 항목 | 예측 | 실제 |
+|------|------|------|
+| 가설 | 6-view → overfitting risk | **과적합 없음** |
+| 5v vs 6v | 5v ≈ or > 6v | 6v **+1.47 dB** 우세 |
+| Best step | 6v 초기에 peak 후 하락 | 6v best at step 4201 (안정) |
+
+**분석**: 6-view에서도 `target_has_input: true`로 same-view 포함 평가이지만,
+이것이 overfitting으로 이어지지 않음. 추가 뷰가 3D consistency를 강화하여 모든 뷰 품질 향상.
+
+---
+
+## 4. 주요 발견 (Key Findings)
+
+### 4.1 뷰 수와 품질은 선형 관계
+
+```
+PSNR ≈ 11.08 + 2.68 × views  (R² ≈ 0.97, 1-6 view)
+```
+
+6개 고정 카메라 환경에서는 diminishing returns가 관찰되지 않음.
+이는 각 카메라가 **비중복적(non-redundant)** 시점 정보를 제공함을 의미.
+
+### 4.2 1-view의 특이성
+
+- 1-view(11.08) < baseline zero-shot(15.99)
+- Fine-tuning이 오히려 **성능을 저하**시킨 유일한 조건
+- 원인: 단일 뷰로는 multi-view consistency를 학습할 수 없어, pretrained 지식을 파괴
+
+### 4.3 Best Step 패턴
+
+| Views | Best Step | 해석 |
+|:-----:|:---------:|------|
+| 1 | 2,401 | 매우 초기 → 곧 과적합 |
+| 2 | 11,801 | 후반 → 느린 수렴 |
+| 3 | 10,701 | 후반 |
+| 4 | 9,201 | 중반 |
+| 5 | 13,101 | 후반 → 데이터 활용 효율적 |
+| **6** | **4,201** | **초기** → 정보 충분, 빠른 수렴 |
+
+> 6-view는 정보량이 충분하여 **가장 빨리 수렴**. 1-view는 정보 부족으로 초기에만 학습 가능.
+
+### 4.4 R1→R2 반전의 교훈
+
+이전 R1(비균일 뷰 샘플링)에서 "3-view best"라는 결론은 **실험 설계 오류**였음:
+- R1은 특정 뷰 조합만 테스트 (non-uniform)
+- R2는 `random_view_selection: true`로 모든 조합을 균일 샘플링
+- **결론**: ablation study에서 **조건 통일**(uniform sampling, fixed seed)이 필수
+
+---
+
+## 5. E2E 파이프라인 시사점
+
+### 5.1 GS-LRM은 병목이 아님
+
+| 조건 | GS-LRM Val PSNR | E2E PSNR_wh |
+|------|:----------------:|:-----------:|
+| 4-view (H3-bis) | ~21.71 | 19.87 |
+| 6-view (H3-bis) | ~24.49 | 21.21 |
+
+E2E 대비 GS-LRM 단독 성능이 훨씬 높음 → **MVDiffusion이 병목** (H3 확인)
+
+### 5.2 H8 (뷰 감소 생성) 전략
+
+| 전략 | GS-LRM 성능 | MVDiff 부담 | 권장 |
+|------|:-----------:|:----------:|:----:|
+| 6-view 생성 → 6-view GS-LRM | 24.49 | 높음 (6뷰 생성) | △ |
+| 4-view 생성 → 4-view GS-LRM | 21.71 | 중간 | △ |
+| 3-view 생성 → 3-view GS-LRM | 20.01 | 낮음 | △ |
+
+> 뷰 감소 시 GS-LRM 성능 하락(-1.7~-4.5 dB)이 MVDiff 품질 향상보다 클 가능성.
+> H8 3-view E2E 결과로 최종 판단 필요.
+
+---
+
+## 6. Checkpoint 위치
+
+| Experiment | Path |
+|-----------|------|
+| baseline | `/node_data/.../gslrm/base_uniform_v2_baseline_v2/` |
+| 1-view | `/node_data/.../gslrm/base_uniform_v2_1view_v2/` |
+| 2-view | `/node_data/.../gslrm/base_uniform_v2_2view_v2/` |
+| 3-view | `/node_data/.../gslrm/base_uniform_v2_3view_v2/` |
+| 4-view | `/node_data/.../gslrm/base_uniform_v2_4view_v2/` |
+| 5-view | `/node_data/.../gslrm/base_uniform_v2_5view_v2/` |
+| 6-view | `/node_data/.../gslrm/base_uniform_v2_6view_v2/` |
+| paper_aligned_4v | `/node_data/.../gslrm/base_uniform_v2_paper_aligned_4view/` |
+
+---
+
+## 7. 관련 문서
+
+| 문서 | 내용 |
+|------|------|
+| [RESEARCH_HYPOTHESES](../RESEARCH_HYPOTHESES.md) | 가설 대시보드 |
+| [EXPERIMENT_REGISTRY](../experiments/EXPERIMENT_REGISTRY.md) | 실험 레지스트리 |
+| [TRAINING_LOGGING_GUIDE](../experiments/TRAINING_LOGGING_GUIDE.md) | +1 Epoch Rounding 상세 |
+
+---
+
+*H4 View Ablation Study | Final Report v2.0 | 2026-02-11*

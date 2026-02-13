@@ -7,14 +7,15 @@
 ## 1. Overview
 
 ```
-Single Image ──→ MVDiffusion (6 views) ──→ GS-LRM (3D Gaussians) ──→ Novel View Rendering
+Single Image ──→ MV-Diffusion (6 views) ──→ GS-LRM (3D Gaussians) ──→ Novel View Rendering
                   ↑ finetune 대상            ↑ pretrained (frozen)
 ```
 
-**목적**: Mouse 단일 이미지에서 6개 뷰를 생성하고, GS-LRM으로 3D 재구성하는 파이프라인의 MVDiffusion 단계를 finetune.
+**목적**: Mouse 단일 이미지에서 6개 뷰를 생성하고, GS-LRM으로 3D 재구성하는 파이프라인의 MV-Diffusion 단계를 finetune.
 
 **핵심 설정**:
 - 데이터: M5 전처리 (Affine, D7.1 preset, 512×512, fx=549, cx=cy=256)
+- **M5t2 (80/10/10 temporal split)**: Train 2,880 / Val 360 / Test 360 ← **권장**
 - **M5 (80/10/10 random split)**: Train 3,240 / Val 360
 - **M5t (1:1:1 temporal split)**: Train 1,198 / Val 1,198 / Test 1,204 ← Pose Splatter 비교용
 - Loss 범위: ~0.02–0.05
@@ -32,7 +33,7 @@ conda activate facelift
 
 ### Pretrained Weights
 
-MVDiffusion pretrained checkpoint가 `checkpoints/` 디렉토리에 필요. Config에서 `pretrained_model_name_or_path`로 참조.
+MV-Diffusion pretrained checkpoint가 `checkpoints/` 디렉토리에 필요. Config에서 `pretrained_model_name_or_path`로 참조.
 
 ---
 
@@ -50,6 +51,22 @@ MVDiffusion pretrained checkpoint가 `checkpoints/` 디렉토리에 필요. Conf
 | `cx, cy` | 256 | Principal point |
 | `train_samples` | 3,240 | 학습 데이터 수 (80%) |
 | `val_samples` | 360 | 검증 데이터 수 (10%) |
+
+### M5t2 Config (권장)
+
+**파일**: `configs/mvdiffusion/mouse_mvdiffusion_M5t2.yaml`
+
+| 항목 | 값 | 설명 |
+|------|-----|------|
+| `split` | **8:1:1 temporal** | 최대 학습 데이터 + temporal leakage 방지 |
+| `train_samples` | **2,880** | 시간순 80% |
+| `val_samples` | 360 | 시간순 10% |
+| `test_samples` | 360 | 시간순 10% |
+
+**데이터 파일**: `data_mouse_t2_{train,val,test}.txt`
+
+> M5t2는 현재 모든 MV-Diffusion ablation 실험의 기본 데이터셋.
+> M5t (1:1:1) 대비 학습 데이터 2.4배 → MV-Diffusion 병목 해소 (H3 진단 결과).
 
 ### M5t Config (Pose Splatter 비교용)
 
@@ -216,11 +233,11 @@ nvidia-smi -l 5
 
 ---
 
-*FaceLift MVDiffusion Guide | 2026-01-28*
+*FaceLift MV-Diffusion Guide | 2026-01-28*
 
 ## Prompt Embeddings Design (from archive)
 
-# MVDiffusion Prompt Embeddings 설계 가이드
+# MV-Diffusion Prompt Embeddings 설계 가이드
 
 ## 개요
 
@@ -233,7 +250,7 @@ MVDiffusion은 **prompt embeddings**를 사용해서 각 출력 뷰의 방향을
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  MVDiffusion 추론 과정                                               │
+│  MV-Diffusion 추론 과정                                               │
 │                                                                     │
 │  입력: [같은 이미지 × 6] + [다른 prompt_embeds × 6]                   │
 │         └─ reference view    └─ 각 뷰 방향 정보                      │
@@ -385,4 +402,4 @@ prompt_embed_path: 'mvdiffusion/data/mouse_prompt_embeds_6view/clr_embeds.pt'
 
 1. **학습-추론 일치**: 학습 시 사용한 prompt_embeds와 추론 시 사용하는 것이 같아야 함
 2. **카메라 매칭**: prompt_embeds의 뷰 방향과 실제 데이터 카메라가 일치해야 함
-3. **GS-LRM 연계**: MVDiffusion 출력 뷰의 카메라 ≈ GS-LRM에 전달하는 카메라
+3. **GS-LRM 연계**: MV-Diffusion 출력 뷰의 카메라 ≈ GS-LRM에 전달하는 카메라

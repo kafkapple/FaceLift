@@ -1,15 +1,15 @@
 # H8: Reduced View Generation (뷰 수 감소 생성)
 
-> **가설**: MVDiffusion 생성 뷰 수를 6→3~4로 줄이면, per-view 일관성과 품질이 개선되어
+> **가설**: MV-Diffusion 생성 뷰 수를 6→3~4로 줄이면, per-view 일관성과 품질이 개선되어
 > downstream GS-LRM 재구성 품질이 향상될 것이다.
 >
-> ← [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) | **상태**: 🔄 진행중 | **Updated**: 2026-02-09
+> ← [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) | **상태**: 🔄 3/4-view E2E 완료 | **Updated**: 2026-02-11
 
 ---
 
 ## 1. 동기
 
-### 1.1 현재 병목: MVDiffusion 품질
+### 1.1 현재 병목: MV-Diffusion 품질
 
 H3 진단 결과, MVDiffusion이 E2E 파이프라인의 병목:
 - M5t (1198 train): GS-LRM(GT) 20.56 vs E2E 19.15 → **Gap +1.41 dB**
@@ -122,14 +122,14 @@ F = 뷰 수, h×w = feature map 해상도
 | 정보량 감소 | 3뷰는 object 뒷면 정보 부족 | ⚠️ 중간 |
 
 **핵심 반론**: Pose Splatter ablation에서 뷰 수 감소의 품질 하락이 크다.
-그러나 이는 **GT 이미지** 기준이며, MVDiffusion **생성** 이미지는 이미 불완전.
+그러나 이는 **GT 이미지** 기준이며, MV-Diffusion **생성** 이미지는 이미 불완전.
 → "완벽한 6뷰" vs "덜 완벽한 3뷰"가 아닌, **"불완전한 6뷰" vs "덜 불완전한 3뷰"** 비교.
 
 ---
 
 ## 3. 기술적 실현 가능성
 
-### 3.1 MVDiffusion 아키텍처 분석
+### 3.1 MV-Diffusion 아키텍처 분석
 
 `num_views` 파라미터는 **config에서 변경 가능**:
 ```yaml
@@ -150,7 +150,7 @@ GS-LRM은 `num_input_views`와 `num_views` (total targets)가 **독립**:
 ```yaml
 model:
   num_views: 6           # target rendering (GT 6뷰 사용)
-  num_input_views: 3     # MVDiffusion 생성 3뷰 입력
+  num_input_views: 3     # MV-Diffusion 생성 3뷰 입력
 ```
 
 **Loss 계산**: Input 3뷰 → 3DGS 생성 → GT 6뷰와 비교.
@@ -208,7 +208,7 @@ cam_4 (top-left)     cam_2 (top-right)
 ### 4.3 S1: View Selection (GS-LRM only, GT 이미지)
 
 H4에서 `random_view_selection: true`로 학습 중.
-추가 실험: **고정 뷰 조합 비교** (GT 이미지 사용, MVDiffusion 불필요)
+추가 실험: **고정 뷰 조합 비교** (GT 이미지 사용, MV-Diffusion 불필요)
 
 | Config | Input Views | 뷰 번호 | 설명 |
 |--------|-------------|---------|------|
@@ -217,7 +217,7 @@ H4에서 `random_view_selection: true`로 학습 중.
 | 3view_diag_v2 | 3 | [0, 2, 3] | 전면+후면 대각 |
 | 4view_spread_v2 | 4 | [0, 1, 3, 4] | 90° 균등 분산 |
 
-### 4.4 S2-S3: MVDiffusion Fine-tune
+### 4.4 S2-S3: MV-Diffusion Fine-tune
 
 **기본 변경:**
 ```yaml
@@ -272,7 +272,7 @@ MVDiff 3-4뷰 per-view PSNR ≈ MVDiff 6뷰 (큰 차이 없음)
 AND
 E2E 6뷰 PSNR > E2E 3-4뷰 (coverage 중요)
 ```
-→ **결론**: MVDiffusion 품질 문제는 뷰 수가 아닌 다른 원인
+→ **결론**: MV-Diffusion 품질 문제는 뷰 수가 아닌 다른 원인
 → **후속**: H5 (더 긴 학습, attention 개선) 집중
 
 ### 시나리오 D: Pretrained 불일치 문제 (실패)
@@ -291,7 +291,7 @@ E2E 6뷰 PSNR > E2E 3-4뷰 (coverage 중요)
 H4 (View Ablation) ──────────────────┐
   결과: 최적 GS-LRM 입력 뷰 수        │
                                       ├──→ H8 (Reduced View Gen)
-H5 (MVDiffusion)  ───────────────────┤     결과: 최적 생성 뷰 수
+H5 (MV-Diffusion)  ───────────────────┤     결과: 최적 생성 뷰 수
   결과: 현재 6뷰 생성 품질 기준선       │
                                       │
 H6 (Alpha Mask) ─────────────────────┘
@@ -363,3 +363,37 @@ S4: E2E 평가 (1일)
 ---
 
 *H8 Reduced View Generation | v1.0 | 2026-02-07*
+
+
+---
+
+## 3-view E2E Results (260211)
+
+### Per-View Metrics (360 test samples)
+
+| View | PSNR_wh (dB) | SSIM | LPIPS | Type |
+|------|:---:|:---:|:---:|------|
+| view_0 | **35.51** | 0.9938 | 0.0079 | Input (reconstruction) |
+| view_1 | 16.50 | 0.9501 | 0.1132 | Novel (MVDiff generated) |
+| view_2 | 16.02 | 0.9471 | 0.1212 | Novel (MVDiff generated) |
+| **Overall** | **22.67** | 0.9637 | 0.0808 | Avg all views |
+| **Novel avg** | **16.26** | 0.9486 | 0.1172 | Avg novel only |
+
+### Cross-Configuration Comparison
+
+| Pipeline | Views | Novel PSNR | Overall PSNR | Notes |
+|----------|:-----:|:----------:|:------------:|-------|
+| GS-LRM only (GT input) | 6 | - | 24.49 | Upper bound |
+| 6-view E2E | 6 | ~24.0 | 21.21 | Standard pipeline |
+| 4-view E2E | 4 | - | 19.87 | Reduced views |
+| **3-view E2E** | **3** | **16.26** | **22.67*** | *inflated by input ratio |
+
+> *3-view overall(22.67)이 6-view(21.21)보다 높은 이유: input view(35.51 dB)가 전체의 1/3을 차지.
+> Novel view만 비교하면 3-view(16.26) << 6-view(~24.0)로 **7.7 dB 열위**.
+
+### Preliminary Conclusion
+
+1. **H8 가설 기각 경향**: 뷰 수 감소가 per-view 품질 개선으로 이어지지 않음
+2. **GS-LRM 입력 부족이 지배적**: 3개 뷰로는 3D 재구성에 필요한 coverage 부족
+3. **6-view 유지 권장**: 현재 파이프라인에서 6-view가 최적
+4. **추가 검증 필요**: 4-view E2E의 novel-only PSNR 확인 후 최종 결론

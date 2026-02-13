@@ -108,4 +108,40 @@ Turntable 및 시각화 관련 설정 문서.
 
 ---
 
-*Updated: 2026-01-26*
+---
+
+## Output File System
+
+> *Source: TURNTABLE_VIS_GUIDE.md (merged 2026-02-11)*
+
+### Single-Frame (Train/Val/Inference)
+
+| Filename | Content |
+|----------|---------|
+| turntable_orbit_{uid}.mp4 | 360 synthetic orbit (physical CCW) |
+| turntable_orbit_with_input_{uid}.mp4 | orbit + labeled input strip |
+| turntable_view_with_input_{uid}.mp4 | 6 cam trajectory + hold(15f) + input strip |
+| turntable_{uid}.jpg | 6x6 grid image |
+| turntable_6view_{uid}.mp4 | 2x3 multiview grid (GT top + Pred bottom) |
+
+### Temporal (Batch Inference)
+
+| Filename | Content |
+|----------|---------|
+| time_fixed.mp4 | Fixed view, temporal variation |
+| time_rotating.mp4 | Temporal + rotation combined |
+
+---
+
+## Rotation Direction
+
+| Function | Coordinate System | Default |
+|----------|-------------------|---------|
+| get_turntable_cameras | cos->x, sin->y (from +X) | clockwise=True (physical CCW) |
+| compute_camera_order | atan2(x,y) (from +Y) | Physical CCW order |
+
+`rotation_direction: "ccw"` (default) = all videos physical CCW (counterclockwise from above).
+
+---
+
+*Updated: 2026-02-11*

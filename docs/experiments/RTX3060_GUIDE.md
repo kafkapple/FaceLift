@@ -62,7 +62,7 @@ bash mouse_extensions/scripts/setup/setup_rtx3060.sh
 
 **예상 VRAM**: ~10-11 GB (4-view)
 
-### 2.2 MVDiffusion
+### 2.2 MV-Diffusion
 
 **파일**: `configs/mouse/rtx3060/mvdiffusion_3060.yaml`
 
@@ -90,12 +90,12 @@ CUDA_VISIBLE_DEVICES=0 python train_gslrm.py \
   -e configs/mouse/rtx3060/gslrm_3060.yaml
 ```
 
-### 3.2 MVDiffusion 학습
+### 3.2 MV-Diffusion 학습
 
 ```bash
 cd /path/to/FaceLift/mvdiffusion
 
-# MVDiffusion M5t2 (RTX 3060)
+# MV-Diffusion M5t2 (RTX 3060)
 CUDA_VISIBLE_DEVICES=0 accelerate launch \
   --config_file 1gpu.yaml \
   train_diffusion.py \
@@ -145,7 +145,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 | 모델 | A6000 | RTX 3060 (추정) |
 |------|-------|-----------------|
 | GS-LRM (15K steps) | ~12h | ~36-48h |
-| MVDiffusion (10K steps) | ~24h | ~48-72h |
+| MV-Diffusion (10K steps) | ~24h | ~48-72h |
 
 ---
 
@@ -174,11 +174,11 @@ sed -i 's|/home/joon/data/preprocessed/FaceLift_mouse|/local/path/data|g' \
 scp gpu03:/home/joon/dev/FaceLift/checkpoints/gslrm/ckpt_0000000000021125.pt \
   /local/path/FaceLift/checkpoints/gslrm/
 
-# MVDiffusion pretrained pipeline
+# MV-Diffusion pretrained pipeline
 scp -r gpu03:/home/joon/dev/FaceLift/checkpoints/mvdiffusion/pipeckpts/ \
   /local/path/FaceLift/checkpoints/mvdiffusion/
 
-# MVDiffusion M5t2 fine-tuned (optional)
+# MV-Diffusion M5t2 fine-tuned (optional)
 scp -r gpu03:/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2/checkpoint-5000/ \
   /local/path/checkpoints/mvdiffusion/mouse_M5t2/checkpoint-5000/
 ```

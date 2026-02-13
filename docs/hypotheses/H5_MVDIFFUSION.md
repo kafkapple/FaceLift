@@ -1,4 +1,4 @@
-# H5: MVDiffusion 학습 최적화
+# H5: MV-Diffusion 학습 최적화
 
 > **가설**: MVDiffusion을 mouse 데이터에 맞게 fine-tuning하면 E2E 품질이 개선될 것이다.
 >
@@ -69,7 +69,7 @@ Phase 1: cfgr vs baseline E2E 비교 (학습 완료, 평가만)
 | M5t2 (sparse) | 26.60 | **27.30** | +0.70 ✅ |
 | M5t2_cfgr (full) | **26.94** | 26.55 | -0.39 ❌ |
 
-### 2.2 MVDiffusion 단독 결론
+### 2.2 MV-Diffusion 단독 결론
 
 - **Full attention**: CFG 3.0에서 역효과 (-0.39)
 - **Sparse attention + CFG 3.0**: 최고 성능 (27.30)
@@ -77,7 +77,7 @@ Phase 1: cfgr vs baseline E2E 비교 (학습 완료, 평가만)
 
 ### 2.3 ⚠️ 미해결: E2E 비교 필요
 
-MVDiffusion 단독 PSNR은 sparse > full이지만, **E2E 파이프라인에서의 차이는 미검증**.
+MV-Diffusion 단독 PSNR은 sparse > full이지만, **E2E 파이프라인에서의 차이는 미검증**.
 Phase 1에서 E2E inference로 확인 필요.
 
 ---
@@ -148,4 +148,4 @@ Base: `/node_data/joon/checkpoints/FaceLift/mvdiffusion/`
 
 ---
 
-*H5 MVDiffusion | v2.0 | 2026-02-07*
+*H5 MV-Diffusion | v2.0 | 2026-02-07*

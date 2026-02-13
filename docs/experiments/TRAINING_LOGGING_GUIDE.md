@@ -1,7 +1,7 @@
 # Training & Logging Guide
 
 > **목적**: 학습 진행 상황 모니터링, WandB 로깅 이해
-> **최종 업데이트**: 2026-01-25
+> **최종 업데이트**: 2026-02-11
 
 ---
 
@@ -273,11 +273,78 @@ training:
 |------|------|
 | [EXPERIMENT_CONFIG_GUIDE](./EXPERIMENT_CONFIG_GUIDE.md) | 실험 명명 규칙 |
 | [EXPERIMENT_REGISTRY](./EXPERIMENT_REGISTRY.md) | 실험 목록 |
+| [EVALUATION_GUIDE](./EVALUATION_GUIDE.md) | 평가 기준/Split |
 
 ---
 
-*Training & Logging Guide v1.0 | 2026-01-25*
+*Training & Logging Guide v2.0 | 2026-02-11*
 
+
+---
+
+## 11. Training Convention (Paper Reporting)
+
+> *Source: TRAINING_STEPS_CONVENTION.md (merged 2026-02-11)*
+
+### 11.1 Literature Standards
+
+3D reconstruction 분야에서는 **steps (iterations)** 이 표준 표기:
+
+| Paper | Unit | Value |
+|-------|------|-------|
+| GS-LRM (ECCV 2024) | steps | pretrain 80K, finetune 20K |
+| NeRF (2020) | iterations | 30K |
+| Zero-1-to-3 (2023) | steps | 105K |
+| Stable Diffusion | steps | 800K |
+| LGM (ECCV 2024) | **epochs** | 30 epochs finetune |
+| Pose-Splatter (NeurIPS 2025) | **epochs** | 40-75 epochs + early stopping |
+
+### 11.2 Recommended Reporting Format
+
+```
+We train for 15K steps (10 epochs) on 2880 training samples
+with batch size 2 on a single A6000 GPU (~8 hours).
+```
+
+**Steps + epochs + hardware** 병기가 가장 완전한 표기.
+
+---
+
+## 12. GS-LRM +1 Epoch Rounding
+
+GS-LRM은 **정수 epoch 경계에서 종료**. `max_fwdbwd_passes`는 "최소 이만큼"의 의미:
+
+```python
+# gslrm/model/utils_train.py:196
+num_epochs = min(num_epochs, int(max_fwdbwd_passes / fwdbwd_per_epoch) + 1)
+#          = min(50000,      int(15000 / 1440) + 1) = 11
+# actual_steps = 1440 × 11 = 15840  (not 15000!)
+```
+
+| Intended steps | Computed | Actual epochs | Actual steps |
+|---------------|----------|--------------|-------------|
+| 15000 | int(10.41)+1=11 | 11 | **15840** |
+| 14400 | int(10.0)+1=11 | 11 | **15840** (same!) |
+| 10000 | int(6.94)+1=7 | 7 | **10080** |
+| 20000 | int(13.88)+1=14 | 14 | **20160** |
+
+**Alternative**: Set `num_epochs` directly for exact epoch control:
+```yaml
+num_epochs: 10              # exactly 10 epochs = 14400 steps
+max_fwdbwd_passes: 999999   # epoch controls termination
+```
+
+---
+
+## 13. GS-LRM vs MV-Diffusion Stop Mechanism
+
+| | GS-LRM | MV-Diffusion |
+|--|--------|-------------|
+| Stop unit | `max_fwdbwd_passes` | `max_train_steps` |
+| Precision | Rounds up to epoch boundary (+1) | **Exact** step termination |
+| Default | 15000 → actual 15840 | 10000 (exact) |
+| Effective batch | 2 | 16 (4 × 4 accum) |
+| Steps/epoch (M5t2) | 1440 | 180 |
 ---
 
 ## Early Stopping

@@ -18,7 +18,7 @@ Input (1-view or 6-view)
         │
         ▼
 ┌───────────────┐
-│  MVDiffusion  │ ← view_idx 설정 시 자동 활성화
+│  MV-Diffusion  │ ← view_idx 설정 시 자동 활성화
 │  (optional)   │
 └───────┬───────┘
         │ 6-view
@@ -43,7 +43,7 @@ Input (1-view or 6-view)
 | 모델 | 자동 탐색 값 |
 |------|-------------|
 | **GS-LRM** | `M5t_E0_1_facelift` |
-| **MVDiffusion** | `mouse_M5` |
+| **MV-Diffusion** | `mouse_M5` |
 | GS-LRM (pretrained) | `pretrained` |
 
 ---
@@ -72,7 +72,7 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.inference.run \
     --start_frame 0 --end_frame 100 \
     --output_dir outputs/batch_test
 
-# 1-view 모드 (MVDiffusion + GS-LRM)
+# 1-view 모드 (MV-Diffusion + GS-LRM)
 CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.inference.run \
     --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
     --view_idx 0 \
@@ -111,7 +111,7 @@ input:
   data_dir: null
   sample_dir: null
   image_path: null
-  view_idx: null                # null=6-view, 0-5=1-view+MVDiffusion
+  view_idx: null                # null=6-view, 0-5=1-view+MV-Diffusion
   frame_range:
     start: null
     end: null
@@ -178,7 +178,7 @@ pipeline:
 | `--end_frame` | 끝 프레임 | - |
 | `--frame_step` | 프레임 간격 | 1 |
 | `--checkpoint` | GS-LRM 체크포인트 | - |
-| `--mvdiffusion_checkpoint` | MVDiffusion 체크포인트 | - |
+| `--mvdiffusion_checkpoint` | MV-Diffusion 체크포인트 | - |
 | `--output_dir` | 출력 디렉토리 | - |
 | `--resolution` | 렌더링 해상도 | 384 |
 | `--num_views` | Turntable 뷰 수 | 36 |
@@ -217,7 +217,7 @@ outputs/inference/
 |------|-----------|---------------|
 | resolution=384, num_views=36 | ~8GB | ~2초 |
 | resolution=512, num_views=60 | ~12GB | ~4초 |
-| + MVDiffusion | +4GB | +3초 |
+| + MV-Diffusion | +4GB | +3초 |
 
 ### 6.2 문제 해결
 
@@ -246,7 +246,19 @@ mouse_extensions/inference/
 
 ---
 
-## 8. 참조
+## 8. Alternative Entry Points
+
+| Script | Use Case |
+|--------|----------|
+| `python -m mouse_extensions.inference.run` | **Config-based** unified pipeline (recommended) |
+| `python -m mouse_extensions.scripts.inference.run_e2e_inference` | **CLI-only** E2E inference (simpler, for quick eval) |
+
+> The unified pipeline (`inference.run`) supports config inheritance, dotlist overrides, and all output types.
+> The standalone script (`run_e2e_inference`) is simpler for one-off evaluations with explicit CLI args.
+
+---
+
+## 9. 참조
 
 | 문서 | 내용 |
 |------|------|
@@ -256,4 +268,4 @@ mouse_extensions/inference/
 
 ---
 
-*FaceLift E2E Inference Guide v3.0 | 2026-01-29*
+*FaceLift E2E Inference Guide v3.1 | 2026-02-11*

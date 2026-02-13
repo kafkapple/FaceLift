@@ -242,7 +242,11 @@ mouse_extensions/
 ## 7. 다음 단계
 
 ### 7.1 즉시 가능
-- [x] Deformation Network 학습 완료
+- [x] Deformation Network 학습 완료 (10K steps)
+- [x] Gaussian Cache 생성 (2880 frames)
+- [x] Temporal inference pipeline
+- [x] Evaluation metrics (jitter 92.7% 감소)
+- [x] Comparison video generation
 - [ ] Checkpoint 검증 (학습 완료 후)
 - [ ] 단일 비디오 시퀀스 테스트
 
@@ -256,6 +260,50 @@ mouse_extensions/
 - [ ] Temporal consistency 메트릭 (frame-to-frame difference)
 - [ ] Before/After 비교 영상 생성
 - [ ] PSNR/SSIM with temporal smoothing ablation
+
+### 7.4 Experiment Priorities
+
+> *Source: TEMPORAL_EXPERIMENTS_PLAN.md (merged 2026-02-11)*
+
+**Identified Issues**: Autoregressive drift (anchor-only start, cumulative error), per-frame GS-LRM output unused.
+
+#### P0: Immediate Fixes
+
+| Exp ID | Name | Goal | Status |
+|--------|------|------|--------|
+| T-P0-1 | Per-frame baseline | Per-frame original Gaussian quality check | Pending |
+| T-P0-2 | Label fix | Video label clarification | Done |
+
+#### P1: Core Algorithm
+
+| Exp ID | Name | Goal | Status |
+|--------|------|------|--------|
+| T-P1-1 | ARAP Loss | Local rigidity regularization | Pending |
+| T-P1-2 | Per-frame + Reg | Original preservation + temporal regularization | Pending |
+| T-P1-3 | Velocity smooth | Velocity continuity loss | Pending |
+
+#### P2: Enhanced Methods
+
+| Exp ID | Name | Goal | Status |
+|--------|------|------|--------|
+| T-P2-1 | Optical Flow | RAFT flow alignment loss | Pending |
+| T-P2-2 | Sliding Window | Window-based joint optimization | Pending |
+| T-P2-3 | SC-GS style | Sparse control points | Pending |
+
+#### P3: E2E Pipeline
+
+| Exp ID | Name | Goal | Status |
+|--------|------|------|--------|
+| T-P3-1 | MV-Diffusion → GS-LRM → Temporal | Full pipeline integration | Pending |
+| T-P3-2 | Real-time inference | Cache-free real-time inference | Pending |
+
+#### Key Metrics Targets
+
+| Metric | Current | Target | Method |
+|--------|---------|--------|--------|
+| Temporal Jitter | 0.0012 | < 0.001 | ARAP + velocity |
+| PSNR (vs GT) | TBD | > 25 | Per-frame quality |
+| Visual Drift | Severe | Minimal | Per-frame baseline |
 
 ---
 

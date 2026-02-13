@@ -1,6 +1,6 @@
 # H8 문헌 조사: Multi-View Diffusion 뷰 수와 품질 관계
 
-> **목적**: MVDiffusion 생성 뷰 수 감소 가설(H8)의 근거가 되는 문헌 종합 조사
+> **목적**: MV-Diffusion 생성 뷰 수 감소 가설(H8)의 근거가 되는 문헌 종합 조사
 > **조사일**: 2026-02-07
 > **논문 수**: 17편
 >
@@ -137,7 +137,7 @@ F=3:  9 × (hw)²  (-75%)
 | Dense attention (6v) | 35.32 GB | 1× |
 | Row-wise attention (6v) | 1.66 GB | ~99× |
 
-### 3.3 MVDiffusion 저자의 확장성 한계 언급
+### 3.3 MV-Diffusion 저자의 확장성 한계 언급
 
 *"The primary limitation lies in its computational time and resource requirements... the memory-intensive nature, resulting from the parallel denoising, limits its scalability... challenges for applications that require a large number of images."*
 
@@ -176,7 +176,7 @@ F=3:  9 × (hw)²  (-75%)
 | 5 | 0.760 | 29.0 |
 | 4 | 0.721 | 28.2 |
 
-**주의**: GT 이미지 기준. MVDiffusion 생성 이미지 기준이 아님.
+**주의**: GT 이미지 기준. MV-Diffusion 생성 이미지 기준이 아님.
 "완벽한 6뷰" vs "불완전한 3뷰"가 아닌, **"불완전한 6뷰" vs "덜 불완전한 3뷰"** 비교가 핵심.
 
 ### 4.3 SyncDreamer 16뷰의 한계
@@ -199,7 +199,7 @@ F=3:  9 × (hw)²  (-75%)
 
 ### 5.2 FaceLift 프로젝트 시사점
 
-1. 현재 MVDiffusion 6뷰 생성은 합리적이나, **병목이 확인된 상황**
+1. 현재 MV-Diffusion 6뷰 생성은 합리적이나, **병목이 확인된 상황**
 2. **4뷰 생성**이 가장 안전한 첫 시도 (LGM/GRM 검증, MVDream 임계점)
 3. **3뷰 생성**은 H4에서 3view 성능이 충분할 때만 시도
 4. **병행 전략**: Attention 효율화 (Era3D 스타일 row-wise) + 뷰 수 감소 조합

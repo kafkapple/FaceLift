@@ -52,6 +52,8 @@ target_has_input=True (기본값):
 | **LPIPS** | 0-1 | ↓ | Perceptual Distance (AlexNet) | 🟢 <0.1 / 🔴 >0.3 |
 | **Mask IoU** | 0-1 | ↑ | Foreground Mask Overlap | 🟢 >0.85 / 🔴 <0.7 |
 
+> **See also**: [METRICS_PROTOCOL](../theory/METRICS_PROTOCOL.md) — White-BG 계산 프로토콜, PoseSplatter 비교 분석, FG-only vs Full-image PSNR 차이
+
 ### 2.2 Temporal 메트릭 (추가 권장)
 
 | 메트릭 | 정의 | 용도 |
@@ -126,7 +128,7 @@ target_has_input=True (기본값):
 ### 4.3 권장 Baseline
 
 - **5-view**: 최대 input views (Novel View 평가 가능)
-- **3-view**: 적은 뷰에서도 좋은 성능 (MVDiffusion 대안)
+- **3-view**: 적은 뷰에서도 좋은 성능 (MV-Diffusion 대안)
 
 ---
 

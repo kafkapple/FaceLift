@@ -6,9 +6,9 @@ Created: 2026-02-09
 
 ## Motivation
 
-H1 diagnosis (2026-02-05) confirmed that MVDiffusion is a bottleneck when undertrained.
+H1 diagnosis (2026-02-05) confirmed that MV-Diffusion is a bottleneck when undertrained.
 However, M5t and M5t2 used **different test sets**, making cross-experiment absolute
-PSNR comparison invalid. This experiment resolves that by evaluating both MVDiffusion
+PSNR comparison invalid. This experiment resolves that by evaluating both MV-Diffusion
 models on the **same test set** with **full N** and **literature-standard metrics**.
 
 ### Problems Addressed
@@ -37,7 +37,7 @@ models on the **same test set** with **full N** and **literature-standard metric
 
 ### Conditions
 
-| Condition | Label | MVDiffusion | Purpose |
+| Condition | Label | MV-Diffusion | Purpose |
 |-----------|-------|-------------|---------|
 | **A** | `gslrm_only` | None (6 GT views) | Upper bound |
 | **B** | `e2e_M5t2` | `mouse_M5t2/checkpoint-5000` (2880 train, ~6ep) | Sufficient data |
@@ -45,7 +45,7 @@ models on the **same test set** with **full N** and **literature-standard metric
 
 ### Hypotheses
 
-1. **H1 revalidation**: Gap(C) >> Gap(B) ≈ 0, confirming MVDiffusion bottleneck
+1. **H1 revalidation**: Gap(C) >> Gap(B) ≈ 0, confirming MV-Diffusion bottleneck
 2. **Data quantity effect**: E2E(B) > E2E(C) on same test set, confirming data matters
 3. **Statistical rigor**: Paired t-test on N=360 provides definitive significance
 
@@ -71,7 +71,7 @@ python -m mouse_extensions.scripts.inference.run_e2e_inference \
   --no_turntable --no_mesh
 ```
 
-### Condition B: E2E with M5t2 MVDiffusion (sufficient data)
+### Condition B: E2E with M5t2 MV-Diffusion (sufficient data)
 
 ```bash
 export CUDA_VISIBLE_DEVICES=5
@@ -87,7 +87,7 @@ python -m mouse_extensions.scripts.inference.run_e2e_inference \
   --no_turntable --no_mesh
 ```
 
-### Condition C: E2E with M5t MVDiffusion (insufficient data)
+### Condition C: E2E with M5t MV-Diffusion (insufficient data)
 
 ```bash
 export CUDA_VISIBLE_DEVICES=5
@@ -154,7 +154,7 @@ outputs/h1bis_v2/
 
 ### 3. Per-View Breakdown
 
-Evaluate if MVDiffusion quality varies by view angle.
+Evaluate if MV-Diffusion quality varies by view angle.
 
 ## Execution Notes
 

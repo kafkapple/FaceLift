@@ -3,6 +3,7 @@
 > How to compute PSNR/SSIM/LPIPS for fair comparison with PoseSplatter and 3D reconstruction literature.
 >
 > **Implementation**: `mouse_extensions/scripts/eval/compute_e2e_metrics.py` v2.0
+> **See also**: [EVALUATION_GUIDE](../experiments/EVALUATION_GUIDE.md) — 평가 유형, Split 전략, View Ablation 가이드
 
 ---
 
@@ -96,7 +97,7 @@ PSNR에서 BG boost를 제거하여 **순수 FG 재구성 품질**만 비교:
 - **IoU**: FaceLift(0.518) << PoseSplatter(0.868) → **FaceLift의 형상 재구성 품질이 크게 열등**
 
 **해석**: FaceLift는 전경 픽셀의 **색상**은 잘 복원하지만 **형상(silhouette)**이 부정확.
-이는 MVDiffusion→GS-LRM 파이프라인에서 3D 기하학적 일관성이 부족하기 때문.
+이는 MV-Diffusion→GS-LRM 파이프라인에서 3D 기하학적 일관성이 부족하기 때문.
 
 ### 2.4 직접 비교의 한계
 
@@ -208,7 +209,7 @@ Output: `metrics_v2.json` per experiment directory.
 | **H0** | PoC 가능? | ✅ PSNR ~27 (train) | FG-only |
 | **H1** | Temporal split 유효? | ✅ Data leakage 방지 확인 | - |
 | **H2** | 데이터 양? | 다양성 > 반복 학습 | FG-only |
-| **H3** | E2E 병목? | MVDiffusion (undertrained 시) | FG-only |
+| **H3** | E2E 병목? | MV-Diffusion (undertrained 시) | FG-only |
 | **H4** | 최적 뷰 수? | **6-view 최적** (단조 증가) | FG-only (GS-LRM val) |
 | **H5** | MVDiff cfgr vs baseline? | **baseline이 소폭 우수** | full_white (v2) |
 

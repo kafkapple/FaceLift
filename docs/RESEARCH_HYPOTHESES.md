@@ -2,7 +2,7 @@
 
 > **Map of Content (MoC)** - 모든 가설과 실험의 메인 허브
 >
-> Last Updated: 2026-02-09 | Project: FaceLift
+> Last Updated: 2026-02-11 | Project: FaceLift
 
 ---
 
@@ -14,47 +14,57 @@
 | [H0](#h0-poc) | PoC 가능한가? | ✅ | PSNR ~27 (train) |
 | [H1](#h1-temporal-split) | Temporal split이 유효한가? | ✅ | Data leakage 방지 확인 |
 | [H2](#h2-data-amount) | 학습 데이터 양이 중요한가? | ✅ | 다양성 > 반복 학습 |
-| [H3](#h3-e2e-bottleneck) | E2E 파이프라인 병목은? | ✅ | MVDiffusion (undertrained 시). H3-bis 완료 |
+| [H3](#h3-e2e-bottleneck) | E2E 파이프라인 병목은? | ✅ | MV-Diffusion (undertrained 시). H3-bis 완료 |
 | [H3-bis](#h3-bis-same-test-set-revalidation) | 동일 테스트셋 재검증? | ✅ | MVDiff 항상 병목 (13-17 dB gap), 데이터↑ → gap↓ ~3 dB |
 | [H4](#h4-view-ablation) | 최적 입력 뷰 수는? | 🔄 | 1/2-view ✅, 3/4/5/6-view 학습중 |
-| [H5](#h5-mvdiffusion) | MVDiffusion 개선 방법은? | 🔄 | cfgr < baseline (-0.48 dB), 3-view 학습중 |
+| [H5](#h5-mvdiffusion) | MV-Diffusion 개선 방법은? | 🔄 | cfgr < baseline (-0.48 dB), 3-view 학습중 |
 | [H6](#h6-alpha-mask) | Alpha mask가 효과적인가? | ⏳ | 대기 |
 | [H7](#h7-ssim-weight) | SSIM weight 최적값은? | ⏳ | 대기 |
 | [H8](#h8-reduced-view-generation) | 생성 뷰 감소로 품질↑? | 🔄 | 4-view E2E PSNR_wh=19.87, 3-view MVDiff 학습중 |
 
 ---
 
-## Experiment Status Dashboard (260209)
+## Experiment Status Dashboard (260211)
 
 ### GPU Allocation
 
-| GPU | 실험 | 상태 | Step | ETA |
-|-----|------|------|------|-----|
-| 4 | H4 4-view uniform_v2 | 🔄 resumed (OOM) | 8000/15840 | ~28h |
-| 5 | H4 3-view uniform_v2 | 🔄 running | 12750/15840 | ~7h |
-| 6 | H4 5-view uniform_v2 | 🔄 running | 8100/15840 | ~42h |
-| 7 | H4 6-view uniform_v2 | 🔄 running | 5800/15840 | ~32h |
-| (MVDiff) | H8 3-view MVDiff training | 🔄 running | 7600/10000 | ~5h |
+| GPU | 실험 | 상태 |
+|-----|------|------|
+| 4 | MVDiff E2 (noaug, paper-aligned) | 🔄 ~7K/10K (~3h) |
+| 5 | **FREE** | H8 3view E2E → H6 예정 |
+| 6 | **FREE** | H6 예정 |
+| 7 | GS-LRM paper_aligned_4view | 🔄 8K/20K (~12h) |
 
-### Completed Today
+### Recently Completed (260209-260211)
 
 | 실험 | 결과 |
 |------|------|
-| H4 baseline uniform_v2 | ✅ completed |
-| H4 1-view uniform_v2 | ✅ completed (step 15800) |
-| H4 2-view uniform_v2 | ✅ completed (step 15800) |
-| H5 cfgr evaluation | ✅ PSNR_wh=20.81 (worse than baseline 21.29) |
+| **H4 uniform_v2 전체** (1-6 view + baseline) | ✅ 모두 15840 steps 완료 |
+| H5 MVDiff 3-view training | ✅ ckpt-10000 완료 |
+| H5 cfgr evaluation | ✅ PSNR_wh=20.81 (-0.48 vs baseline) |
+| H3-bis revalidation | ✅ MVDiff 항상 병목 (13-17 dB gap) |
 | H8 4-view E2E | ✅ PSNR_wh=19.87 |
-| H3-bis (H1-bis-v2) | ✅ 3-condition revalidation completed |
+| MVDiff E0 (lr=1e-4) | ❌ diverge @3956 (batch scaling 미적용) |
 
-### Pending (GPU 확보 후)
+### MVDiff Ablation Status
 
-| 실험 | 의존성 |
-|------|--------|
-| HP ablation (M0, M5_4, M5_5) | H4 uniform GPU 해제 후 |
-| H5 randref_sparse | cfgr 결과 분석 완료 |
-| H5 20k_sparse | cfgr 결과 분석 완료 |
-| H8 3-view E2E | 3-view MVDiff 학습 완료 후 |
+| ID | 설정 | 상태 | 결과 |
+|----|------|:----:|------|
+| Baseline | aug=ON, lr=5e-5, 10K | ✅ | PSNR_wh=21.29 |
+| E0 | aug=OFF, lr=1e-4, 20K | ❌ | diverge @3956 |
+| **E2** | aug=OFF, lr=5e-5, 10K | 🔄 | **paper-aligned** (LR scaled) |
+
+> E0 diverge 원인: Paper batch=64 vs ours=16 → lr=1e-4 gradient variance 4x.
+> sqrt scaling: lr=1e-4 × √(16/64) = **5e-5** = E2. **E2가 곧 paper-aligned.**
+
+### Next Priority
+
+| 순위 | 실험 | GPU | 소요 |
+|------|------|-----|------|
+| P0 | H8 3-view E2E inference | 5 | ~1-2h |
+| P1 | H6 alpha mask ablation | 5,6 | ~12-16h |
+| P2 | E2 결과 분석 → 20K 연장? | - | E2 완료 시 |
+| P3 | H7 SSIM weight ablation | 4 (E2 후) | ~12-16h |
 
 ---
 
@@ -68,7 +78,7 @@
 | Per-view | `normalize_translation=True` | ⚠️ 왜곡 | parallax 오류 |
 | None | 둘 다 False | ✅ 보존 | pretrained 불일치 |
 
-### H3 진단 (MVDiffusion 병목)
+### H3 진단 (MV-Diffusion 병목)
 
 | Dataset | GS-LRM Test | E2E Test | Gap | 해석 |
 |---------|-------------|----------|-----|------|
@@ -83,21 +93,19 @@
 | B: E2E M5t2 ckpt-5000 | 21.21±2.65 | 7.91±2.63 | 0.9662 | 0.521 | 13.8 dB gap |
 | C: E2E M5t ckpt-8000 | 18.28±2.50 | 4.66±2.82 | 0.9566 | 0.263 | 16.7 dB gap |
 
-### H4 View Ablation v2 (Uniform, 260209)
+### H4 View Ablation v2 (Uniform, ✅ 최종 260210)
 
-| Views | PSNR | Best Step | 비고 |
-|-------|------|-----------|------|
-| **6** | **23.46** | 601 | ⭐ Best |
-| 5 | 22.63 | 2901 | |
-| 4 | 21.50 | 3801 | |
-| 3 | 19.92 | 3801 | |
-| 2 | 17.70 | 8801 | |
-| 1 | 11.08 | 2401 | < baseline |
-| baseline (0-shot) | 15.99 | 0 | 4-view pretrained |
+| Views | PSNR (dB) | Best Step | Δ vs 4v |
+|:-----:|:---------:|:---------:|:-------:|
+| **6** | **24.49** | 4,201 | +2.78 |
+| 5 | 23.02 | 13,101 | +1.31 |
+| **4** | **21.71** | 9,201 | — (논문 기본) |
+| 3 | 20.01 | 10,701 | -1.70 |
+| 2 | 17.75 | 11,801 | -3.96 |
+| 1 | 11.08 | 2,401 | -10.63 |
+| baseline | 15.99 | 0 | -5.72 |
 
-> ⚠️ 이전 R1 (non-uniform): 3view=21.12 최적 → v2 (uniform): **단조 증가**, 조건 통일의 중요성
->
-> ⚠️ 위 결과는 val PSNR (학습 중). 최종 test evaluation은 학습 완료 후 별도 진행 예정
+> 이전 R1(비균일): 3view best → v2(uniform): **단조 증가**. 실험 조건 통일의 중요성.
 
 ### H5 cfgr 결과
 
@@ -285,7 +293,7 @@ CUDA_VISIBLE_DEVICES=X python train_gslrm.py \
 
 ## H3: E2E Bottleneck ✅
 
-> MVDiffusion → GS-LRM 파이프라인에서 병목은 어디인가?
+> MV-Diffusion → GS-LRM 파이프라인에서 병목은 어디인가?
 
 | 항목 | 값 |
 |------|-----|
@@ -307,7 +315,7 @@ CUDA_VISIBLE_DEVICES=X python train_gslrm.py \
 
 동일 테스트셋(M5t2, N=360)에서 3가지 조건 비교 (metrics_v2):
 
-| Condition | 설명 | MVDiffusion | GS-LRM |
+| Condition | 설명 | MV-Diffusion | GS-LRM |
 |-----------|------|-------------|--------|
 | A | GS-LRM only (GT input) | ✖ 미사용 | M5t2 ckpt |
 | B | E2E (M5t2 MVDiff) | M5t2 ckpt-5000 | M5t2 ckpt |
@@ -325,7 +333,7 @@ CUDA_VISIBLE_DEVICES=X python train_gslrm.py \
 
 | 비교 | Gap | 해석 |
 |------|-----|------|
-| A vs B | **-13.80 dB** | MVDiffusion 통과 시 발생하는 본질적 품질 손실 |
+| A vs B | **-13.80 dB** | MV-Diffusion 통과 시 발생하는 본질적 품질 손실 |
 | A vs C | **-16.73 dB** | 학습 데이터 부족 시 더 큰 손실 |
 | B vs C | **+2.93 dB** | 데이터 양 효과 (M5t2 2880 vs M5t 1198) |
 
@@ -346,50 +354,48 @@ Condition C: outputs/h1bis_v2/e2e_M5t
 
 ---
 
-## H4: View Ablation 🔄
+## H4: View Ablation ✅ 완료
 
 > 최적의 입력 뷰 수는 몇 개인가?
 
 | 항목 | 값 |
 |------|-----|
-| 가설 | ~~3-4 view가 최적~~ → **6-view 최적 (단조 증가)** (val 기준) |
-| 상태 | 🔄 **Uniform v2 학습 진행중** (base_uniform_v2.yaml) |
-| 결론 (잠정) | 뷰 수와 PSNR이 단조 증가. 이전 R1(비균일)과 반전 |
-| baseline | ✅ zero-shot 4-view = PSNR 15.99 |
+| 가설 | ~~3-4 view가 최적~~ → **6-view 최적 (단조 증가)** |
+| 상태 | ✅ **전체 완료** (7 experiments, 15840 steps each) |
+| 결론 | **뷰 수 ↑ = PSNR ↑ (단조 증가), diminishing returns 없음** |
+| baseline | zero-shot = 15.99 dB |
 
-### Uniform v2 Training Status (260209)
+### Uniform v2 Training Status (✅ 전체 완료 260210)
 
-| Views | Config | 상태 | Step | GPU | 비고 |
-|-------|--------|------|------|-----|------|
-| baseline | base_uniform_v2 | ✅ completed | - | - | zero-shot |
-| 1-view | uniform_v2_1view | ✅ completed | 15800 | - | |
-| 2-view | uniform_v2_2view | ✅ completed | 15800 | - | |
-| 3-view | uniform_v2_3view | 🔄 running | 12750/15840 | 5 | ~7h remaining |
-| 4-view | uniform_v2_4view | 🔄 resumed (OOM) | 8000/15840 | 4 | ~28h remaining |
-| 5-view | uniform_v2_5view | 🔄 running | 8100/15840 | 6 | ~42h remaining |
-| 6-view | uniform_v2_6view | 🔄 running | 5800/15840 | 7 | ~32h remaining |
+| Views | Config | 상태 | Final Step | Best PSNR | Best Step |
+|:-----:|--------|:----:|:----------:|:---------:|:---------:|
+| baseline | baseline_v2 | ✅ | 0 | 15.99 | 0 |
+| 1-view | 1view_v2 | ✅ | 15,840 | 11.08 | 2,401 |
+| 2-view | 2view_v2 | ✅ | 15,840 | 17.75 | 11,801 |
+| 3-view | 3view_v2 | ✅ | 15,840 | 20.01 | 10,701 |
+| 4-view | 4view_v2 | ✅ | 15,840 | 21.71 | 9,201 |
+| 5-view | 5view_v2 | ✅ | 15,840 | 23.02 | 13,101 |
+| 6-view | 6view_v2 | ✅ | 15,840 | 24.49 | 4,201 |
 
-> ⚠️ 아래 early results는 val PSNR (학습 중 모니터링). 최종 test evaluation은 모든 학습 완료 후 진행
+### H4 Final Results (val PSNR, 전체 완료 260210)
 
-### H4 Early Results (val PSNR, 학습중)
-
-| Views | PSNR | Best Step | 비고 |
-|-------|------|-----------|------|
-| **6** | **23.46** | 601 | ⭐ Best (학습중) |
-| 5 | 22.63 | 2901 | 학습중 |
-| 4 | 21.50 | 3801 | 학습중 |
-| 3 | 19.92 | 3801 | 학습중 |
-| 2 | 17.70 | 8801 | ✅ |
-| 1 | 11.08 | 2401 | ✅ |
-| baseline (0-shot) | 15.99 | 0 | ✅ |
+| Views | PSNR (dB) | Best Step | Δ vs Baseline | 비고 |
+|:-----:|:---------:|:---------:|:-------------:|------|
+| **6** | **24.49** | 4,201 | +8.50 | ⭐ Best, 가장 빠른 수렴 |
+| 5 | 23.02 | 13,101 | +7.03 | |
+| 4 | 21.71 | 9,201 | +5.72 | 원 논문 기본 설정 |
+| 3 | 20.01 | 10,701 | +4.02 | |
+| 2 | 17.75 | 11,801 | +1.76 | |
+| 1 | 11.08 | 2,401 | -4.91 | ❌ Fine-tuning 역효과 |
+| baseline (0-shot) | 15.99 | 0 | — | Pretrained only |
 
 → **상세 + 명령어**: [hypotheses/H4_VIEW_ABLATION.md](./hypotheses/H4_VIEW_ABLATION.md)
 
 ---
 
-## H5: MVDiffusion 🔄
+## H5: MV-Diffusion 🔄
 
-> MVDiffusion fine-tuning으로 E2E 품질을 개선할 수 있는가?
+> MV-Diffusion fine-tuning으로 E2E 품질을 개선할 수 있는가?
 
 ### H5 실험 매트릭스 (260209 업데이트)
 
@@ -475,12 +481,12 @@ cfgr 품질 확인 (완료)
 
 ## H8: Reduced View Generation 🔄
 
-> MVDiffusion 생성 뷰 수를 6→3~4로 줄이면 per-view 품질이 개선되는가?
+> MV-Diffusion 생성 뷰 수를 6→3~4로 줄이면 per-view 품질이 개선되는가?
 
 | 항목 | 값 |
 |------|-----|
 | 가설 | 적은 뷰 = Attention 집중 → per-view 품질↑, inconsistency↓ |
-| 상태 | 🔄 **4-view E2E 완료, 3-view MVDiff 학습중** |
+| 상태 | 🔄 **3/4-view E2E 완료, 분석중** |
 | 근거 | Era3D(fewer tokens=better), InstantMesh(fewer=less inconsistency), LGM/GRM(4뷰 SOTA) |
 | 전제 | ✅ H4에서 3view(19.92) vs 4view(21.50) = 1.58dB gap |
 | 교차 | H4 (뷰 수) + H5 (MVDiff 품질) → H8 |
@@ -490,20 +496,28 @@ cfgr 품질 확인 (완료)
 | 실험 | 설정 | 상태 | 결과 |
 |------|------|------|------|
 | 4-view E2E | camera_indices=[0,2,3,5], views=[2,3,5] | ✅ 완료 | PSNR_wh=**19.87** |
-| 3-view MVDiff training | camera_indices=[0,2,4] | 🔄 step 7600/10000 (~5h) | |
-| 3-view E2E | 3-view MVDiff → GS-LRM | ⏳ MVDiff 완료 후 | |
+| 3-view MVDiff training | camera_indices=[0,2,4], ckpt-10000 | ✅ 완료 | |
+| 3-view E2E | 3-view MVDiff → 3-view GS-LRM | ✅ 완료 | PSNR_wh=**22.67** (overall) |
 
-### H8 4-view E2E 분석
+### H8 E2E 분석 (260211)
 
-| 비교 | PSNR_wh | Gap | 해석 |
-|------|---------|-----|------|
-| GS-LRM only (H3-bis Cond.A) | 35.01 | - | Upper bound (GT input) |
-| 4-view E2E (P1) | 19.87 | **-15.14 dB** | MVDiff 통과 손실 |
-| E2E M5t2 6-view (H3-bis Cond.B) | 21.21 | -13.80 dB | 6-view 비교 기준 |
+| 실험 | Views Eval | Overall PSNR_wh | Novel Avg | Input PSNR |
+|------|:----------:|:---------------:|:---------:|:----------:|
+| 6-view E2E (H3-bis) | 6 | 21.21 | ~24.0 | ~39.5 |
+| 4-view E2E | 4 | 19.87 | - | - |
+| **3-view E2E** | **3** | **22.67** | **16.26** | **35.51** |
 
-> 4-view E2E(19.87) vs 6-view E2E(21.21) = -1.34 dB → 뷰 감소 시 GS-LRM 입력 부족이 주요 원인
+> ⚠️ **Overall 직접 비교 불가**: 3-view(input 1/3)와 6-view(input 1/6)는 input view 비율이 다름.
+> Input view(35+ dB)가 overall을 끌어올리므로, view 수가 적을수록 overall이 과대평가됨.
+>
+> **의미 있는 비교**: Novel view avg 기준 (3-view: 16.26 dB)
+> 이전 E1 6-view novel avg ~24.0 dB 대비 **-7.7 dB** → 3-view E2E novel 품질 크게 하락.
+>
+> **결론**: 뷰 수 감소(6→3)가 per-view 품질 개선으로 이어지지 않음.
+> GS-LRM 입력 뷰 부족이 per-view 품질 저하를 압도함.
 
 → 상세: [hypotheses/H8_REDUCED_VIEW_GENERATION.md](./hypotheses/H8_REDUCED_VIEW_GENERATION.md)
+→ 종합 분석: [hypotheses/H8_VIEW_GENERALIZATION_ANALYSIS.md](./hypotheses/H8_VIEW_GENERALIZATION_ANALYSIS.md)
 
 ---
 
@@ -539,19 +553,19 @@ cfgr 품질 확인 (완료)
 
 ## 실험 로드맵 (260209 업데이트)
 
-### Phase 1: View Ablation 🔄 (uniform v2 학습중)
+### Phase 1: View Ablation ✅ 완료
 
-| Views | Val PSNR | 상태 |
-|-------|----------|------|
-| 6-view | 23.46 | 🔄 step 5800/15840 |
-| 5-view | 22.63 | 🔄 step 8100/15840 |
-| 4-view | 21.50 | 🔄 step 8000/15840 (OOM resume) |
-| 3-view | 19.92 | 🔄 step 12750/15840 |
-| 2-view | 17.70 | ✅ completed |
-| 1-view | 11.08 | ✅ completed |
-| baseline | 15.99 | ✅ completed |
+| Views | Val PSNR | Best Step | 상태 |
+|:-----:|:--------:|:---------:|:----:|
+| 6 | **24.49** | 4,201 | ✅ |
+| 5 | 23.02 | 13,101 | ✅ |
+| 4 | 21.71 | 9,201 | ✅ |
+| 3 | 20.01 | 10,701 | ✅ |
+| 2 | 17.75 | 11,801 | ✅ |
+| 1 | 11.08 | 2,401 | ✅ |
+| baseline | 15.99 | 0 | ✅ |
 
-**잠정 결론**: 뷰 수↑ = PSNR↑ (단조 증가). **H8 진행 결정**: gap < 2dB 기준 충족
+**최종 결론**: 뷰 수↑ = PSNR↑ (단조 증가, diminishing returns 없음). 6-view 최적.
 
 ### Phase 1.5: H8 MVDiff + E2E (Phase 1과 병렬)
 
@@ -574,7 +588,7 @@ cfgr 품질 확인 (완료)
 
 GPU 4개 x 2-3 실험 = 1~2 라운드
 
-### Phase 3: MVDiffusion 추가 실험 (Phase 1-2 분석 후)
+### Phase 3: MV-Diffusion 추가 실험 (Phase 1-2 분석 후)
 
 | 순위 | 가설 | 실험 | 상태 | 의존성 |
 |------|------|------|------|--------|
@@ -640,4 +654,4 @@ Phase 2 완료
 
 ---
 
-*MoC v5.0 | FaceLift Research Dashboard | 260209*
+*MoC v6.0 | FaceLift Research Dashboard | 260211*
