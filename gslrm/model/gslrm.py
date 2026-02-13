@@ -383,7 +383,10 @@ class LossComputer(nn.Module):
         losses = {}
         debug_break("loss")  # BP4: _compute_all_losses entry
         
-        # Mask computation using mouse_extensions
+        # Preserve original GT mask for alpha supervision (independent of mask_mode)
+        original_gt_mask = mask
+
+        # Mask computation using mouse_extensions (mask_mode controls RGB loss masking)
         mask, _ = compute_mask_from_config(self.config, rendering, mask, rendered_alpha)
         if mask is not None: debug_inspect("computed_mask", mask)  # BP5: mask after compute
 
@@ -418,29 +421,29 @@ class LossComputer(nn.Module):
         losses['pred_max'] = rendering.max()
         losses['pred_mean'] = rendering.mean()
 
-        # Mask IoU computation (GT mask vs Predicted mask from rendering)
-        losses['mask_iou'] = self._compute_mask_iou(rendering, target, mask, rendered_alpha)
-        # Mask coverage: percentage of foreground pixels
-        if mask is not None:
-            mask_binary = (mask > 0.5).float()
+        # Mask IoU computation - uses original GT mask for proper IoU
+        losses['mask_iou'] = self._compute_mask_iou(rendering, target, original_gt_mask, rendered_alpha)
+        # Mask coverage: percentage of foreground pixels (from GT mask)
+        if original_gt_mask is not None:
+            mask_binary = (original_gt_mask > 0.5).float()
             losses['mask_coverage'] = mask_binary.mean()
         else:
             losses['mask_coverage'] = torch.tensor(1.0, device=rendering.device)
 
 
-        # Alpha supervision loss (LGM style)
+        # Alpha supervision loss (LGM style) - uses original GT mask, independent of mask_mode
         alpha_loss_weight = getattr(self.config.training.losses, "alpha_loss_weight", 0.0)
-        if alpha_loss_weight > 0 and rendered_alpha is not None and mask is not None:
+        if alpha_loss_weight > 0 and rendered_alpha is not None and original_gt_mask is not None:
             alpha_loss_type = getattr(self.config.training.losses, "alpha_loss_type", "mse")
             loss_type = AlphaLossType.MSE if alpha_loss_type == "mse" else AlphaLossType.BCE
-            losses["alpha_loss"] = compute_alpha_supervision_loss(rendered_alpha, mask, loss_type)
+            losses["alpha_loss"] = compute_alpha_supervision_loss(rendered_alpha, original_gt_mask, loss_type)
         else:
             losses["alpha_loss"] = torch.tensor(0.0, device=rendering.device)
 
-        # Background penalty loss (Object-Centric 2DGS style)
+        # Background penalty loss (Object-Centric 2DGS style) - uses original GT mask
         bg_loss_weight = getattr(self.config.training.losses, "bg_loss_weight", 0.0)
-        if bg_loss_weight > 0 and rendered_alpha is not None and mask is not None:
-            losses["bg_loss"] = compute_background_penalty_loss(rendered_alpha, mask)
+        if bg_loss_weight > 0 and rendered_alpha is not None and original_gt_mask is not None:
+            losses["bg_loss"] = compute_background_penalty_loss(rendered_alpha, original_gt_mask)
         else:
             losses["bg_loss"] = torch.tensor(0.0, device=rendering.device)
         return losses
