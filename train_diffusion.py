@@ -149,6 +149,8 @@ class TrainingConfig:
     dataset_type: Optional[str] = None  # 'mouse' or None for default
     reference_view_idx: Any = 0  # Which view to use as input (int, "random", or list)
     prompt_embed_path: Optional[str] = None  # Path to prompt embeddings
+    camera_indices: Optional[List[int]] = None  # H8: Map internal idx to actual camera idx (e.g., [0, 2, 4])
+    pose_conditioning: Optional[Dict] = None  # P1: Pose conditioning config (spherical/extrinsic/plucker)
 
 
 def noise_image_embeddings(
@@ -549,7 +551,7 @@ def setup_accelerator_and_logging(cfg: TrainingConfig):
     
     return accelerator, model_dir, vis_dir
 
-def process_training_batch(batch: Dict, cfg: TrainingConfig, models: Dict, accelerator: Accelerator, weight_dtype: torch.dtype, generator: torch.Generator):
+def process_training_batch(batch: Dict, cfg: TrainingConfig, models: Dict, accelerator: Accelerator, weight_dtype: torch.dtype, generator: torch.Generator, pose_injector=None):
     """
     Process a single training batch.
     
@@ -660,6 +662,14 @@ def process_training_batch(batch: Dict, cfg: TrainingConfig, models: Dict, accel
     # Prepare input for UNet
     latent_model_input = torch.cat([noisy_latents, conditional_vae_embeddings], dim=1)
     
+    # Pose conditioning injection (P1)
+    if pose_injector is not None:
+        prompt_embeddings = pose_injector.inject(
+            prompt_embeddings,
+            ref_view_idx=batch.get('ref_view_idx', 0),
+            n_views=cfg.n_views,
+        )
+
     # Forward pass through UNet
     model_output = models['unet'](
         latent_model_input,
@@ -696,7 +706,7 @@ def process_training_batch(batch: Dict, cfg: TrainingConfig, models: Dict, accel
 
 
 def log_validation(dataloader, vae, feature_extractor, image_encoder, image_normalizer, image_noising_scheduler, tokenizer, text_encoder, 
-                   unet, cfg:TrainingConfig, accelerator, weight_dtype, global_step, name, val_out_dir):
+                   unet, cfg:TrainingConfig, accelerator, weight_dtype, global_step, name, val_out_dir, pose_injector=None):
     """Run validation and log results."""
     logger.info(f"Running {name} ... ")
 
@@ -749,6 +759,14 @@ def log_validation(dataloader, vae, feature_extractor, image_encoder, image_norm
         prompt_embeddings = rearrange(prompt_embeddings, "B Nv N C -> (B Nv) N C")
         prompt_embeddings = prompt_embeddings.to(weight_dtype)
         
+
+        # Pose conditioning injection (P1) - validation
+        if pose_injector is not None:
+            prompt_embeddings = pose_injector.inject(
+                prompt_embeddings,
+                ref_view_idx=batch.get('ref_view_idx', 0),
+                n_views=cfg.n_views,
+            )
         with torch.autocast("cuda"):
             # Save input and ground truth images for first batch
             if i == 0:
@@ -957,10 +975,21 @@ def main(cfg: TrainingConfig):
     weight_dtype = torch.float32
     if accelerator.mixed_precision == "fp16":
         weight_dtype = torch.float16
-        cfg.mixed_precision = accelerator.mixed_precision
     elif accelerator.mixed_precision == "bf16":
         weight_dtype = torch.bfloat16
-        cfg.mixed_precision = accelerator.mixed_precision
+    cfg.mixed_precision = accelerator.mixed_precision
+
+    # === Pose Conditioning (P1) ===
+    pose_injector = None
+    if cfg.pose_conditioning is not None and cfg.pose_conditioning.get("enabled", False):
+        from mouse_extensions.model.pose_conditioning_integration import create_pose_injector_from_config
+        pose_injector = create_pose_injector_from_config(
+            OmegaConf.to_container(cfg, resolve=True)
+        )
+        if pose_injector is not None:
+            pose_injector = pose_injector.to(accelerator.device, dtype=weight_dtype)
+            accelerator.print(f"[Pose Conditioning] method={cfg.pose_conditioning.method}, "
+                            f"integration={cfg.pose_conditioning.integration}")
 
     # Move models to device with correct dtype
     models['image_encoder'].to(accelerator.device, dtype=weight_dtype)
@@ -1067,7 +1096,7 @@ def main(cfg: TrainingConfig):
             with accelerator.accumulate(models['unet']):
                 # Process training batch (simplified - no pose losses since random_input_view is False)
                 mse_loss = process_training_batch(
-                    batch, cfg, models, accelerator, weight_dtype, generator
+                    batch, cfg, models, accelerator, weight_dtype, generator, pose_injector
                 )
                 
                 # Gather losses across processes
@@ -1151,7 +1180,8 @@ def main(cfg: TrainingConfig):
                             weight_dtype,
                             global_step,
                             'validation',
-                            cfg.val_out_dir
+                            cfg.val_out_dir,
+                            pose_injector=pose_injector,
                         )           
 
                         if cfg.use_ema:
