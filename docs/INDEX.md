@@ -46,7 +46,6 @@
 | [[experiments/EVALUATION_GUIDE]] | 평가 유형/Split 전략 |
 | [[experiments/INFERENCE_E2E_GUIDE]] | E2E 추론 (통합 파이프라인 + CLI) |
 | [[experiments/TRAINING_LOGGING_GUIDE]] | 학습 단위/WandB 로깅 |
-| [[experiments/TRAINING_STEPS_CONVENTION]] | Step 표기 규약 (논문 작성용) |
 | [[experiments/VISUALIZATION_SETTINGS]] | Turntable/시각화 설정 + Output File System |
 | [[experiments/RTX3060_GUIDE]] | RTX 3060 (12GB) 실험 설정 |
 

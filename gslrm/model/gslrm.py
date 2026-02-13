@@ -32,9 +32,8 @@ Classes:
 import copy
 import os
 import time
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
-import cv2
 import lpips
 import numpy as np
 import torch
@@ -52,19 +51,15 @@ from mouse_extensions.model import (
     create_training_visual,
     create_validation_visual,
     compute_mask_from_config,
-    MaskType,
 )
 # Literature-based mask losses (v2.0)
 from mouse_extensions.utils.debug_breakpoints import debug_break, debug_inspect
 # Alpha visualization
 from mouse_extensions.visualization import (
-    compute_camera_convergence_center,
     add_error_scale_annotation,
-    compute_pred_mask_for_visualization,
     visualize_alpha_comparison,
     should_visualize_alpha,
     compute_alpha_metrics,
-    MOUSE_CAMERA_ORDER,
     get_dynamic_camera_order,
 )
 
@@ -78,7 +73,6 @@ from mouse_extensions.model.mask_losses import (
 from .utils_losses import PerceptualLoss, SsimLoss
 from .gaussians_renderer import (
     GaussianModel,
-    RGB2SH,
     deferred_gaussian_render,
     render_opencv_cam,
 )
