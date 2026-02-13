@@ -1,0 +1,20 @@
+# HP Preprocessing Ablation: M5_4 (PP centering only, no norm)
+model:
+  num_input_views: 4
+training:
+  dataset:
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/M5_4/data_mouse_t2_train.txt
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/hp_ablation/M5_4
+validation:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5_4/data_mouse_t2_val.txt
+test:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5_4/data_mouse_t2_test.txt
+wandb:
+  name: hp_ablation_M5_4
+  tags:
+  - hp_ablation
+  - M5_4
+  - pp_centering_only
+  - no_norm
+  - seed42

@@ -186,3 +186,45 @@ base config의 visualization.turntable 섹션:
 - **Temporal training**: 별도 스크립트 (`mouse_extensions/scripts/train_temporal_gslrm.py`) 사용, Legacy mode만 지원
 - **Inference**: `run_e2e_inference.py`, `gslrm_pipeline.py` 등 별도 argparse
 - **Config 검증**: merge 후 `--set` override로 개별 값 확인 가능
+
+## MV-Diffusion Config
+
+`configs/mvdiffusion/` 디렉토리에 MV-Diffusion (Stage 1) 학습 config 위치.
+
+### Config 목록
+
+| Config | 변경점 | 상태 |
+|--------|--------|:----:|
+| `mouse_mvdiffusion_M5t2.yaml` | Baseline (ref=0, sparse=true) | ✅ 완료 |
+| `mouse_mvdiffusion_M5t2_cfgr.yaml` | CFG restored | ✅ 완료 |
+| `mouse_mvdiffusion_M5t2_noaug.yaml` | Augmentation OFF (E2) | ✅ 완료 |
+| `mouse_mvdiffusion_M5t2_3view.yaml` | 3-view (H8) | ✅ 완료 |
+| `mouse_mvdiffusion_M5t2_4view.yaml` | 4-view (H8) | ✅ 완료 |
+| `mouse_mvdiffusion_M5t2_randref.yaml` | Random ref (sparse=false) | ⏳ 미실행 |
+| `mouse_mvdiffusion_M5t2_randref_sparse.yaml` | Random ref (sparse=true) | ⏳ 미실행 |
+| `mouse_mvdiffusion_M5t2_pose_spherical.yaml` | **Spherical pose conditioning** | ⏳ 미실행 |
+| `mouse_mvdiffusion_M5t2_paper_aligned.yaml` | Paper-aligned settings | ✅ 완료 |
+
+### Pose Conditioning (신규)
+
+```yaml
+# mouse_mvdiffusion_M5t2_pose_spherical.yaml 핵심 설정
+pose_conditioning:
+  enabled: true
+  method: "spherical"      # spherical | extrinsic | plucker
+  integration: "concat"    # 추가 cross-attn 토큰으로 주입
+  camera_json: "mouse_extensions/inference/cameras/m5_cameras.json"
+```
+
+통합 모듈: `mouse_extensions/model/pose_conditioning_integration.py`
+- `PoseConditioningInjector`: UNet 수정 없이 encoder_hidden_states에 pose embed 주입
+- `load_m5_cameras()`: M5 카메라 rig 로드 (w2c → c2w 변환)
+
+### 실험 우선순위
+
+| 순위 | 실험 | Config | 소요 |
+|:---:|------|--------|:---:|
+| **P0** | Random reference | `_randref_sparse.yaml` | 즉시 |
+| **P1** | Spherical pose | `_pose_spherical.yaml` | 1-2주 |
+| P2 | Extrinsic pose | (미작성) | 1-2주 |
+| P3 | MV-Adapter 교체 | (미래) | 1개월+ |

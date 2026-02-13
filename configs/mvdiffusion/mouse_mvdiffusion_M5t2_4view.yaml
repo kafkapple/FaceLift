@@ -1,0 +1,109 @@
+# =============================================================================
+# H8: Mouse MVDiffusion - 4-view generation (reduced from 6)
+# =============================================================================
+# Hypothesis: Fewer views → better per-view quality → better E2E reconstruction
+# Camera selection: [0, 2, 3, 5] = 90° spread
+#   cam_0 (top-front), cam_2 (top-right), cam_3 (top-back), cam_5 (top-front-left)
+# Base: M5t2 baseline (sparse attention)
+#
+# Version: v1.0
+# Created: 2026-02-09
+
+n_views: 4
+camera_indices: [0, 2, 3, 5]
+img_wh: 512
+reference_view_idx: 0
+dataset_type: "mouse"
+
+pretrained_model_name_or_path: "checkpoints/mvdiffusion/pipeckpts"
+pretrained_unet_path: null
+revision: null
+
+prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_4view_1024/clr_embeds.pt"
+
+# Dataset - M5t2
+train_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+  bg_color: "three_choices"
+  augmentation: true
+  aug_brightness: [0.9, 1.1]
+  aug_contrast: [0.9, 1.1]
+  aug_hflip: false
+
+validation_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+  bg_color: "white"
+
+# Output
+checkpoint_prefix: ""
+output_dir: "checkpoints/mvdiffusion/mouse_M5t2_4view"
+val_out_dir: "checkpoints/mvdiffusion/mouse_M5t2_4view/val/"
+
+# Training (same as baseline)
+seed: 42
+train_batch_size: 4
+validation_batch_size: 2
+max_train_steps: 10000
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+learning_rate: 5e-5
+step_rules: "1:100000,0.5"
+scale_lr: false
+lr_scheduler: "piecewise_constant"
+lr_warmup_steps: 100
+snr_gamma: 5.0
+use_8bit_adam: false
+allow_tf32: true
+use_ema: true
+dataloader_num_workers: 8
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 1.e-2
+adam_epsilon: 1.e-08
+max_grad_norm: 1.0
+prediction_type: null
+
+# Logging
+vis_dir: vis
+logging_dir: logs
+mixed_precision: "fp16"
+report_to: "wandb"
+local_rank: -1
+checkpointing_steps: 1000
+checkpoints_total_limit: 2
+resume_from_checkpoint: null
+enable_xformers_memory_efficient_attention: true
+validation_steps: 200
+validation_sanity_check: true
+tracker_project_name: "FaceLift-MVDiffusion"
+wandb_exp_name: "mvdiff_M5t2_4view"
+wandb_group: "mvdiffusion"
+wandb_job_type: "finetune_M5t2_h8"
+
+# Training specifics
+trainable_modules: null
+use_classifier_free_guidance: true
+condition_drop_rate: 0.05
+drop_type: "drop_as_a_whole"
+camera_embedding_lr_mult: 1.
+scale_input_latents: true
+
+pipe_kwargs:
+  num_views: ${n_views}
+validation_guidance_scales: [1., 3.]
+validation_grid_nrow: ${n_views}
+pipe_validation_kwargs:
+  eta: 1.0
+
+unet_from_pretrained_kwargs:
+  unclip: true
+  num_views: ${n_views}
+  sample_size: 64
+  zero_init_conv_in: true
+  init_mvattn_with_selfattn: false
+  cd_attention_last: false
+  cd_attention_mid: false
+  multiview_attention: true
+  sparse_mv_attention: true
+  selfattn_block: custom
+  addition_downsample: false

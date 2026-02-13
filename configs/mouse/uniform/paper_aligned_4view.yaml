@@ -1,0 +1,59 @@
+# =============================================================================
+# GS-LRM Paper-Aligned 4-view (E0-GSLRM)
+# =============================================================================
+# Closest to original FaceLift paper gslrm.yaml (Stage III):
+#   - num_input_views: 4 (paper: "In training, we set it as 4")
+#   - lr: 1e-4 (paper value, base is 1e-6)
+#   - lpips/ssim: 0.0 (paper uses L2 + perceptual only)
+#   - max_fwdbwd_passes: 20000 (paper value)
+#   - maximize_view_overlap: true (paper value)
+#
+# Compare against: 4view_v2 (mouse settings, lr=1e-6, completed ckpt-15840)
+#
+# Usage: python train_gslrm.py -b configs/mouse/uniform/base_uniform_v2.yaml \
+#                               -e configs/mouse/uniform/paper_aligned_4view.yaml
+#
+# Version: v1.0
+# Created: 2026-02-11
+#
+
+model:
+  num_input_views: 4
+
+training:
+  optimizer:
+    lr: 1e-4
+    reset_lr: true
+
+  losses:
+    lpips_loss_weight: 0.0
+    ssim_loss_weight: 0.0
+
+  dataset:
+    maximize_view_overlap: true
+
+  schedule:
+    max_fwdbwd_passes: 20000
+
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/paper_aligned_4view
+    checkpoint_every: 2000
+
+  logging:
+    wandb:
+      exp_name: uniform_v2_paper_aligned_4view
+      group: view_ablation_v2
+
+wandb:
+  name: uniform_v2_paper_aligned_4view
+  tags:
+  - uniform_v2
+  - M5t2
+  - paper_aligned
+  - seed42
+  - 4view
+  - lr_1e-4
+  - 20k_fwdbwd
+
+validation:
+  val_every: 200

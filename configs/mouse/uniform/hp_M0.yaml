@@ -1,0 +1,21 @@
+# HP Preprocessing Ablation: M0 (raw baseline, no centering, no norm)
+model:
+  num_input_views: 4
+training:
+  dataset:
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/M0/data_mouse_t2_train.txt
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/hp_ablation/M0
+validation:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M0/data_mouse_t2_val.txt
+test:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M0/data_mouse_t2_test.txt
+wandb:
+  name: hp_ablation_M0
+  tags:
+  - hp_ablation
+  - M0
+  - raw_baseline
+  - no_centering
+  - no_norm
+  - seed42

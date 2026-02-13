@@ -1,0 +1,20 @@
+# HP Preprocessing Ablation: M5_5 (PP centering + per-view norm)
+model:
+  num_input_views: 4
+training:
+  dataset:
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/M5_5/data_mouse_t2_train.txt
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/hp_ablation/M5_5
+validation:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5_5/data_mouse_t2_val.txt
+test:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5_5/data_mouse_t2_test.txt
+wandb:
+  name: hp_ablation_M5_5
+  tags:
+  - hp_ablation
+  - M5_5
+  - pp_centering
+  - per_view_norm
+  - seed42
