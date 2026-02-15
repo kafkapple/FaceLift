@@ -1,0 +1,124 @@
+# FaceLift vs Pose-Splatter Unified Evaluation Config
+# Created: 2026-02-15
+#
+# Usage:
+#   python -m mouse_extensions.scripts.eval.compare_with_baseline \
+#     --facelift_metrics ${facelift.metrics_path} \
+#     --baseline_metrics ${posesplatter.metrics_path} \
+#     --output_dir ${output.dir}
+
+# ============================================================
+# Dataset alignment
+# ============================================================
+dataset:
+  name: "markerless_mouse_1_nerf"
+  # FaceLift M5 dataset on gpu03
+  facelift_gt_dir: "/home/joon/data/preprocessed/FaceLift_mouse/M5"
+  # Pose-Splatter preprocessed data on joon
+  posesplatter_data_dir: "/media/joon/kafka/data/preprocessed/markerless_mouse_1_nerf/fj5_ds2"
+
+  # Common evaluation parameters
+  num_cameras: 6
+  train_views: [0, 1, 2, 3, 4]
+  holdout_views: [5]
+  target_resolution: [512, 512]  # H, W
+
+# ============================================================
+# FaceLift experiment paths (gpu03)
+# ============================================================
+facelift:
+  repo_root: "/home/joon/dev/FaceLift"
+  experiments:
+    # Best current E2E result
+    cfgr_ckpt10000:
+      output_dir: "outputs/h5_e2e/cfgr_ckpt10000"
+      metrics_path: "outputs/h5_e2e/cfgr_ckpt10000/metrics_v2.json"
+      description: "E2E config-refactored, ckpt 10000"
+    baseline_ckpt5000:
+      output_dir: "outputs/h5_e2e/baseline_ckpt5000"
+      metrics_path: "outputs/h5_e2e/baseline_ckpt5000/metrics_v2.json"
+      description: "Baseline E2E, ckpt 5000"
+
+# ============================================================
+# Pose-Splatter experiment paths (joon)
+# ============================================================
+posesplatter:
+  repo_root: "/home/joon/dev/pose-splatter"
+  experiments:
+    facelift_compare_5cam:
+      output_dir: "output/facelift_compare_5cam/latest"
+      metrics_path: "output/facelift_compare_5cam/latest/paper_standard_evaluation.json"
+      description: "5cam baseline, ds2, holdout view 5"
+      config:
+        image_downsample: 2  # 576x512
+        frame_jump: 5
+        gaussian_mode: "3d"
+    facelift_512_5cam:
+      output_dir: "output/facelift_512_5cam/latest"
+      metrics_path: null  # Experiment failed (BrokenPipeError)
+      description: "512x512 center-crop, FAILED"
+
+# ============================================================
+# Metrics to compute
+# ============================================================
+metrics:
+  # Primary (literature standard)
+  primary:
+    - psnr_full_white    # White-BG composite + full-image MSE
+    - ssim_full_white    # White-BG composite + skimage
+    - mask_iou           # Silhouette IoU (alpha > 0.5)
+    - l1_masked          # sum|pred-gt| / (3 * sum(mask))
+
+  # Secondary (diagnostic)
+  secondary:
+    - lpips_full_white   # AlexNet backbone (FaceLift only)
+    - psnr_fg_only       # Foreground-only PSNR (diagnostic)
+    - psnr_alpha_weighted  # Alpha-weighted PSNR (GS-LRM training)
+
+  # Directions (higher/lower is better)
+  directions:
+    psnr_full_white: higher
+    ssim_full_white: higher
+    mask_iou: higher
+    l1_masked: lower
+    lpips_full_white: lower
+    psnr_fg_only: higher
+    psnr_alpha_weighted: higher
+
+# ============================================================
+# Output
+# ============================================================
+output:
+  dir: "experiments/comparison/FL_vs_PS"
+  formats:
+    - json         # metrics_comparison.json
+    - markdown     # comparison_report.md
+  # Optional: WandB logging
+  wandb:
+    enabled: false
+    project: "facelift-mouse"
+    entity: null
+
+# ============================================================
+# Known metric protocol differences
+# ============================================================
+# IMPORTANT: The two models use different metric protocols by default.
+#
+# FaceLift (compute_e2e_metrics.py v2.0):
+#   - Composites pred and GT onto WHITE background using alpha
+#   - Computes PSNR/SSIM on the FULL image (including background)
+#   - Background pixels are easy → inflates PSNR/SSIM
+#   - This is the standard in LGM, GS-LRM literature
+#
+# Pose-Splatter (image_metrics.py):
+#   - Extracts foreground pixels using binary mask
+#   - Computes PSNR/SSIM only on foreground pixels
+#   - More challenging → lower absolute numbers
+#   - Standard in the animal pose estimation literature
+#
+# For fair comparison:
+#   Option A: Re-render PS outputs with white-BG, eval full-image (align to FL)
+#   Option B: Re-eval FL outputs with mask extraction (align to PS)
+#   Option C: Report both protocols side-by-side with clear labeling
+#
+# Currently using Option C (safest, most informative).

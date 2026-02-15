@@ -243,4 +243,37 @@ python -m mouse_extensions.preprocessing.preprocess \
 
 ---
 
-*Last Updated: 2026-02-09 | 상세 문서는 [[INDEX]] 참조*
+
+
+## 10. Baseline Comparison Protocol (FaceLift vs Pose-Splatter)
+
+### Quick Reference
+
+| Item | Detail |
+|------|--------|
+| **Comparison script** | `mouse_extensions/scripts/eval/compare_with_baseline.py` |
+| **Config** | `mouse_extensions/scripts/eval/unified_eval_config.yaml` |
+| **Design doc** | `docs/experiments/FL_vs_PS_comparison.md` |
+| **PS metrics (joon)** | `output/facelift_compare_5cam/latest/paper_standard_evaluation.json` |
+| **FL metrics (gpu03)** | `outputs/h5_e2e/cfgr_ckpt10000/metrics_v2.json` |
+
+### Metric Protocol Warning
+
+- **FaceLift**: White-BG composite + full-image (PSNR/SSIM inflated by background)
+- **Pose-Splatter**: Masked foreground-only (lower absolute numbers)
+- **Comparable**: L1 (masked), IoU (same formula)
+- **Non-comparable without re-eval**: PSNR, SSIM
+
+### Usage
+
+```bash
+# Load pre-computed metrics
+python -m mouse_extensions.scripts.eval.compare_with_baseline \
+    --facelift_metrics outputs/h5_e2e/cfgr_ckpt10000/metrics_v2.json \
+    --baseline_metrics baselines/pose_splatter/paper_standard_evaluation.json \
+    --output_dir experiments/comparison/FL_vs_PS/
+```
+
+---
+
+*Last Updated: 2026-02-15 | 상세 문서는 [[INDEX]] 참조*

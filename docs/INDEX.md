@@ -15,6 +15,7 @@
 | **실험 설정** | [[experiments/EXPERIMENT_REGISTRY]] |
 | **데이터셋 SSOT** | [[datasets/PREPROCESSING_REGISTRY]] |
 | **파이프라인 아키텍처** | [[theory/PIPELINE_ARCHITECTURE]] |
+| **비교 실험** | [[experiments/FL_vs_PS_comparison]] |
 
 ---
 
@@ -48,6 +49,7 @@
 | [[experiments/TRAINING_LOGGING_GUIDE]] | 학습 단위/WandB 로깅 |
 | [[experiments/VISUALIZATION_SETTINGS]] | Turntable/시각화 설정 + Output File System |
 | [[experiments/RTX3060_GUIDE]] | RTX 3060 (12GB) 실험 설정 |
+| [[experiments/FL_vs_PS_comparison]] | FaceLift vs Pose-Splatter 통합 비교 실험 | 🔬 진행중 |
 
 ### datasets/
 
