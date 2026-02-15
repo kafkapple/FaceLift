@@ -2,22 +2,40 @@
 
 > **Status**: Active | **Created**: 2026-02-15 | **Updated**: 2026-02-15
 > **Location**: `docs/experiments/FL_vs_PS_comparison.md`
+> **Version**: v3 (fair evaluation + M5t2 aligned)
 
 ---
 
 ## Overview
 
-Two feed-forward 3D Gaussian Splatting models evaluated on the same multi-view mouse dataset:
+Two feed-forward 3D Gaussian Splatting models evaluated on the **same M5t2 dataset** (mouse, 6-camera, temporal 80:10:10 split):
 
 | | FaceLift | Pose-Splatter |
 |--|----------|---------------|
 | **Paper** | Lyu et al., ICCV 2025 | Goffinet et al., NeurIPS 2025 |
 | **Architecture** | SD2.1-UnCLIP MVDiffusion + GSLRM | Shape Carving + Stacked U-Net (3x) + gsplat |
 | **Inference** | Feed-forward (two-stage) | Feed-forward (~30ms/frame) |
-| **Resolution** | **512x512** | 576x512 (ds=2 from 1152x1024) |
-| **Dataset** | M5t2 (mouse, 6 cam, temporal 80:10:10) | markerless_mouse_1_nerf (6 cam) |
+| **Resolution** | 512x512 | 576x512 (ds=2 from 1152x1024) |
+| **Generalization** | Cross-scene (never seen test data) | Per-scene (optimized on same video) |
 
 FaceLift is the **primary model**; Pose-Splatter is the baseline comparison.
+
+---
+
+## M5t2 Dataset (Canonical Split)
+
+| Split | Frame Range | Count | Ratio |
+|-------|------------|-------|-------|
+| **Train** | 000000 ~ 002879 | 2,880 | 80% |
+| **Val** | 002880 ~ 003239 | 360 | 10% |
+| **Test** | 003240 ~ 003599 | 360 | 10% |
+| **Total** | | 3,600 | 100% |
+
+**Why 80:10:10**: FaceLift (data-hungry diffusion model) needs large training set. H1bis confirmed M5t2 > M5t (1:1:1) by +2.9 dB PSNR, 2x IoU improvement.
+
+**Data sources** (same physical frames, different preprocessing):
+- FL: `/home/joon/data/preprocessed/FaceLift_mouse/M5/` (512x512 RGBA)
+- PS: `markerless_mouse_1_nerf/fj5_ds2/images/images.zarr` (3600, 6, 512, 576, 3) RGB
 
 ---
 
@@ -25,156 +43,220 @@ FaceLift is the **primary model**; Pose-Splatter is the baseline comparison.
 
 ### FaceLift (gpu03)
 
-| Component | Checkpoint | Location | Performance |
-|-----------|-----------|----------|-------------|
-| **MVDiffusion** | `checkpoint-5000` (sparse attention) | `checkpoints/mvdiffusion/mouse_M5t2/` | Best MVDiff: PSNR_wh=21.29 |
-| **GS-LRM** | `best_psnr.pt` (step 8001) | `checkpoints/gslrm/M5t2_E0_1_facelift/` | Val PSNR=22.34 |
-| **E2E combo** | MVDiff ckpt-5000 + GS-LRM best | `outputs/h5_e2e/baseline_ckpt5000/` | PSNR_wh=20.81, IoU=0.491 |
+| Component | Checkpoint | Path | Performance |
+|-----------|-----------|------|-------------|
+| **MVDiffusion** | `checkpoint-5000` (sparse attn) | `checkpoints/mvdiffusion/mouse_M5t2/` | Val PSNR_wh=27.30 |
+| **GS-LRM** | `best_psnr.pt` (step 8001) | `checkpoints/gslrm/M5t2_E0_1_facelift/` | Val PSNR=22.34 (GT input) |
+| **E2E combo** | MVDiff ckpt-5000 + GS-LRM best | `outputs/h5_e2e/baseline_ckpt5000/` | PSNR_wh=21.29, sIoU=0.518 |
 
-**In-progress** (may improve):
-- E1: `mouse_M5t2_20k_cosine` (extended 20K, cosine LR) — GPU 4
-- E2: `mouse_M5t2_randref_20k_resume` (P0 resume, LR decay) — GPU 7
+**In-progress MVDiffusion improvements** (Phase 3, H5):
+- **E1**: `mouse_M5t2_20k_cosine` — cosine LR, 20K steps, GPU 4 (~3K/20K)
+- **E2**: `mouse_M5t2_randref_20k_resume` — P0 resume, LR=1e-5, GPU 7 (~13K/20K)
+
+**GS-LRM ablations** (GT input reference, H4/H6):
+- 6-view: **PSNR=24.49** (best geometry)
+- 4-view + alpha=1.0: PSNR=20.84, **LPIPS=0.015, IoU=0.956** (best perceptual)
 
 ### Pose-Splatter (joon)
 
 | Experiment | Config | Location |
 |-----------|--------|----------|
-| **facelift_compare_5cam** | ds=2, 3DGS, frame_jump=5 | `output/facelift_compare_5cam/latest/` |
+| **facelift_compare_5cam** | ds=2, 3DGS, grid=112, fj=5 | `output/facelift_compare_5cam/latest/` |
+| Status | 50 epochs, loss=0.370, ~37h training | completed |
 
 ---
 
-## Metric Protocol Alignment
+## 5 Critical Fairness Issues (Identified 2026-02-15)
 
-### The Problem
+Previous comparison was **unfair**. Investigation found:
 
-| Aspect | FaceLift | Pose-Splatter |
-|--------|----------|---------------|
-| **Background** | White-BG composite (`rgb*alpha + (1-alpha)`) | Raw RGB (no composite) |
-| **PSNR** | `psnr_full_white` = full-image on white-BG | `masked_psnr` = foreground pixels only |
-| **SSIM** | `ssim_full_white` = full-image skimage | `masked_ssim` = torchmetrics on FG |
-| **L1** | `masked_l1 = sum\|pred-gt\|/(3*sum(mask))` | Same formula |
-| **IoU** | `silhouette_iou` (alpha > 0.5) | Same formula |
+### Issue 1: Training Data Leakage (PS)
 
-### Aligned Comparison (Recommended)
+PS `paper_standard_evaluation` uses `frame_step=30` across ALL 3600 frames = 120 frames evaluated. Of these, **96/120 = 80% are training frames**:
+- Train frames (0-2879): 96 frames
+- Val frames (2880-3239): 12 frames
+- Test frames (3240-3599): 12 frames
 
-For **fair comparison**, use these matched pairs:
+PS metrics are inflated by memorized training data.
 
-| Metric | FaceLift key | PS key | Protocol | Comparable? |
-|--------|-------------|--------|----------|-------------|
-| **PSNR (FG)** | `psnr_fg_only` | `psnr` (masked) | Foreground-only MSE | **Yes** (minor edge diff) |
-| **PSNR (white)** | `psnr_full_white` | _(not computed)_ | White-BG full-image | FL only |
-| **L1** | `masked_l1` | `l1` | Same formula | **Yes** |
-| **IoU** | `silhouette_iou` | `iou` | Same formula | **Yes** |
-| **SSIM** | `ssim_full_white` | `ssim` (masked) | Different protocols | **No** |
+### Issue 2: Model Type Asymmetry
 
-**Edge pixel difference**: FL composites to white-BG then masks (semi-transparent edges get white-blended). PS masks raw RGB. For alpha > 0.5 boundary pixels, this causes minor discrepancy. Interior pixels are identical.
+| | FaceLift | Pose-Splatter |
+|--|----------|---------------|
+| Type | **Generalizing** (feed-forward, cross-scene) | **Memorizing** (per-scene optimization) |
+| Test data | Never seen | Trained on same video (80% of frames) |
+| Fair analog | Zero-shot on test frames | Per-scene test reconstruction |
+
+### Issue 3: Mask Source Asymmetry
+
+- FL GT: RGBA with clean binary alpha channel
+- PS GT: RGB only in zarr, mask extracted from white-BG (`pixel == 1.0`)
+- Different masks → different foreground regions → incomparable metrics
+
+### Issue 4: Metric Protocol Mismatch
+
+| Metric | FL (old) | PS (old) | Fair version |
+|--------|----------|----------|-------------|
+| PSNR | `psnr_full_white` (BG inflates) | `psnr` (whole image) | `psnr_gt_masked` (FG-only) |
+| SSIM | skimage, full image | torchmetrics, full image | `ssim_gt_masked` (bbox crop) |
+| L1 | `masked_l1` | `l1` (masked) | **Same** |
+| IoU | `silhouette_iou` | `iou` | **Same** |
+
+### Issue 5: FL Silhouette Extraction Problem
+
+FL renders are RGB-only (no alpha). Silhouette extracted via `white_bg_threshold=0.98`. Mouse is only ~2.5% of image → threshold sensitivity causes IoU instability:
+
+| Threshold | Estimated IoU | Coverage |
+|-----------|:------------:|:--------:|
+| 0.90 | ~0.35 | ~45% |
+| 0.95 | ~0.45 | ~55% |
+| 0.98 | ~0.49 | ~60% |
+
+User's visual inspection confirms: **mouse itself looks accurate**, but metrics show poor performance due to coverage/extraction issues.
 
 ---
 
-## Current Results (Protocol-Aligned)
+## Fair Evaluation Protocol (v3)
 
-### Comparable Metrics (same formula)
+### Fairness Guarantees
 
-| Metric | FaceLift (E2E best) | Pose-Splatter | Gap |
-|--------|--------------------|--------------|----|
-| **PSNR (FG-only)** | **7.75** | **24.68** | -16.93 dB |
-| **L1 (masked)** | 0.319 | **0.097** | +0.222 |
-| **IoU** | 0.491 | **0.829** | -0.338 |
+| Guarantee | How |
+|-----------|-----|
+| **Test-only** | FL: frames 3240-3459 (200 rendered). PS: frames 3240-3599. |
+| **GT masks** | Both use M5 alpha channel (binary, > 127) |
+| **Same functions** | `compute_all_metrics()` in `fair_comparison.py` |
+| **FG-only** | Masked PSNR/SSIM/L1 on foreground |
+| **Coverage-aware** | Intersection metrics separate quality from coverage |
+| **Resolution** | PS center-cropped 576→512 |
 
-### Protocol-Specific Metrics
+### Metric Definitions
+
+| Metric | Description | Separates |
+|--------|-------------|-----------|
+| `psnr_gt_masked` | PSNR on GT foreground pixels | Quality + Coverage |
+| `psnr_intersection` | PSNR where BOTH have foreground | **Quality only** |
+| `ssim_gt_masked` | SSIM on white-BG composite, bbox crop | Quality + Coverage |
+| `l1_gt_masked` | L1 on GT foreground | Quality + Coverage |
+| `l1_intersection` | L1 where BOTH have foreground | **Quality only** |
+| `iou` | Silhouette IoU (pred vs GT mask) | Coverage |
+| `coverage` | GT FG covered by pred FG (%) | Coverage |
+| `color_bias_{r,g,b}` | Mean color difference on intersection | Color accuracy |
+
+### Key Insight
+
+Previous PSNR_fg=7.75 was misleading because:
+1. FL silhouette extraction misses ~50% of GT foreground
+2. Uncovered GT pixels are treated as white (1.0) vs GT color → huge MSE
+3. `psnr_intersection` isolates true color accuracy from coverage problems
+
+---
+
+## Old Results (UNFAIR — for reference only)
 
 | Metric | FaceLift | PS | Notes |
 |--------|----------|-----|-------|
-| PSNR (full_white) | 20.81 | N/A | BG inflates PSNR |
-| SSIM (full_white) | 0.965 | N/A | Not comparable to PS masked SSIM |
-| SSIM (masked) | N/A | 0.963 | |
+| PSNR_fg | 7.75 | 24.68 | **UNFAIR**: PS includes 80% train frames |
+| L1_masked | 0.319 | 0.097 | |
+| IoU | 0.491 | 0.829 | FL extraction threshold issue |
+| PSNR_full_white | 20.81 | N/A | BG inflates |
 
-### Interpretation
+---
 
-FaceLift's foreground PSNR (7.75 dB) is drastically lower than PS (24.68 dB):
-- **IoU 0.491**: FL silhouette covers only ~half of GT foreground
-- **L1 0.319**: FL foreground color error 3x higher than PS
-- FL is still in early E2E pipeline maturation; PS is an optimized per-scene model
-- FL's `psnr_full_white` (20.81) is misleadingly inflated by easy background
+## How to Run (Fair Evaluation)
 
-### Per-View Breakdown (FaceLift full_white, PS masked)
+### Step 1: Evaluate FaceLift (gpu03)
 
-| View | FL (full_white) | PS (masked) | PS holdout? |
-|------|----------------|-------------|-------------|
-| view_0 | N/A (input) | 24.85 | |
-| view_1 | 23.16 | 25.22 | |
-| view_2 | 19.52 | 24.08 | |
-| view_3 | 20.32 | 24.27 | |
-| view_4 | 20.49 | 24.68 | |
-| view_5 | 20.55 | 24.94 | Yes |
+```bash
+cd /home/joon/dev/FaceLift
+python -m mouse_extensions.scripts.eval.fair_comparison evaluate_fl \
+  --render_dir outputs/h5_e2e/baseline_ckpt5000/samples \
+  --gt_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+  --output experiments/comparison/fair/facelift_fair.json
+```
+
+### Step 2: Evaluate Pose-Splatter (joon)
+
+```bash
+cd /home/joon/dev/pose-splatter
+python scripts/eval/fair_test_only_eval.py \
+  --exp_dir output/facelift_compare_5cam/latest \
+  --test_start 3240 --test_end 3600 \
+  --crop_to 512 \
+  --output experiments/fair/posesplatter_fair.json
+
+# With M5 GT masks (if M5 data accessible from joon):
+python scripts/eval/fair_test_only_eval.py \
+  --exp_dir output/facelift_compare_5cam/latest \
+  --m5_gt_dir /path/to/FaceLift_mouse/M5 \
+  --output experiments/fair/posesplatter_fair.json
+```
+
+### Step 3: Copy PS results to gpu03
+
+```bash
+scp joon:~/dev/pose-splatter/experiments/fair/posesplatter_fair.json \
+  gpu03:~/dev/FaceLift/baselines/pose_splatter/
+```
+
+### Step 4: Compare
+
+```bash
+cd /home/joon/dev/FaceLift
+python -m mouse_extensions.scripts.eval.fair_comparison compare \
+  --facelift experiments/comparison/fair/facelift_fair.json \
+  --baseline baselines/pose_splatter/posesplatter_fair.json \
+  --output_dir experiments/comparison/fair/
+```
 
 ---
 
 ## Experiment Configurations
 
-### FaceLift E2E (h5_e2e/baseline_ckpt5000)
+### FaceLift E2E (baseline_ckpt5000)
 
 ```yaml
-# MVDiffusion: sparse attention, M5t2
 mvdiffusion_checkpoint: checkpoints/mvdiffusion/mouse_M5t2/checkpoint-5000
+gslrm_checkpoint: checkpoints/gslrm/M5t2_E0_1_facelift/best_psnr.pt
 n_views: 6
 img_wh: 512
 reference_view_idx: 0
 sparse_mv_attention: true
-background_color: white
-
-# GS-LRM: 4-view input, 512x512
-gslrm_checkpoint: checkpoints/gslrm/M5t2_E0_1_facelift/best_psnr.pt
-image_size: 512
-num_views: 6
 num_input_views: 4
+background_color: white
+dataset: M5t2 (temporal 80:10:10)
 ```
 
 ### Pose-Splatter (facelift_compare_5cam)
 
 ```json
 {
+  "data": "markerless_mouse_1_nerf",
+  "preprocess": "fj5_ds2",
   "image_width": 1152, "image_height": 1024,
   "image_downsample": 2,
   "holdout_views": [5],
   "train_views": [0, 1, 2, 3, 4],
-  "frame_jump": 5,
+  "split_ratios": [0.8, 0.1, 0.1],
   "gaussian_mode": "3d",
   "grid_size": 112,
-  "split_ratios": [0.8, 0.1, 0.1]
+  "ell": 0.22
 }
 ```
 
 ---
 
-## How to Run
+## Related Hypotheses & Experiments
 
-```bash
-# On gpu03 (FaceLift repo root):
+| Doc | Key Finding | Relevance |
+|-----|------------|-----------|
+| **H1bis** | M5t2 > M5t by +2.9 dB, 2x IoU | Justifies 80:10:10 split |
+| **H4** | 6-view PSNR=24.49, monotonic increase with views | GS-LRM upper bound |
+| **H5** | MVDiffusion bottleneck (GT→E2E: 50-70% loss) | Main improvement axis |
+| **H6** | alpha=1.0 best perceptual (LPIPS=0.015) | Trade-off: PSNR vs perceptual |
+| **H8** | 3-4 view generation viable | Future optimization |
+| **Phase 3** | E1 (cosine LR) + E2 (resume) in progress | Next E2E improvement |
 
-# Protocol-aligned comparison (uses psnr_fg_only for FaceLift)
-python -m mouse_extensions.scripts.eval.compare_with_baseline \
-    --facelift_metrics outputs/h5_e2e/baseline_ckpt5000/metrics_v2.json \
-    --baseline_metrics baselines/pose_splatter/paper_standard_evaluation.json \
-    --output_dir experiments/comparison/FL_vs_PS/
-
-# Recompute FaceLift metrics (if needed)
-python -m mouse_extensions.scripts.eval.compare_with_baseline \
-    --facelift_dir outputs/h5_e2e/baseline_ckpt5000 \
-    --data_dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
-    --baseline_metrics baselines/pose_splatter/paper_standard_evaluation.json \
-    --output_dir experiments/comparison/FL_vs_PS/
-```
-
----
-
-## Data Sync (joon → gpu03)
-
-```bash
-# Copy PS metrics JSON only
-scp joon:/home/joon/dev/pose-splatter/output/facelift_compare_5cam/latest/paper_standard_evaluation.json \
-    gpu03:/home/joon/dev/FaceLift/baselines/pose_splatter/
-```
+**Bottleneck**: MVDiffusion (Stage 1) is the pipeline bottleneck. GT input gives PSNR 21-24, but E2E drops to FG PSNR 6-9. Phase 3 training improvements (E1, E2) target this.
 
 ---
 
@@ -182,26 +264,26 @@ scp joon:/home/joon/dev/pose-splatter/output/facelift_compare_5cam/latest/paper_
 
 | File | Server | Description |
 |------|--------|-------------|
-| `compare_with_baseline.py` | gpu03: `mouse_extensions/scripts/eval/` | Comparison script |
-| `unified_eval_config.yaml` | gpu03: `mouse_extensions/scripts/eval/` | Config |
-| `compute_e2e_metrics.py` | gpu03: `mouse_extensions/scripts/eval/` | FL metrics v2.0 (all protocols) |
+| **`fair_comparison.py`** | gpu03: `mouse_extensions/scripts/eval/` | **Fair FL eval + comparison** |
+| **`fair_test_only_eval.py`** | joon: `scripts/eval/` | **Fair PS test-only eval** |
+| `compare_with_baseline.py` | gpu03: `mouse_extensions/scripts/eval/` | Old comparison (v2) |
+| `compute_e2e_metrics.py` | gpu03: `mouse_extensions/scripts/eval/` | FL metrics v2.0 |
 | `metrics.py` | gpu03: `mouse_extensions/evaluation/` | MetricsComputer class |
-| `METRICS_PROTOCOL.md` | gpu03: `docs/theory/` | Metric theory |
-| `POSE_SPLATTER_GUIDE.md` | gpu03: `docs/guides/` | PS comparison guide |
-| `paper_standard_evaluation.json` | joon: `output/facelift_compare_5cam/latest/` | PS metrics |
-| `image_metrics.py` | joon: `src/modules/core/metrics/` | PS metrics implementation |
-| `evaluation.md` | joon: `docs/practical/` | PS eval guide + FL comparison |
+| `paper_standard_evaluate.py` | joon: `scripts/mouse/analysis/` | PS original eval |
+| `image_metrics.py` | joon: `src/modules/core/metrics/` | PS metrics |
+| `EXPERIMENT_REGISTRY.md` | gpu03: `docs/experiments/` | All experiments catalog |
 
 ---
 
 ## Next Steps
 
-1. **Wait for E1/E2 MVDiffusion training** to complete for potentially better checkpoints
-2. **Re-evaluate with best combo** once E1/E2 finish
-3. **Add SSIM alignment**: Compute white-BG SSIM for PS renders, or masked SSIM for FL
-4. **Resolution matching**: Consider center-crop PS 576x512 → 512x512 for exact resolution match
+1. **Run fair evaluation** on both servers (Steps 1-4 above)
+2. **Wait for E1/E2** MVDiffusion training to complete
+3. **Re-evaluate with best E1/E2 combo** for improved E2E results
+4. **Investigate color bias**: FL shows systematic brightness offset (~+0.08 per channel)
 5. **Side-by-side rendering**: GT / FL / PS comparison grid + orbit video
+6. **Resolution matching**: Verify PS center-crop 576→512 alignment
 
 ---
 
-*Created: 2026-02-15 | FaceLift vs Pose-Splatter Unified Evaluation*
+*Created: 2026-02-15 | FaceLift vs Pose-Splatter Unified Evaluation v3*
