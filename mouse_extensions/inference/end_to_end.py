@@ -249,26 +249,43 @@ class EndToEndPipeline:
             sample_dir, self.image_size, self.device
         )
         
-        # View ablation: select subset of views
-        if num_input_views is not None and num_input_views < images.shape[1]:
-            total_views = images.shape[1]
-            # Select evenly distributed views
-            if num_input_views == 2:
-                view_indices = [0, 3]  # Diagonal
-            elif num_input_views == 3:
-                view_indices = [0, 2, 4]  # 120 degrees apart
-            else:
-                # Evenly spaced
-                step = total_views / num_input_views
-                view_indices = [int(i * step) for i in range(num_input_views)]
-            
-            print(f"  View ablation: using {num_input_views} views: {view_indices}")
-            images = images[:, view_indices]
-            c2ws = c2ws[:, view_indices]
-            fxfycxcys = fxfycxcys[:, view_indices]
-            index = index[:, view_indices]
-        
+        # View ablation: reorder views so input views come first,
+        # but keep ALL views for target rendering (novel view synthesis)
+        total_views = images.shape[1]
+        original_niv = self.gslrm.model.config.model.num_input_views
+        camera_indices = None
+
+        if num_input_views is not None:
+            # Override model config for proper SplitData behavior
+            self.gslrm.model.config.model.num_input_views = num_input_views
+
+            if num_input_views < total_views:
+                # Select input views (evenly distributed)
+                if num_input_views == 1:
+                    input_indices = [0]
+                elif num_input_views == 2:
+                    input_indices = [0, 3]  # Diagonal
+                elif num_input_views == 3:
+                    input_indices = [0, 2, 4]  # 120 degrees apart
+                else:
+                    step = total_views / num_input_views
+                    input_indices = [int(i * step) for i in range(num_input_views)]
+
+                # Reorder: input views first, then remaining (for SplitData)
+                remaining = [i for i in range(total_views) if i not in input_indices]
+                reorder = input_indices + remaining
+                camera_indices = reorder
+
+                print(f"  View ablation: using {num_input_views} views: {input_indices}")
+                images = images[:, reorder]
+                c2ws = c2ws[:, reorder]
+                fxfycxcys = fxfycxcys[:, reorder]
+                index = index[:, reorder]
+
         result = self.gslrm.predict(images, c2ws, fxfycxcys, index)
+
+        # Restore original config
+        self.gslrm.model.config.model.num_input_views = original_niv
 
         return self.gslrm.save_outputs(
             result,
@@ -277,4 +294,5 @@ class EndToEndPipeline:
             save_turntable=save_turntable,
             save_mesh=save_mesh,
             image_size=self.image_size,
+            camera_indices=camera_indices,
         )

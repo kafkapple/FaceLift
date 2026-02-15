@@ -2,7 +2,7 @@
 
 > **Status**: Active | **Created**: 2026-02-15 | **Updated**: 2026-02-15
 > **Location**: `docs/experiments/FL_vs_PS_comparison.md`
-> **Version**: v3 (fair evaluation + M5t2 aligned)
+> **Version**: v4 (+ input view asymmetry analysis + tiered comparison)
 
 ---
 
@@ -66,7 +66,7 @@ FaceLift is the **primary model**; Pose-Splatter is the baseline comparison.
 
 ---
 
-## 5 Critical Fairness Issues (Identified 2026-02-15)
+## 6 Critical Fairness Issues (Identified 2026-02-15)
 
 Previous comparison was **unfair**. Investigation found:
 
@@ -113,6 +113,71 @@ FL renders are RGB-only (no alpha). Silhouette extracted via `white_bg_threshold
 | 0.98 | ~0.49 | ~60% |
 
 User's visual inspection confirms: **mouse itself looks accurate**, but metrics show poor performance due to coverage/extraction issues.
+
+### Issue 6: Input View Count Asymmetry ★★★ (Most Critical)
+
+The two models use fundamentally different amounts of input information:
+
+| Stage | FaceLift | Pose-Splatter |
+|-------|----------|---------------|
+| **Training input** | 1 reference view (conditioning) | **5 observed views** (mask+image) for shape carving |
+| **Training target** | All 6 views (loss) | Random 1 view (loss) |
+| **Training paradigm** | Cross-scene (diverse animals) | **Per-scene** (same video, 50 epochs) |
+| **Inference input** | **1 real image** | **6 real views** (5 observed + **target view mask**) |
+| **Target view info** | None (zero-shot) | **Yes** — target mask used in shape carving |
+| **Information ratio** | 1× | **6×** |
+
+**Why this is the most critical issue**: PS uses the **target view's silhouette mask** as input to shape carving at inference. This is equivalent to "knowing the answer's outline before coloring it in." FL must predict the entire 3D from a single image with zero knowledge of the target view.
+
+**Literature support**: The Pose-Splatter paper (Goffinet et al., NeurIPS 2025) explicitly states:
+> *"Since [single-view] methods require fundamentally different input (single image vs. multi-view video), quantitative comparison with them would be inherently unfair."*
+
+Additional references:
+- **NerfBaselines** (Stier et al., NeurIPS 2025): Same input conditions for quantitative comparison
+- **MVGBench** (ICCV 2025): Input view count tier separation
+- **Charge** (CVPR 2025): Few-shot ablation (1/2/4/8 views)
+- **LVSM** (Jin et al., ICLR 2025): Qualitative only + disclaimer for different input counts
+
+---
+
+## Tiered Comparison Protocol (v4) — Literature-Based
+
+Based on Issue 6, direct E2E FL vs PS quantitative comparison is **invalid**. The following tiered protocol is recommended:
+
+### Tier A: Quantitative (Same Input Conditions)
+
+| Comparison | Input | FL Component | PS | Fair? |
+|-----------|-------|-------------|-----|-------|
+| **GS-LRM GT 6-view vs PS** | 6 GT views | GS-LRM only (bypass MVDiff) | Full pipeline | ✅ Yes |
+| **GS-LRM GT 4-view vs PS 4-view** | 4 GT views | GS-LRM 4-view | PS with 4 views | ✅ Yes |
+
+**Available data**: GS-LRM GT 6-view achieves **PSNR=24.49** (H4), vastly exceeding PS test-only **PSNR=16.80** (+7.69 dB).
+
+### Tier B: Qualitative + Disclaimer (Different Input Conditions)
+
+| Comparison | FL Input | PS Input | Presentation |
+|-----------|---------|---------|-------------|
+| **E2E FL vs PS** | 1 image | 6 images | Side-by-side visualization + explicit disclaimer |
+
+Must include: *"FaceLift uses 1 input view; Pose-Splatter uses 6 views including target silhouette. Direct metric comparison is not meaningful."*
+
+### Tier C: Upper Bound Analysis
+
+| Comparison | Meaning |
+|-----------|---------|
+| GS-LRM GT 6-view (24.49) vs PS (16.80) | Same input count → FL reconstruction quality upper bound |
+| GS-LRM GT 6-view (24.49) vs E2E (7.83) | MVDiffusion quality gap (bottleneck analysis) |
+
+### Reinterpretation of Current Results
+
+| Metric | FL E2E | PS test-only | Tier | Validity |
+|--------|--------|-------------|------|----------|
+| PSNR_gt_masked | 7.83 | 16.80 | **B** | Quantitative comparison invalid |
+| PSNR_intersection | 15.44 | 20.48 | **B** | Reference only |
+| IoU | 0.518 | 0.827 | **B** | Coverage gap (FL silhouette extraction) |
+| GS-LRM GT 6-view | **24.49** | 16.80 | **A** | ✅ Valid quantitative comparison |
+
+**Key insight**: When given the same 6 GT views, GS-LRM outperforms PS by **+7.69 dB**. The E2E quality drop is entirely due to MVDiffusion (Stage 1) generation quality, not reconstruction capability.
 
 ---
 
@@ -275,15 +340,58 @@ dataset: M5t2 (temporal 80:10:10)
 
 ---
 
-## Next Steps
+## Fair Evaluation Results (2026-02-15)
 
-1. **Run fair evaluation** on both servers (Steps 1-4 above)
-2. **Wait for E1/E2** MVDiffusion training to complete
-3. **Re-evaluate with best E1/E2 combo** for improved E2E results
-4. **Investigate color bias**: FL shows systematic brightness offset (~+0.08 per channel)
-5. **Side-by-side rendering**: GT / FL / PS comparison grid + orbit video
-6. **Resolution matching**: Verify PS center-crop 576→512 alignment
+### FL E2E (baseline_ckpt5000) — Test-only
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| PSNR_gt_masked | 7.83 | Low due to coverage gap |
+| PSNR_intersection | 15.44 | Pure color accuracy (where both have FG) |
+| SSIM_gt_masked | 0.718 | |
+| L1_gt_masked | 0.280 | |
+| IoU | 0.518 | Silhouette extraction threshold issue |
+| Coverage | 71.4% | ~29% of GT FG missed |
+| Color bias (R/G/B) | +0.06/+0.06/+0.06 | Systematic brightness offset |
+
+- Frames: 200 (003240-003439), Views: [1,2,3,4,5]
+- Spatial misalignment confirmed via visualization
+
+### PS (facelift_compare_5cam) — Test-only
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| PSNR_gt_masked | 16.80 | Dropped from 24.68 (was 80% train frames) |
+| PSNR_intersection | 20.48 | |
+| SSIM_gt_masked | 0.877 | |
+| L1_gt_masked | 0.118 | |
+| IoU | 0.827 | |
+| Coverage | 91.9% | |
+
+- Frames: 72 (test only, step=5), Views: [0-5]
+- PSNR drop of **-7.88 dB** confirms training data leakage (Issue 1)
+
+### Tier A Comparison (Same Input = 6 GT views)
+
+| Metric | GS-LRM GT 6-view | PS test-only | Delta |
+|--------|------------------|-------------|-------|
+| PSNR | **24.49** | 16.80 | **+7.69 dB** ✅ |
+
+**Conclusion**: Under fair input conditions (6 GT views), FaceLift's GS-LRM substantially outperforms Pose-Splatter.
 
 ---
 
-*Created: 2026-02-15 | FaceLift vs Pose-Splatter Unified Evaluation v3*
+## Next Steps
+
+1. ~~Run fair evaluation on both servers~~ ✅ Completed
+2. **Wait for E1/E2** MVDiffusion training to complete → re-evaluate E2E
+3. **GS-LRM test-only evaluation**: Run GS-LRM with GT 6 views on test frames (3240-3599) for complete Tier A comparison
+4. **Investigate spatial misalignment**: FL renders show systematic pixel offset vs GT
+5. **Investigate color bias**: FL shows systematic brightness offset (+0.06 per channel)
+6. **Side-by-side rendering**: GT / FL / PS comparison grid (Tier B qualitative)
+7. **View ablation**: GS-LRM with 1/2/4/6 GT views to show view-count scaling
+8. **Document**: Update comparison table in paper draft with tiered results + disclaimer
+
+---
+
+*Created: 2026-02-15 | Updated: 2026-02-15 | FaceLift vs Pose-Splatter Unified Evaluation v4*

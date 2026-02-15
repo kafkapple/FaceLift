@@ -328,7 +328,13 @@ def evaluate_facelift(render_dir: str, gt_dir: str,
         frame_metrics = {}
 
         for view_idx in views:
-            render_path = render_dir / frame_id / 'cam_000' / f'render_view_{view_idx:02d}.png'
+            # Auto-detect render path: E2E has cam_000/ subdir, GS-LRM standalone does not
+            frame_render_dir = render_dir / frame_id
+            cam_dir = frame_render_dir / 'cam_000'
+            if cam_dir.exists():
+                render_path = cam_dir / f'render_view_{view_idx:02d}.png'
+            else:
+                render_path = frame_render_dir / f'render_view_{view_idx:02d}.png'
             gt_path = gt_dir / frame_id / 'images' / f'cam_{view_idx:03d}.png'
 
             if not render_path.exists():

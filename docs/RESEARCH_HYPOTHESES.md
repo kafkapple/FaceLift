@@ -2,7 +2,7 @@
 
 > **Map of Content (MoC)** - 모든 가설과 실험의 메인 허브
 >
-> Last Updated: 2026-02-11 | Project: FaceLift
+> Last Updated: 2026-02-15 | Project: FaceLift
 
 ---
 
@@ -16,55 +16,53 @@
 | [H2](#h2-data-amount) | 학습 데이터 양이 중요한가? | ✅ | 다양성 > 반복 학습 |
 | [H3](#h3-e2e-bottleneck) | E2E 파이프라인 병목은? | ✅ | MV-Diffusion (undertrained 시). H3-bis 완료 |
 | [H3-bis](#h3-bis-same-test-set-revalidation) | 동일 테스트셋 재검증? | ✅ | MVDiff 항상 병목 (13-17 dB gap), 데이터↑ → gap↓ ~3 dB |
-| [H4](#h4-view-ablation) | 최적 입력 뷰 수는? | 🔄 | 1/2-view ✅, 3/4/5/6-view 학습중 |
-| [H5](#h5-mvdiffusion) | MV-Diffusion 개선 방법은? | 🔄 | cfgr < baseline (-0.48 dB), 3-view 학습중 |
-| [H6](#h6-alpha-mask) | Alpha mask가 효과적인가? | ⏳ | 대기 |
+| [H4](#h4-view-ablation) | 최적 입력 뷰 수는? | ✅ | **6-view 최적 (단조 증가)**. R1+R2 완료 |
+| [H5](#h5-mvdiffusion) | MV-Diffusion 개선 방법은? | 🔄 | Phase 3 E1/E2 실행중, P0/P1 완료, cfgr 기각 |
+| [H6](#h6-alpha-mask) | Alpha mask가 효과적인가? | 🔄 | v3 실행중: LPIPS 3x 개선, PSNR ~1dB trade-off |
 | [H7](#h7-ssim-weight) | SSIM weight 최적값은? | ⏳ | 대기 |
-| [H8](#h8-reduced-view-generation) | 생성 뷰 감소로 품질↑? | 🔄 | 4-view E2E PSNR_wh=19.87, 3-view MVDiff 학습중 |
+| [H8](#h8-reduced-view-generation) | 생성 뷰 감소로 품질↑? | ✅ | ❌ 뷰 감소 → novel PSNR -7.7dB, 개선 없음 |
 
 ---
 
-## Experiment Status Dashboard (260211)
+## Experiment Status Dashboard (260215)
 
 ### GPU Allocation
 
 | GPU | 실험 | 상태 |
 |-----|------|------|
-| 4 | MVDiff E2 (noaug, paper-aligned) | 🔄 ~7K/10K (~3h) |
-| 5 | **FREE** | H8 3view E2E → H6 예정 |
-| 6 | **FREE** | H6 예정 |
-| 7 | GS-LRM paper_aligned_4view | 🔄 8K/20K (~12h) |
+| 0-3 | **IDLE** | - |
+| 4 | **Phase 3 E1** (20K cosine, 새 학습) | 🔄 ~31/20K |
+| 5 | H6 alpha05_v3 (GS-LRM) | 🔄 ~15K (Feb 13~) |
+| 6 | H6 alpha10_v3 (GS-LRM) | 🔄 ~15K (Feb 13~) |
+| 7 | **Phase 3 E2** (P0 resume, LR=1e-5) | 🔄 ~10054/20K |
 
-### Recently Completed (260209-260211)
+### Recently Completed (260211-260215)
 
 | 실험 | 결과 |
 |------|------|
-| **H4 uniform_v2 전체** (1-6 view + baseline) | ✅ 모두 15840 steps 완료 |
-| H5 MVDiff 3-view training | ✅ ckpt-10000 완료 |
-| H5 cfgr evaluation | ✅ PSNR_wh=20.81 (-0.48 vs baseline) |
-| H3-bis revalidation | ✅ MVDiff 항상 병목 (13-17 dB gap) |
-| H8 4-view E2E | ✅ PSNR_wh=19.87 |
-| MVDiff E0 (lr=1e-4) | ❌ diverge @3956 (batch scaling 미적용) |
+| **H5 P0 randref_sparse** (10K) | ✅ ckpt-10K, PSNR ~27 but oscillation |
+| **H5 P1 pose_spherical** (10K) | ✅ 완료, 5K 후 plateau |
+| H8 3-view E2E | ✅ PSNR_wh=22.67, novel avg=16.26 (❌ 6-view보다 -7.7dB) |
+| H8 결론 | ✅ 뷰 감소는 품질 개선 불가 (GS-LRM 뷰 부족이 지배적) |
 
-### MVDiff Ablation Status
+### Phase 3 MVDiff Status (260215~)
 
-| ID | 설정 | 상태 | 결과 |
-|----|------|:----:|------|
-| Baseline | aug=ON, lr=5e-5, 10K | ✅ | PSNR_wh=21.29 |
-| E0 | aug=OFF, lr=1e-4, 20K | ❌ | diverge @3956 |
-| **E2** | aug=OFF, lr=5e-5, 10K | 🔄 | **paper-aligned** (LR scaled) |
-
-> E0 diverge 원인: Paper batch=64 vs ours=16 → lr=1e-4 gradient variance 4x.
-> sqrt scaling: lr=1e-4 × √(16/64) = **5e-5** = E2. **E2가 곧 paper-aligned.**
+| # | Config | 핵심 변경 | LR | 상태 | GPU |
+|:-:|--------|----------|:--:|:----:|:---:|
+| **E1** | M5t2_20k_cosine | cosine 5e-5→0, 20K 새 학습 | cosine | 🔄 | 4 |
+| **E2** | M5t2_randref_20k_resume | P0 resume ckpt-10K, LR=1e-5 | piecewise | 🔄 | 7 |
+| **E3** | M5t2_pose_extrinsic_add | extrinsic 6D + add | cosine | ⏳ R1 후 | 4 |
+| **E4** | M5t2_pose_spherical_add | spherical + add (vs P1 concat) | cosine | ⏳ R1 후 | 7 |
+| **E5** | 4view_alpha03_v3 | GS-LRM alpha=0.3 | - | ⏳ H6 완료 후 | 5/6 |
 
 ### Next Priority
 
-| 순위 | 실험 | GPU | 소요 |
-|------|------|-----|------|
-| P0 | H8 3-view E2E inference | 5 | ~1-2h |
-| P1 | H6 alpha mask ablation | 5,6 | ~12-16h |
-| P2 | E2 결과 분석 → 20K 연장? | - | E2 완료 시 |
-| P3 | H7 SSIM weight ablation | 4 (E2 후) | ~12-16h |
+| 순위 | 실험 | GPU | ETA |
+|:----:|------|:---:|:---:|
+| **1** | E1 (20K cosine) + E2 (P0 resume) | 4, 7 | ~30-60h |
+| **2** | E5 (alpha=0.3) | 5/6 | H6 v3 완료 후 |
+| **3** | E3 (extrinsic+add) + E4 (spherical+add) | 4, 7 | R1 완료 후 |
+| 4 | H7 SSIM weight ablation | TBD | Phase 3 R1 분석 후 |
 
 ---
 
@@ -397,66 +395,64 @@ Condition C: outputs/h1bis_v2/e2e_M5t
 
 > MV-Diffusion fine-tuning으로 E2E 품질을 개선할 수 있는가?
 
-### H5 실험 매트릭스 (260209 업데이트)
+### H5 실험 매트릭스 (260215 업데이트)
 
 **원칙**: Baseline (sparse=true, ref=0)에서 **단일 변수만** 변경
 
-| Config | sparse_mv | ref_view | steps | 변경 변수 | 상태 | 결과 |
-|--------|:---------:|:--------:|:-----:|----------|:----:|:----:|
-| **M5t2** (baseline) | true | 0 | 10K | - | ✅ ckpt-5000 | PSNR_wh=21.29 |
-| **M5t2_cfgr** | **false** | 0 | 10K | sparse attention | ✅ 완료 | PSNR_wh=20.81 (**-0.48 dB**) |
-| **M5t2_3view** | true | 0 | 10K | camera_indices=[0,2,4] | 🔄 step 7600/10000 (~5h) | H8용 |
-| **M5t2_randref_sparse** | true | **random** | 10K | ref augmentation | ⏳ 대기 | |
-| **M5t2_20k_sparse** | true | 0 | **20K** | 학습 길이 | ⏳ 대기 | |
+| Config | 변경 변수 | LR | steps | 상태 | 결과 |
+|--------|----------|:--:|:-----:|:----:|:----:|
+| **M5t2** (baseline) | - | piecewise 5e-5 | 10K | ✅ | PSNR_wh=21.29 |
+| **M5t2_cfgr** | sparse→full | piecewise 5e-5 | 10K | ✅ | -0.48 dB ❌ |
+| **P0: randref_sparse** | ref=random | piecewise 5e-5 | 10K | ✅ | ~27, oscillation |
+| **P1: pose_spherical** | pose+concat | piecewise 5e-5 | 10K | ✅ | plateau @5K |
+| **E1: 20k_cosine** | **cosine LR**, 20K | **cosine** | 20K | 🔄 GPU 4 | |
+| **E2: randref_20k_resume** | P0 resume, **LR=1e-5** | **piecewise** | 20K | 🔄 GPU 7 | |
+| **E3: pose_extrinsic_add** | extrinsic+**add** | **cosine** | 10K | ⏳ | |
+| **E4: pose_spherical_add** | spherical+**add** | **cosine** | 10K | ⏳ | |
 
-**폐기된 실험:**
-| Config | 사유 |
-|--------|------|
-| ~~M5t2_cyclic~~ | ❌ 삭제 (2변수 동시 변경: sparse+ref, 27GB 해제) |
-| M5t2_randref | ⚠️ 2변수 (sparse=false + ref=random) |
-| M5t2_symmetric | ⚠️ 2변수 (sparse=false + ref=[0,3]) |
-| M5t2_20k | ⚠️ 2변수 (sparse=false + 20K) |
+### H5 Phase 1-2 결론
 
-### H5 cfgr 결과 분석 (260209)
+| 가설 | 실험 | 결과 |
+|------|------|------|
+| Full attention이 품질 향상? | cfgr vs baseline | ❌ -0.48 dB (worse) |
+| Random ref가 다양성 증가? | P0 randref_sparse | ⚠️ PSNR ~27 도달, LR 문제로 oscillation |
+| Pose conditioning이 E2E 개선? | P1 pose_spherical | ⚠️ 5K 후 plateau, concat 효과 미미 |
+| **근본 원인** | P0+P1 공통 | `step_rules "1:100000,0.5"` = 10K 내 LR decay 없음 |
 
-| Config | sparse_mv | PSNR_wh | vs Baseline |
-|--------|-----------|---------|-------------|
-| **baseline** | true (sparse) | **21.29** | - |
-| cfgr | false (full) | 20.81 | **-0.48 dB** |
+### H5 Phase 3 (260215~, 실행중)
 
-**판정**: cfgr < baseline → **Sparse attention이 더 우수**
+Phase 2 실패 분석 → **LR 개선 + Pose integration 변형**:
 
-**의사결정 흐름 결과**:
-```
-cfgr 품질 확인 (완료)
-    │
-    └─ cfgr < baseline → ✅ Sparse attention이 핵심
-       → randref_sparse + 20k_sparse 진행 (sparse 유지, 다른 변수 탐색)
-       → Full attention (cfgr) 경로 폐기
-```
-
-### H5 가설별 검증 상태
-
-| 가설 | 실험 | 상태 | 결과 |
-|------|------|------|------|
-| Full attention이 품질 향상? | cfgr vs baseline | ✅ 완료 | ❌ -0.48 dB (worse) |
-| Random ref가 다양성 증가? | randref_sparse vs baseline | ⏳ 대기 | |
-| 학습 부족이 원인? | 20k_sparse vs baseline | ⏳ 대기 | |
+| Round | 실험 | 핵심 가설 | 상태 |
+|:-----:|------|----------|:----:|
+| R1 | E1 + E2 (동시) | Cosine/LR decay가 수렴 안정화 | 🔄 실행중 |
+| R2 | E3 + E4 (R1 후) | Add integration이 concat보다 효율적, extrinsic 우수 | ⏳ 대기 |
 
 → 상세: [hypotheses/H5_MVDIFFUSION.md](./hypotheses/H5_MVDIFFUSION.md)
 
 ---
 
-## H6: Alpha Mask ⏳
+## H6: Alpha Mask 🔄
 
 > Rendered alpha mask supervision이 foreground 품질을 개선하는가?
 
-| 항목 | 값 |
-|------|-----|
-| 가설 | Alpha supervision → shape 수렴 가속, boundary 개선 |
-| 상태 | ⏳ H4 완료 후 진행 |
-| 설정 | alpha_w=0.1/0.5, mask_mode=gt |
-| Configs | 4view_alpha01_v2, 4view_alpha05_v2, 4view_maskgt_v2 |
+### H6 v3 결과 (bugfix 후, 260213~)
+
+> v2는 `alpha_loss=0` bug로 무효화. v3: `original_gt_mask` 보존.
+
+| Config | alpha_w | Best PSNR | LPIPS ↓ | SSIM ↑ | Alpha IoU ↑ | 상태 |
+|--------|:-------:|:---------:|:-------:|:------:|:-----------:|:----:|
+| baseline (4view_v2) | 0.0 | **21.82** | 0.0429 | 0.9473 | N/A | ✅ |
+| alpha05_v3 | 0.5 | 21.20 | 0.0204 | 0.9725 | 0.9451 | 🔄 GPU 5 |
+| **alpha10_v3** | **1.0** | 20.84 | **0.0147** | **0.9742** | **0.9562** | 🔄 GPU 6 |
+| **alpha03_v3 (E5)** | **0.3** | - | - | - | - | ⏳ 대기 |
+
+**핵심 발견**: PSNR은 baseline이 ~1dB 높지만, **perceptual quality에서 alpha=1.0이 압도적**:
+- LPIPS: 0.015 vs 0.043 (**2.9x** 개선)
+- SSIM: 0.974 vs 0.947 (+0.027)
+- Alpha IoU: 0.956 (우수한 shape accuracy)
+
+**권장**: 논문 제출 시 **alpha=1.0 기본 설정** 채택 (multi-metric 관점 우수)
 
 → 상세: [hypotheses/H6_ALPHA_MASK.md](./hypotheses/H6_ALPHA_MASK.md)
 
@@ -479,14 +475,14 @@ cfgr 품질 확인 (완료)
 
 ---
 
-## H8: Reduced View Generation 🔄
+## H8: Reduced View Generation ✅
 
 > MV-Diffusion 생성 뷰 수를 6→3~4로 줄이면 per-view 품질이 개선되는가?
 
 | 항목 | 값 |
 |------|-----|
 | 가설 | 적은 뷰 = Attention 집중 → per-view 품질↑, inconsistency↓ |
-| 상태 | 🔄 **3/4-view E2E 완료, 분석중** |
+| 상태 | ✅ **완료 — 뷰 감소는 품질 개선 불가** |
 | 근거 | Era3D(fewer tokens=better), InstantMesh(fewer=less inconsistency), LGM/GRM(4뷰 SOTA) |
 | 전제 | ✅ H4에서 3view(19.92) vs 4view(21.50) = 1.58dB gap |
 | 교차 | H4 (뷰 수) + H5 (MVDiff 품질) → H8 |
@@ -588,14 +584,23 @@ cfgr 품질 확인 (완료)
 
 GPU 4개 x 2-3 실험 = 1~2 라운드
 
-### Phase 3: MV-Diffusion 추가 실험 (Phase 1-2 분석 후)
+### Phase 3: MVDiffusion + GS-LRM Systematic Improvement (260215~)
 
-| 순위 | 가설 | 실험 | 상태 | 의존성 |
-|------|------|------|------|--------|
-| P3-0 | H5 | **cfgr 품질 평가** | ✅ 완료 (-0.48 dB) | - |
-| P3-1 | H5 | randref_sparse (random ref + sparse) | ⏳ | P3-0 완료 |
-| P3-2 | H5 | 20k_sparse (longer training) | ⏳ | P3-0 완료 |
-| P3-3 | H8 | MVDiff 3-view fine-tune | 🔄 학습중 | H4 결과 |
+> P0/P1 결과 분석 → LR 개선 + Pose 변형 설계
+
+| Round | 실험 | 핵심 변경 | 상태 |
+|:-----:|------|----------|:----:|
+| **R1** | E1 (20K cosine) + E2 (P0 resume LR=1e-5) | LR scheduling | 🔄 GPU 4+7 |
+| **R2** | E3 (extrinsic+add) + E4 (spherical+add) | Pose integration | ⏳ R1 후 |
+| **R3** | E5 (alpha=0.3) | GS-LRM alpha 최적점 | ⏳ H6 v3 후 |
+
+이전 실험 (완료):
+| 순위 | 실험 | 상태 |
+|------|------|:----:|
+| P3-0 | cfgr 품질 평가 | ✅ (-0.48 dB, 기각) |
+| P3-1 | P0 randref_sparse (10K) | ✅ oscillation → E2로 계속 |
+| P3-2 | P1 pose_spherical (10K) | ✅ plateau → E3/E4로 개선 |
+| P3-3 | H8 MVDiff 3-view | ✅ 뷰 감소 비효과적 |
 
 ### Phase 4: 전처리 Ablation (Phase 1 GPU 해제 후)
 
@@ -654,4 +659,4 @@ Phase 2 완료
 
 ---
 
-*MoC v6.0 | FaceLift Research Dashboard | 260211*
+*MoC v7.0 | FaceLift Research Dashboard | 260215*

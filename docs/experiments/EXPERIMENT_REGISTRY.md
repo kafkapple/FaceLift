@@ -2,7 +2,7 @@
 
 > **목적**: 실험 설정 및 결과 기록
 > **명령어**: → [[COMMANDS]]
-> **Updated**: 260211
+> **Updated**: 260215
 
 ---
 
@@ -55,14 +55,24 @@
 
 ## 4. MV-Diffusion 실험
 
-| Config | sparse_mv | ref_view | 상태 | 결과 |
-|--------|:---------:|:--------:|:----:|:----:|
-| **M5t2** (baseline) | true | 0 | ✅ ckpt-5000 | PSNR_wh=21.29 |
-| M5t2_cfgr | false | 0 | ✅ 완료 | PSNR_wh=20.81 (-0.48 dB) |
-| M5t2_3view | true | 0 | 🔄 step 7600/10000 | H8용 |
-| ~~M5t2_cyclic~~ | false | all | ❌ 폐기 | 2변수 동시 변경 |
-| M5t2_randref_sparse | true | random | ⏳ 대기 | |
-| M5t2_20k_sparse | true | 0 | ⏳ 대기 | |
+### Phase 1-2 (완료)
+
+| Config | sparse_mv | ref_view | LR | 상태 | 결과 |
+|--------|:---------:|:--------:|:--:|:----:|:----:|
+| **M5t2** (baseline) | true | 0 | piecewise 5e-5 | ✅ ckpt-5000 | PSNR_wh=21.29 |
+| M5t2_cfgr | false | 0 | piecewise 5e-5 | ✅ 완료 | PSNR_wh=20.81 (-0.48 dB) |
+| ~~M5t2_cyclic~~ | false | all | - | ❌ 폐기 | 2변수 동시 변경 |
+| **P0: M5t2_randref_sparse** | true | **random** | piecewise 5e-5 | ✅ ckpt-10K | PSNR ~27, oscillation |
+| **P1: M5t2_pose_spherical** | true | **random** | piecewise 5e-5 | ✅ 완료 | 5K 후 plateau |
+
+### Phase 3 (260215~, 실행중)
+
+| # | Config | 핵심 변경 | LR | 상태 | GPU |
+|:-:|--------|----------|:--:|:----:|:---:|
+| **E1** | M5t2_20k_cosine | cosine 5e-5→0, 20K, 새 학습 | cosine | 🔄 ~31/20K | 4 |
+| **E2** | M5t2_randref_20k_resume | P0 resume, 1e-5 after 10K | piecewise | 🔄 ~10054/20K | 7 |
+| **E3** | M5t2_pose_extrinsic_add | extrinsic pose + add, cosine | cosine | ⏳ R1 후 | 4 |
+| **E4** | M5t2_pose_spherical_add | spherical + add (vs P1 concat), cosine | cosine | ⏳ R1 후 | 7 |
 
 ---
 
@@ -87,7 +97,23 @@
 
 ---
 
-## 6. MV-Diffusion Ablation (H5: Paper-Aligned)
+## 6. H6: Alpha Loss 결과 (v3, bugfix 후)
+
+> v2 실험은 `alpha_loss=0` bug로 무효화 (삭제됨)
+> v3: `original_gt_mask` 보존으로 alpha/bg/mask_iou 독립 계산
+
+| Config | alpha_w | Best PSNR | Step | LPIPS ↓ | SSIM ↑ | Alpha IoU ↑ | 상태 |
+|--------|:-------:|:---------:|:----:|:-------:|:------:|:-----------:|:----:|
+| **4view_v2 (baseline)** | 0.0 | **21.82** | 9201 | 0.0429 | 0.9473 | N/A | ✅ |
+| alpha05_v3 | 0.5 | 21.20 | 8901 | 0.0204 | 0.9725 | 0.9451 | 🔄 GPU 5 |
+| alpha10_v3 | 1.0 | 20.84 | 8101 | **0.0147** | **0.9742** | **0.9562** | 🔄 GPU 6 |
+| **alpha03_v3 (E5)** | **0.3** | - | - | - | - | - | ⏳ H6 완료 후 |
+
+**핵심**: PSNR은 baseline 최고지만, **LPIPS(3x)/SSIM/IoU에서 alpha=1.0이 압도적 우세**.
+
+---
+
+## 7. MV-Diffusion Ablation (H5: Paper-Aligned)
 
 > **목표**: 원 논문 (Lyu et al., 2024) 설정 재현 + 개별 변수 효과 분리
 > **Baseline**: M5t2 (aug=ON, lr=5e-5, 10K steps) → PSNR_wh=21.29
@@ -122,12 +148,11 @@ Step  3956: process killed (NaN→CUDA crash)
 ```
 
 **Root cause**: lr=1e-4 with effective batch=16 (paper uses batch=64).
-4× smaller batch → 4× higher gradient variance → diverge.
 **Resolution**: Use sqrt-scaled lr=5e-5 for E0v2.
 
 ---
 
-## 7. GS-LRM Experiments
+## 8. GS-LRM Experiments
 
 ### Uniform v2 (View Ablation)
 
@@ -149,16 +174,20 @@ Step  3956: process killed (NaN→CUDA crash)
 
 ---
 
-## 8. 체크포인트
+## 9. 체크포인트
 
 | 모델 | 경로 |
 |------|------|
 | GS-LRM Pretrained | `checkpoints/gslrm/ckpt_*.pt` |
 | GS-LRM Best | `checkpoints/gslrm/{exp}/best_psnr.pt` |
 | MVDiffusion Baseline | `checkpoints/mvdiffusion/mouse_M5t2/` |
-| MV-Diffusion noaug (E2) | `/node_data/.../mouse_M5t2_noaug/` |
-| MV-Diffusion E0v2 | `/node_data/.../mouse_M5t2_E0v2/` |
+| P0 randref (10K) | `/node_data/.../mouse_M5t2_randref_sparse/checkpoint-10000` |
+| P1 pose_spherical | `/node_data/.../mouse_M5t2_pose_spherical/` |
+| **E1 20k_cosine** | `/node_data/.../mouse_M5t2_20k_cosine/` (학습중) |
+| **E2 resume** | `/node_data/.../mouse_M5t2_randref_sparse/` (재사용, 학습중) |
+| H6 alpha05_v3 | `/node_data/.../uniform_v2/4view_alpha05_v3/` (학습중) |
+| H6 alpha10_v3 | `/node_data/.../uniform_v2/4view_alpha10_v3/` (학습중) |
 
 ---
 
-*Registry v5.0 | 260211*
+*Registry v6.0 | 260215*

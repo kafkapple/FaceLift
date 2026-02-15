@@ -449,4 +449,107 @@ scp -r gpu03:~/dev/FaceLift/outputs/verify_turntable/ .
 
 ---
 
-*Commands v4.4 | 260213*
+*Commands v5.0 | 260215*
+
+
+## Phase 3: MVDiffusion + GS-LRM Systematic Improvement (260215~)
+
+> **목표**: E2E 성능 개선 — MVDiffusion (Stage 1) 품질이 핵심 병목
+> **배경**: P0(randref), P1(pose_spherical) 10K 완료 — oscillation, plateau 관찰
+> **근본 원인**: `step_rules: "1:100000,0.5"` = 10K 내 LR decay 없음
+> **문서**: [260215_EXPERIMENT_ANALYSIS.md](260215_EXPERIMENT_ANALYSIS.md)
+
+### Experiment Matrix
+
+| # | 실험 | 핵심 변경 | LR | GPU | Round |
+|:-:|------|----------|:--:|:---:|:-----:|
+| **E1** | 20K cosine | cosine decay, 20K steps (새 학습) | cosine 5e-5→0 | 4 | R1 |
+| **E2** | P0 resume | resume ckpt-10K, LR=1e-5 | piecewise | 7 | R1 |
+| **E3** | pose extrinsic+add | extrinsic 6D rot+trans, add | cosine | 4 | R2 |
+| **E4** | pose spherical+add | spherical (vs P1 concat), add | cosine | 7 | R2 |
+| **E5** | alpha=0.3 | GS-LRM alpha_loss_weight 0.3 | - | 5/6 | R3 |
+
+### Round 1: MVDiffusion LR 개선 (GPU 4 + 7, 동시)
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# E1: Baseline 20K + Cosine Decay (GPU 4, new training)
+# Change: lr_scheduler=cosine (5e-5→0), max_train_steps=20K, no step_rules
+export CUDA_VISIBLE_DEVICES=4 && PYTHONUNBUFFERED=1 nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_20k_cosine.yaml \
+    > logs/mvdiff_M5t2_20k_cosine.log 2>&1 &
+
+# E2: P0 Resume + LR Decay (GPU 7, resumes from ckpt-10K)
+# Change: step_rules="1:10000,0.2" (LR=1e-5 after 10K), resume_from_checkpoint=latest
+# IMPORTANT: Reuses existing P0 output_dir (mouse_M5t2_randref_sparse)
+export CUDA_VISIBLE_DEVICES=7 && PYTHONUNBUFFERED=1 nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_randref_20k_resume.yaml \
+    > logs/mvdiff_M5t2_randref_20k_resume.log 2>&1 &
+```
+
+### Round 2: Pose Encoding 변형 (Round 1 완료 후 GPU 재활용)
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# E3: Extrinsic Pose + Add Integration (GPU 4)
+# Change: pose method=extrinsic (6D rot+trans), integration=add, cosine LR
+# Resumes from M5t2 baseline checkpoint-5000/unet
+export CUDA_VISIBLE_DEVICES=4 && PYTHONUNBUFFERED=1 nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_pose_extrinsic_add.yaml \
+    > logs/mvdiff_M5t2_pose_extrinsic_add.log 2>&1 &
+
+# E4: Spherical Pose + Add Integration (GPU 7)
+# Change: integration=add (vs P1 concat), cosine LR
+# Isolates: concat vs add effect for spherical pose
+export CUDA_VISIBLE_DEVICES=7 && PYTHONUNBUFFERED=1 nohup accelerate launch \
+    --config_file configs/accelerate/1gpu.yaml \
+    train_diffusion.py --config configs/mvdiffusion/mouse_mvdiffusion_M5t2_pose_spherical_add.yaml \
+    > logs/mvdiff_M5t2_pose_spherical_add.log 2>&1 &
+```
+
+### Round 3: GS-LRM Alpha 탐색 (H6 v3 완료 GPU에서)
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# E5: Alpha=0.3 (intermediate between baseline 0.0 and alpha05 0.5)
+export CUDA_VISIBLE_DEVICES=5 && PYTHONUNBUFFERED=1 nohup python \
+    train_gslrm.py -b configs/mouse/uniform/base_uniform_v2.yaml \
+    -e configs/mouse/uniform/4view_alpha03_v3.yaml \
+    > logs/h6_alpha03_v3.log 2>&1 &
+```
+
+### Phase 3 모니터링
+
+| 실험 | WandB Name | 비교 기준 | 핵심 지표 |
+|------|------------|-----------|-----------|
+| E1 | `mvdiff_M5t2_20k_cosine` | Baseline 5K: 27.30 | val/psnr, loss curve |
+| E2 | `mvdiff_M5t2_randref_sparse` | P0 10K: ~27 | val/psnr (10K→ 구간) |
+| E3 | `mvdiff_M5t2_pose_extrinsic_add` | P1: ~27 | val/psnr, loss 안정성 |
+| E4 | `mvdiff_M5t2_pose_spherical_add` | P1 concat: ~27 | add vs concat 비교 |
+| E5 | `uniform_v2_4view_alpha03_v3` | alpha05: 21.20 | PSNR, LPIPS, sIoU |
+
+### Phase 3 수렴 판단
+
+- **기준**: 최근 2K step PSNR 변동 < 0.3 dB
+- **E2E 평가**: Protocol v2 (`psnr_full_white`, `psnr_fg_only`, `silhouette_iou`)
+- **비교 Baseline**: 5K PSNR 27.30, E2E fg_PSNR 7.91, sIoU 0.52
+
+### Phase 3 Config 위치
+
+```
+configs/mvdiffusion/
+├── mouse_mvdiffusion_M5t2_20k_cosine.yaml           # E1
+├── mouse_mvdiffusion_M5t2_randref_20k_resume.yaml    # E2
+├── mouse_mvdiffusion_M5t2_pose_extrinsic_add.yaml    # E3
+└── mouse_mvdiffusion_M5t2_pose_spherical_add.yaml    # E4
+
+configs/mouse/uniform/
+└── 4view_alpha03_v3.yaml                              # E5
+```
+
