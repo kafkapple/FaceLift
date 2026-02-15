@@ -1,0 +1,136 @@
+# =============================================================================
+# Mouse MVDiffusion - M5t2 20K Steps + Cosine LR Decay
+# =============================================================================
+# Phase 3 E1: Baseline with proper LR scheduling
+# Purpose: Test if cosine decay prevents oscillation seen in constant LR runs
+# Changes from baseline (M5t2):
+#   - max_train_steps: 10000 -> 20000
+#   - lr_scheduler: piecewise_constant -> cosine (5e-5 -> 0)
+#   - step_rules: removed (cosine handles decay)
+#
+# Rationale: Baseline step_rules "1:100000,0.5" = no decay within 10K steps.
+#   P0 showed oscillation at constant LR 5e-5. Cosine annealing provides
+#   smooth decay to zero, standard for diffusion fine-tuning.
+#
+# Single-variable ablation from baseline (M5t2):
+#   - reference_view_idx: 0      (SAME)
+#   - sparse_mv_attention: true  (SAME)
+#   - lr_scheduler: cosine       (CHANGED)
+#   - max_train_steps: 20000     (CHANGED)
+#
+# Version: v1.0
+# Created: 2026-02-15
+#
+
+n_views: 6
+img_wh: 512
+reference_view_idx: 0
+dataset_type: "mouse"
+
+pretrained_model_name_or_path: "checkpoints/mvdiffusion/pipeckpts"
+pretrained_unet_path: null
+revision: null
+
+# Mouse-specific prompt embeddings (top-angled views, 1024-dim)
+prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_1024/clr_embeds.pt"
+
+# =============================================================================
+# Dataset - M5t2 (Temporal 80:10:10 split, no data leakage)
+# =============================================================================
+train_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+  bg_color: "three_choices"
+  augmentation: true
+  aug_brightness: [0.9, 1.1]
+  aug_contrast: [0.9, 1.1]
+  aug_hflip: false
+
+validation_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+  bg_color: "white"
+
+# =============================================================================
+# Output
+# =============================================================================
+checkpoint_prefix: ""
+output_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_20k_cosine"
+val_out_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_20k_cosine/val/"
+
+# =============================================================================
+# Training Parameters
+# =============================================================================
+seed: 42
+train_batch_size: 4
+validation_batch_size: 2
+max_train_steps: 20000                # 2x baseline
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+learning_rate: 5e-5
+step_rules: null                      # Not used with cosine scheduler
+scale_lr: false
+lr_scheduler: "cosine"                # cosine annealing 5e-5 -> 0
+lr_warmup_steps: 100
+snr_gamma: 5.0
+use_8bit_adam: false
+allow_tf32: true
+use_ema: true
+dataloader_num_workers: 8
+
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 1.e-2
+adam_epsilon: 1.e-08
+max_grad_norm: 1.0
+prediction_type: null
+
+# =============================================================================
+# Logging and Validation
+# =============================================================================
+vis_dir: vis
+logging_dir: logs
+mixed_precision: "fp16"
+report_to: "wandb"
+local_rank: -1
+checkpointing_steps: 1000
+checkpoints_total_limit: 3
+resume_from_checkpoint: null
+enable_xformers_memory_efficient_attention: true
+validation_steps: 200
+validation_sanity_check: true
+tracker_project_name: "FaceLift-MVDiffusion"
+
+# WandB
+wandb_exp_name: "mvdiff_M5t2_20k_cosine"
+wandb_group: "mvdiffusion"
+wandb_job_type: "finetune_M5t2_20k_cosine"
+wandb_run_id: null
+
+# =============================================================================
+# Training Specifics
+# =============================================================================
+trainable_modules: null
+use_classifier_free_guidance: true
+condition_drop_rate: 0.05
+drop_type: "drop_as_a_whole"
+camera_embedding_lr_mult: 1.
+scale_input_latents: true
+
+pipe_kwargs:
+  num_views: ${n_views}
+validation_guidance_scales: [1., 3.]
+validation_grid_nrow: ${n_views}
+pipe_validation_kwargs:
+  eta: 1.0
+
+unet_from_pretrained_kwargs:
+  unclip: true
+  num_views: ${n_views}
+  sample_size: 64
+  zero_init_conv_in: true
+  init_mvattn_with_selfattn: false
+  cd_attention_last: false
+  cd_attention_mid: false
+  multiview_attention: true
+  sparse_mv_attention: true
+  selfattn_block: custom
+  addition_downsample: false
