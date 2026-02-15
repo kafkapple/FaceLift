@@ -226,12 +226,70 @@ def compute_all_metrics(pred: np.ndarray, gt: np.ndarray,
 
 
 # ==============================================================
+# Visualization
+# ==============================================================
+
+def _save_vis_grid(render: np.ndarray, gt: np.ndarray,
+                   gt_mask: np.ndarray, metrics: dict,
+                   vis_dir: Path, frame_id: str, view_idx: int):
+    """Save 4-panel visualization: GT | Render | GT Mask | Error Map.
+
+    Top row: GT RGB, Render RGB, GT on white BG
+    Bottom row: GT Mask, Pred Mask, |Error| heatmap (masked)
+    """
+    h, w = gt.shape[:2]
+
+    # Pred mask from white-BG extraction
+    pred_mask = extract_foreground_mask(render, threshold=0.98)
+
+    # Composites on white BG
+    mask_3 = gt_mask[:, :, None]
+    gt_white = gt * mask_3 + (1.0 - mask_3)
+    render_white = render * mask_3 + (1.0 - mask_3)
+
+    # Error map (absolute diff, amplified for visibility)
+    error = np.abs(render - gt) * mask_3
+    error_vis = np.clip(error * 5.0, 0, 1)  # 5x amplification
+
+    # Intersection mask visualization (green=both, red=GT only, blue=pred only)
+    gt_fg = gt_mask > 0.5
+    pred_fg = pred_mask > 0.5
+    mask_vis = np.zeros((h, w, 3), dtype=np.float32)
+    mask_vis[np.logical_and(gt_fg, pred_fg)] = [0, 1, 0]     # Green: intersection
+    mask_vis[np.logical_and(gt_fg, ~pred_fg)] = [1, 0, 0]    # Red: GT only (missed)
+    mask_vis[np.logical_and(~gt_fg, pred_fg)] = [0, 0, 1]    # Blue: pred only (false pos)
+
+    # GT mask as grayscale
+    gt_mask_vis = np.stack([gt_mask] * 3, axis=2)
+
+    # Assemble 2x3 grid
+    row1 = np.concatenate([gt_white, render_white, gt_mask_vis], axis=1)
+    row2 = np.concatenate([mask_vis, error_vis, render], axis=1)
+    grid = np.concatenate([row1, row2], axis=0)
+
+    # Add metrics text (as a simple bar at top)
+    psnr_gt = metrics.get('psnr_gt_masked', 0)
+    psnr_int = metrics.get('psnr_intersection', 0)
+    iou = metrics.get('iou', 0)
+    cov = metrics.get('coverage', 0)
+
+    grid_uint8 = (np.clip(grid, 0, 1) * 255).astype(np.uint8)
+    img = Image.fromarray(grid_uint8)
+
+    # Save
+    fname = f'{frame_id}_view{view_idx:02d}_psnr{psnr_gt:.1f}_int{psnr_int:.1f}_iou{iou:.2f}_cov{cov:.0%}.png'
+    img.save(vis_dir / fname)
+
+
+# ==============================================================
 # FaceLift Evaluation
 # ==============================================================
 
 def evaluate_facelift(render_dir: str, gt_dir: str,
                       views: list = None,
-                      save_per_frame: bool = False) -> dict:
+                      save_per_frame: bool = False,
+                      save_vis: str = None,
+                      vis_every: int = 10) -> dict:
     """Evaluate FaceLift renders against GT using GT alpha masks.
 
     Args:
@@ -239,12 +297,20 @@ def evaluate_facelift(render_dir: str, gt_dir: str,
         gt_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5
         views: view indices to evaluate [1,2,3,4,5] (0=input, skip)
         save_per_frame: include per-frame detail in output
+        save_vis: directory to save visualization grids (GT|Render|Mask|Error)
+        vis_every: save vis every N frames (default: 10)
     """
     if views is None:
         views = [1, 2, 3, 4, 5]
 
     render_dir = Path(render_dir)
     gt_dir = Path(gt_dir)
+
+    vis_dir = None
+    if save_vis:
+        vis_dir = Path(save_vis)
+        vis_dir.mkdir(parents=True, exist_ok=True)
+        print(f"[FL] Saving visualizations to: {vis_dir} (every {vis_every} frames)")
 
     # Find rendered frames
     frame_dirs = sorted([d for d in render_dir.iterdir() if d.is_dir()])
@@ -307,6 +373,13 @@ def evaluate_facelift(render_dir: str, gt_dir: str,
             view_key = f'view_{view_idx}'
             per_view_all[view_key].append(metrics)
             frame_metrics[view_key] = metrics
+
+            # Save visualization grid
+            if vis_dir and fi % vis_every == 0:
+                _save_vis_grid(
+                    render_img, gt_rgb, gt_mask, metrics,
+                    vis_dir, frame_id, view_idx
+                )
 
         if save_per_frame and frame_metrics:
             per_frame[frame_id] = frame_metrics
@@ -625,6 +698,10 @@ def main():
                       help='View indices (default: 1-5)')
     fl_p.add_argument('--save_per_frame', action='store_true',
                       help='Include per-frame metrics')
+    fl_p.add_argument('--save_vis', default=None,
+                      help='Directory to save GT/Render/Mask visualization grids')
+    fl_p.add_argument('--vis_every', type=int, default=10,
+                      help='Save vis every N frames (default: 10)')
     fl_p.add_argument('--output', required=True,
                       help='Output JSON path')
 
@@ -645,6 +722,8 @@ def main():
             args.render_dir, args.gt_dir,
             views=args.views,
             save_per_frame=args.save_per_frame,
+            save_vis=args.save_vis,
+            vis_every=args.vis_every,
         )
 
         out_path = Path(args.output)
