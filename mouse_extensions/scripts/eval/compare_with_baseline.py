@@ -79,12 +79,14 @@ def normalize_facelift_metrics(metrics_v2: Dict) -> Dict[str, Any]:
         "source": "metrics_v2.json",
         "n_samples": metrics_v2.get("n_evaluated", metrics_v2.get("n_samples", 0)),
         "views_evaluated": metrics_v2.get("views_evaluated", []),
+        "resolution": "512x512",
         "overall": {
-            "psnr": {
+            # Protocol-specific (white-BG composite)
+            "psnr_full_white": {
                 "mean": get_mean(overall, "psnr_full_white"),
                 "std": get_std(overall, "psnr_full_white"),
             },
-            "ssim": {
+            "ssim_full_white": {
                 "mean": get_mean(overall, "ssim_full_white"),
                 "std": get_std(overall, "ssim_full_white"),
             },
@@ -92,6 +94,12 @@ def normalize_facelift_metrics(metrics_v2: Dict) -> Dict[str, Any]:
                 "mean": get_mean(overall, "lpips_full_white"),
                 "std": get_std(overall, "lpips_full_white"),
             },
+            # Protocol-aligned (comparable to PS masked metrics)
+            "psnr_fg_only": {
+                "mean": get_mean(overall, "psnr_fg_only"),
+                "std": get_std(overall, "psnr_fg_only"),
+            },
+            # Same formula across both models
             "mask_iou": {
                 "mean": get_mean(overall, "silhouette_iou"),
                 "std": get_std(overall, "silhouette_iou"),
@@ -219,37 +227,73 @@ def normalize_manual_values(values: Dict) -> Dict[str, Any]:
 # Comparison Logic
 # ============================================================
 
+def _compare_entry(fl_val, ps_val, lower_better=False):
+    """Create a comparison entry with diff and winner."""
+    entry = {"facelift": fl_val, "posesplatter": ps_val, "diff": None, "better": None}
+    if fl_val is not None and ps_val is not None:
+        entry["diff"] = fl_val - ps_val
+        if lower_better:
+            entry["better"] = "FaceLift" if fl_val < ps_val else "Pose-Splatter"
+        else:
+            entry["better"] = "FaceLift" if fl_val > ps_val else "Pose-Splatter"
+    return entry
+
+
 def compute_comparison(
     fl_norm: Dict[str, Any],
     ps_norm: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Compute side-by-side comparison between normalized metrics."""
-    metrics_keys = ["psnr", "ssim", "lpips", "mask_iou", "l1_masked"]
+    """Compute side-by-side comparison between normalized metrics.
 
-    # Overall comparison
-    overall_comparison = {}
-    for key in metrics_keys:
-        fl_val = fl_norm["overall"].get(key, {}).get("mean")
-        ps_val = ps_norm["overall"].get(key, {}).get("mean")
+    Returns two comparison sections:
+      - aligned: Protocol-matched metrics (directly comparable)
+      - protocol_specific: Each model's native metrics (for reference)
+    """
+    fl_o = fl_norm["overall"]
+    ps_o = ps_norm["overall"]
 
-        entry = {
-            "facelift": fl_val,
-            "posesplatter": ps_val,
-            "diff": None,
-            "better": None,
-        }
+    # ---- Section 1: Protocol-Aligned (directly comparable) ----
+    aligned = {
+        "psnr_fg": _compare_entry(
+            fl_o.get("psnr_fg_only", {}).get("mean"),
+            ps_o.get("psnr", {}).get("mean"),
+        ),
+        "mask_iou": _compare_entry(
+            fl_o.get("mask_iou", {}).get("mean"),
+            ps_o.get("mask_iou", {}).get("mean"),
+        ),
+        "l1_masked": _compare_entry(
+            fl_o.get("l1_masked", {}).get("mean"),
+            ps_o.get("l1_masked", {}).get("mean"),
+            lower_better=True,
+        ),
+    }
 
-        if fl_val is not None and ps_val is not None:
-            entry["diff"] = fl_val - ps_val
-            # Higher is better for PSNR, SSIM, IoU; Lower is better for LPIPS, L1
-            if key in ("lpips", "l1_masked"):
-                entry["better"] = "FaceLift" if fl_val < ps_val else "Pose-Splatter"
-            else:
-                entry["better"] = "FaceLift" if fl_val > ps_val else "Pose-Splatter"
+    # ---- Section 2: Protocol-Specific (not directly comparable) ----
+    protocol_specific = {
+        "psnr_full_white": {
+            "facelift": fl_o.get("psnr_full_white", {}).get("mean"),
+            "posesplatter": None,
+            "note": "FL only: white-BG composite full-image",
+        },
+        "ssim_full_white": {
+            "facelift": fl_o.get("ssim_full_white", {}).get("mean"),
+            "posesplatter": None,
+            "note": "FL only: white-BG composite",
+        },
+        "ssim_masked": {
+            "facelift": None,
+            "posesplatter": ps_o.get("ssim", {}).get("mean") if ps_o.get("ssim") else None,
+            "note": "PS only: masked foreground",
+        },
+        "lpips": {
+            "facelift": fl_o.get("lpips", {}).get("mean"),
+            "posesplatter": None,
+            "note": "FL only: AlexNet perceptual",
+        },
+    }
 
-        overall_comparison[key] = entry
-
-    # Per-view comparison (match by view index)
+    # ---- Per-view comparison (aligned: psnr_fg vs psnr_masked) ----
     per_view_comparison = {}
     fl_views = fl_norm.get("per_view", {})
     ps_views = ps_norm.get("per_view", {})
@@ -259,24 +303,29 @@ def compute_comparison(
         fl_vv = fl_views.get(vk, {})
         ps_vv = ps_views.get(vk, {})
 
-        view_comp = {}
-        for key in metrics_keys:
-            fl_val = fl_vv.get(key, {}).get("mean") if fl_vv else None
-            ps_val = ps_vv.get(key, {}).get("mean") if ps_vv else None
+        # FL per-view has psnr_full_white; PS has psnr (masked)
+        fl_psnr_wh = fl_vv.get("psnr", {}).get("mean") if fl_vv else None
+        fl_iou = fl_vv.get("mask_iou", {}).get("mean") if fl_vv else None
+        fl_l1 = fl_vv.get("l1_masked", {}).get("mean") if fl_vv else None
+        ps_psnr = ps_vv.get("psnr", {}).get("mean") if ps_vv else None
+        ps_iou = ps_vv.get("mask_iou", {}).get("mean") if ps_vv else None
+        ps_l1 = ps_vv.get("l1_masked", {}).get("mean") if ps_vv else None
 
-            view_comp[key] = {
-                "facelift": fl_val,
-                "posesplatter": ps_val,
-            }
-
-        # Check holdout status
         is_holdout = ps_vv.get("is_holdout", False) if ps_vv else False
-        view_comp["is_holdout"] = is_holdout
 
-        per_view_comparison[vk] = view_comp
+        per_view_comparison[vk] = {
+            "fl_psnr_white": fl_psnr_wh,
+            "ps_psnr_masked": ps_psnr,
+            "fl_iou": fl_iou,
+            "ps_iou": ps_iou,
+            "fl_l1": fl_l1,
+            "ps_l1": ps_l1,
+            "is_holdout": is_holdout,
+        }
 
     return {
-        "overall": overall_comparison,
+        "aligned": aligned,
+        "protocol_specific": protocol_specific,
         "per_view": per_view_comparison,
     }
 
@@ -307,52 +356,58 @@ def print_comparison_table(
     # Metadata
     fl_src = fl_norm.get("source", "unknown")
     ps_src = ps_norm.get("source", "unknown")
-    ps_type = ps_norm.get("metric_type", "unknown")
-    print(f"\n  FaceLift source:       {fl_src}")
+    fl_res = fl_norm.get("resolution", "unknown")
+    print(f"\n  FaceLift source:       {fl_src} ({fl_res})")
     print(f"  Pose-Splatter source:  {ps_src}")
-    if ps_type == "masked":
-        print(f"  ⚠  PS metrics are MASKED (foreground-only); FL uses white-BG composite.")
-        print(f"     PSNR/SSIM not directly comparable without re-evaluation on same protocol.")
 
-    # Overall table
-    print(f"\n  {'Metric':<14} {'FaceLift':>12} {'PoseSplatter':>14} {'Diff':>10} {'Better':>16}")
-    print(f"  {'-'*14} {'-'*12} {'-'*14} {'-'*10} {'-'*16}")
+    # ---- Section 1: Protocol-Aligned (Fair Comparison) ----
+    print(f"\n  === PROTOCOL-ALIGNED (Fair Comparison) ===")
+    print(f"  {'Metric':<20} {'FaceLift':>12} {'PoseSplatter':>14} {'Diff':>10} {'Better':>16}")
+    print(f"  {'-'*20} {'-'*12} {'-'*14} {'-'*10} {'-'*16}")
 
-    oc = comparison["overall"]
-
-    # Direction indicators
-    arrows = {"psnr": "↑", "ssim": "↑", "lpips": "↓", "mask_iou": "↑", "l1_masked": "↓"}
-    labels = {
-        "psnr": "PSNR",
-        "ssim": "SSIM",
-        "lpips": "LPIPS",
-        "mask_iou": "Mask IoU",
-        "l1_masked": "L1 (masked)",
+    aligned = comparison["aligned"]
+    aligned_labels = {
+        "psnr_fg": ("PSNR (FG-only) ↑", False),
+        "mask_iou": ("Mask IoU ↑", False),
+        "l1_masked": ("L1 (masked) ↓", True),
     }
 
-    for key in ["psnr", "ssim", "lpips", "mask_iou", "l1_masked"]:
-        entry = oc[key]
-        label = f"{labels[key]} {arrows[key]}"
+    for key in ["psnr_fg", "mask_iou", "l1_masked"]:
+        label, _ = aligned_labels[key]
+        entry = aligned[key]
         fl_v = fmt(entry["facelift"])
         ps_v = fmt(entry["posesplatter"])
-        diff = fmt(entry["diff"])
-        if entry["diff"] is not None:
-            diff = f"{entry['diff']:+.4f}"
+        diff = f"{entry['diff']:+.4f}" if entry["diff"] is not None else "N/A"
         better = entry["better"] or "—"
-        print(f"  {label:<14} {fl_v:>12} {ps_v:>14} {diff:>10} {better:>16}")
+        print(f"  {label:<20} {fl_v:>12} {ps_v:>14} {diff:>10} {better:>16}")
 
-    # Per-view breakdown
+    # ---- Section 2: Protocol-Specific (Reference Only) ----
+    print(f"\n  === PROTOCOL-SPECIFIC (Reference Only — Not Directly Comparable) ===")
+    print(f"  {'Metric':<26} {'FaceLift':>12} {'PoseSplatter':>14} {'Note':<30}")
+    print(f"  {'-'*26} {'-'*12} {'-'*14} {'-'*30}")
+
+    ps_specific = comparison["protocol_specific"]
+    for key in ["psnr_full_white", "ssim_full_white", "ssim_masked", "lpips"]:
+        entry = ps_specific[key]
+        fl_v = fmt(entry.get("facelift"))
+        ps_v = fmt(entry.get("posesplatter"))
+        note = entry.get("note", "")
+        print(f"  {key:<26} {fl_v:>12} {ps_v:>14} {note:<30}")
+
+    # ---- Per-view breakdown ----
     pv = comparison.get("per_view", {})
     if pv:
-        print(f"\n  Per-view PSNR comparison:")
-        print(f"  {'View':<10} {'FaceLift':>10} {'PoseSplatter':>14} {'Holdout':>10}")
-        print(f"  {'-'*10} {'-'*10} {'-'*14} {'-'*10}")
+        print(f"\n  === PER-VIEW (FL=full_white PSNR, PS=masked PSNR) ===")
+        print(f"  {'View':<10} {'FL PSNR':>10} {'PS PSNR':>10} {'FL IoU':>10} {'PS IoU':>10} {'Holdout':>8}")
+        print(f"  {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*8}")
         for vk in sorted(pv.keys()):
             vv = pv[vk]
-            fl_p = fmt(vv.get("psnr", {}).get("facelift"), 2)
-            ps_p = fmt(vv.get("psnr", {}).get("posesplatter"), 2)
+            fl_p = fmt(vv.get("fl_psnr_white"), 2)
+            ps_p = fmt(vv.get("ps_psnr_masked"), 2)
+            fl_iou = fmt(vv.get("fl_iou"), 3)
+            ps_iou = fmt(vv.get("ps_iou"), 3)
             holdout = "✓" if vv.get("is_holdout") else ""
-            print(f"  {vk:<10} {fl_p:>10} {ps_p:>14} {holdout:>10}")
+            print(f"  {vk:<10} {fl_p:>10} {ps_p:>10} {fl_iou:>10} {ps_iou:>10} {holdout:>8}")
 
     print()
 
@@ -368,67 +423,75 @@ def generate_markdown_report(
     lines.append("# FaceLift vs Pose-Splatter: Unified Comparison Report")
     lines.append("")
     lines.append(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    lines.append(f"**FaceLift source**: {fl_norm.get('source', 'unknown')}")
+    lines.append(f"**FaceLift source**: {fl_norm.get('source', 'unknown')} ({fl_norm.get('resolution', 'unknown')})")
     lines.append(f"**Pose-Splatter source**: {ps_norm.get('source', 'unknown')}")
     lines.append("")
 
-    # Metric protocol warning
-    ps_type = ps_norm.get("metric_type", "unknown")
-    if ps_type == "masked":
-        lines.append("> **Warning**: Pose-Splatter uses **masked** (foreground-only) metrics,")
-        lines.append("> while FaceLift uses **white-BG composite** + full-image metrics.")
-        lines.append("> PSNR and SSIM are not directly comparable without re-evaluation")
-        lines.append("> on the same protocol. IoU and L1 are more comparable.")
-        lines.append("")
-
-    # Overall table
-    lines.append("## Overall Metrics")
+    # ---- Protocol-Aligned (Fair Comparison) ----
+    lines.append("## Protocol-Aligned Metrics (Fair Comparison)")
+    lines.append("")
+    lines.append("These metrics use the same computation across both models.")
     lines.append("")
     lines.append("| Metric | FaceLift | Pose-Splatter | Diff | Better |")
     lines.append("|--------|----------|---------------|------|--------|")
 
-    oc = comparison["overall"]
-    labels = {
-        "psnr": "PSNR ↑",
-        "ssim": "SSIM ↑",
-        "lpips": "LPIPS ↓",
+    aligned = comparison["aligned"]
+    aligned_labels = {
+        "psnr_fg": "PSNR (FG-only) ↑",
         "mask_iou": "Mask IoU ↑",
         "l1_masked": "L1 (masked) ↓",
     }
 
-    for key in ["psnr", "ssim", "lpips", "mask_iou", "l1_masked"]:
-        entry = oc[key]
-        label = labels[key]
+    for key in ["psnr_fg", "mask_iou", "l1_masked"]:
+        entry = aligned[key]
+        label = aligned_labels[key]
         fl_v = fmt(entry["facelift"])
         ps_v = fmt(entry["posesplatter"])
-        diff = fmt(entry["diff"])
-        if entry["diff"] is not None:
-            diff = f"{entry['diff']:+.4f}"
+        diff = f"{entry['diff']:+.4f}" if entry["diff"] is not None else "N/A"
         better = entry["better"] or "—"
-
-        # Bold the winner
         if better == "FaceLift":
             fl_v = f"**{fl_v}**"
         elif better == "Pose-Splatter":
             ps_v = f"**{ps_v}**"
-
         lines.append(f"| {label} | {fl_v} | {ps_v} | {diff} | {better} |")
+
+    lines.append("")
+
+    # ---- Protocol-Specific (Reference) ----
+    lines.append("## Protocol-Specific Metrics (Reference Only)")
+    lines.append("")
+    lines.append("These metrics use **different protocols** and are NOT directly comparable.")
+    lines.append("")
+    lines.append("| Metric | FaceLift | Pose-Splatter | Note |")
+    lines.append("|--------|----------|---------------|------|")
+
+    ps_specific = comparison["protocol_specific"]
+    for key in ["psnr_full_white", "ssim_full_white", "ssim_masked", "lpips"]:
+        entry = ps_specific[key]
+        fl_v = fmt(entry.get("facelift"))
+        ps_v = fmt(entry.get("posesplatter"))
+        note = entry.get("note", "")
+        lines.append(f"| {key} | {fl_v} | {ps_v} | {note} |")
 
     lines.append("")
 
     # Per-view table
     pv = comparison.get("per_view", {})
     if pv:
-        lines.append("## Per-View Breakdown (PSNR)")
+        lines.append("## Per-View Breakdown")
         lines.append("")
-        lines.append("| View | FaceLift | Pose-Splatter | Holdout |")
-        lines.append("|------|----------|---------------|---------|")
+        lines.append("Note: FL PSNR = full_white, PS PSNR = masked (different protocols).")
+        lines.append("")
+        lines.append("| View | FL PSNR | PS PSNR | FL IoU | PS IoU | Holdout |")
+        lines.append("|------|---------|---------|--------|--------|---------|")
         for vk in sorted(pv.keys()):
             vv = pv[vk]
-            fl_p = fmt(vv.get("psnr", {}).get("facelift"), 2)
-            ps_p = fmt(vv.get("psnr", {}).get("posesplatter"), 2)
+            fl_p = fmt(vv.get("fl_psnr_white"), 2)
+            ps_p = fmt(vv.get("ps_psnr_masked"), 2)
+            fl_iou = fmt(vv.get("fl_iou"), 3)
+            ps_iou = fmt(vv.get("ps_iou"), 3)
             holdout = "Yes" if vv.get("is_holdout") else ""
-            lines.append(f"| {vk} | {fl_p} | {ps_p} | {holdout} |")
+            lines.append(f"| {vk} | {fl_p} | {ps_p} | {fl_iou} | {ps_iou} | {holdout} |")
         lines.append("")
 
     # Model info
