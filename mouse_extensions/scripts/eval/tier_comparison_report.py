@@ -290,6 +290,128 @@ def build_conclusions(gslrm_6v: dict, gslrm_1v: dict, e2e: dict, ps: dict) -> li
     return lines
 
 
+def build_caveats_section(gslrm_6v: dict, gslrm_1v: dict, e2e: dict, ps: dict) -> list[str]:
+    """Methodological caveats and known asymmetries."""
+    lines = []
+    lines.append("## Caveats & Methodological Notes")
+    lines.append("")
+
+    # Frame count asymmetry
+    cfg_6v = gslrm_6v.get('config', {})
+    cfg_1v = gslrm_1v.get('config', {})
+    cfg_e2e = e2e.get('config', {})
+    cfg_ps = ps.get('config', {})
+
+    n_6v = cfg_6v.get('num_frames', '?')
+    n_1v = cfg_1v.get('num_frames', '?')
+    n_e2e = cfg_e2e.get('num_frames', '?')
+    n_ps = cfg_ps.get('num_frames', '?')
+
+    lines.append("### 1. Frame Count Asymmetry")
+    lines.append("")
+    lines.append("| Model | Frames | Range | Note |")
+    lines.append("|-------|:------:|-------|------|")
+
+    fr_6v = cfg_6v.get('frame_range', ['?', '?'])
+    fr_e2e = cfg_e2e.get('frame_range', ['?', '?'])
+    step_ps = cfg_ps.get('frame_step', '?')
+
+    lines.append(f"| GS-LRM 6-view | {n_6v} | {fr_6v[0]}-{fr_6v[1]} | Full test set |")
+    lines.append(f"| GS-LRM 1-view | {n_1v} | {fr_6v[0]}-{fr_6v[1]} | Full test set |")
+    lines.append(f"| E2E | {n_e2e} | {fr_e2e[0]}-{fr_e2e[1]} | Partial (earlier inference run) |")
+    lines.append(f"| Pose-Splatter | {n_ps} | 3240-3599 | frame_step={step_ps} |")
+    lines.append("")
+    lines.append("> E2E evaluated only 200/360 test frames. "
+                 "Per-frame metrics should be stable, but statistical power is lower.")
+    lines.append("")
+
+    # View evaluation asymmetry
+    views_6v = cfg_6v.get('views_evaluated', [])
+    views_ps = cfg_ps.get('views_evaluated', [])
+    lines.append("### 2. Evaluated Views Asymmetry")
+    lines.append("")
+    lines.append(f"- GS-LRM / E2E: views {views_6v} (view 0 = input, excluded)")
+    lines.append(f"- Pose-Splatter: views {views_ps} (view 0 included)")
+    lines.append(f"- PS view 0 inclusion effect: +0.13 dB PSNR, +0.003 IoU (minor)")
+    lines.append(f"- PS views 1-5 only: PSNR 16.67, IoU 0.824")
+    lines.append("")
+
+    # GT FG ratio difference
+    fg_6v = get_metric(gslrm_6v, 'gt_fg_ratio')
+    fg_ps = get_metric(ps, 'gt_fg_ratio')
+    lines.append("### 3. GT Foreground Ratio Difference")
+    lines.append("")
+    lines.append(f"- GS-LRM / E2E: gt_fg_ratio = {fg_6v:.1%} (512x512, GT RGBA alpha)")
+    lines.append(f"- Pose-Splatter: gt_fg_ratio = {fg_ps:.1%} (crop_to=512, white-BG extraction)")
+    lines.append("- Ratio is 2.2x higher for PS, likely due to tighter crop and different mask method")
+    lines.append("- This affects IoU comparability: higher FG ratio = easier IoU")
+    lines.append("")
+
+    # Mask source
+    mask_fl = cfg_6v.get('mask_source', '?')
+    mask_ps = cfg_ps.get('mask_source', '?')
+    lines.append("### 4. Mask Source")
+    lines.append("")
+    lines.append(f"- GS-LRM / E2E: `{mask_fl}` (GT RGBA alpha > 127)")
+    lines.append(f"- Pose-Splatter: `{mask_ps}` (threshold on white-BG render)")
+    lines.append("")
+
+    # 1-view IoU explanation
+    lines.append("### 5. GS-LRM 1-view IoU = 0.028")
+    lines.append("")
+    lines.append("- **Not a bug**. With 1 input view, the model produces artifacts covering ~97% of pixels.")
+    lines.append("- Coverage = 99.95% (GT FG almost fully inside predicted FG)")
+    lines.append("- Precision = 2.76% (only 2.76% of predicted FG is actual FG)")
+    lines.append("- IoU ≈ Precision when Coverage → 1.0 (degenerate case)")
+    lines.append("")
+
+    return lines
+
+
+def build_experiment_details() -> list[str]:
+    """Detailed experiment configuration section."""
+    lines = []
+    lines.append("### Experiment Details")
+    lines.append("")
+
+    lines.append("**Checkpoints:**")
+    lines.append("")
+    lines.append("| Model | Checkpoint | Training | Val PSNR |")
+    lines.append("|-------|-----------|----------|:--------:|")
+    lines.append("| GS-LRM 6-view | `gslrm/base_uniform_v2_6view_v2/best_psnr.pt` | M5t2 train, 6 input views | 24.49 |")
+    lines.append("| GS-LRM 1-view | `gslrm/base_uniform_v2_1view_v2/best_psnr.pt` | M5t2 train, 1 input view | 11.08 |")
+    lines.append("| E2E MVDiff | `mvdiffusion/mouse_M5t2/checkpoint-5000` | M5t2 train, sparse attn | N/A |")
+    lines.append("| E2E GS-LRM | `gslrm/M5t2_E0_1_facelift/best_psnr.pt` | M5t2 train, 4 input views | 22.34 |")
+    lines.append("| Pose-Splatter | `facelift_compare_5cam/latest` | M5t2 train, per-scene opt | N/A |")
+    lines.append("")
+
+    lines.append("**Data:**")
+    lines.append("")
+    lines.append("- Dataset: M5 (Mouse 5, single subject)")
+    lines.append("- Split: M5t2 — Train 0-2879 (80%), Val 2880-3239 (10%), Test 3240-3599 (10%)")
+    lines.append("- Resolution: 512x512 RGBA")
+    lines.append("- Cameras: 6 views (opencv_cameras.json, fixed positions)")
+    lines.append("")
+
+    lines.append("**Metric Protocol:**")
+    lines.append("")
+    lines.append("- PSNR_gt_masked: PSNR computed on GT foreground pixels only (alpha > 127)")
+    lines.append("- PSNR_intersection: PSNR on intersection of GT and predicted foreground")
+    lines.append("- IoU: Jaccard index between GT silhouette and predicted silhouette (threshold=0.98)")
+    lines.append("- Coverage: fraction of GT FG pixels covered by predicted FG")
+    lines.append("- Precision: fraction of predicted FG pixels that are actual GT FG")
+    lines.append("- Silhouette extraction: white-background threshold (default 0.98)")
+    lines.append("")
+
+    lines.append("**Hardware:**")
+    lines.append("")
+    lines.append("- Server: gpu03 (NVIDIA RTX A6000, Ampere)")
+    lines.append("- GPU 4-7 only (GPU 0-3 = Blackwell RTX PRO 6000, PyTorch CUDA kernels unavailable)")
+    lines.append("")
+
+    return lines
+
+
 def generate_report(gslrm_6v: dict, gslrm_1v: dict, e2e: dict, ps: dict,
                     output_dir: str) -> tuple[str, str]:
     """Generate full tiered comparison report.
@@ -314,22 +436,11 @@ def generate_report(gslrm_6v: dict, gslrm_1v: dict, e2e: dict, ps: dict,
     md_lines.extend(build_per_view_section(gslrm_6v, gslrm_1v, e2e, ps))
     md_lines.extend(build_conclusions(gslrm_6v, gslrm_1v, e2e, ps))
 
-    # Metadata
+    # Caveats and methodology
     md_lines.append("---")
     md_lines.append("")
-    md_lines.append("### Evaluation Config")
-    md_lines.append("")
-    md_lines.append("| Model | Checkpoint | Input |")
-    md_lines.append("|-------|-----------|-------|")
-    for label, data in [('GS-LRM 6-view', gslrm_6v), ('GS-LRM 1-view', gslrm_1v),
-                         ('E2E', e2e), ('Pose-Splatter', ps)]:
-        cfg = data.get('config', {})
-        n_frames = cfg.get('num_frames', '?')
-        views = cfg.get('views_evaluated', '?')
-        render_dir = cfg.get('render_dir', '?')
-        md_lines.append(f"| {label} | `...{Path(render_dir).name}` | {n_frames} frames, views {views} |")
-
-    md_lines.append("")
+    md_lines.extend(build_caveats_section(gslrm_6v, gslrm_1v, e2e, ps))
+    md_lines.extend(build_experiment_details())
 
     # Save markdown
     md_path = output_dir / "tier_comparison_report.md"
