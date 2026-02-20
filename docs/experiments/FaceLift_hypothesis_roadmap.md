@@ -1,0 +1,244 @@
+# FaceLift: Hypothesis Testing Status & Experiment Roadmap
+
+> Version 2.1 | 2026-02-19 | View Ablation Complete + Option A Phase
+
+---
+
+## 1. Completed Hypothesis Tests
+
+| # | Hypothesis | Method | Result | Conclusion |
+|---|-----------|--------|--------|-----------|
+| **H1** | GS-LRM > PS (same input) | Tier A: 5v GT → fair metrics | **+5.36 dB** (5v, different camera) | **Confirmed** — superior backbone |
+| **H2** | MVDiff training strategy can break E2E ceiling | Phase 3: E1 cosine, E2 resume, E3 pose | E1/E2/E3 all 7.9-8.2 PSNR_gt | **Rejected** — architectural limit |
+| **H3** | Stage 2 improvement transfers to E2E | E5: alpha regularization (0.3) | Val -1.0 dB, E2E transfer 0% | **Rejected** — not the bottleneck |
+| **H4** | Shallow pose conditioning helps MVDiff | E3: extrinsic camera + additive | E3 ≈ E2 within noise | **Rejected** — too shallow |
+| **H5** | Full attention > sparse attention | cfgr: sparse=false | cfgr < baseline in all metrics | **Rejected** — sparse is better |
+| **H6** | 6v GS-LRM improves E2E over 4v | P1: 6v GS-LRM + MVDiff E2E | 8.44 vs 8.20 (+0.24 dB) | **Marginal** — MVDiff quality limits gains |
+| **H7** | More input views always better (GT) | View ablation 1v→6v | **5v (22.16) > 6v (21.02)** | **Surprising** — 5v optimal on test set |
+
+## 2. Analysis Phase Findings
+
+| # | Analysis | Key Finding | Confidence |
+|---|---------|-------------|:----------:|
+| **A1** | MVDiff quality diagnostic | Sil IoU=0.582, 86% of E2E loss in MVDiff. **Shape error dominant** | High |
+| **A2** | Oracle MVDiff (GS-LRM sensitivity) | **Threshold effect**: v4,5 unused (0 dB), v3 = -5.2 dB cliff | High |
+| **A3** | Camera mismatch (M5 vs fj5_ds2) | HFOV 50° vs 35° → pixel-wise cross-model comparison invalid | **Critical** |
+| **A4** | **View ablation curve** | 5v > 6v on test set (+1.14 dB). Diminishing returns after 4v. Sharp cliff 2v→1v | **New** |
+
+---
+
+## 3. Complete View Ablation Results (Tier C) ⭐ NEW
+
+> GS-LRM GT inputs → test set (360 frames × 5 views, fair_comparison.py)
+
+| Views | PSNR_gt | IoU | PSNR_int | Cov | Δ from prev |
+|:-----:|:-------:|:---:|:--------:|:---:|:-----------:|
+| **1v** | 10.47 | 0.028 | 10.47 | 1.000 | - |
+| **2v** | 15.95 | 0.858 | 17.91 | 0.963 | **+5.48** |
+| **3v** | 18.56 | 0.899 | 19.54 | 0.985 | +2.61 |
+| **4v** | 20.66 | 0.926 | 21.29 | 0.993 | +2.10 |
+| **5v** | **22.16** | **0.942** | **22.56** | **0.997** | **+1.50** |
+| **6v** | 21.02 | 0.943 | 22.36 | 0.989 | **-1.14** |
+
+### Key Observations
+
+1. **5v is optimal** on test set (22.16 dB), surpassing 6v (21.02) by +1.14 dB
+2. **Diminishing returns**: 1→2v (+5.48), 2→3v (+2.61), 3→4v (+2.10), 4→5v (+1.50)
+3. **6v degradation**: IoU plateaus (0.942 vs 0.943) but PSNR drops — possible overfitting to 6v training distribution
+4. **Sharp cliff at 1v**: IoU 0.028 = model essentially fails with single view
+5. **2v → viable**: IoU 0.858, PSNR 15.95 — already competitive with PS
+
+### Bottleneck Structure (Updated)
+
+```
+GS-LRM 5v GT:  22.16 dB, IoU=0.942    ← NEW Upper bound (test set)
+GS-LRM 6v GT:  21.02 dB, IoU=0.943    ← Previous upper bound
+GS-LRM 4v GT:  20.66 dB, IoU=0.926
+                    │
+                    │  MVDiff: -13.72 dB loss (from 5v baseline)
+                    │    - Shape: IoU 0.942 → 0.582 (dominant)
+                    │    - Color: PSNR_int 22.56 → 18.61 (secondary)
+                    ▼
+P1 6v E2E:       8.44 dB, IoU=0.495    ← Best E2E
+E2 4v E2E:       8.20 dB, IoU=0.521    ← Previous best E2E
+```
+
+---
+
+## 4. E2E Results (all evaluated with fair_comparison.py)
+
+| Experiment | GS-LRM views | PSNR_gt | IoU | Notes |
+|-----------|:------------:|:-------:|:---:|-------|
+| **P1: 6v E2E (E2 MVDiff)** | 6 | **8.44** | 0.495 | Best E2E overall |
+| P1: 6v E2E (baseline MVDiff) | 6 | 8.11 | 0.501 | |
+| P1: 6v E2E (E1 MVDiff) | 6 | 8.04 | 0.511 | |
+| E2 resume 20K | 4 | 8.20 | 0.521 | Best 4v E2E |
+| E1 cosine 20K | 4 | 7.90 | 0.528 | Best color |
+| E3 pose 10K | 4 | 8.10 | 0.523 | Shallow pose cond. |
+| Baseline 5K | 4 | 7.93 | 0.474 | Original |
+| cfgr (full attn) | 4 | 7.75 | 0.491 | Worst |
+
+**Key insight**: All E2E variants converge at 7.9-8.4 regardless of GS-LRM views or MVDiff training. MVDiff view quality is the hard ceiling.
+
+---
+
+## 5. Cross-Model Comparison Status
+
+### Tier A: Fair Quantitative (same #input views, GT)
+
+| Model | Data | Views | PSNR_gt | IoU | Status |
+|-------|------|:-----:|:-------:|:---:|--------|
+| **GS-LRM 5v GT** | **M5** | **5** | **22.16** | **0.942** | **Done** ⭐ |
+| GS-LRM 6v GT | M5 | 6 | 21.02 | 0.943 | Done |
+| GS-LRM 4v GT | M5 | 4 | 20.66 | 0.926 | Done |
+| PS (fj5_ds2) | fj5_ds2 | 5+1 | 16.80 | 0.827 | Done (different camera) |
+| **PS (M5)** | **M5** | **5+1** | **?** | **?** | **Training (joon)** |
+
+> **⚠️ Camera mismatch**: GS-LRM 5v 22.16 vs PS 16.80 (+5.36 dB) comparison is across different camera spaces (M5 HFOV=50° vs fj5_ds2 HFOV≈35°). **Option A** (PS M5 training) will enable fair same-camera comparison.
+
+### Tier B: E2E vs PS
+
+> Currently INVALID for quantitative comparison due to camera mismatch. Will become valid after Option A completes.
+
+### Tier C: Pipeline Bottleneck
+
+| Stage | Input | PSNR_gt | IoU | Drop from 5v |
+|-------|:-----:|:-------:|:---:|:------------:|
+| **GS-LRM 5v GT** | **5 GT** | **22.16** | **0.942** | **baseline** |
+| GS-LRM 6v GT | 6 GT | 21.02 | 0.943 | -1.14 |
+| GS-LRM 4v GT | 4 GT | 20.66 | 0.926 | -1.50 |
+| GS-LRM 3v GT | 3 GT | 18.56 | 0.899 | -3.60 |
+| GS-LRM 2v GT | 2 GT | 15.95 | 0.858 | -6.21 |
+| GS-LRM 1v GT | 1 GT | 10.47 | 0.028 | -11.69 |
+| **P1 6v E2E** | **6 MVDiff** | **8.44** | **0.495** | **-13.72** |
+| E2 4v E2E | 4 MVDiff | 8.20 | 0.521 | -13.96 |
+
+---
+
+## 6. Current & Next Experiments
+
+### In Progress
+
+| Location | Experiment | Status | ETA |
+|----------|-----------|--------|-----|
+| joon | **Option A**: PS M5 training (`m5_baseline_gs`, epoch 1/50) | Training | ~28h |
+
+### Completed Today (2026-02-19)
+
+| Experiment | Result |
+|-----------|--------|
+| GS-LRM 5v GT inference + fair eval | PSNR_gt=22.16, IoU=0.942 |
+| GS-LRM 2v GT inference + fair eval | PSNR_gt=15.95, IoU=0.858 |
+| GS-LRM 3v GT inference + fair eval | PSNR_gt=18.56, IoU=0.899 |
+
+### Next Queue
+
+| # | Experiment | Purpose | Depends on | Cost |
+|---|-----------|---------|------------|------|
+| **Q1** | **Option A fair eval** | PS M5 → fair metrics | PS training done (~28h) | 10 min |
+| **Q2** | **Tier A: GS-LRM 5v vs PS M5** | Same camera + same views | Q1 | Report |
+| **Q3** | **Tier B: E2E vs PS M5** | Same camera E2E comparison | Q1 | Report |
+
+### Architecture Changes (MVDiff improvement, Priority Tier 3)
+
+> All Phase 3 training strategies exhausted (H2 rejected). Only architecture-level changes can break the 7.9-8.4 ceiling.
+
+| # | Hypothesis | Approach | Impact | Cost | Ref |
+|---|-----------|----------|:------:|------|-----|
+| **P2** | Silhouette-guided generation | Add sil L1/BCE loss to MVDiff | **High** | 1-2 days | Shape error = 86% of gap |
+| **P3** | Deep camera pose conditioning | Inject extrinsics into RMA layers | **High** | 1-2 days | E3 failed (too shallow) |
+| **P4** | Virtual camera interpolation | Generate at 60° → warp to actual | **Medium** | 2-3 days | Satisfy RMA assumption |
+| P5 | View consistency enhancement | Cross-view geometric loss | Medium | 2-3 days | Inter-view coherence |
+
+**Recommended order**: P2 → P3 → P4 (see §8 for rationale)
+
+---
+
+## 7. E3: Shallow Pose Conditioning (Detailed Record)
+
+> **Status**: Completed, **Rejected** (no improvement)
+
+| Item | Detail |
+|------|--------|
+| **Setup** | Camera extrinsic matrices (3×4) → linear projection → added to CLIP embedding |
+| **Architecture** | Additive injection at UNet cross-attention input level |
+| **Checkpoint** | `mouse_M5t2_E3_pose/checkpoint-10000` |
+| **Result** | PSNR_gt=8.10, IoU=0.523 (vs E2 baseline: 8.20, 0.521) |
+| **Per-view** | No improvement in any individual view; v4,v5 still IoU < 0.45 |
+| **Why failed** | RMA structurally assumes 60° uniform spacing. Additive pose signal cannot override hardcoded attention patterns |
+| **Lesson** | Need **multiplicative** or **layer-internal** injection (modifying Q/K/V or positional encoding) |
+
+---
+
+## 8. Architecture Change Strategy (MVDiff Improvement)
+
+### Why P2 (Silhouette) first?
+
+- A1: Shape error = 86% of E2E bottleneck (IoU: 0.942 → 0.582)
+- Minimal architecture change: add silhouette loss term to existing training
+- Alternative: 2-stage predict-then-generate (more complex but cleaner)
+- **Success criterion**: MVDiff Sil IoU > 0.7 → E2E PSNR_gt > 10
+
+### Why P3 (Deep Pose) after P2?
+
+- E3 lesson: Shallow (additive) = no effect
+- RMA assumes uniform 60° → mouse cameras are NON-uniform
+- Need: Camera-conditioned positional encoding, per-head distance weighting
+- Requires modifying `mvdiffusion/models/unet_mv2d_condition.py`
+
+### Why P4 (Virtual Camera) is alternative to P3?
+
+- Instead of changing RMA, satisfy its assumption
+- Generate at 60° uniform positions → warp/interpolate to actual
+- Trade-off: Avoids RMA modification but adds post-processing
+
+### Decision Matrix
+
+| Factor | P2 (Silhouette) | P3 (Deep Pose) | P4 (Virtual Cam) |
+|--------|:---------------:|:--------------:|:-----------------:|
+| Attacks shape error | Direct | Indirect | Indirect |
+| Code complexity | Low | Medium | High |
+| Training time | ~1 day | ~1 day | ~2 days |
+| Risk | Low | Medium | Medium |
+| **Recommended** | **1st** | **2nd** | **3rd (or skip)** |
+
+---
+
+## 9. Execution Timeline
+
+```
+[DONE - 260219]
+  ✅ View ablation 1v-6v complete
+  ✅ 5v optimal discovery (22.16 > 21.02)
+
+[IN PROGRESS]
+  joon: PS M5 training (epoch 1/50, ~28 hours remaining)
+
+[+28 hours] PS M5 training done
+  → Fair eval → Tier A: GS-LRM 5v vs PS M5 (FAIR)
+  → Tier B: E2E vs PS M5 (FAIR)
+
+[Next] Architecture changes:
+  P2 → Silhouette supervision (1-2 days)
+  P3 → Deep pose conditioning (1-2 days)
+  P4 → Virtual camera interpolation (if P2/P3 insufficient)
+```
+
+---
+
+## Appendix: Checkpoint Reference
+
+| Views | Checkpoint Path | Val PSNR |
+|:-----:|----------------|:--------:|
+| 1v | `base_uniform_v2_1view_v2/best_psnr.pt` | 11.08 |
+| 2v | `base_uniform_v2_2view_v2/best_psnr.pt` | — |
+| 3v | `base_uniform_v2_3view_v2/best_psnr.pt` | — |
+| 4v | `base_uniform_v2_4view_v2/best_psnr.pt` | 22.34 |
+| 5v | `base_uniform_v2_5view_v2/best_psnr.pt` | — |
+| 6v | `base_uniform_v2_6view_v2/best_psnr.pt` | 24.49 |
+
+All at: `/node_data/joon/checkpoints/FaceLift/gslrm/`
+
+---
+
+*FaceLift Hypothesis Roadmap v2.1 | 2026-02-19*
