@@ -2,7 +2,7 @@
 
 > **Map of Content (MoC)** - 모든 가설과 실험의 메인 허브
 >
-> Last Updated: 2026-02-15 | Project: FaceLift
+> Last Updated: 2026-02-20 | Project: FaceLift
 
 ---
 
@@ -17,52 +17,58 @@
 | [H3](#h3-e2e-bottleneck) | E2E 파이프라인 병목은? | ✅ | MV-Diffusion (undertrained 시). H3-bis 완료 |
 | [H3-bis](#h3-bis-same-test-set-revalidation) | 동일 테스트셋 재검증? | ✅ | MVDiff 항상 병목 (13-17 dB gap), 데이터↑ → gap↓ ~3 dB |
 | [H4](#h4-view-ablation) | 최적 입력 뷰 수는? | ✅ | **6-view 최적 (단조 증가)**. R1+R2 완료 |
-| [H5](#h5-mvdiffusion) | MV-Diffusion 개선 방법은? | 🔄 | Phase 3 E1/E2 실행중, P0/P1 완료, cfgr 기각 |
+| [H5](#h5-mvdiffusion) | MV-Diffusion 개선 방법은? | ✅ | Phase 3 완료: 모든 전략 PSNR_gt 7.9-8.4 수렴, 아키텍처 한계 |
 | [H6](#h6-alpha-mask) | Alpha mask가 효과적인가? | 🔄 | v3 실행중: LPIPS 3x 개선, PSNR ~1dB trade-off |
 | [H7](#h7-ssim-weight) | SSIM weight 최적값은? | ⏳ | 대기 |
 | [H8](#h8-reduced-view-generation) | 생성 뷰 감소로 품질↑? | ✅ | ❌ 뷰 감소 → novel PSNR -7.7dB, 개선 없음 |
 
+> **PS M5 재학습**: 좌표계 수정(auto_orient space) 후 학습 진행중. 완료 시 fair Tier B 비교 가능.
+
 ---
 
-## Experiment Status Dashboard (260215)
+## Experiment Status Dashboard (260220)
 
 ### GPU Allocation
 
 | GPU | 실험 | 상태 |
 |-----|------|------|
 | 0-3 | **IDLE** | - |
-| 4 | **Phase 3 E1** (20K cosine, 새 학습) | 🔄 ~31/20K |
+| 4 | **Phase 3 E1** (20K cosine, 새 학습) | ✅ complete (7.90 dB) |
 | 5 | H6 alpha05_v3 (GS-LRM) | 🔄 ~15K (Feb 13~) |
 | 6 | H6 alpha10_v3 (GS-LRM) | 🔄 ~15K (Feb 13~) |
-| 7 | **Phase 3 E2** (P0 resume, LR=1e-5) | 🔄 ~10054/20K |
+| 7 | **Phase 3 E2** (P0 resume, LR=1e-5) | ✅ complete (8.20 dB) |
 
-### Recently Completed (260211-260215)
+### Recently Completed (260211-260220)
 
 | 실험 | 결과 |
 |------|------|
 | **H5 P0 randref_sparse** (10K) | ✅ ckpt-10K, PSNR ~27 but oscillation |
 | **H5 P1 pose_spherical** (10K) | ✅ 완료, 5K 후 plateau |
+| **H5 E1 20K cosine** | ✅ 7.90 dB (PSNR_int=16.15, best color) |
+| **H5 E2 resume 20K** | ✅ 8.20 dB (best overall PSNR_gt) |
+| **H5 E3 pose 10K** | ✅ 8.10 dB (pose conditioning ineffective) |
 | H8 3-view E2E | ✅ PSNR_wh=22.67, novel avg=16.26 (❌ 6-view보다 -7.7dB) |
 | H8 결론 | ✅ 뷰 감소는 품질 개선 불가 (GS-LRM 뷰 부족이 지배적) |
 
-### Phase 3 MVDiff Status (260215~)
+> **Phase 3 COMPLETE**: 모든 전략(baseline/cfgr/E1/E2/E3) PSNR_gt 7.90-8.44 dB로 수렴. Training strategy로는 MVDiff 아키텍처 병목 돌파 불가.
 
-| # | Config | 핵심 변경 | LR | 상태 | GPU |
-|:-:|--------|----------|:--:|:----:|:---:|
-| **E1** | M5t2_20k_cosine | cosine 5e-5→0, 20K 새 학습 | cosine | 🔄 | 4 |
-| **E2** | M5t2_randref_20k_resume | P0 resume ckpt-10K, LR=1e-5 | piecewise | 🔄 | 7 |
-| **E3** | M5t2_pose_extrinsic_add | extrinsic 6D + add | cosine | ⏳ R1 후 | 4 |
-| **E4** | M5t2_pose_spherical_add | spherical + add (vs P1 concat) | cosine | ⏳ R1 후 | 7 |
-| **E5** | 4view_alpha03_v3 | GS-LRM alpha=0.3 | - | ⏳ H6 완료 후 | 5/6 |
+### Phase 3 MVDiff Status (COMPLETE)
+
+| # | Config | 핵심 변경 | LR | 상태 | GPU | PSNR_gt |
+|:-:|--------|----------|:--:|:----:|:---:|:-------:|
+| **E1** | M5t2_20k_cosine | cosine 5e-5→0, 20K 새 학습 | cosine | ✅ | 4 | 7.90 |
+| **E2** | M5t2_randref_20k_resume | P0 resume ckpt-10K, LR=1e-5 | piecewise | ✅ | 7 | 8.20 |
+| **E3** | M5t2_pose_extrinsic_add | extrinsic 6D + add | cosine | ✅ | 4 | 8.10 |
+| **E4** | M5t2_pose_spherical_add | spherical + add (vs P1 concat) | cosine | ⏳ R1 후 | 7 | - |
+| **E5** | 4view_alpha03_v3 | GS-LRM alpha=0.3 | - | ⏳ H6 완료 후 | 5/6 | - |
 
 ### Next Priority
 
 | 순위 | 실험 | GPU | ETA |
 |:----:|------|:---:|:---:|
-| **1** | E1 (20K cosine) + E2 (P0 resume) | 4, 7 | ~30-60h |
-| **2** | E5 (alpha=0.3) | 5/6 | H6 v3 완료 후 |
-| **3** | E3 (extrinsic+add) + E4 (spherical+add) | 4, 7 | R1 완료 후 |
-| 4 | H7 SSIM weight ablation | TBD | Phase 3 R1 분석 후 |
+| **1** | E5 (alpha=0.3) | 5/6 | H6 v3 완료 후 |
+| **2** | E4 (spherical+add) | 7 | GPU 해제 후 |
+| 3 | H7 SSIM weight ablation | TBD | Phase 3 분석 후 |
 
 ---
 
@@ -104,6 +110,21 @@
 | baseline | 15.99 | 0 | -5.72 |
 
 > 이전 R1(비균일): 3view best → v2(uniform): **단조 증가**. 실험 조건 통일의 중요성.
+
+### H4 Fair Eval Test Set 결과 (260220)
+
+> Val PSNR (학습 중 검증)과 Fair Test PSNR_gt (테스트셋 공정 평가)의 비교:
+
+| Views | Val PSNR | Fair Test PSNR_gt | Fair Test IoU |
+|:-----:|:--------:|:-----------------:|:-------------:|
+| 1 | 11.08 | 10.47 | 0.028 |
+| 2 | 17.75 | 15.95 | 0.858 |
+| 3 | 20.01 | 18.56 | 0.899 |
+| 4 | 21.71 | 20.66 | 0.926 |
+| 5 | 23.02 | 22.16 | 0.942 |
+| 6 | 24.49 | 23.84 | 0.954 |
+
+> 6v > 5v > 4v > 3v > 2v > 1v (monotonic). Val과 Fair Test 모두 단조 증가 패턴 확인.
 
 ### H5 cfgr 결과
 
@@ -387,15 +408,28 @@ Condition C: outputs/h1bis_v2/e2e_M5t
 | 1 | 11.08 | 2,401 | -4.91 | ❌ Fine-tuning 역효과 |
 | baseline (0-shot) | 15.99 | 0 | — | Pretrained only |
 
+### H4 Fair Eval Test Set 결과 (260220)
+
+> Val PSNR (학습 중 검증)과 Fair Test (테스트셋 공정 평가) 비교. 6v > 5v (monotonic).
+
+| Views | Val PSNR | Fair Test PSNR_gt | Fair Test IoU |
+|:-----:|:--------:|:-----------------:|:-------------:|
+| 1 | 11.08 | 10.47 | 0.028 |
+| 2 | 17.75 | 15.95 | 0.858 |
+| 3 | 20.01 | 18.56 | 0.899 |
+| 4 | 21.71 | 20.66 | 0.926 |
+| 5 | 23.02 | 22.16 | 0.942 |
+| 6 | 24.49 | 23.84 | 0.954 |
+
 → **상세 + 명령어**: [hypotheses/H4_VIEW_ABLATION.md](./hypotheses/H4_VIEW_ABLATION.md)
 
 ---
 
-## H5: MV-Diffusion 🔄
+## H5: MV-Diffusion ✅
 
 > MV-Diffusion fine-tuning으로 E2E 품질을 개선할 수 있는가?
 
-### H5 실험 매트릭스 (260215 업데이트)
+### H5 실험 매트릭스 (260220 업데이트)
 
 **원칙**: Baseline (sparse=true, ref=0)에서 **단일 변수만** 변경
 
@@ -405,9 +439,9 @@ Condition C: outputs/h1bis_v2/e2e_M5t
 | **M5t2_cfgr** | sparse→full | piecewise 5e-5 | 10K | ✅ | -0.48 dB ❌ |
 | **P0: randref_sparse** | ref=random | piecewise 5e-5 | 10K | ✅ | ~27, oscillation |
 | **P1: pose_spherical** | pose+concat | piecewise 5e-5 | 10K | ✅ | plateau @5K |
-| **E1: 20k_cosine** | **cosine LR**, 20K | **cosine** | 20K | 🔄 GPU 4 | |
-| **E2: randref_20k_resume** | P0 resume, **LR=1e-5** | **piecewise** | 20K | 🔄 GPU 7 | |
-| **E3: pose_extrinsic_add** | extrinsic+**add** | **cosine** | 10K | ⏳ | |
+| **E1: 20k_cosine** | **cosine LR**, 20K | **cosine** | 20K | ✅ | **7.90 dB** (PSNR_int=16.15) |
+| **E2: randref_20k_resume** | P0 resume, **LR=1e-5** | **piecewise** | 20K | ✅ | **8.20 dB** (best PSNR_gt) |
+| **E3: pose_extrinsic_add** | extrinsic+**add** | **cosine** | 10K | ✅ | **8.10 dB** (pose ineffective) |
 | **E4: pose_spherical_add** | spherical+**add** | **cosine** | 10K | ⏳ | |
 
 ### H5 Phase 1-2 결론
@@ -419,14 +453,24 @@ Condition C: outputs/h1bis_v2/e2e_M5t
 | Pose conditioning이 E2E 개선? | P1 pose_spherical | ⚠️ 5K 후 plateau, concat 효과 미미 |
 | **근본 원인** | P0+P1 공통 | `step_rules "1:100000,0.5"` = 10K 내 LR decay 없음 |
 
-### H5 Phase 3 (260215~, 실행중)
+### H5 Phase 3 결론 (260220, COMPLETE)
 
-Phase 2 실패 분석 → **LR 개선 + Pose integration 변형**:
+Phase 2 실패 분석 → **LR 개선 + Pose integration 변형** 실험 완료:
 
-| Round | 실험 | 핵심 가설 | 상태 |
-|:-----:|------|----------|:----:|
-| R1 | E1 + E2 (동시) | Cosine/LR decay가 수렴 안정화 | 🔄 실행중 |
-| R2 | E3 + E4 (R1 후) | Add integration이 concat보다 효율적, extrinsic 우수 | ⏳ 대기 |
+| # | 실험 | PSNR_gt | PSNR_int | 핵심 결과 |
+|:-:|------|:-------:|:--------:|----------|
+| baseline | M5t2 (sparse, 10K) | 8.44 | - | 기준선 |
+| cfgr | full attention | - | - | -0.48 dB ❌ |
+| **E1** | 20K cosine (새 학습) | **7.90** | **16.15** | Best color (PSNR_int) |
+| **E2** | P0 resume LR=1e-5 | **8.20** | - | **Best PSNR_gt** |
+| **E3** | extrinsic 6D + add | **8.10** | - | Pose conditioning 무효 |
+
+**Phase 3 핵심 결론**:
+
+1. **수렴 포화**: 모든 전략(baseline/cfgr/E1/E2/E3)이 PSNR_gt 7.90-8.44 dB 범위로 수렴
+2. **Training strategy 한계**: Cosine LR, resume, pose conditioning 모두 아키텍처 병목 돌파 불가
+3. **Stage 2 transfer rate = 0%**: Alpha regularization 등 Stage 2 개선이 E2E에 전달되지 않음
+4. **결론**: MVDiff 아키텍처 자체 변경 필요 (attention mechanism, backbone 등)
 
 → 상세: [hypotheses/H5_MVDIFFUSION.md](./hypotheses/H5_MVDIFFUSION.md)
 
@@ -544,6 +588,7 @@ Phase 2 실패 분석 → **LR 개선 + Pose integration 변형**:
 |------|------|
 | [h1_diagnosis_report.md](../outputs/reports/h1_diagnosis_report.md) | H3 병목 분석 |
 | [view_ablation_report.md](../outputs/reports/view_ablation_report.md) | View Ablation |
+| [comprehensive_analysis_report.md](../experiments/comparison/comprehensive_analysis_report.md) | Tier A/B/C + View Ablation 종합 분석 |
 
 ---
 
@@ -584,15 +629,18 @@ Phase 2 실패 분석 → **LR 개선 + Pose integration 변형**:
 
 GPU 4개 x 2-3 실험 = 1~2 라운드
 
-### Phase 3: MVDiffusion + GS-LRM Systematic Improvement (260215~)
+### Phase 3: MVDiffusion + GS-LRM Systematic Improvement ✅ COMPLETE
 
-> P0/P1 결과 분석 → LR 개선 + Pose 변형 설계
+> P0/P1 결과 분석 → LR 개선 + Pose 변형 설계 → **모든 전략 수렴, 아키텍처 한계 확인**
 
-| Round | 실험 | 핵심 변경 | 상태 |
-|:-----:|------|----------|:----:|
-| **R1** | E1 (20K cosine) + E2 (P0 resume LR=1e-5) | LR scheduling | 🔄 GPU 4+7 |
-| **R2** | E3 (extrinsic+add) + E4 (spherical+add) | Pose integration | ⏳ R1 후 |
-| **R3** | E5 (alpha=0.3) | GS-LRM alpha 최적점 | ⏳ H6 v3 후 |
+| Round | 실험 | 핵심 변경 | 상태 | 결과 |
+|:-----:|------|----------|:----:|:----:|
+| **R1** | E1 (20K cosine) + E2 (P0 resume LR=1e-5) | LR scheduling | ✅ | 7.90 / 8.20 dB |
+| **R1** | E3 (extrinsic+add) | Pose integration | ✅ | 8.10 dB |
+| **R2** | E4 (spherical+add) | Pose integration | ⏳ | - |
+| **R3** | E5 (alpha=0.3) | GS-LRM alpha 최적점 | ⏳ H6 v3 후 | - |
+
+**Phase 3 결론**: 모든 전략(baseline/cfgr/E1/E2/E3)이 PSNR_gt 7.9-8.4 dB로 수렴. Training strategy로는 MVDiff 아키텍처 병목 돌파 불가. 아키텍처 변경 필요.
 
 이전 실험 (완료):
 | 순위 | 실험 | 상태 |
@@ -659,4 +707,4 @@ Phase 2 완료
 
 ---
 
-*MoC v7.0 | FaceLift Research Dashboard | 260215*
+*MoC v8.0 | FaceLift Research Dashboard | 260220*

@@ -204,6 +204,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 | 문서 | 내용 |
 |------|------|
 | [[experiments/EXPERIMENT_REGISTRY]] | 실험 설정, 우선순위 |
+| [[experiments/comparison/comprehensive_analysis_report]] | Tier A/B/C 종합 분석 + View Ablation |
 | [[_archive/MOUSE_QUICK_REFERENCE]] | 명령어 참조 |
 | _(삭제됨)_ | Train/Val 성능 Gap 분석 |
 
@@ -255,7 +256,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 | **Config** | `mouse_extensions/scripts/eval/unified_eval_config.yaml` |
 | **Design doc** | `docs/experiments/FL_vs_PS_comparison.md` |
 | **PS metrics (joon)** | `output/facelift_compare_5cam/latest/paper_standard_evaluation.json` |
-| **FL metrics (gpu03)** | `outputs/h5_e2e/cfgr_ckpt10000/metrics_v2.json` |
+| **FL metrics (gpu03)** | `experiments/comparison/tier/*_fair.json` (fair eval) |
 
 ### Metric Protocol Warning
 
@@ -276,4 +277,40 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 
 ---
 
-*Last Updated: 2026-02-15 | 상세 문서는 [[INDEX]] 참조*
+## 11. Key Results Summary (260220)
+
+### View Ablation (Fair Eval, test set, 360f × 5 views)
+
+| Views | PSNR_gt | IoU | PSNR_int |
+|:-----:|:-------:|:---:|:--------:|
+| 1 | 10.47 | 0.028 | 10.47 |
+| 2 | 15.95 | 0.858 | 17.91 |
+| 3 | 18.56 | 0.899 | 19.54 |
+| 4 | 20.66 | 0.926 | 21.29 |
+| 5 | 22.16 | 0.942 | 22.56 |
+| 6 | **23.84** | **0.954** | **24.02** |
+
+### Best Checkpoints (M5t2)
+
+| Component | Checkpoint | Key Metric |
+|-----------|-----------|:----------:|
+| GS-LRM 6v | `6view_v2/best_psnr.pt` | **PSNR=23.84** (test, fair eval) |
+| GS-LRM 4v | `M5t2_E0_1_facelift/best_psnr.pt` | PSNR=20.66 (test, fair eval) |
+| MVDiff | `mouse_M5t2/checkpoint-5000` | E2E PSNR_wh=21.29 |
+
+### Phase 3 Conclusion
+
+- All E2E strategies converge: PSNR_gt 7.90-8.44, IoU 0.47-0.53
+- MVDiff = sole bottleneck (86% of quality loss, -15.64 dB from 6v GT)
+- Training strategy optimization is saturated → architecture change needed
+- GS-LRM 6v > PS by +7.13 dB (Tier A fair eval)
+
+### PS M5 Retraining (in progress)
+
+- Coordinate system fixed (auto_orient space)
+- Training loss: 1.20 → 0.58 (decreasing)
+- Expected: fair Tier B comparison after completion
+
+---
+
+*Last Updated: 2026-02-20 | 상세 문서는 [[INDEX]] 참조*
