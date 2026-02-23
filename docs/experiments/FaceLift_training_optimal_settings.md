@@ -12,7 +12,7 @@ This document covers optimal training settings for each stage, all experiments c
 
 ---
 
-## Stage 1: MVDiffusion (Multi-View Generation)
+## Stage 1: Multi-view Diffusion (SD2.1-UnCLIP + Era3D) (Multi-View Generation)
 
 ### 1.1 Architecture
 

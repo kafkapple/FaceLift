@@ -7,17 +7,37 @@
 
 ## 1. 원본 데이터셋
 
-### 1.1 Markerless Mouse (DANNCE)
+### 1.1 Markerless Mouse (DANNCE → MAMMAL → 본 프로젝트)
 
-| 항목 | 값 |
-|------|-----|
-| **출처** | DANNCE (3-Dimensional Aligned Neural Network for Computational Ethology) |
-| **원본 저장소** | [github.com/spoonsso/dannce](https://github.com/spoonsso/dannce/tree/master/demo) |
-| **피사체** | 마우스 (단일) |
-| **뷰 수** | 6개 카메라 |
-| **총 프레임** | ~18,000 프레임 |
-| **원본 FPS** | 30 fps |
-| **해상도** | 512 × 512 |
+**데이터 출처 체인**:
+```
+DANNCE (Harvard, Dunn et al. 2021)
+  │  markerless_mouse_1: 6cam, 1152×1024, 100fps, 18,000 frames
+  v
+MAMMAL (An et al. 2023)
+  │  markerless_mouse_1_nerf/: segment mask 추가, NeRF용 재가공
+  v
+본 프로젝트 (FaceLift Mouse)
+  │  M5 전처리: center crop → 512×512 RGBA, 카메라 정규화
+  v
+M5 데이터 (3,600 frames × 6 views × 512×512)
+```
+
+| 항목 | DANNCE 원본 | MAMMAL 가공 (markerless_mouse_1_nerf) | 본 프로젝트 (M5) |
+|------|:-----------:|:-------------------------------------:|:----------------:|
+| **출처** | Dunn et al. 2021 | An et al. 2023 | 본 연구 |
+| **해상도** | 1152 × 1024 | 512 × 512 (비디오) | 512 × 512 (RGBA) |
+| **FPS** | 100 | ~30 (비디오 변환) | 6 (frame_interval=5) |
+| **프레임** | 18,000 | ~18,000 | 3,600 |
+| **카메라** | 6대 | 6대 | 6대 |
+| **마스크** | 없음 | simpleclick_undist | RGBA alpha |
+| **저장소** | [spoonsso/dannce](https://github.com/spoonsso/dannce) | [anl13/MAMMAL_mouse](https://github.com/anl13/MAMMAL_mouse) | 로컬 |
+
+> **⚠️ PoseSplatter 데이터와의 관계**:
+> PoseSplatter (Goffinet et al. 2025)는 DANNCE/MAMMAL 데이터를 사용하지 **않으며**, **자체 녹화한 별도 데이터**를 사용합니다
+> (Duke, 324K frames, 1536×2048, 30fps, 28cm 플라스틱 실린더, DOI: 10.7924/r4z323k2c).
+> 본 프로젝트에서 PS 코드를 M5 데이터에 적용한 것이지, PS가 원래 DANNCE 데이터를 쓰는 것이 아닙니다.
+> 자세한 비교: [[experiments/FL_vs_PS_comparison]] §2
 
 ### 1.2 데이터 위치
 
@@ -156,10 +176,18 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
 
 > Dunn, T. W., et al. (2021). **Geometric deep learning enables 3D kinematic profiling across species and environments**. *Nature Methods*, 18(5), 564–573.
 
-### Related Works
+### Data Processing (MAMMAL)
 
-- **MAMMAL** (2023): Multi-animal 3D reconstruction
-- **Pose Splatter** (2025): 3D Gaussian Splatting for animal pose
+> An, L., et al. (2023). **Three-dimensional surface motion capture of multiple freely moving pigs using MAMMAL**. *Nature Communications*, 14, 7727.
+> - DANNCE `markerless_mouse_1` 데이터에 segment mask 추가 및 NeRF용 가공
+> - GitHub: [anl13/MAMMAL_mouse](https://github.com/anl13/MAMMAL_mouse)
+
+### Comparison Method (PoseSplatter) — 별도 데이터
+
+> Goffinet, J., et al. (2025). **PoseSplatter: Pose Conditioned Gaussian Splatting from a Single Image**. arXiv:2505.18342.
+> - **자체 녹화 데이터** 사용 (Duke, 1536×2048, 30fps, 324K frames, DOI: 10.7924/r4z323k2c)
+> - DANNCE/MAMMAL 데이터와 **무관**. 같은 Duke 연구 생태계이나 별도 녹화.
+> - David Carlson (PS 교신저자)은 DANNCE 공저자이기도 하나, 데이터는 새로 촬영.
 
 ---
 

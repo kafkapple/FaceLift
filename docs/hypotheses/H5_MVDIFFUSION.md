@@ -1,6 +1,10 @@
 # H5: MV-Diffusion 학습 최적화
 
-> **가설**: MVDiffusion을 mouse 데이터에 맞게 fine-tuning하면 E2E 품질이 개선될 것이다.
+> **Terminology**: 'MVDiffusion'/'MVDiff' = FaceLift Stage 1 (SD2.1-UnCLIP + Era3D RMA).
+> 코드 폴더 `mvdiffusion/`은 Era3D에서 상속된 명칭. Tang et al. MVDiffusion 논문과 별개.
+
+
+> **가설**: Multi-view diffusion (Stage 1)을 mouse 데이터에 맞게 fine-tuning하면 E2E 품질이 개선될 것이다.
 >
 > ← [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) | **상태**: 🔄 진행중 | **Updated**: 2026-02-15
 

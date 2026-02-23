@@ -135,9 +135,17 @@ E2 4v E2E:       8.20 dB, IoU=0.521    ← Previous best E2E
 
 | # | Experiment | Purpose | Depends on | Cost |
 |---|-----------|---------|------------|------|
-| **Q1** | **Option A fair eval** | PS M5 → fair metrics | PS training done (~28h) | 10 min |
-| **Q2** | **Tier A: GS-LRM 5v vs PS M5** | Same camera + same views | Q1 | Report |
-| **Q3** | **Tier B: E2E vs PS M5** | Same camera E2E comparison | Q1 | Report |
+| **Q1** | **DA1 E2E eval** | Domain adaptation → E2E PSNR | DA1 fine-tune | 1h |
+| **Q2** | **H3 E2E eval** | Pose conditioning → E2E effect | H3 training | 1h |
+| **Q3** | **H_Split: 1:1:1 split** | Split ratio fairness test | DA1+H3 done | ~24h |
+| **Q4** | **Cross-species Rat7M** | Multi-species generalization | H_Split | ~3 days |
+
+### Fairness & Generalization Experiments (Priority Tier 2)
+
+| # | Hypothesis | Approach | Impact | Cost | Ref |
+|---|-----------|----------|:------:|------|-----|
+| **H_Split** | 8:1:1 split biases FL | Run FL+PS on 1:1:1 M5t split | **High** (fairness) | ~24h | FL_vs_PS §2.5 |
+| **H_Rat** | FL generalizes to rat | Rat7M preprocessing + FL fine-tune + PS comparison | **High** (narrative) | ~3 days | FL_vs_PS §2.6 |
 
 ### Architecture Changes (MVDiff improvement, Priority Tier 3)
 
@@ -228,14 +236,19 @@ E2 4v E2E:       8.20 dB, IoU=0.521    ← Previous best E2E
 
 ## Appendix: Checkpoint Reference
 
-| Views | Checkpoint Path | Val PSNR |
-|:-----:|----------------|:--------:|
-| 1v | `base_uniform_v2_1view_v2/best_psnr.pt` | 11.08 |
-| 2v | `base_uniform_v2_2view_v2/best_psnr.pt` | — |
-| 3v | `base_uniform_v2_3view_v2/best_psnr.pt` | — |
-| 4v | `base_uniform_v2_4view_v2/best_psnr.pt` | 22.34 |
-| 5v | `base_uniform_v2_5view_v2/best_psnr.pt` | — |
-| 6v | `base_uniform_v2_6view_v2/best_psnr.pt` | 24.49 |
+| Views | Checkpoint Path | Val PSNR | PSNR_fg (fair) |
+|:-----:|----------------|:--------:|:--------------:|
+| 1v | `base_uniform_v2_1view_v2/best_psnr.pt` | 11.08 | 10.47 |
+| 2v | `base_uniform_v2_2view_v2/best_psnr.pt` | 17.75 | 15.95 |
+| 3v | `base_uniform_v2_3view_v2/best_psnr.pt` | 20.01 | 18.56 |
+| 4v | `base_uniform_v2_4view_v2/best_psnr.pt` | **21.71** | 20.66 |
+| 5v | `base_uniform_v2_5view_v2/best_psnr.pt` | 23.02 | 22.16 |
+| 6v | `base_uniform_v2_6view_v2/best_psnr.pt` | **24.49** | 23.84 |
+| E0_1 | `M5t2_E0_1_facelift/best_psnr.pt` | **22.34** | — |
+
+> **Note**: Val PSNR = checkpoint best validation PSNR. PSNR_fg = fair eval foreground-masked PSNR (test set).
+> E0_1은 논문 원본 config (`E0_1_facelift.yaml`), 나머지는 `base_uniform_v2.yaml` 기반.
+> E0_1 (22.34)과 4v (21.71)의 차이는 config 차이에 기인하며 직접 비교 불가.
 
 All at: `/node_data/joon/checkpoints/FaceLift/gslrm/`
 

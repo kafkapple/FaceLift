@@ -1,0 +1,67 @@
+# =============================================================================
+# GS-LRM Domain Adaptation v1: Fine-tune on MVDiff E2 generated views
+# =============================================================================
+# Hypothesis: GS-LRM trained on GT views has distribution mismatch with
+# MVDiff-generated views at inference time. Fine-tuning on MVDiff outputs
+# should close this gap and improve E2E performance.
+#
+# Strategy A: Fine-tune pre-trained GT model on MVDiff-generated data
+#   - resume_ckpt: best GT-trained GS-LRM checkpoint
+#   - Lower LR (1e-6 vs 1e-5) to preserve GT knowledge while adapting
+#   - Validation on GT images (measures real-world performance)
+#   - Fewer steps (5000) since we're fine-tuning, not training from scratch
+#
+# Expected outcome: E2E PSNR_fg should improve from 8.44 if the distribution
+#   gap hypothesis is correct. Even 1-2 dB improvement would be significant
+#   given the current ~10% transfer rate.
+#
+# Version: v1.0
+# Created: 2026-02-22
+# =============================================================================
+
+model:
+  num_input_views: 4
+
+training:
+  dataset:
+    # MVDiff-generated views (E2 checkpoint, guidance_scale=3.0)
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/M5_mvdiff/data_mouse_t2_train_mvdiff.txt
+    background_color: white
+    remove_alpha: true    # MVDiff outputs are RGB, no alpha channel
+
+  # Lower LR for fine-tuning
+  optimizer:
+    lr: 1.0e-06
+    reset_lr: true
+    reset_training_state: true
+
+  # Shorter training (fine-tuning)
+  schedule:
+    max_fwdbwd_passes: 7500
+    warmup: 200
+
+  # Resume from best GT-trained model
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/domain_adapt_E2_v1
+    resume_ckpt: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/best_psnr.pt
+
+  logging:
+    wandb:
+      group: domain_adaptation
+      job_type: finetune_mvdiff
+
+# Validate on GT images (NOT MVDiff) to measure real performance
+validation:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+
+test:
+  dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_test.txt
+
+wandb:
+  name: domain_adapt_E2_v1
+  tags:
+  - domain_adaptation
+  - mvdiff_E2_generated
+  - finetune
+  - lr1e-6
+  - seed42

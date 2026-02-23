@@ -2,7 +2,7 @@
 
 > **가설**: Rendered alpha mask를 supervision에 사용하면 foreground 품질이 개선될 것이다.
 >
-> ← [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) | **상태**: ⏳ 대기 | **Updated**: 2026-02-09
+> ← [[INDEX]] | [[FaceLift_hypothesis_roadmap]] | **상태**: ❌ **기각** | **Updated**: 2026-02-22
 
 ---
 
@@ -83,15 +83,34 @@ configs/mouse/uniform/
 
 ---
 
-## 5. 현황
+## 5. 실험 결과 (2026-02-21)
+
+### 5.1 Results (v3 configs: alpha_w = 0.3, 0.5, 1.0)
+
+| Alpha Weight | Best PSNR | vs Baseline (21.71) | Trend |
+|:------------:|:---------:|:-------------------:|:-----:|
+| 0.0 (baseline) | **21.71** | — | — |
+| 0.3 | 21.34 | -0.37 | ↓ |
+| 0.5 | 21.20 | -0.51 | ↓ |
+| 1.0 | 20.84 | -0.87 | ↓ |
+
+### 5.2 결론
+
+**❌ 기각**: Alpha weight 증가에 따른 **monotonic PSNR 하락**. 모든 설정에서 baseline 이하.
+Alpha mask supervision은 mouse GS-LRM 학습에 해로움.
+
+**원인 추정**: Alpha loss가 L2/perceptual loss와 경쟁하며 색상 재구성 품질을 희생시킴.
+GT alpha 대신 rendered alpha를 사용했으므로 피드백 루프 가능성도 있음.
+
+### 5.3 현황
 
 | 상태 | 내용 |
 |------|------|
 | ✅ 완료 | 문헌 조사 |
-| ✅ 완료 | Config 생성 (3개, uniform_v2 체계) |
-| ✅ 완료 | mask_iou 항상 계산 (코드 수정) |
-| ⏳ 대기 | H4 Round 1 완료 후 진행 |
+| ✅ 완료 | Config 생성 (v3: 3개) |
+| ✅ 완료 | 실험 실행 + 결과 분석 |
+| **❌ 기각** | Baseline 최적. 후속 실험 불필요. |
 
 ---
 
-*H6 Alpha Mask | v2.0 | 2026-02-07*
+*H6 Alpha Mask | v3.0 | 2026-02-22*

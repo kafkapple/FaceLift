@@ -500,7 +500,7 @@ def generate_markdown_report(
     lines.append("| | FaceLift | Pose-Splatter |")
     lines.append("|--|----------|---------------|")
     lines.append("| **Paper** | Lyu et al., ICCV 2025 | Goffinet et al., NeurIPS 2025 |")
-    lines.append("| **Architecture** | SD2.1-UnCLIP MVDiffusion + GSLRM | Shape Carving + Stacked U-Net + gsplat |")
+    lines.append("| **Architecture** | SD2.1-UnCLIP Multi-view Diffusion + GS-LRM | Shape Carving + Stacked U-Net + gsplat |")
     lines.append("| **Inference** | Feed-forward (two-stage) | Feed-forward (~30ms/frame) |")
     lines.append("| **Metric protocol** | White-BG composite + full-image | Masked (foreground-only) |")
     lines.append("")

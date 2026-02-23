@@ -9,13 +9,29 @@
 
 Pose Splatter (NeurIPS 2025, arXiv:2505.18342)와의 공정한 비교를 위한 설정 가이드.
 
-### Pose Splatter 논문 결과 (Reference)
+> **⚠️ 데이터 출처 주의**:
+> PS 논문은 **자체 녹화한 Duke 데이터**를 사용합니다 (1536×2048, 30fps, 324K frames, 28cm 플라스틱 실린더).
+> 우리 데이터(DANNCE/MAMMAL `markerless_mouse_1`, 1152×1024 원본)와 **완전히 별개**입니다.
+> 본 비교에서는 PS 코드를 우리 M5 데이터에 적용(`m5_baseline_gs`)하여 동일 조건에서 비교합니다.
+> PS 논문의 수치(PSNR ~33.5)는 full-image PSNR(85% white BG 포함)이며, 우리의 PSNR_fg(FG-masked)와 **직접 비교 불가**합니다.
 
-| 모델 | PSNR | SSIM | IoU |
-|------|------|------|-----|
-| 5cam baseline | - | 0.9548 | 0.7883 |
-| 5cam soft_keypoint | - | **0.9671** | **0.8287** |
-| 3cam (최소) | - | - | 0.8289 |
+### Pose Splatter 논문 결과 (Reference — 별도 Duke 데이터, full-image PSNR)
+
+| 모델 | PSNR (full-image) | SSIM | IoU |
+|------|:------------------:|:----:|:---:|
+| 6cam (Mouse, Table 2a) | **33.5** | **0.989** | **0.868** |
+| 5cam baseline | — | 0.9548 | 0.7883 |
+| 5cam soft_keypoint | — | **0.9671** | **0.8287** |
+| 3cam (최소) | — | — | 0.8289 |
+| 6cam Rat (Rat7M) | 26.9 | 0.975 | 0.797 |
+| Cross-species (Mouse→Rat) | 25.1 | — | — |
+
+> **⚠️ Metric Protocol 차이**:
+> - PS 논문 PSNR = **full-image** (white BG ~85-90% 포함 → PSNR 팽창)
+> - 우리 PSNR_fg = **FG-masked** (foreground pixels only → 실제 reconstruction quality)
+> - PSNR 33.5 (PS paper) vs 13.78 (our fair eval) = **19.7 dB gap**, 이 중 ~15-20 dB은 metric 차이
+> - IoU는 유사 정의라 비교 가능: 0.868 (paper) vs 0.846 (fair eval) = comparable
+> - **상세 분석**: `FL_vs_PS_comparison.md` §2.4 참조
 
 ---
 

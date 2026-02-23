@@ -2,7 +2,7 @@
 
 > **가설**: SSIM loss weight를 높이면 구조적 보존이 개선되어 mouse 재구성 품질이 향상될 것이다.
 >
-> ← [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) | **상태**: ⏳ 대기 | **Updated**: 2026-02-09
+> ← [[INDEX]] | [[FaceLift_hypothesis_roadmap]] | **상태**: ❌ **기각** | **Updated**: 2026-02-22
 
 ---
 
@@ -129,13 +129,34 @@ configs/mouse/uniform/
 
 ---
 
-## 6. 현황
+## 6. 실험 결과 (2026-02-22)
+
+### 6.1 Results
+
+| SSIM Weight | Best PSNR | Final PSNR | vs Baseline (21.71) | Status |
+|:-----------:|:---------:|:----------:|:-------------------:|:------:|
+| 0.1 (baseline) | **21.71** | **21.71** | — | ✅ Optimal |
+| 0.3 | 21.10 | 19.69 | -2.02 (declining) | ↓ |
+| 0.5 | 21.30 | **10.17** | **Collapse** | ☠️ Killed |
+| 1.0 | 21.20 | **4.72** | **Collapse** | ☠️ Killed |
+
+### 6.2 결론
+
+**❌ 기각**: SSIM weight 증가는 학습 안정성을 해침.
+- 0.3: 초기 양호 후 지속 하락 (grad norm 폭발 징후)
+- 0.5/1.0: 학습 후반 **mode collapse** (PSNR 급락 → 중단)
+- Baseline 0.1이 L2(1.0), perceptual(0.5)과의 균형에서 유일한 안정점
+
+**원인 분석**: SSIM loss가 window-based(11×11)라서 고해상도 Gaussian rasterization과 gradient conflict 발생. Weight 증가 시 loss landscape이 불안정해져 collapse.
+
+### 6.3 현황
 
 | 상태 | 내용 |
 |------|------|
 | ✅ 완료 | 문헌 조사 |
 | ✅ 완료 | Config 생성 (3개) |
-| ⏳ 대기 | H4 Round 1 완료 후 진행 |
+| ✅ 완료 | 실험 실행: 0.5/1.0 중단(collapse), 0.3 중단(하락) |
+| **❌ 기각** | Baseline 0.1 최적. 후속 실험 불필요. |
 
 ---
 
@@ -148,4 +169,4 @@ configs/mouse/uniform/
 
 ---
 
-*H7 SSIM Weight | v1.0 | 2026-02-07*
+*H7 SSIM Weight | v2.0 | 2026-02-22*

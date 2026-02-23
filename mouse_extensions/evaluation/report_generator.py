@@ -383,7 +383,7 @@ class ReportGenerator:
 
             lines.extend([
                 "",
-                "### End-to-End (MVDiffusion + GS-LRM)",
+                "### End-to-End (Multi-view Diffusion + GS-LRM)",
                 "",
                 "| Experiment | Split | PSNR | SSIM |",
                 "|------------|-------|------|------|",

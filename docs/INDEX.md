@@ -1,7 +1,8 @@
 # FaceLift Mouse Documentation
 
-> **MoC (Map of Content)** — 중앙 허브
-> **Updated**: 2026-02-20 | **Active**: 27개 | **Archive**: 22개
+> **MoC (Map of Content)** — Central hub for all project documents.
+> **Updated**: 2026-02-23 | **Version**: v10.1
+> **Active**: 37개 | **Archive**: 22개
 
 ---
 
@@ -9,12 +10,15 @@
 
 | 목적 | 문서 |
 |------|------|
-| **FL vs PS 비교 (SSOT)** | [[experiments/FL_vs_PS_comparison]] **v10** |
-| **메트릭 코드 검증** | [[experiments/FL_PS_metric_consistency]] v2.1 (→ v9에 통합) |
+| **실험 마스터 가이드 (START HERE)** | [[guides/EXPERIMENT_MASTER_GUIDE]] **v1.0** |
+| **FL vs PS 비교 (SSOT)** | [[experiments/FL_vs_PS_comparison]] **v11** |
+| **Stage 1 병목 분석** | [[experiments/mvdiffusion_bottleneck_analysis]] **v1.1** |
+| **Domain Adaptation** | [[experiments/domain_adaptation_DA1]] **v1.1** |
+| **평가 프로토콜** | [[experiments/evaluation_protocol_v1]] **v1.0** |
 | **가설 로드맵** | [[experiments/FaceLift_hypothesis_roadmap]] |
-| **학습 최적 설정** | [[experiments/FaceLift_training_optimal_settings]] |
-| **가설 대시보드** | [[RESEARCH_HYPOTHESES]] |
 | **명령어 SSOT** | [[experiments/COMMANDS]] |
+| **레포트 시스템 가이드** | [[experiments/REPORT_SYSTEM_GUIDE]] **v1.0** |
+| **Stage 1 대체 후보** | [[experiments/STAGE1_REPLACEMENT_CANDIDATES]] **v1.0** |
 | **파이프라인 아키텍처** | [[theory/PIPELINE_ARCHITECTURE]] |
 
 ---
@@ -23,19 +27,35 @@
 
 ### experiments/ (실험 & 비교)
 
+#### Core Documents (최신, 빈번 참조)
+
+| 문서 | 내용 | 상태 | 관련 |
+|------|------|:----:|------|
+| **[[FL_vs_PS_comparison]]** | FL vs PS 통합 비교 (9-exp) | **✅ v11** | → eval_protocol, bottleneck |
+| **[[mvdiffusion_bottleneck_analysis]]** | Stage 1 전송률(14%) + 3가설(H_T1/T2/T3) + 전체 실험 현황 | **🆕 v1.1** | → DA1, hypothesis_roadmap |
+| **[[domain_adaptation_DA1]]** | GS-LRM domain adaptation (H_T1 검증) | **🆕 v1.1** | → bottleneck, training_settings |
+| **[[evaluation_protocol_v1]]** | 9-exp NVS 평가 프로토콜 (Temporal/Spatial/Combined) | **🆕 v1.0** | → FL_vs_PS, bottleneck |
+| **[[FaceLift_hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v2.1 | → H4-H7, bottleneck |
+
+#### Reference Documents (안정, 참조용)
+
 | 문서 | 내용 | 상태 |
 |------|------|:----:|
-| **[[FL_vs_PS_comparison]]** | FL vs PS 통합 비교 (Tier A/B/C + Option A) | **✅ v10** |
-| **[[comprehensive_analysis_report]]** | Tier A/B/C + View Ablation 종합 분석 보고서 | **🆕 v1.0** |
-| [[FL_PS_metric_consistency]] | 메트릭/데이터 일관성 코드 레벨 검증 | ✅ v2.1 (→v9) |
-| **[[FaceLift_hypothesis_roadmap]]** | 가설 검정 결과 + 다음 우선순위 | ✅ |
-| **[[FaceLift_training_optimal_settings]]** | Stage 1/2 최적 학습 설정 | ✅ |
-| **[[MVDiff_improvement_roadmap]]** | MVDiff 개선 로드맵 (Pose Conditioning, Virtual Camera) | **🆕 v1.0** |
-| [[260216_MVDIFF_TRAINING_ANALYSIS]] | MVDiff LR 전략 분석 (Phase 3) | ✅ |
+| [[FaceLift_training_optimal_settings]] | Stage 1/2 최적 학습 설정 | ✅ |
+| [[MVDiff_improvement_roadmap]] | MVDiff 아키텍처 개선 로드맵 | ✅ (→ bottleneck에서 요약) |
+| [[FL_PS_metric_consistency]] | 메트릭/데이터 일관성 코드 레벨 검증 | ✅ v2.1 |
 | [[260216_PHASE3_REPORT]] | Phase 3 종합 보고서 | ✅ |
+| [[260216_MVDIFF_TRAINING_ANALYSIS]] | MVDiff LR 전략 분석 | ✅ |
+| **[[REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 (코드+메트릭+프로토콜) | **🆕 v1.0** |
+| **[[STAGE1_REPLACEMENT_CANDIDATES]]** | Stage 1 대체 모델 후보 연구 (10개 모델 분석) | **🆕 v1.0** |
+
+#### Operational Guides
+
+| 문서 | 내용 | 상태 |
+|------|------|:----:|
 | [[COMMANDS]] | 명령어 SSOT (GS-LRM, MVDiff, Turntable) | ✅ |
-| [[EVALUATION_GUIDE]] | 평가 유형 / Split 전략 | ✅ |
 | [[EXPERIMENT_CONFIG_GUIDE]] | Config 시스템 (Modular 3-Layer) | ✅ |
+| [[EVALUATION_GUIDE]] | 평가 유형 / Split 전략 | ✅ |
 | [[EXPERIMENT_REGISTRY]] | 실험 설정/결과 기록 | ✅ |
 | [[INFERENCE_E2E_GUIDE]] | E2E 추론 파이프라인 + CLI | ✅ |
 | [[TRAINING_LOGGING_GUIDE]] | 학습 단위/WandB 로깅 | ✅ |
@@ -49,13 +69,18 @@
 | [[M5_SERIES_SPEC]] | M5 카메라 정규화 상세 (**← camera mismatch 핵심 참조**) |
 | [[RAW_DATA]] | Raw 데이터 출처 (DANNCE) |
 
-### guides/
+### guides/ (입문 & 실습)
 
-| 문서 | 내용 |
-|------|------|
-| [[MVDIFFUSION_FINETUNE_GUIDE]] | MVDiffusion fine-tuning |
-| [[MOUSE_DATASET_GUIDE]] | MouseViewDataset 구현 참조 |
-| [[POSE_SPLATTER_GUIDE]] | Pose Splatter 비교 프로토콜 |
+| 문서 | 내용 | 상태 |
+|------|------|:----:|
+| **[[EXPERIMENT_MASTER_GUIDE]]** | **전체 실험 마스터 가이드 (초심자 시작점)** | **🆕 v1.0** |
+| **[[RESEARCH_EXPERIMENT_NOTES]]** | **연구 노트 (Lab Meeting용, 가설→실험→결과)** | **🆕 v1.0** |
+| → [[chapters/CH1_ENVIRONMENT_AND_DATA]] | 환경, 데이터 구조, 전처리, Dataset 코드 | 🆕 |
+| → [[chapters/CH2_GSLRM_CODE_FLOW]] | Config 시스템, 학습 루프, 모델 Forward Pass, Loss | 🆕 |
+| → [[chapters/CH3_EXPERIMENTS_AND_RESULTS]] | 전체 실험 흐름 (Phase 1→6), 코드, 명령어, 결과 | 🆕 |
+| [[MVDIFFUSION_FINETUNE_GUIDE]] | Multi-view diffusion (Stage 1) fine-tuning | ✅ |
+| [[MOUSE_DATASET_GUIDE]] | MouseViewDataset 구현 참조 | ✅ |
+| [[POSE_SPLATTER_GUIDE]] | Pose Splatter 비교 프로토콜 | ✅ |
 
 ### hypotheses/ (연구 가설)
 
@@ -63,10 +88,13 @@
 |------|----------|:----:|
 | [[H4_VIEW_ABLATION]] | 최적 입력 뷰 수 | ✅ 6-view 단조 증가 |
 | [[H5_MVDIFFUSION]] | MVDiff 개선 방법 | ✅ Phase 3 완료 |
-| [[H6_ALPHA_MASK]] | Alpha mask loss 효과 | ⏳ 대기 |
-| [[H7_SSIM_WEIGHT]] | SSIM weight 최적값 | ⏳ 대기 |
+| [[H6_ALPHA_MASK]] | Alpha mask loss 효과 | **❌ 기각** (0.3/0.5/1.0 모두 baseline 이하) |
+| [[H7_SSIM_WEIGHT]] | SSIM weight 최적값 | **❌ 기각** (0.5/1.0 collapse, 0.3 하락) |
 | [[GENERALIZATION_ROADMAP]] | 카메라/피사체 일반화 | 📋 계획 |
 | [[RMA_CAMERA_ANALYSIS]] | M5 카메라 비균일 배치 | 📊 분석 완료 |
+
+> **Active hypotheses**: H_T1 (distribution mismatch) → DA1 실험 진행중
+> See: [[experiments/mvdiffusion_bottleneck_analysis]] §5
 
 ### theory/
 
@@ -78,6 +106,15 @@
 | [[MV_ADAPTER_TECHNICAL]] | MV-Adapter 아키텍처 분석 |
 | [[SLIDES_FACELIFT_PIPELINE]] | 파이프라인 발표 슬라이드 (Marp) |
 
+### tools/ (스크립트 & 레포트)
+
+| 도구 | 위치 | 용도 |
+|------|------|------|
+| **Report system** | `mouse_extensions/scripts/report/` | YAML→HTML 비교 레포트 자동 생성 |
+| **Fair eval** | `mouse_extensions/scripts/eval/fair_comparison.py` | Fair comparison metric 계산 |
+| **DA datagen** | `mouse_extensions/scripts/domain_adapt/` | MVDiff→GS-LRM dataset 생성 |
+| **Generated reports** | `reports/` | HTML 비교 레포트 |
+
 ### _archive/ (22 files)
 
 완료·대체·폐기된 문서. 역사적 참조용.
@@ -87,71 +124,54 @@
 
 | 문서 | 사유 |
 |------|------|
-| FL_vs_PS_comparison_v5/v6/v7 | v9으로 대체 |
-| comparison_report | v9에 통합 |
-| 260215_EXPERIMENT_ANALYSIS | 일회성 보고서 |
+| FL_vs_PS_comparison_v5/v6/v7 | v11으로 대체 |
+| comparison_report | v11에 통합 |
 | H1bis_v2_REVALIDATION | ✅ 완료 |
-| H8_LITERATURE_SURVEY | ✅ 완료 |
-| H8_REDUCED_VIEW_GENERATION | ✅ 완료 (기각) |
-| H8_VIEW_GENERALIZATION_ANALYSIS | ✅ 완료 |
-| HP_PREPROCESSING_ABLATION | 이론만 확인, 실험 무기한 대기 |
+| H8_* (3 files) | ✅ 완료 (기각) |
+| HP_PREPROCESSING_ABLATION | 이론 → uniform/hp_*.yaml로 실행 |
 | RTX3060_GUIDE | A6000 환경으로 이전 |
-| M5_MIGRATION_GUIDE | 마이그레이션 완료 |
-| DEFORMATION_INTEGRATION_GUIDE | 현재 연구 범위 외 |
-| MOUSE_QUICK_REFERENCE | COMMANDS.md로 통합 |
-| MOUSE_REFERENCE_DETAILS | PREPROCESSING_REGISTRY로 통합 |
-| UNIFORM_EXPERIMENT_PROTOCOL | 현재 실험 체계로 대체 |
-| DOCUMENTATION_REQUEST_SPEC | 일회성 |
-| TURNTABLE_VIS_GUIDE | VIS_SETTINGS + COMMANDS로 머지 |
-| TEMPORAL_EXPERIMENTS_PLAN | DEFORMATION_GUIDE로 머지 |
-| TWO_PHASE_TRAINING_STRATEGY | 초기 전략 문서 (역사적) |
-| TRAINING_STEPS_CONVENTION | 현재 체계와 다름 |
+| Others (10 files) | 통합/폐기 |
 
 </details>
 
 ---
 
-## 핵심 결과 요약 (260220 기준)
+## 핵심 결과 요약 (2026-02-22 기준)
 
-### Tier A: GS-LRM GT 6-view vs PS (유일한 유효 정량 비교)
+### FL vs PS Fair Comparison (M5 Same-Camera)
 
-| Metric | GS-LRM 6v GT | PS 6v | Delta |
-|--------|:-----------:|:-----:|:-----:|
-| PSNR_gt_masked | **23.84** | 16.71 | **+7.13** |
-| IoU | **0.954** | 0.827 | **+0.127** |
-| PSNR_intersection | **24.02** | 20.54 | **+3.48** |
+| Metric | FL GS-LRM 6v | FL E2E | PS M5 6v |
+|--------|:-----------:|:------:|:--------:|
+| PSNR_fg | **23.84** | 8.44 | 13.78 |
+| IoU | **0.954** | 0.495 | 0.846 |
+| Coverage | ~1.0 | 0.750 | 0.893 |
+| PSNR_inter | **~23.84** | — | 20.47 |
 
-> v10.0 correction: 6v was 21.02 in v9 (A2 oracle, 4v model). Proper 6v model gives 23.84.
+> FL GS-LRM >> PS by +10.06 dB. E2E bottleneck = Stage 1 multi-view diffusion (14% transfer rate).
+> See: [[experiments/FL_vs_PS_comparison]] + [[experiments/mvdiffusion_bottleneck_analysis]]
 
-> GS-LRM 6v가 PS보다 +7.13 dB 우수 (동일 입력 뷰 수). View count monotonically improves quality.
+### Active Experiments (2026-02-22)
 
-### Tier B: E2E vs PS — INVALID (camera mismatch)
+| GPU | Experiment | Purpose | ETA |
+|:---:|-----------|---------|:---:|
+| gpu03:4 | HP M5_5 (center+norm) | Preprocessing ablation | ~12h |
+| gpu03:5 | H3 MVDiff (E2+Pose) | H_T3 test / H_T1 negative control | ~28h |
+| gpu03:6 | DA1 datagen → fine-tune | **H_T1 direct test** (primary) | ~4h + ~15h |
+| gpu03:7 | HP M5_4 (center only) | Preprocessing ablation | ~8h |
+| joon:0 | PS M5 5v | 9-exp comparison | ~18h |
 
-> ⚠️ M5 (fx=549, HFOV=50°) vs fj5_ds2 (fx≈810, HFOV≈35°) 카메라 미스매치로
-> pixel-wise 비교 불가. **Option A (M5→PS 재학습)** 진행중. → [[FL_vs_PS_comparison]] §11
+> See: [[experiments/domain_adaptation_DA1]] for DA1 pipeline details
 
-### PS M5 Retraining (Option A) — In Progress
+### Completed Hypotheses
 
-- Coordinate system fixed (auto_orient), training started
-- Fair Tier B comparison expected after completion
-
-### Tier C: 파이프라인 병목
-
-| Stage | PSNR_gt | Drop |
-|-------|:-------:|:----:|
-| GS-LRM GT 6v | 23.84 | baseline |
-| GS-LRM GT 4v | 20.66 | -3.18 |
-| GS-LRM GT 1v | 10.47 | -13.37 |
-| **E2E (MVDiff→GS-LRM)** | **8.20** | **-15.64** |
-
-> MVDiffusion이 유일한 병목 (-15.64 dB)
-
-### Phase 3 + Camera Mismatch 결론
-
-- MVDiff 학습 전략 (cosine/resume/pose) 무관: E2E PSNR 7.9-8.2 수렴
-- **카메라 미스매치 발견**: M5 affine warp vs fj5_ds2 simple downsample → B-3 무효화
-- **Option A 준비 완료**: convert_m5_for_ps.py (scale=0.008772, ell=0.00193)
-- **아키텍처 변경 필요** (view consistency, silhouette supervision)
+| Hypothesis | Result | Reference |
+|-----------|--------|-----------|
+| H4: View Ablation | ✅ 6-view monotonic | [[hypotheses/H4_VIEW_ABLATION]] |
+| H5: MVDiffusion | ✅ Phase 3 done | [[hypotheses/H5_MVDIFFUSION]] |
+| H6: Alpha Mask | ❌ Rejected | [[hypotheses/H6_ALPHA_MASK]] |
+| H7: SSIM Weight | ❌ Rejected | [[hypotheses/H7_SSIM_WEIGHT]] |
+| HP: Preprocessing | ✅ M0 diverges, M5_4 baseline match | [[experiments/FaceLift_hypothesis_roadmap]] |
+| **H_T1: Dist. Mismatch** | **🔬 Testing (DA1)** | [[experiments/mvdiffusion_bottleneck_analysis]] §5 |
 
 ---
 
@@ -159,19 +179,26 @@
 
 ```
 experiments/comparison/
-├── fair/                          # FL E2E fair eval
-│   ├── facelift_fair.json         # FL E2E best (E2 resume)
-│   └── fair_comparison_merged.json
-├── tier/                          # Tier A/C + 모든 variant fair eval
-│   ├── gslrm_{1,4,6}view_fair.json
-│   ├── {baseline,cfgr,e1,e2,e3}_*_fair.json
-│   ├── p1_*_fair.json             # P1 6-view E2E results
-│   └── tier_comparison*.json
-└── FL_vs_PS/                      # 비교 문서 원본 + JSON
-    ├── metrics_comparison.json
-    └── comprehensive_analysis_report.md  # 종합 분석 보고서
+├── tier/                          # All fair eval JSONs (17)
+│   ├── gslrm_{1-6}view_fair.json  # View ablation
+│   ├── {e1,e2,e3}_*_fair.json     # MVDiff variants
+│   └── p1_*_fair.json             # E2E pipeline
+├── fair/                          # Legacy fair comparison
+├── FL_vs_PS/                      # Cross-method comparison
+└── 9exp_unified_metrics.json      # Unified 9-experiment metrics
 ```
 
 ---
 
-*MoC v8.0 | 2026-02-20*
+## 용어 참고 (Terminology)
+
+| 용어 | 의미 |
+|------|------|
+| **Multi-view Diffusion / Stage 1** | FaceLift의 1장→6장 생성 모델. SD2.1-UnCLIP + Era3D RMA 기반 |
+| **MVDiff** (약칭) | "multi-view diffusion"의 줄임말. Tang et al. "MVDiffusion" 논문과 무관 |
+| `mvdiffusion/` (코드 폴더) | Era3D 코드베이스에서 상속된 명칭. 변경 비용이 높아 유지 |
+| **GS-LRM / Stage 3** | Transformer 기반 3D Gaussian 예측 모델 |
+
+---
+
+*MoC v10.1 | Updated: 2026-02-23 | Terminology note added*

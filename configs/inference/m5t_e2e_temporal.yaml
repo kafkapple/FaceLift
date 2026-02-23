@@ -1,4 +1,4 @@
-# E2E Temporal Sequence (MVDiffusion + GS-LRM) - ALL samples
+# E2E Temporal Sequence (Multi-view Diffusion + GS-LRM) - ALL samples
 _base_: default.yaml
 
 input:

@@ -248,7 +248,7 @@ def build_executive_summary(gslrm_6v: dict, gslrm_1v: dict, e2e: dict, ps: dict)
     if not np.isnan(drop_6to1) and not np.isnan(drop_1toe2e):
         summary_parts.append(
             f"**Tier C** bottleneck: reducing from 6 to 1 GT view costs {fmt_delta(drop_6to1, '.2f')} dB; "
-            f"the MVDiffusion generation step costs an additional {fmt_delta(drop_1toe2e, '.2f')} dB "
+            f"the multi-view diffusion generation step costs an additional {fmt_delta(drop_1toe2e, '.2f')} dB "
             f"(total E2E: {fmt_val(e2e_psnr, '.2f')} dB)."
         )
 
@@ -276,7 +276,7 @@ def build_conclusions(gslrm_6v: dict, gslrm_1v: dict, e2e: dict, ps: dict) -> li
         lines.append(f"   - {fmt_delta(drop_6to1, '.2f')} dB from losing 5 input views")
     lines.append("")
 
-    lines.append("2. **MVDiffusion generation** is the second bottleneck:")
+    lines.append("2. **multi-view diffusion generation** is the second bottleneck:")
     if not np.isnan(drop_1toe2e):
         lines.append(f"   - {fmt_delta(drop_1toe2e, '.2f')} dB from generated (vs GT) input views")
     lines.append("")
@@ -285,7 +285,7 @@ def build_conclusions(gslrm_6v: dict, gslrm_1v: dict, e2e: dict, ps: dict) -> li
         lines.append(f"3. **Total E2E degradation**: {fmt_delta(total_drop, '.2f')} dB from ideal (6-view GT)")
     lines.append("")
 
-    lines.append("4. **Improving MVDiffusion quality** is the most impactful path to closing the gap with PS.")
+    lines.append("4. **Improving Stage 1 quality** is the most impactful path to closing the gap with PS.")
     lines.append("")
     return lines
 

@@ -1,4 +1,4 @@
-# 1-view Mode Config (MVDiffusion + GS-LRM)
+# 1-view Mode Config (Multi-view Diffusion + GS-LRM)
 # Usage: python -m mouse_extensions.inference.run --config configs/inference/m5_1view.yaml
 
 _base_: default.yaml
