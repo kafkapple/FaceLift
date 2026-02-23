@@ -3,7 +3,7 @@
 > How to compute PSNR/SSIM/LPIPS for fair comparison with PoseSplatter and 3D reconstruction literature.
 >
 > **Implementation**: `mouse_extensions/scripts/eval/compute_e2e_metrics.py` v2.0
-> **See also**: [EVALUATION_GUIDE](../experiments/EVALUATION_GUIDE.md) — 평가 유형, Split 전략, View Ablation 가이드
+> **See also**: [evaluation_protocol_v1](./evaluation_protocol_v1.md) — 평가 유형, Split 전략, View Ablation 가이드
 
 ---
 

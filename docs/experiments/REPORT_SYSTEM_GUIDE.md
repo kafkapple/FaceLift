@@ -506,7 +506,7 @@ FileNotFoundError: outputs/tier_comparison/gslrm_6view_test/samples/003240/cam_0
 | Stage 1 bottleneck analysis | [[mvdiffusion_bottleneck_analysis]] |
 | Evaluation protocol | [[evaluation_protocol_v1]] |
 | Metric theory | [[theory/METRICS_PROTOCOL]] |
-| Hypothesis roadmap | [[FaceLift_hypothesis_roadmap]] |
+| Hypothesis roadmap | [[hypothesis_roadmap]] |
 
 ---
 

@@ -1,6 +1,6 @@
 # Preprocessing Registry (전처리 레지스트리)
 
-> **Navigation**: [← Index](../INDEX.md) | [Quick Ref](../_archive/MOUSE_QUICK_REFERENCE.md)
+> **Navigation**: [← Index](../INDEX.md) | [Commands](../experiments/COMMANDS.md)
 > **SSOT**: 데이터셋 전처리 설정 중앙 관리
 > **최종 업데이트**: 2026-01-29
 
@@ -366,7 +366,7 @@ python -m mouse_extensions.preprocessing.split_generator \
 
 | 문서 | 위치 | 내용 |
 |------|------|------|
-| Quick Reference | `../_archive/MOUSE_QUICK_REFERENCE.md` | 명령어 모음 |
+| Commands | `../experiments/COMMANDS.md` | 명령어 SSOT |
 | M5 Series Spec | `./M5_SERIES_SPEC.md` | M5 시리즈 상세 |
 | Raw Data | `./RAW_DATA.md` | 원본 데이터 정보 |
 

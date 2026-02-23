@@ -527,7 +527,7 @@ export CUDA_VISIBLE_DEVICES=5 && nohup accelerate launch \
 
 **핵심 발견 (F3)**: Stage 1 +3.7 dB → E2E +0.51 dB. **Transfer rate ~14%**. 이는 multi-view diffusion 개선의 대부분이 E2E에 전달되지 않음을 의미.
 
-→ 상세: [[FaceLift_hypothesis_roadmap]], [[mvdiffusion_bottleneck_analysis]]
+→ 상세: [[hypothesis_roadmap]], [[mvdiffusion_bottleneck_analysis]]
 
 ---
 
@@ -969,7 +969,7 @@ E0_1 (baseline, val PSNR 22.34, 논문 원본 config)
 | DA1 | [[domain_adaptation_DA1]] |
 | FL vs PS | [[FL_vs_PS_comparison]] |
 | Eval Protocol | [[evaluation_protocol_v1]] |
-| Hypothesis Roadmap | [[FaceLift_hypothesis_roadmap]] |
+| Hypothesis Roadmap | [[hypothesis_roadmap]] |
 
 ---
 

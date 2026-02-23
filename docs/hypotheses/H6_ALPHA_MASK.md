@@ -2,7 +2,7 @@
 
 > **가설**: Rendered alpha mask를 supervision에 사용하면 foreground 품질이 개선될 것이다.
 >
-> ← [[INDEX]] | [[FaceLift_hypothesis_roadmap]] | **상태**: ❌ **기각** | **Updated**: 2026-02-22
+> ← [[INDEX]] | [[hypothesis_roadmap]] | **상태**: ❌ **기각** | **Updated**: 2026-02-22
 
 ---
 

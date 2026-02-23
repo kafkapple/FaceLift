@@ -242,10 +242,10 @@ All in: `gpu03:experiments/comparison/tier/`
 | ← FL vs PS | [[FL_vs_PS_comparison]] |
 | → DA1 details | [[domain_adaptation_DA1]] |
 | → Eval protocol | [[evaluation_protocol_v1]] |
-| → Hypothesis roadmap | [[FaceLift_hypothesis_roadmap]] |
-| → MVDiff roadmap | [[MVDiff_improvement_roadmap]] |
+| → Hypothesis roadmap | [[hypothesis_roadmap]] |
+| → MVDiff roadmap | [[mvdiff_improvement_roadmap]] |
 | → Pipeline arch | [[theory/PIPELINE_ARCHITECTURE]] |
 
 ---
 
-*FaceLift MVDiffusion Analysis v1.1 | Updated: 2026-02-22*
+*MVDiffusion Bottleneck Analysis v1.1 | 2026-02-22*

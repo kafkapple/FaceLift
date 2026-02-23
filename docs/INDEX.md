@@ -15,7 +15,7 @@
 | **Stage 1 병목 분석** | [[experiments/mvdiffusion_bottleneck_analysis]] **v1.1** |
 | **Domain Adaptation** | [[experiments/domain_adaptation_DA1]] **v1.1** |
 | **평가 프로토콜** | [[experiments/evaluation_protocol_v1]] **v1.0** |
-| **가설 로드맵** | [[experiments/FaceLift_hypothesis_roadmap]] |
+| **가설 로드맵** | [[experiments/hypothesis_roadmap]] |
 | **명령어 SSOT** | [[experiments/COMMANDS]] |
 | **레포트 시스템 가이드** | [[experiments/REPORT_SYSTEM_GUIDE]] **v1.0** |
 | **Stage 1 대체 후보** | [[experiments/STAGE1_REPLACEMENT_CANDIDATES]] **v1.0** |
@@ -35,17 +35,17 @@
 | **[[mvdiffusion_bottleneck_analysis]]** | Stage 1 전송률(14%) + 3가설(H_T1/T2/T3) + 전체 실험 현황 | **🆕 v1.1** | → DA1, hypothesis_roadmap |
 | **[[domain_adaptation_DA1]]** | GS-LRM domain adaptation (H_T1 검증) | **🆕 v1.1** | → bottleneck, training_settings |
 | **[[evaluation_protocol_v1]]** | 9-exp NVS 평가 프로토콜 (Temporal/Spatial/Combined) | **🆕 v1.0** | → FL_vs_PS, bottleneck |
-| **[[FaceLift_hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v2.1 | → H4-H7, bottleneck |
+| **[[hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v2.1 | → H4-H7, bottleneck |
 
 #### Reference Documents (안정, 참조용)
 
 | 문서 | 내용 | 상태 |
 |------|------|:----:|
-| [[FaceLift_training_optimal_settings]] | Stage 1/2 최적 학습 설정 | ✅ |
-| [[MVDiff_improvement_roadmap]] | MVDiff 아키텍처 개선 로드맵 | ✅ (→ bottleneck에서 요약) |
+| [[training_optimal_settings]] | Stage 1/2 최적 학습 설정 | ✅ |
+| [[mvdiff_improvement_roadmap]] | MVDiff 아키텍처 개선 로드맵 | ✅ (→ bottleneck에서 요약) |
 | [[FL_PS_metric_consistency]] | 메트릭/데이터 일관성 코드 레벨 검증 | ✅ v2.1 |
-| [[260216_PHASE3_REPORT]] | Phase 3 종합 보고서 | ✅ |
-| [[260216_MVDIFF_TRAINING_ANALYSIS]] | MVDiff LR 전략 분석 | ✅ |
+| [[_archive/260216_PHASE3_REPORT]] (archived) | Phase 3 종합 보고서 | ✅ |
+| [[_archive/260216_MVDIFF_TRAINING_ANALYSIS]] (archived) | MVDiff LR 전략 분석 | ✅ |
 | **[[REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 (코드+메트릭+프로토콜) | **🆕 v1.0** |
 | **[[STAGE1_REPLACEMENT_CANDIDATES]]** | Stage 1 대체 모델 후보 연구 (10개 모델 분석) | **🆕 v1.0** |
 
@@ -55,7 +55,7 @@
 |------|------|:----:|
 | [[COMMANDS]] | 명령어 SSOT (GS-LRM, MVDiff, Turntable) | ✅ |
 | [[EXPERIMENT_CONFIG_GUIDE]] | Config 시스템 (Modular 3-Layer) | ✅ |
-| [[EVALUATION_GUIDE]] | 평가 유형 / Split 전략 | ✅ |
+| [[evaluation_protocol_v1]] | 평가 유형 / Split 전략 | ✅ |
 | [[EXPERIMENT_REGISTRY]] | 실험 설정/결과 기록 | ✅ |
 | [[INFERENCE_E2E_GUIDE]] | E2E 추론 파이프라인 + CLI | ✅ |
 | [[TRAINING_LOGGING_GUIDE]] | 학습 단위/WandB 로깅 | ✅ |
@@ -128,7 +128,7 @@
 | comparison_report | v11에 통합 |
 | H1bis_v2_REVALIDATION | ✅ 완료 |
 | H8_* (3 files) | ✅ 완료 (기각) |
-| HP_PREPROCESSING_ABLATION | 이론 → uniform/hp_*.yaml로 실행 |
+| hp_preprocessing_ablation | experiments/ (실험 진행 중) |
 | RTX3060_GUIDE | A6000 환경으로 이전 |
 | Others (10 files) | 통합/폐기 |
 
@@ -170,7 +170,7 @@
 | H5: MVDiffusion | ✅ Phase 3 done | [[hypotheses/H5_MVDIFFUSION]] |
 | H6: Alpha Mask | ❌ Rejected | [[hypotheses/H6_ALPHA_MASK]] |
 | H7: SSIM Weight | ❌ Rejected | [[hypotheses/H7_SSIM_WEIGHT]] |
-| HP: Preprocessing | ✅ M0 diverges, M5_4 baseline match | [[experiments/FaceLift_hypothesis_roadmap]] |
+| HP: Preprocessing | ✅ M0 diverges, M5_4 baseline match | [[experiments/hypothesis_roadmap]] |
 | **H_T1: Dist. Mismatch** | **🔬 Testing (DA1)** | [[experiments/mvdiffusion_bottleneck_analysis]] §5 |
 
 ---

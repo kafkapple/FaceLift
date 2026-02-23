@@ -693,4 +693,4 @@ TRELLIS.2 또는 DiffSplat 기반 연구
 
 ---
 
-*FaceLift Stage 1 Replacement Research | Created: 2026-02-23*
+*Stage 1 Replacement Candidates v1.0 | 2026-02-23*

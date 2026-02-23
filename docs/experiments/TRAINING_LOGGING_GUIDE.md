@@ -273,7 +273,7 @@ training:
 |------|------|
 | [EXPERIMENT_CONFIG_GUIDE](./EXPERIMENT_CONFIG_GUIDE.md) | 실험 명명 규칙 |
 | [EXPERIMENT_REGISTRY](./EXPERIMENT_REGISTRY.md) | 실험 목록 |
-| [EVALUATION_GUIDE](./EVALUATION_GUIDE.md) | 평가 기준/Split |
+| [evaluation_protocol_v1](./evaluation_protocol_v1.md) | 평가 기준/Split |
 
 ---
 
@@ -407,4 +407,4 @@ test:
 
 ---
 
-*Updated: 2026-01-29 | Early Stopping & Test Evaluation*
+*Training Logging Guide v1.0 | 2026-01-29*

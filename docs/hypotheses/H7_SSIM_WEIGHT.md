@@ -2,7 +2,7 @@
 
 > **가설**: SSIM loss weight를 높이면 구조적 보존이 개선되어 mouse 재구성 품질이 향상될 것이다.
 >
-> ← [[INDEX]] | [[FaceLift_hypothesis_roadmap]] | **상태**: ❌ **기각** | **Updated**: 2026-02-22
+> ← [[INDEX]] | [[hypothesis_roadmap]] | **상태**: ❌ **기각** | **Updated**: 2026-02-22
 
 ---
 

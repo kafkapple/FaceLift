@@ -3,7 +3,7 @@
 > **목적**: 현재 파이프라인의 일반화 한계 분석 + 단계별 확장 로드맵
 > **상태**: 📋 계획 | **Updated**: 2026-02-13
 > **이론 배경**: → [MULTIVIEW_DIFFUSION_THEORY](../theory/MULTIVIEW_DIFFUSION_THEORY.md)
-> ← [RESEARCH_HYPOTHESES](../RESEARCH_HYPOTHESES.md) | [H8_VIEW_GENERALIZATION_ANALYSIS](./H8_VIEW_GENERALIZATION_ANALYSIS.md)
+> ← [RESEARCH_HYPOTHESES](../RESEARCH_HYPOTHESES.md) | [Hypothesis Roadmap (H8)](../experiments/hypothesis_roadmap.md)
 
 ---
 

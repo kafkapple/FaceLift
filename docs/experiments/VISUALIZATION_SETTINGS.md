@@ -144,4 +144,4 @@ Turntable 및 시각화 관련 설정 문서.
 
 ---
 
-*Updated: 2026-02-11*
+*Visualization Settings v1.0 | 2026-02-11*

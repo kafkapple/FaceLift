@@ -190,4 +190,4 @@ Step  3956: process killed (NaN→CUDA crash)
 
 ---
 
-*Registry v6.0 | 260215*
+*Experiment Registry v6.0 | 2026-02-15*

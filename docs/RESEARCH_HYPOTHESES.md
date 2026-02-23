@@ -148,7 +148,7 @@
 >
 > → 상세: [datasets/PREPROCESSING_REGISTRY.md](./datasets/PREPROCESSING_REGISTRY.md)
 > → 상세: [datasets/M5_SERIES_SPEC.md](./datasets/M5_SERIES_SPEC.md)
-> → Ablation 계획: [hypotheses/HP_PREPROCESSING_ABLATION.md](./hypotheses/HP_PREPROCESSING_ABLATION.md)
+> → Ablation 계획: [experiments/hp_preprocessing_ablation.md](./experiments/hp_preprocessing_ablation.md)
 
 ### HP-1: PP Centering
 
@@ -556,8 +556,8 @@ Phase 2 실패 분석 → **LR 개선 + Pose integration 변형** 실험 완료:
 > **결론**: 뷰 수 감소(6→3)가 per-view 품질 개선으로 이어지지 않음.
 > GS-LRM 입력 뷰 부족이 per-view 품질 저하를 압도함.
 
-→ 상세: [hypotheses/H8_REDUCED_VIEW_GENERATION.md](./hypotheses/H8_REDUCED_VIEW_GENERATION.md)
-→ 종합 분석: [hypotheses/H8_VIEW_GENERALIZATION_ANALYSIS.md](./hypotheses/H8_VIEW_GENERALIZATION_ANALYSIS.md)
+→ 상세: hypothesis_roadmap.md (H8) 에 통합
+→ 종합 분석: hypothesis_roadmap.md (H8) 에 통합
 
 ---
 
@@ -572,14 +572,14 @@ Phase 2 실패 분석 → **LR 개선 + Pose integration 변형** 실험 완료:
 ### 실험
 | 문서 | 내용 |
 |------|------|
-| [HP_PREPROCESSING_ABLATION.md](./hypotheses/HP_PREPROCESSING_ABLATION.md) | HP Ablation 계획 |
+| [hp_preprocessing_ablation.md](./experiments/hp_preprocessing_ablation.md) | HP Ablation (진행 중) |
 | [H1bis_v2_REVALIDATION.md](./hypotheses/H1bis_v2_REVALIDATION.md) | H3-bis 재검증 |
 | [H4_VIEW_ABLATION.md](./hypotheses/H4_VIEW_ABLATION.md) | View Ablation + 명령어 |
 | [H5_MVDIFFUSION.md](./hypotheses/H5_MVDIFFUSION.md) | MVDiffusion 실험 |
 | [H6_ALPHA_MASK.md](./hypotheses/H6_ALPHA_MASK.md) | Alpha Mask |
 | [H7_SSIM_WEIGHT.md](./hypotheses/H7_SSIM_WEIGHT.md) | SSIM Weight |
-| [H8_REDUCED_VIEW_GENERATION.md](./hypotheses/H8_REDUCED_VIEW_GENERATION.md) | 뷰 수 감소 생성 |
-| [H8_LITERATURE_SURVEY.md](./hypotheses/H8_LITERATURE_SURVEY.md) | 문헌 기반 개선 서베이 |
+| [hypothesis_roadmap.md (H8)](./experiments/hypothesis_roadmap.md) | 뷰 수 감소 생성 |
+| *(archived — key findings in hypothesis_roadmap.md H8)* | 문헌 기반 개선 서베이 |
 | [COMMANDS.md](./experiments/COMMANDS.md) | 실험 명령어 SSOT |
 | [EXPERIMENT_REGISTRY.md](./experiments/EXPERIMENT_REGISTRY.md) | 실험 레지스트리 |
 
@@ -658,7 +658,7 @@ GPU 4개 x 2-3 실험 = 1~2 라운드
 | P4-2 | HP | M5_5 (Center + Per-view) | ⏳ config 준비완료 |
 | P4-3 | HP | M0 (No Center + No Norm) | ⏳ config 준비완료 |
 
-→ 상세: [hypotheses/HP_PREPROCESSING_ABLATION.md](./hypotheses/HP_PREPROCESSING_ABLATION.md)
+→ 상세: [experiments/hp_preprocessing_ablation.md](./experiments/hp_preprocessing_ablation.md)
 
 ### 핵심 의사결정 포인트
 

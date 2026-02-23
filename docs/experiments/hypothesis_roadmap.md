@@ -15,6 +15,7 @@
 | **H5** | Full attention > sparse attention | cfgr: sparse=false | cfgr < baseline in all metrics | **Rejected** — sparse is better |
 | **H6** | 6v GS-LRM improves E2E over 4v | P1: 6v GS-LRM + MVDiff E2E | 8.44 vs 8.20 (+0.24 dB) | **Marginal** — MVDiff quality limits gains |
 | **H7** | More input views always better (GT) | View ablation 1v→6v | **5v (22.16) > 6v (21.02)** | **Surprising** — 5v optimal on test set |
+| **H8** | Fewer MVDiff views → better per-view quality | 3-view E2E + 17-paper lit review | 3v novel=16.26 (-7.7 vs 6v); min viable=4v | **Rejected** — fewer views ≠ better quality |
 
 ## 2. Analysis Phase Findings
 
@@ -254,4 +255,4 @@ All at: `/node_data/joon/checkpoints/FaceLift/gslrm/`
 
 ---
 
-*FaceLift Hypothesis Roadmap v2.1 | 2026-02-19*
+*FaceLift Hypothesis Roadmap v2.2 | 2026-02-23*

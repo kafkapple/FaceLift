@@ -509,8 +509,8 @@ validation:
 
 ---
 
-*Consolidated: 2026-01-28 | Sources: CONFIG_SCHEMA (2026-01-23), CONFIG_MODULAR (2026-01-20), EXPERIMENT_SCHEMA (2026-01-25)*
+*Experiment Config Guide v1.0 | 2026-02-11*
 
 ---
 
-*Consolidated: 2026-01-28 | Updated: 2026-02-11*
+*Experiment Config Guide v1.0 | 2026-02-11*

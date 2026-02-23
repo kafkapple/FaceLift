@@ -237,7 +237,7 @@ export CUDA_VISIBLE_DEVICES=6 && PYTHONUNBUFFERED=1 nohup python \
 
 > **전제**: ✅ H4 R1 완료 — 3view(19.92) vs 4view(21.50) = 1.58dB gap (<2dB 기준 충족)
 > **목표**: MV-Diffusion 6뷰 → 3~4뷰 생성으로 per-view 품질 개선
-> **문서**: [H8_REDUCED_VIEW_GENERATION.md](../hypotheses/H8_REDUCED_VIEW_GENERATION.md)
+> **문서**: [hypothesis_roadmap.md (H8)](./hypothesis_roadmap.md)
 
 ### S0: H4 결과 분석 ✅
 
@@ -553,3 +553,5 @@ configs/mouse/uniform/
 └── 4view_alpha03_v3.yaml                              # E5
 ```
 
+
+*Commands Reference v1.0 | 2026-02-15*

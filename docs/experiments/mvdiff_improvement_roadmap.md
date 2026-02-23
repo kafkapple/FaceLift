@@ -402,8 +402,8 @@ Future Work: Camera Pose Conditioning + Virtual Camera Interpolation
 |------|------|------|
 | `260216_PHASE3_REPORT.md` | gpu03: docs/experiments/ | Phase 3 종합 보고서 |
 | `FL_vs_PS_comparison.md` | gpu03: docs/experiments/ | Tier A/B/C + Option A (v9.1) |
-| `FaceLift_training_optimal_settings.md` | gpu03: docs/experiments/ | 학습 최적 설정 |
-| `MVDiff_improvement_roadmap.md` | gpu03: docs/experiments/ | 본 문서 (신규) |
+| `training_optimal_settings.md` | gpu03: docs/experiments/ | 학습 최적 설정 |
+| `mvdiff_improvement_roadmap.md` | gpu03: docs/experiments/ | 본 문서 (신규) |
 | `m5_baseline_gs.json` | joon: configs/experiments/ | PS M5 학습 config |
 
 ---

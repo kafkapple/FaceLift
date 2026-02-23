@@ -239,102 +239,21 @@ render_white = rgb * alpha + (1 - alpha) * 1.0  # white background
 
 ---
 
-## 8. Unified Evaluation Results (ACTUAL)
+## 8. Unified Evaluation Results
 
-### 8.1 B-1 → B-2 → B-3 PSNR Decomposition
+> **SUPERSEDED (v8.1)**: B-3 unified results were invalidated by camera parameter mismatch discovery (M5 HFOV=50° vs fj5_ds2 HFOV≈35°). The PSNR gap was primarily from camera geometry, not GT source difference.
+>
+> **Current status**: Option A (PS retrained on M5 data) resolved this. See `FL_vs_PS_comparison.md` §3 (Tier A) for valid same-camera results.
 
-| Step | GT Source | Mask Source | PSNR_gt | IoU | Change |
-|------|-----------|-------------|:-------:|:---:|--------|
-| **B-1** | zarr (PS native) | white-BG (5.04%) | 16.71 | 0.824 | baseline |
-| **B-2** | zarr (PS native) | **M5 alpha (2.33%)** | 15.33 | 0.317 | **-1.38 dB** (mask only) |
-| **B-3** | **M5 RGBA** | M5 alpha (2.33%) | 8.37 | 0.247 | **-6.96 dB** (GT RGB change) |
 
-**Attribution**:
-- Mask change contribution: -1.38 dB (**17%** of total 8.34 dB drop)
-- GT RGB change contribution: -6.96 dB (**83%** of total drop)
+## 9. GT Source Artifact Analysis
 
-### 8.2 Unified Results (B-3)
+> **Partially superseded**: The -6.96 dB GT source artifact analysis remains valid as a code-level finding (FL RGBA vs PS zarr produce different RGB values for identical images). However, the practical impact is moot since Option A now uses identical data sources for both models.
+>
+> For the original analysis details, see git history (v2.0, 2026-02-19).
 
-| Metric | FL E2E (E2) | PS (unified) | Delta | Winner |
-|--------|:---:|:---:|:---:|:---:|
-| PSNR_gt_masked | 8.20 | **8.37** | +0.17 | ~Tie |
-| PSNR_intersection | **15.63** | 12.42 | **+3.21** | **FL** |
-| IoU | **0.518** | 0.247 | **+0.271** | **FL** |
-| Coverage | 71.5% | 70.7% | +0.8% | ~Tie |
-| gt_fg_ratio | **2.33%** | **2.33%** | **0%** | **Unified** |
 
-### 8.3 Key Insight: "Previous 8.5 dB Gap Was an Artifact"
-
-The B-1 gap (PS 16.71 vs FL 8.20 = -8.51 dB) was **not a real quality difference**. It was dominated by:
-1. GT source mismatch (different pixel values for same scene)
-2. Mask definition mismatch (2.17x FG ratio gap)
-
-With unified evaluation (B-3), the gap collapses to **+0.17 dB** (statistical tie on PSNR_gt).
-
----
-
-## 9. GT Source Artifact: Root Cause Analysis
-
-### 9.1 Why -6.96 dB from GT RGB Change Alone?
-
-PS was optimized to reconstruct **fj5_ds2 zarr** images. B-3 evaluates PS renders against **M5 RGBA PNG** images. Same physical scene, same frame, same view — but different preprocessing pipelines:
-
-```
-Same raw data → fj5_ds2 pipeline → zarr (576×512, RGB)  → PS training GT
-Same raw data → M5 pipeline      → PNG (512×512, RGBA)  → FL training GT, B-3 eval GT
-```
-
-Specific pixel-level differences:
-1. **Resolution/framing**: zarr 576×512 vs M5 512×512 → center crop coordinates differ
-2. **Color processing**: Different normalization, white balance in each pipeline
-3. **Alpha compositing**: M5 has precise alpha for FG/BG; zarr uses RGB-only (BG=white)
-4. **Anti-aliasing**: Sub-pixel edge treatment differs between pipelines
-
-PS renders match zarr GT well (PSNR_gt=16.71) but mismatch M5 GT (PSNR_gt=8.37) because they were never trained/optimized for M5 pixel values.
-
-### 9.2 Common Misconception: "PS Has Disadvantages"
-
-**FALSE**. PS has multiple structural advantages:
-
-| Factor | FaceLift | Pose-Splatter | Advantage |
-|--------|----------|---------------|:---------:|
-| **Model type** | Feed-forward (generalization) | Per-scene optimization | **PS** |
-| **Input views** | 1 image | 6 GT views | **PS** |
-| **Native resolution** | 512×512 | 576×512 (wider FOV) | **PS** |
-| **Split** | Train 80%, Test 10% | Same 80:10:10 | **Equal** |
-| **Training target** | General priors → M5 finetune | Directly optimized on M5 cameras | **PS** |
-
-PS's poor B-3 results are **NOT** because PS is worse. They are because B-3 evaluates against M5 GT, which is "foreign" to PS (trained on zarr GT).
-
-### 9.3 IoU=0.247 Explanation
-
-PS silhouette is ~2.6× larger than M5 alpha mask:
-- PS pred_fg ≈ ~6.0% (trained to match zarr white-BG mask ~5.04%)
-- M5 GT_fg = 2.33% (tighter alpha-based mask)
-- The mouse IS in the correct position (coverage=70.7%), but PS mask is bloated relative to M5 alpha
-- This is an **evaluation protocol mismatch**, not a model failure
-
-### 9.4 Fairness Spectrum
-
-| Evaluation | Favors | Reason |
-|------------|--------|--------|
-| **B-1** (zarr GT, white-BG mask) | **PS** | PS's own training GT and mask |
-| **B-3** (M5 GT, M5 alpha mask) | **FL** | FL's own training GT and mask |
-| **Ideal** | Neither | Would require neutral 3rd-party GT |
-
-B-3 is **more methodologically rigorous** than B-1 (same GT/mask/script for both models), but has an inherent FL-favoring bias because M5 is FL's native GT format.
-
-### 9.5 Implications for Publication
-
-Any cross-model comparison must disclose:
-1. Each model's training GT differs in preprocessing pipeline
-2. Unified eval uses one model's GT format (M5), which inherently favors that model
-3. PSNR_intersection is the most robust metric (evaluates only overlapping FG pixels, partially mitigates GT framing differences)
-4. IoU/coverage comparisons are **heavily affected** by mask definition alignment
-
----
-
-## 9. File Inventory
+## 10. File Inventory
 
 ### Evaluation Scripts
 
@@ -374,4 +293,4 @@ Use **Tier A** (same input, same GT) as the primary comparison: GS-LRM > PS by +
 
 ---
 
-*FaceLift vs Pose-Splatter | Metric Consistency Analysis v2.0 | 2026-02-19*
+*Metric Consistency Analysis v2.0 | 2026-02-19*

@@ -354,10 +354,10 @@ Hypothesis: Optimal guidance scale for E2E may differ from optimal for image qua
 | ← Hub | [[INDEX]] |
 | ← Bottleneck analysis | [[mvdiffusion_bottleneck_analysis]] (parent: hypothesis context) |
 | ← FL vs PS | [[FL_vs_PS_comparison]] |
-| → Training settings | [[FaceLift_training_optimal_settings]] (base config reference) |
+| → Training settings | [[training_optimal_settings]] (base config reference) |
 | → Eval protocol | [[evaluation_protocol_v1]] (DA1 eval method) |
 | → Preprocessing | [[datasets/PREPROCESSING_REGISTRY]] (M5 dataset specs) |
 
 ---
 
-*Domain Adaptation DA1 Documentation v1.1 | Updated: 2026-02-22*
+*Domain Adaptation DA1 v1.1 | 2026-02-22*

@@ -286,6 +286,27 @@ SSIM03 best=21.10, current=19.69, declining but not collapsed. Baseline=21.71.
 
 ---
 
+## Appendix: Experiment Checklist
+
+### Before
+- [ ] Split files verified (`data_mouse_t2_{train,val,test}.txt`)
+- [ ] `num_input_views` correct (avoid 6-view for GS-LRM)
+- [ ] Pretrained checkpoint path valid
+- [ ] WandB project: `FaceLift-Mouse`
+
+### During
+- [ ] val/loss monitored (1.0 = bug)
+- [ ] best_psnr.json created
+- [ ] Turntable rendering checked
+
+### After
+- [ ] Test set evaluated (once only!)
+- [ ] GT vs Pred visualization generated
+- [ ] Results logged to experiment docs
+
+---
+
+
 ## 9. Navigation
 
 | Link | Document |

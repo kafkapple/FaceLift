@@ -158,7 +158,7 @@ Single Image ──→ [Multi-view Diffusion] ──→ 6-view Images ──→ 
 | MVDiff 병목 분석 | [[mvdiffusion_bottleneck_analysis]] |
 | Domain Adaptation | [[domain_adaptation_DA1]] |
 | 평가 프로토콜 | [[evaluation_protocol_v1]] |
-| 가설 로드맵 | [[FaceLift_hypothesis_roadmap]] |
+| 가설 로드맵 | [[hypothesis_roadmap]] |
 | 전처리 레지스트리 | [[PREPROCESSING_REGISTRY]] |
 | 명령어 모음 | [[COMMANDS]] |
 | Config 시스템 | [[EXPERIMENT_CONFIG_GUIDE]] |

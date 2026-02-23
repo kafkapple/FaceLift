@@ -1,6 +1,6 @@
 # Raw Data Sources
 
-> **Navigation**: [← Index](../INDEX.md) | [Quick Ref](../_archive/MOUSE_QUICK_REFERENCE.md)
+> **Navigation**: [← Index](../INDEX.md) | [Commands](../experiments/COMMANDS.md)
 > **SSOT**: 원본 데이터 출처 및 샘플링 전략
 
 ---
@@ -203,7 +203,7 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
 
 # Camera Configuration
 
-> **Navigation**: [← Index](../INDEX.md) | [Quick Ref](../_archive/MOUSE_QUICK_REFERENCE.md)
+> **Navigation**: [← Index](../INDEX.md) | [Commands](../experiments/COMMANDS.md)
 > **SSOT**: 6카메라 배치 및 View 선택 가이드
 
 ---
