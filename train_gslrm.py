@@ -1196,6 +1196,27 @@ class GSLRMTrainer:
         
         self._set_epoch(self.val_dataloader, 0)
         self.model.eval()
+        # Offload optimizer states to CPU for validation (RTX 3060 12GB OOM fix)
+        # Adam has 2 state tensors per param (~6GB), freeing them enables validation
+        _offloaded_optim = False
+        gpu_mem = torch.cuda.get_device_properties(0).total_memory
+        print(f'GPU total memory: {gpu_mem / 1024**3:.2f} GiB')
+        print(f'Allocated before offload: {torch.cuda.memory_allocated() / 1024**3:.2f} GiB')
+        num_states = sum(1 for s in self.optimizer.state.values() for k, v in s.items() if torch.is_tensor(v))
+        print(f'Optimizer tensor states: {num_states}')
+        if gpu_mem < 16 * 1024**3:  # < 16GB GPU
+            offloaded = 0
+            freed_bytes = 0
+            for state in self.optimizer.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v) and v.is_cuda:
+                        freed_bytes += v.nelement() * v.element_size()
+                        state[k] = v.cpu()
+                        offloaded += 1
+            _offloaded_optim = True
+            print(f'Offloaded {offloaded} tensors ({freed_bytes / 1024**3:.2f} GiB) to CPU')
+        torch.cuda.empty_cache()
+        print(f'Allocated after offload+cache_clear: {torch.cuda.memory_allocated() / 1024**3:.2f} GiB')
         
         with (self._no_sync(), torch.no_grad(),
               torch.autocast(
@@ -1206,37 +1227,82 @@ class GSLRMTrainer:
             
             log_val_metrics = {"psnr": [], "ssim": [], "lpips": [], "mask_iou": [], "l1": [], "psnr_train_mask": [], "mask_type": None}
 
+            import gc
+            max_val_samples = self.config.get('validation', {}).get('max_val_samples', len(self.val_dataloader))
+            skip_lpips = self.config.get('validation', {}).get('skip_lpips', False)
+            save_val_images = self.config.get('validation', {}).get('save_images', True)
+            low_vram = gpu_mem < 16 * 1024**3
+            if low_vram:
+                print(f'[Low-VRAM mode] skip_lpips={skip_lpips}, save_images={save_val_images}')
             for idx, batch in enumerate(self.val_dataloader):
+                if idx >= max_val_samples:
+                    break
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 # Create visual for first batch only (turntable etc.)
                 create_visual_first = self.config.get("validation", {}).get("visual_first_batch", True)
                 create_visual = create_visual_first and (idx == 0)
                 result = self.model(batch, create_visual=create_visual)
 
+                # RTX 3060 OOM fix: move results to CPU, free GPU before metrics
+                if low_vram:
+                    # Move large tensors to CPU
+                    if hasattr(result, 'render') and isinstance(result.render, torch.Tensor):
+                        result.render = result.render.cpu()
+                    if hasattr(result, 'rendered_alpha') and result.rendered_alpha is not None:
+                        result.rendered_alpha = result.rendered_alpha.cpu()
+                    if hasattr(result, 'input'):
+                        for attr in ['image', 'index']:
+                            if hasattr(result.input, attr) and isinstance(getattr(result.input, attr), torch.Tensor):
+                                setattr(result.input, attr, getattr(result.input, attr).cpu())
+                    if hasattr(result, 'target'):
+                        for attr in ['image', 'index', 'c2w', 'fxfycxcy']:
+                            if hasattr(result.target, attr) and isinstance(getattr(result.target, attr), torch.Tensor):
+                                setattr(result.target, attr, getattr(result.target, attr).cpu())
+                    # Gaussians stay on GPU (needed for PLY save if save_img=True)
+                    batch_cpu = {k: v.cpu() if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+                    del batch
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    batch = batch_cpu
+                    if idx == 0:
+                        print(f'[Low-VRAM] GPU after CPU move: {torch.cuda.memory_allocated() / 1024**3:.2f} GiB')
+
                 try:
+                    should_save_img = save_val_images and (idx == 0)
                     val_metrics = self.model_module.save_validations(
                         os.path.join(self._val_output_dir, f"iter_{self.fwdbwd_pass_step:08d}"),
                         result,
                         batch,
                         self.dataset,
-                        save_img=(idx == 0),
+                        save_img=should_save_img,
                     )
                     log_val_metrics["psnr"].append(val_metrics["psnr"])
                     log_val_metrics["ssim"].append(val_metrics["ssim"])
-                    log_val_metrics["lpips"].append(val_metrics["lpips"])
+                    log_val_metrics["lpips"].append(val_metrics.get("lpips", 0.0))
                     log_val_metrics["mask_iou"].append(val_metrics.get("mask_iou", 0.0))
                     log_val_metrics["l1"].append(val_metrics.get("l1", 0.0))
                     log_val_metrics["psnr_train_mask"].append(val_metrics.get("psnr_train_mask", val_metrics["psnr"]))
                     if val_metrics.get("mask_type"):
                         log_val_metrics["mask_type"] = val_metrics["mask_type"]
-                    
+            
                     # Collect per-view metrics from first validation sample
                     if idx == 0 and "per_view_psnr" in val_metrics:
                         log_val_metrics["per_view_psnr"] = val_metrics["per_view_psnr"]
-                        log_val_metrics["per_view_lpips"] = val_metrics["per_view_lpips"]
+                        log_val_metrics["per_view_lpips"] = val_metrics.get("per_view_lpips", [])
                         log_val_metrics["per_view_ssim"] = val_metrics["per_view_ssim"]
                 except Exception as e:
                     print(f"Error in saving validation results for batch {idx}: {e}")
+
+                # Free intermediate tensors between validation samples
+                del result, batch
+                gc.collect()
+                torch.cuda.empty_cache()
+        # Restore optimizer states to GPU
+        if _offloaded_optim:
+            for state in self.optimizer.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.to(self.device)
 
             # Log validation metrics to wandb
             if self.ddp_rank == 0:

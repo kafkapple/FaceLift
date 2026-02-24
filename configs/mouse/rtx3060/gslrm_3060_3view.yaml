@@ -1,24 +1,25 @@
 # =============================================================================
-# GS-LRM RTX 3060 (12GB VRAM) Config
+# GS-LRM RTX 3060 (12GB VRAM) - 3-View Config
 # =============================================================================
-# Lightweight config for consumer GPU training.
+# 3-view variant for consumer GPU training.
 # Base: configs/mouse/uniform/base_uniform_v2.yaml
-# Usage: python train_gslrm.py -b configs/mouse/uniform/base_uniform_v2.yaml -e configs/mouse/rtx3060/gslrm_3060.yaml
+# RTX 3060 adjustments from: configs/mouse/rtx3060/gslrm_3060.yaml
+# 3-view ref: configs/mouse/uniform/3view_v2.yaml
 #
-# Key changes from base:
-#   - batch_size: 2 -> 1  (~50% VRAM reduction)
-#   - amp_dtype: bf16 -> fp16  (RTX 3060 has better fp16 throughput)
-#   - turntable views: 144 -> 36  (reduce validation VRAM spike)
-#   - val_every: 100 -> 500  (less frequent to save time)
-#   - vis_every: 500 -> 1000
+# Usage: python train_gslrm.py -b configs/mouse/uniform/base_uniform_v2.yaml -e configs/mouse/rtx3060/gslrm_3060_3view.yaml
 #
-# Expected VRAM: ~10-11GB (within 12GB budget)
-# Created: 2026-02-07
+# Key changes from gslrm_3060.yaml (4-view):
+#   - num_input_views: 4 -> 3
+#   - checkpoint_dir: rtx3060_3view
+#   - wandb name/tags updated
+#
+# Expected VRAM: ~9-10GB (slightly less than 4-view)
+# Created: 2026-02-24
 # =============================================================================
 
 # --- Model ---
 model:
-  num_input_views: 4
+  num_input_views: 3
 
 # --- Training ---
 training:
@@ -34,13 +35,13 @@ training:
     prefetch_factor: 4
 
   checkpointing:
-    checkpoint_dir: /home/joon/checkpoints/FaceLift/gslrm/rtx3060_nolpips
+    checkpoint_dir: /home/joon/checkpoints/FaceLift/gslrm/rtx3060_3view
 
   logging:
     vis_every: 1000          # Less frequent visualization
     wandb:
       group: rtx3060
-      exp_name: rtx3060_gslrm_4view
+      exp_name: rtx3060_gslrm_3view
 
 # --- Visualization (minimal turntable to save VRAM) ---
 visualization:
@@ -59,3 +60,11 @@ validation:
   skip_lpips: true           # Skip LPIPS metric during validation (saves ~100MB GPU)
   skip_turntable: true       # Skip turntable rendering in save_validations
   save_images: false         # Skip saving gt_vs_pred images (saves GPU memory)
+
+# --- WandB ---
+wandb:
+  name: rtx3060_gslrm_3view
+  tags:
+  - rtx3060
+  - M5t2
+  - 3view

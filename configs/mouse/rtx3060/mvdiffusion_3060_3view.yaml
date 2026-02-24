@@ -1,21 +1,27 @@
 # =============================================================================
-# MVDiffusion RTX 3060 (12GB VRAM) Config
+# MVDiffusion RTX 3060 (12GB VRAM) - 3-View Config
 # =============================================================================
-# Lightweight config for consumer GPU training.
-# Based on: configs/mvdiffusion/mouse_mvdiffusion_M5t2.yaml
-# Usage: cd mvdiffusion && accelerate launch --config_file 1gpu.yaml train_diffusion.py --config ../configs/mouse/rtx3060/mvdiffusion_3060.yaml
+# 3-view variant for consumer GPU training.
+# Based on: configs/mvdiffusion/mouse_mvdiffusion_M5t2_3view.yaml
+# RTX 3060 adjustments from: configs/mouse/rtx3060/mvdiffusion_3060.yaml
 #
-# Key changes from baseline:
+# Key changes from 3-view baseline:
 #   - train_batch_size: 4 -> 1  (major VRAM reduction)
 #   - gradient_accumulation_steps: 4 -> 16  (preserves effective batch=16)
 #   - validation_batch_size: 2 -> 1
 #   - dataloader_num_workers: 8 -> 4  (less RAM pressure)
+#   - output_dir: rtx3060_3view
 #
-# Expected VRAM: ~5-6GB (well within 12GB budget)
-# Created: 2026-02-07
+# 3-view specifics (from H8):
+#   - n_views: 3, camera_indices: [0, 2, 4] = 120 degree spread
+#   - cam_0 (top-front), cam_2 (top-right), cam_4 (top-left)
+#
+# Expected VRAM: ~4-5GB (fewer views than 6-view variant)
+# Created: 2026-02-24
 # =============================================================================
 
-n_views: 6
+n_views: 3
+camera_indices: [0, 2, 4]
 img_wh: 512
 reference_view_idx: 0
 dataset_type: "mouse"
@@ -24,8 +30,8 @@ pretrained_model_name_or_path: "checkpoints/mvdiffusion/pipeckpts"
 pretrained_unet_path: null
 revision: null
 
-# Mouse-specific prompt embeddings (top-angled views, 1024-dim)
-prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_1024/clr_embeds.pt"
+# 3-view prompt embeddings
+prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_3view_1024/clr_embeds.pt"
 
 # =============================================================================
 # Dataset - M5t2 (Temporal 80:10:10 split)
@@ -46,8 +52,8 @@ validation_dataset:
 # Output
 # =============================================================================
 checkpoint_prefix: ""
-output_dir: /home/joon/checkpoints/FaceLift/mvdiffusion/rtx3060_test
-val_out_dir: /home/joon/checkpoints/FaceLift/mvdiffusion/rtx3060_test/val/
+output_dir: /home/joon/checkpoints/FaceLift/mvdiffusion/rtx3060_3view
+val_out_dir: /home/joon/checkpoints/FaceLift/mvdiffusion/rtx3060_3view/val/
 
 # =============================================================================
 # Training Parameters - RTX 3060 optimized
@@ -93,9 +99,9 @@ validation_sanity_check: true
 tracker_project_name: "FaceLift-MVDiffusion"
 
 # WandB
-wandb_exp_name: "rtx3060_mvdiff_M5t2"
+wandb_exp_name: "rtx3060_mvdiff_M5t2_3view"
 wandb_group: "rtx3060"
-wandb_job_type: "finetune_M5t2"
+wandb_job_type: "finetune_M5t2_3view"
 
 # =============================================================================
 # Training Specifics

@@ -1,18 +1,15 @@
 # =============================================================================
-# MVDiffusion RTX 3060 (12GB VRAM) Config
+# MVDiffusion RTX 3060 (12GB VRAM) - 8-bit Adam Config
 # =============================================================================
-# Lightweight config for consumer GPU training.
-# Based on: configs/mvdiffusion/mouse_mvdiffusion_M5t2.yaml
-# Usage: cd mvdiffusion && accelerate launch --config_file 1gpu.yaml train_diffusion.py --config ../configs/mouse/rtx3060/mvdiffusion_3060.yaml
+# 6-view config with 8-bit Adam optimizer for additional VRAM savings.
+# Based on: configs/mouse/rtx3060/mvdiffusion_3060.yaml
 #
-# Key changes from baseline:
-#   - train_batch_size: 4 -> 1  (major VRAM reduction)
-#   - gradient_accumulation_steps: 4 -> 16  (preserves effective batch=16)
-#   - validation_batch_size: 2 -> 1
-#   - dataloader_num_workers: 8 -> 4  (less RAM pressure)
+# Key change:
+#   - use_8bit_adam: false -> true  (~50% optimizer memory reduction)
 #
-# Expected VRAM: ~5-6GB (well within 12GB budget)
-# Created: 2026-02-07
+# Requires: pip install bitsandbytes
+# Expected VRAM: ~4-5GB (reduced from ~5-6GB with standard Adam)
+# Created: 2026-02-24
 # =============================================================================
 
 n_views: 6
@@ -46,11 +43,11 @@ validation_dataset:
 # Output
 # =============================================================================
 checkpoint_prefix: ""
-output_dir: /home/joon/checkpoints/FaceLift/mvdiffusion/rtx3060_test
-val_out_dir: /home/joon/checkpoints/FaceLift/mvdiffusion/rtx3060_test/val/
+output_dir: /home/joon/checkpoints/FaceLift/mvdiffusion/rtx3060_8bit
+val_out_dir: /home/joon/checkpoints/FaceLift/mvdiffusion/rtx3060_8bit/val/
 
 # =============================================================================
-# Training Parameters - RTX 3060 optimized
+# Training Parameters - RTX 3060 optimized + 8-bit Adam
 # =============================================================================
 seed: 42
 train_batch_size: 1                   # Reduced from 4 to fit 12GB VRAM
@@ -64,7 +61,7 @@ scale_lr: false
 lr_scheduler: "piecewise_constant"
 lr_warmup_steps: 100
 snr_gamma: 5.0
-use_8bit_adam: false
+use_8bit_adam: true                   # 8-bit Adam: ~50% optimizer memory savings
 allow_tf32: true
 use_ema: true
 dataloader_num_workers: 4             # Reduced from 8 for less RAM pressure
@@ -93,9 +90,9 @@ validation_sanity_check: true
 tracker_project_name: "FaceLift-MVDiffusion"
 
 # WandB
-wandb_exp_name: "rtx3060_mvdiff_M5t2"
+wandb_exp_name: "rtx3060_mvdiff_M5t2_8bit"
 wandb_group: "rtx3060"
-wandb_job_type: "finetune_M5t2"
+wandb_job_type: "finetune_M5t2_8bit"
 
 # =============================================================================
 # Training Specifics

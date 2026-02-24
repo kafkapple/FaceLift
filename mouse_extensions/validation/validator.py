@@ -49,7 +49,15 @@ class ValidationRunner:
     ) -> Dict[str, float]:
         """Run validation and save results."""
         from mouse_extensions.evaluation import MetricsComputer
-        metrics_computer = MetricsComputer()
+        skip_lpips = self.config.get('validation', {}).get('skip_lpips', False)
+        # Determine device: use CPU if tensors are already on CPU (low-VRAM mode)
+        metrics_device = 'cpu' if (hasattr(model_results, 'render') and
+                                    isinstance(model_results.render, torch.Tensor) and
+                                    not model_results.render.is_cuda) else 'cuda'
+        metrics_computer = MetricsComputer(
+            device=metrics_device,
+            compute_lpips=not skip_lpips,
+        )
         
         os.makedirs(output_directory, exist_ok=True)
         input_data, target_data = model_results.input, model_results.target
@@ -218,6 +226,10 @@ class ValidationRunner:
         ).save_ply(os.path.join(output_dir, "gaussians.ply"))
     
     def _create_turntable(self, input_data, target_data, model_results, batch_idx, item_uid, output_dir, input_np):
+        # Skip turntable on low-VRAM GPUs to avoid OOM
+        if self.config.get('validation', {}).get('skip_turntable', False):
+            print(f"  Skipping turntable for UID {item_uid} (skip_turntable=True)")
+            return
         """Create turntable video, grid, and orbit views (unified via TurntableRenderer)."""
         from mouse_extensions.visualization.turntable_renderer import TurntableRenderer, TurntableVideoConfig
 
