@@ -83,10 +83,10 @@ FaceLift의 target domain은 실험용 mouse (M5 데이터셋)이며, 일반적�
 | **Architecture** | SD2.1-UnCLIP + Row-wise Multi-view Attention (RMA) |
 | **Output** | 6 views, 256×256 (up to 512×512) |
 | **Input** | Single image |
-| **Code** | 현재 FaceLift `mvdiffusion/` 폴더가 이미 Era3D 기반 |
+| **Code** | 현재 FaceLift `mvdiffusion/` 폴더가 Era3D RMA 아키텍처 기반 |
 | **Difficulty** | ★☆☆☆☆ |
 
-**현황**: FaceLift의 Stage 1이 이미 Era3D 아키텍처를 사용 중. 다만 Era3D 공식 repo의 최신 weight나 개선된 학습 기법이 반영되지 않았을 가능성이 있음.
+**현황**: FaceLift의 Stage 1이 SD2.1-UnCLIP + Era3D RMA 아키텍처를 사용 중. 다만 Era3D 공식 repo의 최신 weight나 개선된 학습 기법이 반영되지 않았을 가능성이 있음.
 
 **개선 가능성**:
 - Era3D 공식 최신 checkpoint 적용

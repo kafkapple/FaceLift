@@ -140,7 +140,7 @@ Multi-view diffusion에서 뷰 간 일관성의 핵심은 **epipolar constraint*
 | 모델 | 논문 | 메커니즘 | 카메라 | 복잡도 | FaceLift 참조 |
 |------|------|----------|--------|--------|:------------:|
 | **MVDiffusion** | Tang, NeurIPS'23 | Correspondence-aware | 임의 | O(N²S²K) | ❌ |
-| **Era3D (=FaceLift)** | Li, NeurIPS'24 | **Row-wise (RMA)** | Canonical | O(N²S³) | ✅ |
+| **FaceLift (Era3D RMA)** | Li, NeurIPS'24 | **Row-wise (RMA)** | Canonical | O(N²S³) | ✅ |
 | Zero123++ | Shi, arXiv'23 | Global self-attention | 고정 6뷰 | O(N²S⁴) | ❌ |
 | SyncDreamer | Liu, ICLR'24 | Volume attention (3D) | 고정 16뷰 | 높음 | ❌ |
 | Wonder3D++ | Long, TPAMI'25 | Cross-domain MV attention | 카메라+도메인 스위처 | 중간 | ❌ |
@@ -158,7 +158,7 @@ Multi-view diffusion에서 뷰 간 일관성의 핵심은 **epipolar constraint*
 
 | 모델 | Base | Views | Resolution | 카메라 조건 | Open Weights | 교체 적합도 |
 |------|------|:-----:|:----------:|:---------:|:------------:|:----------:|
-| **Era3D (현재)** | SD2.1-UnCLIP | 6 | 512 | CLIP text | ✅ HF | baseline |
+| **FaceLift (현재)** | SD2.1-UnCLIP | 6 | 512 | CLIP text | ✅ HF | baseline |
 | **MV-Adapter** | SD2.1/SDXL | 6 | 512/768 | Camera guider | ✅ HF | ⭐⭐⭐ |
 | **Wonder3D++** | SD | 6 | 256 | Camera+domain | ✅ GitHub | ⭐⭐ |
 | Zero123++ | SD1.5 | 6 | 320 | 고정 pose | ✅ HF | ⭐ |

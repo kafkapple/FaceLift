@@ -144,4 +144,45 @@ Turntable 및 시각화 관련 설정 문서.
 
 ---
 
-*Visualization Settings v1.0 | 2026-02-11*
+## Turntable Commands
+
+> Consolidated from `COMMANDS.md` (2026-02-24)
+
+### Quick Test (verify_turntable.sh)
+
+```bash
+cd /home/joon/dev/FaceLift
+nohup bash scripts/verify_turntable.sh 6 > ./logs/verify_turntable.log 2>&1 &
+tail -f ./logs/verify_turntable.log
+
+# Custom checkpoint
+bash scripts/verify_turntable.sh 6 /path/to/checkpoint.pt
+```
+
+| Step | Script | Verifies |
+|------|--------|----------|
+| 1/2 | render_from_checkpoint.py | Inference path (orbit only) |
+| 2/2 | TurntableRenderer.render_all() | Train/Val path (orbit + view_traj + grid) |
+
+### Standalone Inference
+
+```bash
+CUDA_VISIBLE_DEVICES=6 python mouse_extensions/scripts/inference/render_from_checkpoint.py \
+    --checkpoint /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_E0_1_facelift/ckpt_0000000000009200.pt \
+    --config configs/base/gslrm_mouse.yaml \
+    --data_path /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt \
+    --output_dir outputs/verify_turntable/inference \
+    --mode turntable --num_samples 1
+```
+
+### Result Check
+
+```bash
+ls outputs/verify_turntable/inference/
+ls outputs/verify_turntable/renderer/
+scp -r gpu03:~/dev/FaceLift/outputs/verify_turntable/ .
+```
+
+---
+
+*Visualization Settings v1.1 | 2026-02-24*

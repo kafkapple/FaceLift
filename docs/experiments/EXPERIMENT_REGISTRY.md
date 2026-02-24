@@ -190,4 +190,124 @@ Step  3956: process killed (NaN→CUDA crash)
 
 ---
 
-*Experiment Registry v6.0 | 2026-02-15*
+## Optimal Settings & Results Summary
+
+> Consolidated from `training_optimal_settings.md` (2026-02-24)
+
+### Stage 1: MVDiffusion (SD2.1-UnCLIP + Era3D RMA)
+
+#### Optimal Settings
+
+| Parameter | Recommended | Rationale |
+|-----------|-------------|-----------|
+| LR scheduler | Cosine (best color) or Piecewise+resume (best overall) | E1 vs E2 trade-off |
+| Steps | 20K | 11K→20K: marginal gain (+0.03 PSNR_int) |
+| Sparse attention | Yes | Full attention (cfgr) worse in all metrics |
+| Reference view | Random (if resuming) or Fixed (v0) | E2 random+resume = best PSNR_gt |
+| Pose conditioning | Skip | No benefit (E3 ≈ E2) |
+
+#### E2E Results (360 test frames)
+
+| Experiment | PSNR_gt | PSNR_int | IoU | Coverage |
+|-----------|:-------:|:--------:|:---:|:--------:|
+| Baseline 5K | 7.93 | 13.70 | 0.474 | 74.0% |
+| cfgr 10K | 7.75 | 15.75 | 0.491 | 67.5% |
+| E1 cosine 20K | 7.90 | **16.15** | **0.528** | 70.5% |
+| **E2 resume 20K** | **8.20** | 15.63 | 0.521 | **71.5%** |
+| E3 pose 10K | 8.10 | 15.88 | 0.523 | 71.6% |
+
+#### MVDiff Direct Quality (A1, E1 cosine 20K)
+
+| View | Angle | Sil IoU | PSNR_int | Coverage |
+|:----:|:-----:|:-------:|:--------:|:--------:|
+| 0 (ref) | 0° | 0.975 | 25.13 | 99.9% |
+| 1 | 60° | 0.621 | 18.90 | 78.9% |
+| 2 | 120° | 0.500 | 16.56 | 64.9% |
+| 3 | 180° | 0.509 | 17.09 | 65.3% |
+| 4 | 240° | 0.464 | 17.02 | 60.5% |
+| 5 | 300° | 0.423 | 16.95 | 55.0% |
+
+**결론**: 아키텍처 내 최적 도달 (PSNR_gt 7.9-8.2 수렴). 실루엣 위치 오류가 지배적 (Sil IoU=0.582). 돌파 시 아키텍처 변경 필요.
+
+### Stage 2: GS-LRM
+
+#### Optimal Settings
+
+| Parameter | Recommended | Rationale |
+|-----------|-------------|-----------|
+| num_input_views | 4 (현재) or 6 (향후) | 6v=+2.15 dB val, 단 E2E에서 v4,v5 미사용 |
+| Losses | L2(1.0) + Perceptual(0.5) | Alpha reg는 성능 하락 |
+| opacity_reg_weight | 0.0 (disabled) | E5: -1.0 dB val (harmful) |
+| Early stopping | patience=10, val_every=200 | ~8K steps에서 수렴 |
+
+#### View Ablation (Val PSNR)
+
+| Views | Val PSNR | Delta from 4v |
+|:-----:|:--------:|:---:|
+| 6 | 24.49 | +2.15 |
+| 4 | 22.34 | baseline |
+| 3 | ~19.5 | -2.8 |
+| 1 | 11.08 | -11.26 |
+
+#### E5 Alpha Regularization
+
+| Metric | 4v Baseline | E5 Alpha(0.3) | Delta |
+|--------|:---:|:---:|:---:|
+| Val PSNR | **22.34** | 21.34 | -1.00 |
+| E2E PSNR_gt | 7.9-8.2 | ~7.9-8.2 | 0 (0% transfer) |
+
+**결론**: 4v baseline 최적. Stage 2 개선은 E2E에 0% 전이 → 추가 실험 불필요.
+
+### E2E Transfer Rate Analysis
+
+| Improvement Source | Val Improvement | E2E Improvement | Transfer Rate |
+|-------------------|:---:|:---:|:---:|
+| MVDiff val (Stage 1) | +3.59 dB | +0.27 dB | ~7.5% |
+| GS-LRM val (Stage 2) | +2.3 dB | 0.0 dB | **0%** |
+| Cosine LR (PSNR_int) | — | +0.52 dB (color) | ~15% |
+
+### Sensitivity Analysis (A2: Oracle MVDiff)
+
+GS-LRM 4v에 GT/MVDiff 혼합 입력 → 뷰별 민감도:
+
+| Level | Config | PSNR_gt | IoU | Finding |
+|:-----:|--------|:-------:|:---:|---------|
+| 0 | 6 GT (upper) | 21.02 | 0.943 | Upper bound |
+| 1 | Replace v5 | 21.02 | 0.943 | v5 미사용 (영향 0) |
+| 2 | Replace v4,5 | 21.02 | 0.943 | v4도 미사용 (영향 0) |
+| 3 | Replace v3,4,5 | 15.82 | 0.780 | v3 교체 시 **-5.2 dB 급락** |
+| 4 | Replace v2-5 | 10.44 | 0.614 | v2 추가 -5.4 dB |
+| 5 | Replace v1-5 (≈E2E) | 7.90 | 0.528 | v1 교체 -2.5 dB |
+
+**핵심**: `num_input_views=4`에서 실제 사용 뷰는 0,1,2,3번. Views 4,5는 완전 무시됨.
+
+### Bottleneck Summary
+
+```
+GS-LRM 6v GT:  PSNR_gt=21.02, IoU=0.943  ← Upper bound
+       ↓
+MVDiff:         Sil IoU=0.582              ← 86% of quality loss HERE
+       ↓
+E2E Best:       PSNR_gt=8.20, IoU=0.521   ← Final output
+```
+
+| Priority | Target | Action | Impact |
+|:--------:|--------|--------|:------:|
+| P1 | MVDiff silhouette | 실루엣 예측 정확도 개선 | High |
+| P2 | MVDiff views 1-3 | 인접 뷰 일관성 강화 (A2 critical) | High |
+| P3 | GS-LRM views | 4→6 (현재 v4,5 미사용) | Medium |
+| Low | Training strategy | 더 긴 학습/다른 LR → 이미 수렴 | Negligible |
+| Low | GS-LRM regularization | Alpha/opacity → 성능 하락 (E5) | Negative |
+
+### Recommended E2E Configuration
+
+| Component | Setting | Checkpoint |
+|-----------|---------|-----------|
+| **MVDiff** | E2 (resume+random ref+sparse+piecewise) | `mouse_M5t2_randref_sparse/checkpoint-20000` |
+| **GS-LRM** | 4v baseline (L2+Perceptual) | `M5t2_E0_1_facelift/best_psnr.pt` |
+
+Alternative (color accuracy 중시): MVDiff E1 (cosine LR) + GS-LRM 4v baseline.
+
+---
+
+*Experiment Registry v7.0 | 2026-02-24*

@@ -255,4 +255,84 @@ All at: `/node_data/joon/checkpoints/FaceLift/gslrm/`
 
 ---
 
+---
+
+## MVDiffusion Architecture Improvements
+
+> Consolidated from `mvdiff_improvement_roadmap.md` (2026-02-24)
+
+### Problem: Non-Uniform Camera Placement
+
+M5 camera azimuths: `[0°, 22.5°, 36°, 73°, 88°, 151°]` — highly non-uniform with a **208.6° gap** (151° → 360°). MVDiffusion (SD2.1-UnCLIP + Era3D RMA) assumes **60° uniform spacing** from Objaverse pretraining. Per-view analysis confirms angular distance correlates with quality degradation (View 5 at 151° = lowest fg_PSNR 6.77).
+
+### E3 Failure Analysis: Why Shallow Pose Conditioning Failed
+
+E3 attempted additive injection of camera extrinsics into MVDiff conditioning:
+
+```
+E3 approach:  pose_signal = MLP(flatten(R, T))
+              conditioning = view_embed + pose_signal  (additive)
+```
+
+**Why it failed**: RMA's cross-view attention weights encode **structural** 60°-uniform relationships learned from Objaverse. An additive signal at the conditioning level cannot override attention patterns that are **internal** to the transformer layers. The information pathway is too shallow — pose data never reaches where spatial relationships are computed.
+
+**Lesson**: Need **attention-level** intervention (modifying Q/K/V, positional encoding, or attention bias), not surface-level signal addition.
+
+| | E3 (failed) | Proposed Deep Conditioning |
+|--|:-----------:|:--------------------------:|
+| Integration | Additive to conditioning | Attention bias / relative pose encoding |
+| Scope modified | Conditioning MLP only | **Cross-view attention structure** |
+| RMA 60° assumption | Preserved | **Removed** (pose-dependent) |
+| Pretrained compatibility | Compatible | Incompatible (structural change) |
+
+### Strategy A: Camera Pose Conditioning (Architecture Modification)
+
+**Goal**: Make MVDiff work with arbitrary camera placement by modifying RMA.
+
+**Approach A — Pose-Aware Attention Bias** (minimal modification):
+
+```python
+# Current RMA: attention based on learned view-index weights
+attention = softmax(Q @ K^T / sqrt(d))
+
+# Proposed: explicit geometric bias from relative camera poses
+relative_pose = compute_relative_pose(cam_i, cam_j)
+pose_bias = pose_mlp(relative_pose)       # [N_views, N_views, N_heads]
+attention = softmax(Q @ K^T / sqrt(d) + pose_bias)
+```
+
+**Approach B — Sinusoidal Camera Encoding** (NeRF-style): Replace discrete view-index embeddings with continuous positional encoding of camera extrinsics (R, T → 12-dim → frequency encoding → MLP).
+
+**Approach C — Epipolar Attention** (full replacement): Replace RMA entirely with epipolar-line-based attention. Most fundamental but highest implementation cost.
+
+**Related work**: Zero123++ (relative camera transforms), SV3D (camera trajectory conditioning), MVDream (explicit camera control).
+
+### Strategy B: Virtual Camera Interpolation (Data Transformation)
+
+**Goal**: Satisfy RMA's 60° assumption by generating uniform-view training data.
+
+**Pipeline**:
+1. GS-LRM GT 6v → 3D Gaussian reconstruction
+2. Render from uniform virtual cameras: `[0°, 60°, 120°, 180°, 240°, 300°]`
+3. Retrain MVDiffusion on uniform-view data (pretrained weights reusable)
+4. Retrain GS-LRM for uniform-view input
+
+**Critical constraint**: The 208.6° gap renders quality at ~256° (gap center) uncertain — all input views are far from this region. GS-LRM GT 6v achieves ~24 dB near input views but ~16.6 dB at far views. Poor virtual-view quality would propagate errors into MVDiff training.
+
+### Comparison Matrix
+
+| Criterion | Pose Conditioning | Virtual Camera | E3 (failed) |
+|-----------|:-----------------:|:--------------:|:-----------:|
+| Architecture change | **Major** | None | None |
+| Pretrained reuse | Limited | **Yes** | Yes |
+| Implementation effort | High | **Medium** | Low |
+| Expected impact | **High** | Medium | None |
+| Generalization | **High** | Low | None |
+| Paper contribution | **High** | Medium | — |
+| Timeline | Weeks | **Days** | Done |
+
+**Recommended path**: Virtual Camera (short-term feasibility test) → Camera Pose Conditioning (long-term fundamental solution). These correspond to P4 and P3 in the experiment queue (§6).
+
+---
+
 *FaceLift Hypothesis Roadmap v2.2 | 2026-02-23*

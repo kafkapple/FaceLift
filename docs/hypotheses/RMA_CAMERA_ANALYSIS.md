@@ -8,7 +8,7 @@
 
 ## 1. 카메라 배치 비교
 
-### 1.1 Original FaceLift (Era3D) Cameras
+### 1.1 Original FaceLift Cameras (Era3D RMA architecture)
 
 `utils_folder/opencv_cameras.json` — 6개 canonical views:
 
