@@ -14,6 +14,7 @@
 #   prompt_embeddings = injector.inject(prompt_embeddings, ref_view_idx, n_views)
 #
 # Created: 2026-02-13
+# Updated: 2026-02-24 — Added Plucker token projection support
 # =============================================================================
 
 import json
@@ -121,11 +122,18 @@ class PoseConditioningInjector(nn.Module):
       - "add": Add pose embed to existing prompt embeddings (requires match)
       - "replace_last": Replace last prompt token with pose embed
 
+    Plucker support (added 2026-02-24):
+      PluckerRayEncoder outputs spatial features [B*N, 320, H, W].
+      For token-based integration (add/concat/replace_last), we apply
+      global average pooling + linear projection to convert spatial→token.
+      This preserves compatibility with the existing injection pipeline.
+
     Args:
         method: Pose encoding method ("spherical", "extrinsic", "plucker")
         cameras: Camera dict from load_m5_cameras()
         embed_dim: Embedding dimension (must match UNet cross_attention_dim)
         integration: How to combine pose embed with prompt ("concat")
+        plucker_resolution: H/W for Plucker ray computation (default: 64)
     """
 
     def __init__(
@@ -135,11 +143,13 @@ class PoseConditioningInjector(nn.Module):
         embed_dim: int = 1024,
         integration: str = "concat",
         camera_json_path: str = "mouse_extensions/inference/cameras/m5_cameras.json",
+        plucker_resolution: int = 64,
     ):
         super().__init__()
         self.method = method
         self.integration = integration
         self.embed_dim = embed_dim
+        self.plucker_resolution = plucker_resolution
 
         # Load cameras if not provided
         if cameras is None:
@@ -157,9 +167,63 @@ class PoseConditioningInjector(nn.Module):
             num_views=self.n_views,
         )
 
+        # Plucker token projection: spatial [N, spatial_dim, H, W] → token [N, embed_dim]
+        if method == "plucker":
+            spatial_dim = 320  # PluckerRayEncoder default output channels
+            self.plucker_to_token = nn.Sequential(
+                nn.AdaptiveAvgPool2d(1),   # [N, 320, 1, 1]
+                nn.Flatten(),              # [N, 320]
+                nn.Linear(spatial_dim, embed_dim),  # [N, 1024]
+            )
+
         # Precompute fixed camera pose embeddings (for non-random ref)
         # Will be computed lazily and cached
         self._cached_embeddings = None
+
+    def _compute_pose_token(
+        self,
+        c2w: torch.Tensor,  # [N, 4, 4] or [1, N, 4, 4]
+        view_indices: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        """
+        Compute pose token embeddings for given cameras.
+        Handles all methods uniformly, including Plucker spatial→token conversion.
+
+        Args:
+            c2w: Camera matrices (unbatched [N, 4, 4] or batched [1, N, 4, 4])
+            view_indices: View indices for intrinsics lookup (Plucker only)
+
+        Returns:
+            [N, embed_dim] pose token embeddings
+        """
+        # Ensure batched format
+        if c2w.dim() == 3:
+            c2w_batched = c2w.unsqueeze(0)  # [1, N, 4, 4]
+        else:
+            c2w_batched = c2w  # already [1, N, 4, 4]
+
+        if self.method == 'plucker':
+            # Plucker needs intrinsics and resolution
+            if view_indices is not None:
+                intr = self.intrinsics[view_indices]  # [N, 4]
+            else:
+                intr = self.intrinsics  # [N, 4]
+            intr_batched = intr.unsqueeze(0)  # [1, N, 4]
+
+            # Plucker computation: dtype follows c2w (may be fp16 under
+            # mixed precision). pose_conditioning.py's meshgrid also
+            # matches c2w.dtype, so all operations stay consistent.
+            spatial = self.conditioner(
+                c2w_batched, intr_batched,
+                self.plucker_resolution, self.plucker_resolution,
+            )  # [N, spatial_dim, H, W]
+            # Project to token: [N, embed_dim]
+            token = self.plucker_to_token(spatial)
+            return token
+        else:
+            # Spherical / Extrinsic: already returns [1, N, embed_dim]
+            embeddings = self.conditioner(c2w_batched)
+            return embeddings.squeeze(0)  # [N, embed_dim]
 
     def _compute_pose_embeddings(
         self,
@@ -179,13 +243,7 @@ class PoseConditioningInjector(nn.Module):
         else:
             cameras = self.c2w  # [N, 4, 4]
 
-        # Add batch dim: [1, N, 4, 4]
-        cameras_batched = cameras.unsqueeze(0)
-
-        # Compute embeddings: [1, N, embed_dim]
-        embeddings = self.conditioner(cameras_batched)
-
-        return embeddings.squeeze(0)  # [N, embed_dim]
+        return self._compute_pose_token(cameras, view_indices)
 
     def get_fixed_embeddings(self) -> torch.Tensor:
         """Get cached embeddings for fixed camera order (no rotation)."""
@@ -239,21 +297,34 @@ class PoseConditioningInjector(nn.Module):
                 rotated_cameras = get_rotated_cameras(
                     self.c2w, ref_view_idx, self.n_views
                 )
-                rotated_cameras = rotated_cameras.unsqueeze(0)  # [1, N, 4, 4]
-                pose_embeds = self.conditioner(rotated_cameras)   # [1, N, C]
-                pose_embeds = pose_embeds.expand(batch_size, -1, -1)  # [B, N, C]
+                rotated_indices = [
+                    (ref_view_idx + i) % self.n_views
+                    for i in range(self.n_views)
+                ]
+                # Use unified _compute_pose_token (handles plucker)
+                pose_embeds = self._compute_pose_token(
+                    rotated_cameras, rotated_indices
+                )  # [N, C]
+                pose_embeds = pose_embeds.unsqueeze(0).expand(
+                    batch_size, -1, -1
+                )  # [B, N, C]
                 pose_embeds = pose_embeds.reshape(BN, C)
             else:
                 # Per-batch rotation (tensor of indices)
                 all_embeds = []
                 for b in range(batch_size):
                     idx = ref_view_idx[b].item() if torch.is_tensor(ref_view_idx) else ref_view_idx
-                    rotated = get_rotated_cameras(self.c2w, idx, self.n_views)
-                    embeds = self._compute_pose_embeddings()
-                    rotated_embeds = embeds[
-                        [(idx + i) % self.n_views for i in range(self.n_views)]
+                    rotated_cameras = get_rotated_cameras(
+                        self.c2w, idx, self.n_views
+                    )
+                    rotated_indices = [
+                        (idx + i) % self.n_views
+                        for i in range(self.n_views)
                     ]
-                    all_embeds.append(rotated_embeds)
+                    embeds = self._compute_pose_token(
+                        rotated_cameras, rotated_indices
+                    )  # [N, C]
+                    all_embeds.append(embeds)
                 pose_embeds = torch.stack(all_embeds).reshape(BN, C).to(device)
 
         # Inject based on integration method
@@ -300,7 +371,9 @@ def create_pose_injector_from_config(
             enabled: true
             method: "spherical"       # spherical | extrinsic | plucker
             integration: "concat"     # concat | add | replace_last
+            embed_dim: 1024
             camera_json: "mouse_extensions/inference/cameras/m5_cameras.json"
+            plucker_resolution: 64    # Only for plucker method
 
     Returns:
         PoseConditioningInjector or None if not enabled
@@ -317,6 +390,7 @@ def create_pose_injector_from_config(
             "camera_json",
             "mouse_extensions/inference/cameras/m5_cameras.json"
         ),
+        plucker_resolution=pose_cfg.get("plucker_resolution", 64),
     )
 
     return injector.to(device)

@@ -1,0 +1,144 @@
+# =============================================================================
+# Mouse MVDiffusion - H6a: Plucker Ray Pose Conditioning (Token Projection)
+# =============================================================================
+# Hypothesis: Plucker ray coordinates encode pixel-level 3D geometry,
+# providing richer pose information than extrinsic parameters (9D global).
+# This should improve multi-view consistency and silhouette accuracy.
+#
+# Approach: PluckerRayEncoder computes spatial features [N, 320, H, W],
+# then global avg pool + linear projection converts to token [N, 1024]
+# for injection via "add" (same integration as H3).
+#
+# Base: E2 checkpoint-20000 (same starting point as H3 for fair comparison)
+# Key change vs H3:
+#   - pose_conditioning.method: "extrinsic" → "plucker"
+#   - pose_conditioning.plucker_resolution: 64 (latent resolution)
+#
+# Comparison target: H3 (extrinsic+add, E2E PSNR_fg=8.85, IoU=0.569)
+# Success criteria: IoU > 0.60 or PSNR_fg > 9.5
+#
+# Version: v1.0
+# Created: 2026-02-24
+# =============================================================================
+
+n_views: 6
+img_wh: 512
+reference_view_idx: "random"
+dataset_type: "mouse"
+
+# Pose Conditioning — PLUCKER (key change from H3)
+pose_conditioning:
+  enabled: true
+  method: "plucker"                    # KEY CHANGE: extrinsic → plucker
+  integration: "add"                   # Same as H3
+  embed_dim: 1024
+  camera_json: "mouse_extensions/inference/cameras/m5_cameras.json"
+  plucker_resolution: 64              # Latent resolution for ray computation
+
+pretrained_model_name_or_path: "checkpoints/mvdiffusion/pipeckpts"
+# Same starting point as H3 (E2 checkpoint) for fair comparison
+pretrained_unet_path: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_randref_sparse/checkpoint-20000/unet"
+revision: null
+
+prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_1024/clr_embeds.pt"
+
+# =============================================================================
+# Dataset - M5t2 (Temporal 80:10:10 split)
+# =============================================================================
+train_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+  bg_color: "three_choices"
+  augmentation: true
+  aug_brightness: [0.9, 1.1]
+  aug_contrast: [0.9, 1.1]
+  aug_hflip: false
+
+validation_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+  bg_color: "white"
+
+# =============================================================================
+# Output
+# =============================================================================
+checkpoint_prefix: ""
+output_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_H6a_plucker"
+val_out_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_H6a_plucker/val/"
+
+# =============================================================================
+# Training Parameters (identical to H3)
+# =============================================================================
+seed: 42
+train_batch_size: 4
+validation_batch_size: 2
+max_train_steps: 10000
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+learning_rate: 5e-5
+step_rules: null
+scale_lr: false
+lr_scheduler: "cosine"
+lr_warmup_steps: 100
+snr_gamma: 5.0
+use_8bit_adam: false
+allow_tf32: true
+use_ema: true
+dataloader_num_workers: 8
+
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 1.e-2
+adam_epsilon: 1.e-08
+max_grad_norm: 1.0
+prediction_type: null
+
+# =============================================================================
+# Logging and Validation
+# =============================================================================
+vis_dir: vis
+logging_dir: logs
+mixed_precision: "fp16"
+report_to: "wandb"
+local_rank: -1
+checkpointing_steps: 1000
+checkpoints_total_limit: 3
+resume_from_checkpoint: null
+enable_xformers_memory_efficient_attention: true
+validation_steps: 200
+validation_sanity_check: true
+tracker_project_name: "FaceLift-MVDiffusion"
+
+# WandB
+wandb_exp_name: "mvdiff_M5t2_H6a_plucker"
+wandb_group: "mvdiffusion"
+wandb_job_type: "finetune_M5t2_H6a_plucker"
+wandb_run_id: null
+
+# =============================================================================
+# Training Specifics (same CFG as H3)
+# =============================================================================
+trainable_modules: null
+use_classifier_free_guidance: true
+condition_drop_rate: 0.05
+drop_type: "drop_as_a_whole"
+camera_embedding_lr_mult: 1.
+scale_input_latents: true
+
+pipe_kwargs:
+  num_views: ${n_views}
+validation_guidance_scales: [1., 3.]
+validation_grid_nrow: ${n_views}
+pipe_validation_kwargs:
+  eta: 1.0
+
+unet_from_pretrained_kwargs:
+  unclip: true
+  num_views: ${n_views}
+  sample_size: 64
+  zero_init_conv_in: true
+  init_mvattn_with_selfattn: false
+  cd_attention_last: false
+  cd_attention_mid: false
+  multiview_attention: true
+  sparse_mv_attention: true
+  selfattn_block: custom
+  addition_downsample: false

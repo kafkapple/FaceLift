@@ -245,10 +245,11 @@ class PluckerRayEncoder(nn.Module):
             cx = intrinsics[:, 0, 2]
             cy = intrinsics[:, 1, 2]
 
-        # Create pixel grid
+        # Create pixel grid (use c2w dtype for mixed precision compatibility)
+        dtype = c2w.dtype
         y, x = torch.meshgrid(
-            torch.arange(height, device=device, dtype=torch.float32),
-            torch.arange(width, device=device, dtype=torch.float32),
+            torch.arange(height, device=device, dtype=dtype),
+            torch.arange(width, device=device, dtype=dtype),
             indexing='ij'
         )
         x = x.unsqueeze(0).expand(B, -1, -1)  # [B, H, W]
