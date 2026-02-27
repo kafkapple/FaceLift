@@ -15,12 +15,14 @@
 #
 # Created: 2026-02-13
 # Updated: 2026-02-24 — Added Plucker token projection support
+# Updated: 2026-02-25 — Added trainable mode (encoder jointly trained with UNet)
 # =============================================================================
 
 import json
 import torch
 import torch.nn as nn
 import numpy as np
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Optional, Dict, List, Union
 
@@ -128,12 +130,23 @@ class PoseConditioningInjector(nn.Module):
       global average pooling + linear projection to convert spatial→token.
       This preserves compatibility with the existing injection pipeline.
 
+    Trainable mode (added 2026-02-25):
+      When trainable=True, gradients flow through the pose encoder and
+      projection layers, allowing them to be jointly trained with UNet.
+      Literature consensus (MVDream, CAT3D, SPAD, SV3D) shows that jointly
+      training pose projections yields better representations than frozen
+      random initialization. When trainable=True:
+        - @torch.no_grad() is NOT applied to inject()
+        - Cached embeddings are NOT used (recomputed each call for grad graph)
+        - Caller must add pose_injector.parameters() to an optimizer
+
     Args:
         method: Pose encoding method ("spherical", "extrinsic", "plucker")
         cameras: Camera dict from load_m5_cameras()
         embed_dim: Embedding dimension (must match UNet cross_attention_dim)
         integration: How to combine pose embed with prompt ("concat")
         plucker_resolution: H/W for Plucker ray computation (default: 64)
+        trainable: If True, encoder params receive gradients (default: False)
     """
 
     def __init__(
@@ -144,12 +157,16 @@ class PoseConditioningInjector(nn.Module):
         integration: str = "concat",
         camera_json_path: str = "mouse_extensions/inference/cameras/m5_cameras.json",
         plucker_resolution: int = 64,
+        trainable: bool = False,
+        spatial_token_size: int = 8,
     ):
         super().__init__()
         self.method = method
         self.integration = integration
         self.embed_dim = embed_dim
         self.plucker_resolution = plucker_resolution
+        self.trainable = trainable
+        self.spatial_token_size = spatial_token_size
 
         # Load cameras if not provided
         if cameras is None:
@@ -175,6 +192,17 @@ class PoseConditioningInjector(nn.Module):
                 nn.Flatten(),              # [N, 320]
                 nn.Linear(spatial_dim, embed_dim),  # [N, 1024]
             )
+
+            # Spatial token projection: preserve spatial info as token sequence
+            # [N, 320, H, W] → pool to SxS → flatten → project → [N, S*S, embed_dim]
+            n_spatial_tokens = spatial_token_size * spatial_token_size
+            self.plucker_spatial_proj = nn.Sequential(
+                nn.AdaptiveAvgPool2d(spatial_token_size),  # [N, 320, S, S]
+            )
+            # Zero-init linear: initially contributes nothing (ControlNet strategy)
+            self.plucker_spatial_linear = nn.Linear(spatial_dim, embed_dim)
+            nn.init.zeros_(self.plucker_spatial_linear.weight)
+            nn.init.zeros_(self.plucker_spatial_linear.bias)
 
         # Precompute fixed camera pose embeddings (for non-random ref)
         # Will be computed lazily and cached
@@ -225,6 +253,48 @@ class PoseConditioningInjector(nn.Module):
             embeddings = self.conditioner(c2w_batched)
             return embeddings.squeeze(0)  # [N, embed_dim]
 
+    def _compute_spatial_tokens(
+        self,
+        c2w: torch.Tensor,  # [N, 4, 4] or [1, N, 4, 4]
+        view_indices: Optional[List[int]] = None,
+    ) -> torch.Tensor:
+        """
+        Compute spatial token sequence from Plucker ray features.
+        Preserves spatial structure by downsampling instead of global pooling.
+
+        Args:
+            c2w: Camera matrices
+            view_indices: View indices for intrinsics lookup
+
+        Returns:
+            [N, S*S, embed_dim] spatial token sequence
+        """
+        assert self.method == 'plucker', "spatial_token only supported for plucker method"
+
+        if c2w.dim() == 3:
+            c2w_batched = c2w.unsqueeze(0)
+        else:
+            c2w_batched = c2w
+
+        if view_indices is not None:
+            intr = self.intrinsics[view_indices]
+        else:
+            intr = self.intrinsics
+        intr_batched = intr.unsqueeze(0)
+
+        # Get spatial features from PluckerRayEncoder
+        spatial = self.conditioner(
+            c2w_batched, intr_batched,
+            self.plucker_resolution, self.plucker_resolution,
+        )  # [N, 320, H, W]
+
+        # Downsample to S×S preserving spatial structure
+        pooled = self.plucker_spatial_proj(spatial)  # [N, 320, S, S]
+        N, C, S, _ = pooled.shape
+        tokens = pooled.flatten(2).transpose(1, 2)   # [N, S*S, 320]
+        tokens = self.plucker_spatial_linear(tokens)  # [N, S*S, embed_dim]
+        return tokens
+
     def _compute_pose_embeddings(
         self,
         view_indices: Optional[List[int]] = None,
@@ -247,12 +317,14 @@ class PoseConditioningInjector(nn.Module):
 
     def get_fixed_embeddings(self) -> torch.Tensor:
         """Get cached embeddings for fixed camera order (no rotation)."""
+        if self.trainable and self.training:
+            # When trainable AND in training mode, recompute for gradient graph
+            return self._compute_pose_embeddings()
         if self._cached_embeddings is None:
             with torch.no_grad():
                 self._cached_embeddings = self._compute_pose_embeddings()
         return self._cached_embeddings
 
-    @torch.no_grad()
     def inject(
         self,
         encoder_hidden_states: torch.Tensor,  # [B*N, seq_len, embed_dim]
@@ -263,11 +335,12 @@ class PoseConditioningInjector(nn.Module):
         """
         Inject pose conditioning into encoder_hidden_states.
 
-        For training, call this BEFORE passing to UNet:
-            encoder_hidden_states = injector.inject(
-                prompt_embeddings, ref_view_idx, n_views
-            )
-            model_output = unet(sample, t, encoder_hidden_states=encoder_hidden_states, ...)
+        Gradient flow is gated by BOTH trainable flag AND nn.Module training mode:
+          - trainable=True + self.training=True → gradients enabled (training)
+          - trainable=True + self.training=False → no gradients (validation/inference)
+          - trainable=False → no gradients (legacy behavior)
+
+        Call pose_injector.eval() before validation, pose_injector.train() after.
 
         Args:
             encoder_hidden_states: Original prompt embeddings [B*N, seq_len, C]
@@ -278,6 +351,20 @@ class PoseConditioningInjector(nn.Module):
         Returns:
             Modified encoder_hidden_states with pose conditioning
         """
+        # Only enable gradients during training AND when trainable
+        use_grad = self.trainable and self.training
+        grad_ctx = nullcontext() if use_grad else torch.no_grad()
+        with grad_ctx:
+            return self._inject_core(encoder_hidden_states, ref_view_idx, n_views, batch_size)
+
+    def _inject_core(
+        self,
+        encoder_hidden_states: torch.Tensor,
+        ref_view_idx: Union[int, torch.Tensor],
+        n_views: int,
+        batch_size: Optional[int],
+    ) -> torch.Tensor:
+        """Core injection logic, called within appropriate gradient context."""
         BN, seq_len, C = encoder_hidden_states.shape
         if batch_size is None:
             batch_size = BN // n_views
@@ -327,6 +414,10 @@ class PoseConditioningInjector(nn.Module):
                     all_embeds.append(embeds)
                 pose_embeds = torch.stack(all_embeds).reshape(BN, C).to(device)
 
+        # Cast pose_embeds to match encoder_hidden_states dtype.
+        # When trainable, pose params are fp32 but UNet runs in fp16.
+        pose_embeds = pose_embeds.to(dtype=encoder_hidden_states.dtype)
+
         # Inject based on integration method
         if self.integration == "concat":
             # Add pose embedding as extra token: [BN, seq_len+1, C]
@@ -345,13 +436,101 @@ class PoseConditioningInjector(nn.Module):
             out[:, -1, :] = pose_embeds
             return out
 
+        elif self.integration == "spatial_token":
+            # Spatial token sequence: preserve Plucker spatial info as extra tokens
+            # Combines global pose token (add) with spatial detail tokens (concat)
+            # This requires _inject_spatial() which computes spatial tokens separately
+            raise ValueError(
+                "spatial_token integration must use inject_spatial() method, "
+                "not inject(). See inject_spatial() for usage."
+            )
+
         else:
             raise ValueError(f"Unknown integration method: {self.integration}")
+
+    def inject_spatial(
+        self,
+        encoder_hidden_states: torch.Tensor,  # [B*N, seq_len, embed_dim]
+        ref_view_idx: Union[int, torch.Tensor] = 0,
+        n_views: int = 6,
+        batch_size: Optional[int] = None,
+    ) -> torch.Tensor:
+        """
+        Inject pose conditioning with spatial token preservation.
+
+        For Plucker method with spatial_token integration:
+        1. Adds global pose token to first prompt token (same as "add")
+        2. Concatenates spatial tokens (S×S) to prompt sequence
+
+        Result: [B*N, seq_len + S*S, embed_dim] where S = spatial_token_size
+
+        Gradient flow: same gating as inject() (trainable + training mode).
+        """
+        use_grad = self.trainable and self.training
+        grad_ctx = nullcontext() if use_grad else torch.no_grad()
+        with grad_ctx:
+            return self._inject_spatial_core(
+                encoder_hidden_states, ref_view_idx, n_views, batch_size
+            )
+
+    def _inject_spatial_core(
+        self,
+        encoder_hidden_states: torch.Tensor,
+        ref_view_idx: Union[int, torch.Tensor],
+        n_views: int,
+        batch_size: Optional[int],
+    ) -> torch.Tensor:
+        """Core spatial injection: global add + spatial token concat."""
+        BN, seq_len, C = encoder_hidden_states.shape
+        if batch_size is None:
+            batch_size = BN // n_views
+        device = encoder_hidden_states.device
+
+        # Step 1: Compute global pose token (same as _inject_core "add")
+        # Step 2: Compute spatial tokens
+        if isinstance(ref_view_idx, int) and ref_view_idx == 0:
+            pose_embeds = self.get_fixed_embeddings().to(device)
+            spatial_tokens = self._compute_spatial_tokens(self.c2w).to(device)
+            # Expand for batch
+            pose_embeds = pose_embeds.unsqueeze(0).expand(batch_size, -1, -1).reshape(BN, C)
+            n_spatial = spatial_tokens.shape[1]
+            spatial_tokens = spatial_tokens.unsqueeze(0).expand(
+                batch_size, -1, -1, -1
+            ).reshape(BN, n_spatial, C)
+        else:
+            all_pose = []
+            all_spatial = []
+            for b in range(batch_size):
+                idx = ref_view_idx[b].item() if torch.is_tensor(ref_view_idx) else ref_view_idx
+                rotated_cameras = get_rotated_cameras(self.c2w, idx, self.n_views)
+                rotated_indices = [(idx + i) % self.n_views for i in range(self.n_views)]
+                pe = self._compute_pose_token(rotated_cameras, rotated_indices)
+                st = self._compute_spatial_tokens(rotated_cameras, rotated_indices)
+                all_pose.append(pe)
+                all_spatial.append(st)
+            pose_embeds = torch.stack(all_pose).reshape(BN, C).to(device)
+            spatial_tokens = torch.stack(all_spatial).reshape(
+                BN, all_spatial[0].shape[1], C
+            ).to(device)
+
+        # Cast dtype
+        pose_embeds = pose_embeds.to(dtype=encoder_hidden_states.dtype)
+        spatial_tokens = spatial_tokens.to(dtype=encoder_hidden_states.dtype)
+
+        # Step 3: Global add (same as "add" integration)
+        out = encoder_hidden_states.clone()
+        out[:, 0, :] = out[:, 0, :] + pose_embeds
+
+        # Step 4: Concat spatial tokens
+        out = torch.cat([out, spatial_tokens], dim=1)
+        # Result: [BN, seq_len + S*S, embed_dim]
+        return out
 
     def extra_repr(self) -> str:
         return (
             f"method={self.method}, integration={self.integration}, "
-            f"embed_dim={self.embed_dim}, n_views={self.n_views}"
+            f"embed_dim={self.embed_dim}, n_views={self.n_views}, "
+            f"trainable={self.trainable}, spatial_token_size={self.spatial_token_size}"
         )
 
 
@@ -391,6 +570,8 @@ def create_pose_injector_from_config(
             "mouse_extensions/inference/cameras/m5_cameras.json"
         ),
         plucker_resolution=pose_cfg.get("plucker_resolution", 64),
+        trainable=pose_cfg.get("trainable", False),
+        spatial_token_size=pose_cfg.get("spatial_token_size", 8),
     )
 
     return injector.to(device)

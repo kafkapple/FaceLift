@@ -1,0 +1,139 @@
+# =============================================================================
+# Mouse MVDiffusion - H7: Plucker Spatial Token (preserves spatial info)
+# =============================================================================
+# Key improvement over H6a_v2:
+#   H6a_v2: Plucker [320,64,64] → AvgPool → 1 token → add to prompt[0]
+#   H7:     Plucker [320,64,64] → Pool(8×8) → 64 tokens → concat to prompt
+#           PLUS add global token to prompt[0] (dual injection)
+#
+# Literature basis:
+#   - SPAD (CVPR'24): Plucker as cross-attn positional encoding
+#   - CAT3D (NeurIPS'24): Raymap encoder tokens in cross-attention
+#   - ControlNet: zero-init new pathways for safe initialization
+#
+# Expected: Better spatial awareness → improved multi-view consistency → IoU↑
+# Base: E2 checkpoint-20000 (same as H3, H6a, H6a_v2)
+# =============================================================================
+
+n_views: 6
+img_wh: 512
+reference_view_idx: "random"
+dataset_type: "mouse"
+
+# Pose Conditioning — PLUCKER + SPATIAL TOKEN + TRAINABLE
+pose_conditioning:
+  enabled: true
+  method: "plucker"
+  integration: "spatial_token"
+  embed_dim: 1024
+  camera_json: "mouse_extensions/inference/cameras/m5_cameras.json"
+  plucker_resolution: 64
+  trainable: true
+  spatial_token_size: 8              # 8×8 = 64 tokens (seq: 77 → 141)
+
+pretrained_model_name_or_path: "checkpoints/mvdiffusion/pipeckpts"
+pretrained_unet_path: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_randref_sparse/checkpoint-20000/unet"
+revision: null
+
+prompt_embed_path: "mvdiffusion/data/mouse_prompt_embeds_6view_1024/clr_embeds.pt"
+
+# =============================================================================
+# Dataset - M5t2 (Temporal 80:10:10 split)
+# =============================================================================
+train_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_train.txt
+  bg_color: "three_choices"
+  augmentation: true
+  aug_brightness: [0.9, 1.1]
+  aug_contrast: [0.9, 1.1]
+  aug_hflip: false
+
+validation_dataset:
+  path: /home/joon/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_val.txt
+  bg_color: "white"
+
+# =============================================================================
+# Output
+# =============================================================================
+checkpoint_prefix: ""
+output_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_H7_spatial_token"
+val_out_dir: "/node_data/joon/checkpoints/FaceLift/mvdiffusion/mouse_M5t2_H7_spatial_token/val/"
+
+# =============================================================================
+# Training Parameters (identical to H6a_v2)
+# =============================================================================
+seed: 42
+train_batch_size: 4
+validation_batch_size: 2
+max_train_steps: 10000
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+learning_rate: 5e-5
+step_rules: null
+scale_lr: false
+lr_scheduler: "cosine"
+lr_warmup_steps: 100
+snr_gamma: 5.0
+use_8bit_adam: false
+allow_tf32: true
+use_ema: true
+dataloader_num_workers: 8
+
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 1.e-2
+adam_epsilon: 1.e-08
+max_grad_norm: 1.0
+prediction_type: null
+
+# =============================================================================
+# Logging and Validation
+# =============================================================================
+vis_dir: vis
+logging_dir: logs
+mixed_precision: "fp16"
+report_to: "wandb"
+local_rank: -1
+checkpointing_steps: 1000
+checkpoints_total_limit: 3
+resume_from_checkpoint: null
+enable_xformers_memory_efficient_attention: true
+validation_steps: 200
+validation_sanity_check: true
+tracker_project_name: "FaceLift-MVDiffusion"
+
+# WandB
+wandb_exp_name: "mvdiff_M5t2_H7_spatial_token"
+wandb_group: "mvdiffusion"
+wandb_job_type: "finetune_M5t2_H7"
+wandb_run_id: null
+
+# =============================================================================
+# Training Specifics
+# =============================================================================
+trainable_modules: null
+use_classifier_free_guidance: true
+condition_drop_rate: 0.05
+drop_type: "drop_as_a_whole"
+camera_embedding_lr_mult: 1.
+scale_input_latents: true
+
+pipe_kwargs:
+  num_views: ${n_views}
+validation_guidance_scales: [1., 3.]
+validation_grid_nrow: ${n_views}
+pipe_validation_kwargs:
+  eta: 1.0
+
+unet_from_pretrained_kwargs:
+  unclip: true
+  num_views: ${n_views}
+  sample_size: 64
+  zero_init_conv_in: true
+  init_mvattn_with_selfattn: false
+  cd_attention_last: false
+  cd_attention_mid: false
+  multiview_attention: true
+  sparse_mv_attention: true
+  selfattn_block: custom
+  addition_downsample: false

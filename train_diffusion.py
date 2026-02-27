@@ -664,7 +664,10 @@ def process_training_batch(batch: Dict, cfg: TrainingConfig, models: Dict, accel
     
     # Pose conditioning injection (P1)
     if pose_injector is not None:
-        prompt_embeddings = pose_injector.inject(
+        inject_fn = (pose_injector.inject_spatial
+                     if pose_injector.integration == 'spatial_token'
+                     else pose_injector.inject)
+        prompt_embeddings = inject_fn(
             prompt_embeddings,
             ref_view_idx=batch.get('ref_view_idx', 0),
             n_views=cfg.n_views,
@@ -762,7 +765,10 @@ def log_validation(dataloader, vae, feature_extractor, image_encoder, image_norm
 
         # Pose conditioning injection (P1) - validation
         if pose_injector is not None:
-            prompt_embeddings = pose_injector.inject(
+            inject_fn = (pose_injector.inject_spatial
+                         if pose_injector.integration == 'spatial_token'
+                         else pose_injector.inject)
+            prompt_embeddings = inject_fn(
                 prompt_embeddings,
                 ref_view_idx=batch.get('ref_view_idx', 0),
                 n_views=cfg.n_views,
@@ -987,9 +993,31 @@ def main(cfg: TrainingConfig):
             OmegaConf.to_container(cfg, resolve=True)
         )
         if pose_injector is not None:
-            pose_injector = pose_injector.to(accelerator.device, dtype=weight_dtype)
+            trainable_pose = cfg.pose_conditioning.get("trainable", False)
+            if trainable_pose:
+                # Keep params in fp32 for GradScaler compatibility
+                # (scaler.unscale_ requires fp32 grads; fp16 params give fp16 grads)
+                pose_injector = pose_injector.to(accelerator.device)
+            else:
+                pose_injector = pose_injector.to(accelerator.device, dtype=weight_dtype)
             accelerator.print(f"[Pose Conditioning] method={cfg.pose_conditioning.method}, "
-                            f"integration={cfg.pose_conditioning.integration}")
+                            f"integration={cfg.pose_conditioning.integration}, "
+                            f"trainable={trainable_pose}, "
+                            f"param_dtype={'fp32' if trainable_pose else str(weight_dtype)}")
+
+    # Trainable pose encoder: create separate optimizer + use GradScaler
+    pose_optimizer = None
+    if pose_injector is not None and cfg.pose_conditioning.get("trainable", False):
+        pose_optimizer = torch.optim.AdamW(
+            pose_injector.parameters(),
+            lr=cfg.learning_rate,
+            betas=(cfg.adam_beta1, cfg.adam_beta2),
+            weight_decay=cfg.adam_weight_decay,
+            eps=cfg.adam_epsilon,
+        )
+        n_pose_params = sum(p.numel() for p in pose_injector.parameters())
+        accelerator.print(f"[Pose Conditioning] Encoder TRAINABLE: {n_pose_params:,} params, "
+                         f"separate optimizer (lr={cfg.learning_rate})")
 
     # Move models to device with correct dtype
     models['image_encoder'].to(accelerator.device, dtype=weight_dtype)
@@ -1113,6 +1141,21 @@ def main(cfg: TrainingConfig):
                 lr_scheduler.step()
                 optimizer.zero_grad()
 
+                # Step trainable pose encoder optimizer on accumulation boundaries.
+                # pose_injector params are fp32 → grads are fp32 → GradScaler works.
+                if pose_optimizer is not None and accelerator.sync_gradients:
+                    if hasattr(accelerator, 'scaler') and accelerator.scaler is not None:
+                        accelerator.scaler.unscale_(pose_optimizer)
+                    if cfg.max_grad_norm is not None:
+                        torch.nn.utils.clip_grad_norm_(
+                            pose_injector.parameters(), cfg.max_grad_norm
+                        )
+                    if hasattr(accelerator, 'scaler') and accelerator.scaler is not None:
+                        accelerator.scaler.step(pose_optimizer)
+                    else:
+                        pose_optimizer.step()
+                    pose_optimizer.zero_grad()
+
             # Update progress and log metrics
             if accelerator.sync_gradients:
                 if cfg.use_ema:
@@ -1155,6 +1198,12 @@ def main(cfg: TrainingConfig):
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
+                        # Save pose encoder weights alongside checkpoint
+                        if pose_injector is not None:
+                            pose_save_path = os.path.join(save_path, "pose_injector.pt")
+                            torch.save(pose_injector.state_dict(), pose_save_path)
+                            logger.info(f"Saved pose encoder to {pose_save_path}")
+
                 # Run validation
                 if (global_step % cfg.validation_steps == 0 or 
                     (cfg.validation_sanity_check and global_step == 1)): # Make sure val
@@ -1165,6 +1214,8 @@ def main(cfg: TrainingConfig):
                             models['ema_unet'].copy_to(models['unet'].parameters())
                         
                         torch.cuda.empty_cache()
+                        if pose_injector is not None:
+                            pose_injector.eval()
                         log_validation(
                             validation_dataloader,
                             models['vae'],
@@ -1184,6 +1235,9 @@ def main(cfg: TrainingConfig):
                             pose_injector=pose_injector,
                         )           
 
+                        if pose_injector is not None:
+                            pose_injector.train()
+
                         if cfg.use_ema:
                             # Switch back to the original UNet parameters
                             models['ema_unet'].restore(models['unet'].parameters())
@@ -1198,6 +1252,12 @@ def main(cfg: TrainingConfig):
     # Create final pipeline and save
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
+        # Save final pose encoder weights
+        if pose_injector is not None:
+            final_pose_path = os.path.join(model_dir, "pose_injector_final.pt")
+            torch.save(pose_injector.state_dict(), final_pose_path)
+            logger.info(f"Saved final pose encoder to {final_pose_path}")
+
         unet = accelerator.unwrap_model(models['unet'])
         if cfg.use_ema:
             models['ema_unet'].copy_to(unet.parameters())

@@ -44,6 +44,8 @@ class EndToEndPipeline:
         prefer_ema: bool = True,
         camera_json: Optional[str] = None,
         sam_checkpoint: Optional[str] = None,
+        pose_config: Optional[dict] = None,
+        pose_weights_path: Optional[str] = None,
     ):
         """Initialize pipelines.
 
@@ -60,6 +62,8 @@ class EndToEndPipeline:
                          If None, uses M5 default cameras.
             sam_checkpoint: Path to SAM checkpoint for preprocessing.
                            If None, preprocessing uses simple resize fallback.
+            pose_config: Optional dict for pose conditioning in MVDiffusion.
+            pose_weights_path: Optional path to trained pose encoder weights (.pt).
         """
         self.device = device
         self.image_size = image_size
@@ -83,6 +87,8 @@ class EndToEndPipeline:
                 base_pipeline_path=mvdiffusion_base,
                 device=device,
                 prefer_ema=prefer_ema,
+                pose_config=pose_config,
+                pose_weights_path=pose_weights_path,
             )
             if prompt_embed_path:
                 self.mvdiff.load_prompt_embeds(prompt_embed_path)

@@ -81,6 +81,8 @@ class MVDiffusionInference:
         device: str = "cuda",
         dtype: torch.dtype = torch.float16,
         prefer_ema: bool = True,
+        pose_config: Optional[dict] = None,
+        pose_weights_path: Optional[str] = None,
     ):
         """Load MVDiffusion pipeline and replace UNet with trained weights.
 
@@ -90,6 +92,8 @@ class MVDiffusionInference:
             device: Torch device.
             dtype: Model dtype (float16 recommended).
             prefer_ema: If True, use unet_ema/ weights when available.
+            pose_config: Optional dict to configure pose conditioning injector.
+            pose_weights_path: Optional path to trained pose encoder weights (.pt).
         """
         from mvdiffusion.pipelines.pipeline_mvdiffusion_unclip import (
             StableUnCLIPImg2ImgPipeline,
@@ -139,6 +143,32 @@ class MVDiffusionInference:
         self.device = device
         self.dtype = dtype
         self._prompt_embeds: Optional[torch.Tensor] = None
+
+        # Pose conditioning injector (optional)
+        self.pose_injector = None
+        if pose_config and pose_config.get("enabled", False):
+            from mouse_extensions.model.pose_conditioning_integration import (
+                PoseConditioningInjector,
+            )
+            self.pose_injector = PoseConditioningInjector(
+                method=pose_config.get("method", "plucker"),
+                integration=pose_config.get("integration", "add"),
+                embed_dim=pose_config.get("embed_dim", 1024),
+                camera_json_path=pose_config.get(
+                    "camera_json",
+                    "mouse_extensions/inference/cameras/m5_cameras.json"
+                ),
+                plucker_resolution=pose_config.get("plucker_resolution", 64),
+                trainable=False,  # Always frozen for inference
+            ).to(device)
+            if pose_weights_path and Path(pose_weights_path).exists():
+                state_dict = torch.load(
+                    pose_weights_path, map_location=device, weights_only=True
+                )
+                self.pose_injector.load_state_dict(state_dict)
+                print(f"Loaded trained pose encoder from {pose_weights_path}")
+            else:
+                print(f"[Pose] Using fresh encoder (no trained weights)")
 
     def load_prompt_embeds(self, path: str) -> None:
         """Load pre-computed prompt embeddings.
@@ -212,10 +242,21 @@ class MVDiffusionInference:
 
         generator = torch.Generator(device=self.device).manual_seed(seed)
 
+        # Inject pose conditioning into prompt embeddings if available
+        active_prompt_embeds = self._prompt_embeds
+        if self.pose_injector is not None:
+            self.pose_injector.eval()
+            active_prompt_embeds = self.pose_injector.inject(
+                active_prompt_embeds,
+                ref_view_idx=0,  # Fixed reference for inference
+                n_views=n_views,
+                batch_size=1,
+            )
+
         output = self.pipe(
             image=input_tensor,
             prompt=[""] * n_views,
-            prompt_embeds=self._prompt_embeds,
+            prompt_embeds=active_prompt_embeds,
             num_inference_steps=num_steps,
             guidance_scale=guidance_scale,
             generator=generator,

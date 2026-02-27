@@ -210,6 +210,10 @@ Examples:
                              help="Pre-computed prompt embeddings (default: mouse_prompt_embeds_6view_1024)")
     model_group.add_argument("--prefer_ema", action="store_true", default=True,
                              help="Use EMA UNet weights if available")
+    model_group.add_argument("--pose_config_yaml", type=str, default=None,
+                             help="YAML config path for pose conditioning (reads pose_conditioning section)")
+    model_group.add_argument("--pose_weights", type=str, default=None,
+                             help="Path to trained pose encoder weights (.pt)")
     model_group.add_argument("--num_input_views", type=int, default=None,
                              help="Number of input views for GS-LRM (2-6, default: all available)")
     model_group.add_argument("--camera_indices", type=int, nargs="+", default=None,
@@ -338,6 +342,16 @@ Examples:
         json.dump(config_dict, f, indent=2, default=str)
     print(f"Config saved: {config_file}")
 
+    # Parse pose conditioning config from YAML (if provided)
+    pose_config = None
+    if args.pose_config_yaml:
+        from omegaconf import OmegaConf
+        raw_cfg = OmegaConf.load(args.pose_config_yaml)
+        pose_config = OmegaConf.to_container(
+            raw_cfg.get("pose_conditioning", {}), resolve=True
+        )
+        print(f"Loaded pose config from {args.pose_config_yaml}: {pose_config}")
+
     # Initialize pipeline
     pipeline = EndToEndPipeline(
         gslrm_config=args.gslrm_config,
@@ -350,6 +364,8 @@ Examples:
         prefer_ema=args.prefer_ema,
         camera_json=args.camera_json,
         sam_checkpoint=args.sam_checkpoint,  # NEW: preprocessing
+        pose_config=pose_config,
+        pose_weights_path=args.pose_weights,
     )
 
     # Execute based on input type
