@@ -1,6 +1,6 @@
 # Plucker Ray Conditioning: Theory, Implementation & Experiment Roadmap
 
-> FaceLift MVDiffusion | Created: 2026-02-26
+> FaceLift MVDiffusion | Created: 2026-02-26 | Updated: 2026-02-27 (v1.3)
 
 ---
 
@@ -14,8 +14,8 @@ FaceLift의 핵심 병목은 **MVDiffusion → GS-LRM 전달 손실**이다:
 |-------|--------|:--:|
 | GS-LRM (GT input) | Val PSNR | 22.34 |
 | MVDiffusion (val) | Val PSNR | ~26.5 |
-| **E2E (Diff→GS-LRM)** | **PSNR_fg** | **8.85** |
-| E2E (Diff→GS-LRM) | IoU | 0.57 |
+| **E2E (Diff→GS-LRM)** | **PSNR_fg** | **8.85** (H3) / **9.04** (H4b best) |
+| E2E (Diff→GS-LRM) | IoU | 0.57 (H3) / 0.577 (H4b best) |
 
 Val PSNR 26.5의 diffusion이 E2E에서 8.85로 떨어지는 **~60% 전달 손실**의 주범은 **silhouette 불일치 (IoU 0.57)**이다. 즉, diffusion이 생성한 multi-view 이미지들의 기하학적 일관성이 부족하여 GS-LRM이 올바른 3D reconstruction을 하지 못한다.
 
@@ -225,9 +225,9 @@ Step   Val PSNR
   - Comparison: H3 baseline PSNR_fg=8.854, IoU=0.569
   - Delta: +0.098 PSNR_fg, +0.005 IoU — marginal improvement
   - Transfer gap ~67% persists
-- **E2E with pose injection**: Running (fresh encoder, untrained weights)
+- **E2E with pose injection (fresh encoder)**: PSNR_fg=8.94, IoU=0.573
+  - Confirmed: fresh (untrained) encoder = no improvement (as expected)
   - NOTE: Trained pose encoder weights were NOT saved in checkpoints (bug fixed for H7+)
-  - Expected: similar to no-pose since encoder is randomly initialized
 
 ### 4.2 H7 (Plucker + Spatial Token, Trainable) — Training
 - **Config**: method=plucker, integration=spatial_token, trainable=true, spatial_token_size=8
@@ -236,12 +236,10 @@ Step   Val PSNR
 - **Prompt sequence**: 77 → 141 tokens (77 CLIP + 64 spatial)
 - **Val PSNR progression (cfg3.0)**:
   - Step 1: 6.63 (baseline before training)
-  - Step 200: 21.63
-  - Step 400: 24.93
-  - Step 600: 25.51
-  - Step 800: 25.15
-  - Step 1000: 25.57
+  - Step 200: 21.63, 400: 24.93, 600: 25.51, 800: 25.15, 1000: 25.57
+  - Step 2000: 24.89, 3000: 25.81, 3200: 25.77, 3400: 26.09, 3600: 25.45
 - **vs H6a_v2 at same steps**: H7 leads by +0.26 to +1.22 dB from step 400 onwards
+- **Status**: Training on GPU 7, step ~3600/10K (36%)
 - **Inference**: Pose encoder weights now saved with checkpoints (bug fixed)
 
 ### 4.3 Early Comparison: H7 vs H6a_v2
@@ -256,6 +254,36 @@ Step   Val PSNR
 
 Key observation: H7 starts slow (zero-init warm-up) but surpasses H6a_v2 from step 400.
 The spatial token approach preserves spatial information from Plucker rays that was lost in H6a_v2's global average pooling.
+
+### 4.4 H4b Extended (No Pose, Extended Training) — Completed
+- **Config**: Same as H3 but extended to 10K steps with LR=1e-5
+- **Best Val PSNR**: 26.24 @ step 4600 (cfg3.0), but checkpoint pruned (limit=3)
+- **Available best**: checkpoint-8000, val PSNR 25.79 (cfg3.0)
+- **E2E Results**: PSNR_fg=9.04, IoU=0.577
+  - **Best E2E result so far** — better than H6a_v2 despite lower val PSNR
+
+### 4.5 Comprehensive E2E Comparison
+
+| Experiment | Val PSNR (best) | PSNR_fg | PSNR_wh | IoU | vs H3 |
+|------------|:---------------:|:-------:|:-------:|:---:|:-----:|
+| H3 (Extrinsic, baseline) | ~26 | 8.854 | — | 0.569 | — |
+| **H4b** (Extended 10K) | 26.24 | **9.04** | 22.09 | **0.577** | **+0.19** |
+| H6a_v2 (Plucker+Add) | **27.34** | 8.952 | 22.04 | 0.574 | +0.10 |
+| H6a_v2 (w/ pose, fresh) | — | 8.94 | 22.04 | 0.573 | +0.09 |
+| H7 (Spatial Token) | TBD | TBD | TBD | TBD | TBD |
+
+**Key finding**: Val PSNR does NOT predict E2E performance. H4b has lower val but better E2E than H6a_v2.
+Possible explanation: extended training improves consistency/stability more than pose conditioning.
+
+### 4.6 Cross-Model Comparison (FL vs PS)
+
+| Model | Type | PSNR_fg (ALL) | PSNR_fg (HO) | IoU (ALL) |
+|-------|------|:-------------:|:-------------:|:---------:|
+| FL H4b (best) | Feed-forward | 9.04 | — | 0.577 |
+| PS 6v | Per-scene | **13.78** | 13.16 | **0.846** |
+| PS 5v (holdout 4,5) | Per-scene | **13.92** | 13.20 | **0.849** |
+
+FL-PS gap: ~4.9 dB PSNR_fg, ~0.27 IoU. Per-scene optimization still dominates.
 
 ---
 
@@ -373,11 +401,13 @@ Added support for pose conditioning at inference time:
 
 2. **현재 구현의 한계**: 픽셀-레벨 spatial features를 **global average pooling으로 1개 토큰으로 압축**하여 사용 중. Plucker의 공간적 장점을 상당 부분 상실. 이것이 H3 대비 val PSNR +0.47에 그친 이유일 수 있음.
 
-3. **진짜 질문은 E2E**: Val PSNR 27.34는 고무적이지만, 실질적 성능은 E2E pipeline 통과 후의 IoU와 PSNR_fg로만 검증 가능. H6a_v2 E2E 결과 (PSNR_fg=8.952, IoU=0.574)는 H3 대비 marginal improvement — transfer gap ~67%가 여전히 지배적.
+3. **Val PSNR ≠ E2E 성능**: H6a_v2 (val 27.34) > H4b (val 26.24)이지만 E2E에서는 H4b (9.04) > H6a_v2 (8.95). Extended training이 multi-view consistency에 더 효과적일 수 있음. 또는 H6a_v2의 pose encoder weights 미저장 때문일 수 있음.
 
-4. **다음 돌파구**: H7의 spatial token approach가 초기 결과에서 유망. Step 400 이후 H6a_v2를 +0.26~+1.22 dB 상회. 공간 정보 보존이 핵심 가설을 지지.
+4. **H7 spatial token 유망**: Step 400 이후 H6a_v2를 +0.26~+1.22 dB 상회. 공간 정보 보존 가설 지지. H7은 pose weights도 저장됨 → 진정한 E2E 테스트 가능.
 
-5. **Pose encoder weight persistence**: H6a_v2의 학습된 pose encoder 가중치가 저장되지 않는 버그 발견 및 수정. H7부터는 올바르게 저장됨 → E2E pose injection 평가 가능.
+5. **FL vs PS gap**: FL best 9.04 vs PS 5v 13.92 = -4.88 dB. Per-scene optimization 우위 지속. IoU 격차 (0.577 vs 0.849)가 핵심 — silhouette quality가 성능 결정.
+
+6. **Pose encoder weight persistence**: 버그 발견 및 수정. H7부터 올바르게 저장됨.
 
 ---
 
