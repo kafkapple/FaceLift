@@ -230,6 +230,11 @@ python -m mouse_extensions.preprocessing.preprocess \
 - ⛔ 실험 자동 실행 금지 (명령어만 제공)
 - ⛔ GPU 0~3번 사용 금지
 - ⛔ PP=256 강제 + Object-centered crop (MVG 부정합)
+- ⛔ **E2E 추론 결과 검증 없이 보고 금지** (2026-03-03 교훈)
+  - 필수: `grep 'Batch Path' LOG` → "Path 2b: MVDiffusion" 확인
+  - 필수: `run_config.json`에서 `input_view_idx ≠ null` 확인
+  - 필수: PSNR sanity check (E2E=7~9 dB, GS-LRM only=20~24 dB)
+  - `--data_dir` 사용 시 `--input_view_idx 0` 반드시 지정해야 E2E
 
 ---
 
