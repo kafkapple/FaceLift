@@ -8,6 +8,7 @@ Provides:
 - TemporalVideoRenderer: multi-frame batch temporal videos
 - Error annotation utilities
 - Gaussian export (PLY, NPZ, Rerun .rrd)
+- Inference visualization (comparison grids, multi-view turntable grids)
 """
 
 from .alpha_visualization import (
@@ -42,6 +43,16 @@ from .error_annotation import (
     compute_pred_mask_for_visualization,
 )
 
+from .gaussian_export import (
+    GaussianExporter,
+    RerunExporter,
+)
+
+from .inference_viz import (
+    save_comparison_grid,
+    save_multiview_turntable_grid,
+)
+
 __all__ = [
     # Alpha visualization
     "visualize_alpha_comparison",
@@ -54,12 +65,23 @@ __all__ = [
     "get_camera_pairs",
     "interpolate_camera_extrinsics",
     "create_turntable_trajectory",
+    "compute_camera_convergence_center",
+    "get_dynamic_camera_order",
     "get_grid_row_labels",
-    # Turntable renderer (unified — replaces video_generator + unified_visualizer)
+    "subsample_frames_for_grid",
+    "create_grid_from_video",
+    "add_angle_overlay_to_grid",
+    # Turntable renderer (unified)
     "TurntableVideoConfig",
     "TurntableRenderer",
     "TemporalVideoRenderer",
     # Error annotation
     "add_error_scale_annotation",
     "compute_pred_mask_for_visualization",
+    # Gaussian export
+    "GaussianExporter",
+    "RerunExporter",
+    # Inference visualization
+    "save_comparison_grid",
+    "save_multiview_turntable_grid",
 ]
