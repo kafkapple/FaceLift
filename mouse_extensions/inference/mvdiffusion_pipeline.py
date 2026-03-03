@@ -160,6 +160,7 @@ class MVDiffusionInference:
                 ),
                 plucker_resolution=pose_config.get("plucker_resolution", 64),
                 trainable=False,  # Always frozen for inference
+                spatial_token_size=pose_config.get("spatial_token_size", 8),
             ).to(device)
             if pose_weights_path and Path(pose_weights_path).exists():
                 state_dict = torch.load(
@@ -246,7 +247,10 @@ class MVDiffusionInference:
         active_prompt_embeds = self._prompt_embeds
         if self.pose_injector is not None:
             self.pose_injector.eval()
-            active_prompt_embeds = self.pose_injector.inject(
+            inject_fn = (self.pose_injector.inject_spatial
+                         if self.pose_injector.integration == 'spatial_token'
+                         else self.pose_injector.inject)
+            active_prompt_embeds = inject_fn(
                 active_prompt_embeds,
                 ref_view_idx=0,  # Fixed reference for inference
                 n_views=n_views,
