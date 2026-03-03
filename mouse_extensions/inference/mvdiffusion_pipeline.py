@@ -151,12 +151,12 @@ class MVDiffusionInference:
                 PoseConditioningInjector,
             )
             self.pose_injector = PoseConditioningInjector(
-                method=pose_config.get("method", "plucker"),
+                method=pose_config.get("method", "extrinsic"),
                 integration=pose_config.get("integration", "add"),
                 embed_dim=pose_config.get("embed_dim", 1024),
                 camera_json_path=pose_config.get(
                     "camera_json",
-                    "mouse_extensions/inference/cameras/m5_cameras.json"
+                    str(Path(__file__).parent / "cameras" / "m5_cameras.json")
                 ),
                 plucker_resolution=pose_config.get("plucker_resolution", 64),
                 trainable=False,  # Always frozen for inference

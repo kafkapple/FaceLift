@@ -207,6 +207,14 @@ class PoseConditioningInjector(nn.Module):
         # Precompute fixed camera pose embeddings (for non-random ref)
         # Will be computed lazily and cached
         self._cached_embeddings = None
+        self.n_spatial_tokens = getattr(self, '_n_spatial_tokens', spatial_token_size ** 2 if integration == 'spatial_token' else 0)
+
+    def train(self, mode: bool = True):
+        """Invalidate cached embeddings when switching to train mode."""
+        super().train(mode)
+        if mode and self.trainable:
+            self._cached_embeddings = None
+        return self
 
     def _compute_pose_token(
         self,

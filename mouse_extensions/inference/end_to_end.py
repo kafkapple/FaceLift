@@ -199,7 +199,8 @@ class EndToEndPipeline:
         if camera_indices is not None:
             c2ws = c2ws[camera_indices]
             fxfycxcys = fxfycxcys[camera_indices]
-            print(f"  Using camera indices: {camera_indices}")
+            views = views[camera_indices]
+            print(f"  Using camera indices: {camera_indices} ({len(camera_indices)} views)")
 
         n_views = views.shape[0]
         images = views.unsqueeze(0)  # [1, V, C, H, W]

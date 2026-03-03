@@ -188,7 +188,7 @@ Examples:
     preprocess_group.add_argument("--sam_checkpoint", type=str, default=None,
                                   help="SAM checkpoint for mouse detection. "
                                        "If None, uses simple resize fallback.")
-    preprocess_group.add_argument("--skip_preprocess", action="store_true", default=True,
+    preprocess_group.add_argument("--skip_preprocess", action="store_true",
                                   help="Skip preprocessing entirely (for M5-format images)")
     preprocess_group.add_argument("--save_preprocess_steps", action="store_true",
                                   help="Save visualization of preprocessing steps")
