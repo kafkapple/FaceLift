@@ -232,26 +232,29 @@ R Hind:     [21,5], [20,21], [19,20]
 입력: kp_3d (22, 3) — FaceLift normalized world 좌표
       distance — 카메라와 얼굴 중심 사이 거리
 
-1. 얼굴 3점 추출
-   L_ear = kp_3d[0], R_ear = kp_3d[1], nose = kp_3d[2]
+1. 얼굴 키포인트 추출
+   nose = kp_3d[2], neck = kp_3d[3]
+   L_ear = kp_3d[0], R_ear = kp_3d[1]
    face_center = mean(L_ear, R_ear, nose)
 
-2. 얼굴 평면 벡터
-   v_ear = R_ear - L_ear           (귀 사이 방향)
-   v_nose = nose - ear_midpoint    (코 방향)
+2. 시선 방향 (nose→neck 방향)
+   gaze_dir = normalize(neck - nose)
+   → 코에서 목 방향 = 머리 안쪽으로 향하는 벡터
 
-3. 얼굴 법선 (face normal)
+3. 카메라 배치 (정면)
+   cam_pos = face_center - distance × gaze_dir
+   → nose→neck의 반대 방향, 즉 얼굴 정면에 배치
+
+4. Up hint: 얼굴 법선 (face normal)
+   v_ear = R_ear - L_ear
+   v_nose = nose - ear_midpoint
    face_normal = normalize(cross(v_ear, v_nose))
-   → 두개골 바깥 방향 (얼굴에 수직)
-
-4. 카메라 배치
-   cam_pos = face_center + distance × face_normal
-   → 얼굴 법선 방향으로 distance 만큼 떨어진 위치
+   → 두개골 바깥 방향, 이것을 up으로 사용하면 귀가 수평 정렬
 
 5. 카메라 방향 (OpenCV convention: z=forward, y=down)
-   forward = normalize(face_center - cam_pos)   → z축 (시선)
-   right   = normalize(cross(forward, v_nose))   → x축
-   down    = cross(forward, right)                → y축
+   forward = normalize(face_center - cam_pos)    → z축 (시선)
+   right   = normalize(cross(forward, face_normal)) → x축
+   down    = cross(forward, right)                 → y축
 
    c2w = [right | down | forward | cam_pos]  (4×4)
 ```

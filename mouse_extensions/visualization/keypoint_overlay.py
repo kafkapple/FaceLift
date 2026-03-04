@@ -298,11 +298,12 @@ def compute_face_camera_c2w(
     kp_3d: np.ndarray,
     distance: float = 0.8,
 ) -> np.ndarray:
-    """Compute c2w matrix for a camera looking down at the face from above.
+    """Compute c2w for a camera looking at the face from the front.
 
-    Camera is positioned along the face-plane normal (perpendicular to the
-    triangle formed by L_ear, R_ear, nose). Nose direction points "up" in
-    the rendered image.
+    Camera is positioned along the nose→neck direction (extended outward
+    from the nose), so it looks directly at the face from the front.
+    The face-plane normal is used as the "up" hint so ears appear
+    horizontally in the rendered image.
 
     Args:
         kp_3d: (22, 3) keypoints in FaceLift normalized world
@@ -311,25 +312,26 @@ def compute_face_camera_c2w(
     Returns:
         c2w: (4, 4) camera-to-world matrix (OpenCV convention)
     """
-    L_ear, R_ear, nose = kp_3d[0], kp_3d[1], kp_3d[2]
+    nose, neck = kp_3d[2], kp_3d[3]
+    L_ear, R_ear = kp_3d[0], kp_3d[1]
     face_center = (L_ear + R_ear + nose) / 3.0
 
-    # Face plane vectors
-    v_ear = R_ear - L_ear                     # ear-to-ear
-    ear_mid = (L_ear + R_ear) / 2.0
-    v_nose = nose - ear_mid                   # ear-center → nose
-
-    # Face normal (perpendicular to face plane, pointing "out" from skull)
-    face_normal = _normalize(np.cross(v_ear, v_nose))
-
-    # Camera position: above face along normal
-    cam_pos = face_center + distance * face_normal
+    # Camera viewing direction: nose → neck (into the face)
+    # Camera sits on the opposite side: extend outward from nose
+    gaze_dir = _normalize(neck - nose)  # nose→neck = into the head
+    cam_pos = face_center - distance * gaze_dir  # in front of face
 
     # Build c2w (OpenCV: z=forward into scene, y=down in image)
-    forward = _normalize(face_center - cam_pos)   # z-axis: look direction
-    # Use nose direction as "up" hint so nose appears "up" in image
-    right = _normalize(np.cross(forward, v_nose))  # x-axis
-    down = np.cross(forward, right)                # y-axis
+    forward = _normalize(face_center - cam_pos)  # z-axis: look direction
+
+    # Up hint: face-plane normal (skull outward) keeps ears horizontal
+    v_ear = R_ear - L_ear
+    ear_mid = (L_ear + R_ear) / 2.0
+    v_nose = nose - ear_mid
+    face_normal = _normalize(np.cross(v_ear, v_nose))
+
+    right = _normalize(np.cross(forward, face_normal))  # x-axis
+    down = np.cross(forward, right)                      # y-axis
 
     c2w = np.eye(4)
     c2w[:3, 0] = right
