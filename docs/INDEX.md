@@ -1,8 +1,8 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-02-23 | **Version**: v10.1
-> **Active**: 37개 | **Archive**: 22개
+> **Updated**: 2026-03-03 | **Version**: v11.0
+> **Active**: 42개 | **Archive**: 22개
 
 ---
 
@@ -20,6 +20,11 @@
 | **레포트 시스템 가이드** | [[experiments/REPORT_SYSTEM_GUIDE]] **v1.0** |
 | **Stage 1 대체 후보** | [[experiments/STAGE1_REPLACEMENT_CANDIDATES]] **v1.0** |
 | **파이프라인 아키텍처** | [[theory/PIPELINE_ARCHITECTURE]] |
+| **📄 논문 초안** | [[PAPER_DRAFT_BehaviorSplatter]] **🆕 v1.0** |
+| **📊 1페이지 요약** | [[EXECUTIVE_SUMMARY]] **🆕 v1.0** |
+| **🎯 NeurIPS Gap 분석** | [[NEURIPS_GAP_ANALYSIS]] **🆕 v1.0** |
+| **🔍 프로젝트 종합** | [[PROJECT_SYNTHESIS]] **🆕 v1.0** |
+| **📋 문서 감사** | [[DOCUMENT_AUDIT_260303]] **🆕 v1.0** |
 
 ---
 
@@ -60,6 +65,7 @@
 | [[INFERENCE_E2E_GUIDE]] | E2E 추론 파이프라인 + CLI | ✅ |
 | [[TRAINING_LOGGING_GUIDE]] | 학습 단위/WandB 로깅 | ✅ |
 | [[VISUALIZATION_SETTINGS]] | Turntable/시각화 설정 | ✅ |
+| **[[KEYPOINT_3D_PIPELINE]]** | 3D Keypoint 삼각측량 + FL vs PS 비교 | **🆕 v1.0** |
 
 ### datasets/
 
@@ -136,31 +142,29 @@
 
 ---
 
-## 핵심 결과 요약 (2026-02-22 기준)
+## 핵심 결과 요약 (2026-03-03 기준)
 
-### FL vs PS Fair Comparison (M5 Same-Camera)
+### FL vs PS Fair Comparison (M5 Same-Camera, Fair Eval)
 
-| Metric | FL GS-LRM 6v | FL E2E | PS M5 6v |
-|--------|:-----------:|:------:|:--------:|
-| PSNR_fg | **23.84** | 8.44 | 13.78 |
-| IoU | **0.954** | 0.495 | 0.846 |
-| Coverage | ~1.0 | 0.750 | 0.893 |
-| PSNR_inter | **~23.84** | — | 20.47 |
+| Metric | FL GS-LRM 6v (GT) | FL E2E Best | PS 6-cam |
+|--------|:-----------------:|:-----------:|:--------:|
+| PSNR_gt | **23.84** | 9.04 | 13.78 |
+| IoU | **0.954** | 0.577 | 0.846 |
+| Coverage | ~1.0 | ~0.75 | 0.919 |
 
-> FL GS-LRM >> PS by +10.06 dB. E2E bottleneck = Stage 1 multi-view diffusion (14% transfer rate).
-> See: [[experiments/FL_vs_PS_comparison]] + [[experiments/mvdiffusion_bottleneck_analysis]]
+> FL GS-LRM >> PS by +10.06 dB. E2E bottleneck = Stage 1 MVDiffusion (86% of gap).
+> **All E2E strategies converge**: PSNR_gt 7.75–9.04 dB → architecture change needed.
+> See: [[experiments/FL_vs_PS_comparison]] + [[experiments/mvdiffusion_bottleneck_analysis]] + [[E2E_EXPERIMENT_ANALYSIS]]
 
-### Active Experiments (2026-02-22)
+### Active Experiments (2026-03-03)
 
 | GPU | Experiment | Purpose | ETA |
 |:---:|-----------|---------|:---:|
-| gpu03:4 | HP M5_5 (center+norm) | Preprocessing ablation | ~12h |
-| gpu03:5 | H3 MVDiff (E2+Pose) | H_T3 test / H_T1 negative control | ~28h |
-| gpu03:6 | DA1 datagen → fine-tune | **H_T1 direct test** (primary) | ~4h + ~15h |
-| gpu03:7 | HP M5_4 (center only) | Preprocessing ablation | ~8h |
-| joon:0 | PS M5 5v | 9-exp comparison | ~18h |
+| gpu03:5 | H4b@20K E2E (재실행) | 진짜 E2E 평가 (--input_view_idx 0) | ~6h |
+| gpu03:6 | H7v2 Spatial Token (재학습) | Pose injector save fix 반영 | ~35h |
 
-> See: [[experiments/domain_adaptation_DA1]] for DA1 pipeline details
+> **NeurIPS Top 5**: P1: Silhouette loss, P2: Domain Adaptation, P3: H7v2 완성, P4: Multi-species, P5: Behavior validation
+> See: [[NEURIPS_GAP_ANALYSIS]] for detailed plan
 
 ### Completed Hypotheses
 
@@ -201,4 +205,4 @@ experiments/comparison/
 
 ---
 
-*MoC v10.1 | Updated: 2026-02-23 | Terminology note added*
+*MoC v11.0 | Updated: 2026-03-03 | Paper draft, NeurIPS gap analysis, project synthesis added*
