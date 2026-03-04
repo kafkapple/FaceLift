@@ -184,6 +184,8 @@ def _parse_camera_entry(cam: dict, idx: int) -> Dict[str, np.ndarray]:
 
     if "t" in cam:
         result["t"] = np.array(cam["t"], dtype=np.float64).reshape(3, 1)
+    elif "T" in cam:
+        result["t"] = np.array(cam["T"], dtype=np.float64).reshape(3, 1)
     elif "translation" in cam:
         result["t"] = np.array(cam["translation"], dtype=np.float64).reshape(3, 1)
     else:
