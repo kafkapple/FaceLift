@@ -198,4 +198,96 @@ PS     [img]   [img]   [img]   [img]   [img]   [img]
 
 ---
 
-*v1.0 | 2026-03-04*
+## Section 12: Multi-View Saturation Analysis
+
+### Why
+
+How many views are truly needed for accurate 3D triangulation? Beyond a certain
+point, adding more views yields diminishing returns. This section quantifies
+the saturation point and compares real vs virtual camera geometry.
+
+### Three Experiments
+
+#### Exp 1: Pure Turntable (3-192 views)
+All cameras are virtual turntable cameras (elevation=20°, radius=2.7, 384px).
+Noise σ = {0.5, 1, 2, 3, 5, 10} px applied uniformly.
+
+#### Exp 2: Real 6-cam Baseline
+Same noise levels applied to the 6 physical cameras (1152×1024).
+
+#### Exp 3: Hybrid (6 Real + N Virtual)
+Start with 6 real cameras, add 0-186 virtual turntable cameras.
+Tests the practical scenario of augmenting existing hardware with GS-LRM renders.
+
+### Key Results (σ=5px)
+
+| Config | Views | MPJPE (mm) | vs Real 6-cam |
+|--------|:-----:|:----------:|:-------------:|
+| Real 6-cam only | 6 | **0.82** | baseline |
+| Turntable 6v | 6 | 3.62 | 4.4x worse |
+| Turntable 24v | 24 | 1.52 | 1.9x worse |
+| Turntable 72v | 72 | 0.85 | ≈match |
+| Turntable 192v | 192 | 0.53 | 36% better |
+| Hybrid 6r+6t | 12 | 0.61 | 25% better |
+| Hybrid 6r+18t | 24 | 0.49 | 40% better |
+| Hybrid 6r+90t | 96 | 0.42 | 49% better |
+| Hybrid 6r+186t | 192 | 0.40 | 51% better |
+| **DANNCE real** | **6** | **6.15** | **7.5x worse** |
+
+### Key Findings
+
+1. **Theoretical scaling**: MPJPE ∝ σ/√N with ~15-20% geometry bonus
+   - Log-log slope ≈ -0.55 (vs -0.50 theoretical)
+   - Empirical always beats 1/√N due to parallax improvement
+
+2. **Camera quality matters more than quantity**:
+   - Real 6 cameras (0.82mm) ≈ 72 turntable cameras (0.85mm)
+   - Resolution (1152×1024 vs 384) + 3D angular diversity → 4.4x advantage
+
+3. **Hybrid is efficient**: Adding virtual views to real cameras saturates fast
+   - 6r+6t (12 total): 25% improvement
+   - 6r+18t (24 total): 40% improvement
+   - 6r+90t+ (96+): ~50% improvement plateau
+
+4. **Saturation point** (turntable, σ=5px):
+   - 12-16 views: 80% of maximum improvement
+   - 24 views: diminishing returns onset (<0.05 mm/cam)
+   - 48+ views: <0.015 mm/cam marginal value
+
+5. **DANNCE gap analysis**:
+   - DANNCE real (6.15mm) vs Oracle σ=5px (0.82mm) → 5.33mm gap
+   - Gap = calibration error + body model mismatch + detection bias
+   - Implies DANNCE effective noise ≫ σ=5px (closer to σ=40px or systematic)
+
+### Literature Context
+
+- DLT triangulation error bound: O(σ/√N) (Hartley & Zisserman, 2003)
+- Animal pose standard: 3-6 cameras (DANNCE, Anipose, DeepLabCut)
+- No prior work systematically studies N>6 for animal pose triangulation
+- This analysis establishes **geometric upper bounds** for virtual view augmentation
+
+### Module: `saturation_visualizer.py`
+
+```bash
+python -m mouse_extensions.analysis.saturation_visualizer \
+    --sat-json outputs/triangulation_saturation/saturation_analysis.json \
+    --hybrid-json outputs/triangulation_saturation/hybrid_results.json \
+    --output-dir outputs/triangulation_saturation/plots
+```
+
+### Outputs
+
+| File | Description |
+|------|-------------|
+| `saturation_analysis.json` | Turntable + Real 6-cam results |
+| `hybrid_results.json` | Hybrid (6 Real + N Virtual) results |
+| `plots/01_saturation_curve.png` | MPJPE vs views (linear + log-log) |
+| `plots/02_theoretical_fit.png` | Empirical vs 1/√N theory |
+| `plots/03_real_vs_virtual.png` | Real camera superiority analysis |
+| `plots/04_diminishing_returns.png` | Marginal value per camera |
+| `plots/05_hybrid_comparison.png` | Turntable vs Hybrid comparison |
+| `plots/06_comprehensive_dashboard.png` | 6-panel combined dashboard |
+
+---
+
+*v1.1 | 2026-03-04 | Saturation analysis added*
