@@ -53,6 +53,20 @@ from .inference_viz import (
     save_multiview_turntable_grid,
 )
 
+
+from .keypoint_overlay import (
+    KeypointVisualizer,
+    project_3d_to_2d,
+    draw_keypoint_overlay,
+    draw_bounding_box,
+    create_legend,
+    CameraFollowConfig,
+    KeypointFollowCamera,
+    SKELETON_BONES,
+    JOINT_GROUPS,
+    KEYPOINT_NAMES,
+)
+
 __all__ = [
     # Alpha visualization
     "visualize_alpha_comparison",
@@ -84,4 +98,15 @@ __all__ = [
     # Inference visualization
     "save_comparison_grid",
     "save_multiview_turntable_grid",
+    # Keypoint overlay
+    "KeypointVisualizer",
+    "project_3d_to_2d",
+    "draw_keypoint_overlay",
+    "draw_bounding_box",
+    "create_legend",
+    "SKELETON_BONES",
+    "JOINT_GROUPS",
+    "KEYPOINT_NAMES",
+    "CameraFollowConfig",
+    "KeypointFollowCamera",
 ]
