@@ -155,7 +155,15 @@ def render_frame(
     with torch.no_grad():
         result = gslrm_model.predict(images, c2ws, fxfycxcys, index)
 
-    gaussians = result.gaussians
+    gaussians = result.gaussians[0]
+
+    # Filter Gaussians (same as multiview_triangulation_eval.py)
+    gaussians = gaussians.apply_all_filters(
+        opacity_thres=0.04,
+        scaling_thres=0.1,
+        floater_thres=0.6,
+        crop_bbx=[-0.91, 0.91, -0.91, 0.91, -1.0, 1.0],
+    )
 
     # Generate turntable cameras
     w, h, nv, cam_fxfycxcys, cam_c2ws = get_turntable_cameras_safe(

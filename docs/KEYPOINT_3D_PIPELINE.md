@@ -273,6 +273,28 @@ up_t     = alpha × up_raw     + (1-alpha) × up_{t-1}
 → 스무딩된 값으로 c2w 재구성
 ```
 
+#### 스무딩이 필요한 이유
+
+1. **MAMMAL 키포인트 노이즈**: per-frame optimization 결과이므로 프레임 간 키포인트
+   위치가 미세하게 떨림 (특히 귀, 코 등 작은 부위)
+2. **짧은 벡터의 방향 증폭**: `nose→neck` 같은 짧은 벡터 (~0.1 FaceLift units)에서
+   1-2mm 노이즈가 큰 각도 변화로 증폭됨 (M5 데이터 평균 5.6°/frame)
+3. **렌더링 떨림**: 카메라가 매 프레임 튀면 시청자에게 어지러운 영상이 됨
+
+#### 스무딩 파라미터 가이드
+
+| alpha 값 | 동작 | 권장 용도 |
+|-----------|------|-----------|
+| `0.3` | 매우 부드러움 (70% 이전 유지) | 프레젠테이션, 긴 영상 |
+| `0.6` | 중간 (움직임과 안정성 균형) | 일반 시각화 (기본 권장) |
+| `0.8` | 빠른 반응 | 빠른 머리 움직임 추적 |
+| `1.0` | 스무딩 없음 (raw) | 디버깅, 노이즈 확인 |
+
+M5 test set (360 frames) 분석 결과:
+- 프레임 간 시선 변화: 평균 5.6°, 최대 51°
+- 총 각도 범위: 177° (거의 180° 회전)
+- 얼굴 중심 이동: 최대 1.41 FaceLift units
+
 ### 파라미터 (`CameraFollowConfig`)
 
 | 파라미터 | 기본값 | 설명 |
@@ -292,4 +314,344 @@ GS-LRM 추론 없이 빠르게 동작 (GT 이미지 + opencv_cameras.json 활용
 
 ---
 
-*Created: 2026-03-04 | Updated: 2026-03-04*
+## 8. 3D Keypoint 생성 원리
+
+### MAMMAL Body Model 기반 (NOT triangulation)
+
+3D 키포인트는 multi-view triangulation이 **아닌**, **MAMMAL body model fitting**
+결과입니다.
+
+#### 과정
+
+```
+6-view 이미지 → DANNCE 2D keypoint detection (per-view)
+                        ↓
+              MAMMAL body model optimization
+              (thetas, trans, scale, rotation, bone_lengths)
+                        ↓
+              ArticulationTorch.forward()
+                        ↓
+              forward_keypoints22() → (22, 3) 3D 좌표
+```
+
+1. **MAMMAL (An et al. 2023)**: 쥐 전용 articulated body model (SMAL 계열)
+   - 140개 joint rotation + 20개 bone length + global R/T/s
+   - 학습된 mesh template + skinning weights 기반
+
+2. **Per-frame optimization**: 각 프레임에서 6개 카메라 뷰의 silhouette 및
+   2D keypoint와 body model projection을 맞추는 최적화 수행
+   - Step 1: coarse fitting
+   - Step 2: refined fitting (사용 권장)
+
+3. **3D keypoint 추출**: 최적화된 파라미터로 body model forward pass →
+   vertex/joint 위치에서 22개 keypoint 추출
+   - `keypoint22_mapper.json`: vertex 평균(Type "V") 또는 joint 평균(Type "J")
+
+#### Triangulation과의 차이
+
+| 항목 | Triangulation | MAMMAL Body Model |
+|------|---------------|-------------------|
+| 입력 | 2D detections + camera calibration | 2D detections + silhouettes |
+| 방법 | DLT / SVD | Body model optimization |
+| 장점 | 단순, 빠름 | 해부학적 제약, self-occlusion 처리 |
+| 단점 | Occlusion에 취약, outlier 민감 | 모델 정확도에 의존 |
+| 결과 | 독립적 3D 점들 | 일관된 skeleton + mesh |
+
+---
+
+
+---
+
+## 9. Multi-View Triangulation Analysis (Oracle Experiment)
+
+### 개요
+
+MAMMAL 3D GT keypoint를 다양한 수의 novel view 카메라에 투영한 뒤,
+가우시안 노이즈를 추가하고 DLT triangulation으로 복원하여 이론적 상한을 측정.
+
+### Pipeline
+
+```
+MAMMAL 3D GT (22, 3) mm
+    ↓ facelift_to_mammal 역변환
+FaceLift normalized (22, 3)
+    ↓ project_3d_to_2d() × N cameras
+2D projections (N, 22, 2) px
+    ↓ + Gaussian noise σ={0,1,2,5} px
+Noisy 2D (N, 22, 2) px
+    ↓ triangulate_batch() — DLT/SVD
+Recovered 3D (22, 3) normalized
+    ↓ facelift_to_mammal()
+Recovered 3D (22, 3) mm
+    ↓ compute_mpjpe()
+MPJPE (mm) per joint
+```
+
+### 실험 변수
+
+| Variable | Values |
+|----------|--------|
+| View count (N) | 6, 12, 24 |
+| Noise σ | 0, 1, 2, 5 px |
+| Camera arrangement | Turntable (hfov=50°, radius=2.7, elev=20°) |
+| Test frames | 3240-3599 (360 frames) |
+
+### 핵심 코드
+
+- **스크립트**: `mouse_extensions/scripts/multiview_triangulation_eval.py`
+- **함수**:
+  - `build_novel_view_cameras(N, render_size)` → (N, 3, 4) projection matrices
+  - `project_3d_to_2d(kp_3d, P)` → (N, 22, 2) 2D projections
+  - `triangulate_batch(kp_2d, P)` → (22, 3) recovered 3D
+
+### 결과 위치
+```
+~/outputs/triangulation/saturation_analysis.json
+```
+
+---
+
+## 10. Neural 2D Keypoint Detection Pipeline
+
+### 개요
+
+Oracle 실험의 GT 2D projection 대신 **학습된 2D detector**를 사용하여
+GS-LRM rendered novel view에서 keypoint를 검출하고 triangulation하는 end-to-end 파이프라인.
+
+### Why: Oracle 실험과의 차이
+
+| 항목 | Oracle | Neural Detector |
+|------|--------|-----------------|
+| 2D keypoints 출처 | GT 3D → project (완벽) | HRNet-w48 inference (오차 포함) |
+| 이미지 출처 | N/A (좌표 연산만) | GS-LRM rendered images |
+| 노이즈 모델 | Gaussian σ (정규분포) | 실제 detector 오차 (비정규) |
+| 검출률 | 100% | Confidence threshold 의존 |
+| Domain gap | 없음 | Real camera ↔ Synthetic render |
+
+### Architecture (2-Env Pipeline)
+
+```
+┌─────────────────── facelift env (GPU 6) ───────────────────┐
+│                                                              │
+│  M5 test frames (3240-3599)                                 │
+│       ↓                                                      │
+│  load_sample_data() → 4-view images (4, 3, 512, 512)       │
+│       ↓                                                      │
+│  GS-LRM predict() → GaussianModel (N_pts × {xyz, sh, ...}) │
+│       ↓                                                      │
+│  apply_all_filters() → Filtered gaussians                   │
+│       ↓                                                      │
+│  get_turntable_cameras(N) → (N, 3, 4) proj matrices        │
+│       ↓                                                      │
+│  render_opencv_cam() × N → RGB images (N, 384, 384, 3)     │
+│       ↓                                                      │
+│  Save: cam_{000-N}.png + cameras.json                       │
+│                                                              │
+└────────── ~/outputs/neural_triangulation/renders/ ───────────┘
+                              ↓ (disk)
+┌─────────────────── mmpose env (GPU 4) ────────────────────┐
+│                                                              │
+│  Load rendered images + cameras.json                        │
+│       ↓                                                      │
+│  get_bbox_from_alpha() → [x1,y1,x2,y2] per view            │
+│       ↓                                                      │
+│  inference_topdown(HRNet-w48) → 2D keypoints (N, 22, 3)    │
+│       ↓                           with [x, y, confidence]   │
+│  triangulate_batch(kp_2d, P, conf_thr=0.3)                 │
+│       ↓                                                      │
+│  facelift_to_mammal() → 3D predictions (22, 3) mm          │
+│       ↓                                                      │
+│  compute_mpjpe() vs MAMMAL GT → MPJPE (mm)                 │
+│                                                              │
+└────────── ~/outputs/neural_triangulation/results/ ───────────┘
+```
+
+### Phase A: 환경 설치
+
+```bash
+# gpu03에서 별도 conda 환경 생성 (facelift env와 분리)
+conda create -n mmpose python=3.10 -y
+conda activate mmpose
+pip install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu121
+pip install -U openmim
+mim install mmengine mmcv mmdet mmpose
+```
+
+### Phase B: DANNCE 2D → COCO Format 변환
+
+**입력**: DANNCE 2D keypoints (6 views × 18000 frames × 22kp)
+```
+~/data/raw/markerless_mouse_1_nerf/keypoints2d_undist/result_view_{0-5}.pkl
+    Shape: (18000, 22, 3) — [x, y, confidence]
+```
+
+**출력**: COCO 형식 데이터셋
+```
+~/data/processed/mmpose_mouse/
+├── images/                        # 개별 프레임 PNG (1152×1024)
+│   ├── {frame_NNNNNN_view_V}.png  # e.g. frame_000000_view_0.png
+│   └── ...                        # Total: 17,280(train) + 2,160(val) + 2,160(test)
+├── annotations/
+│   ├── train.json                 # COCO keypoint annotation (frames 0-2879 × 6 views)
+│   ├── val.json                   # frames 2880-3239 × 6 views
+│   └── test.json                  # frames 3240-3599 × 6 views
+└── mouse_keypoint_info.json       # 22kp skeleton definition
+```
+
+**Split** (M5 frame 기준, DANNCE frame = M5 frame × 5):
+| Split | M5 Frames | DANNCE Frames | Images |
+|-------|-----------|---------------|--------|
+| Train | 0-2879 | 0-14395 (×5) | 17,280 |
+| Val | 2880-3239 | 14400-16195 (×5) | 2,160 |
+| Test | 3240-3599 | 16200-17995 (×5) | 2,160 |
+
+**COCO annotation 형식**:
+```json
+{
+  "images": [{"id": 1, "file_name": "frame_000000_view_0.png", "width": 1152, "height": 1024}],
+  "annotations": [{"id": 1, "image_id": 1, "category_id": 1,
+                    "keypoints": [x0, y0, v0, x1, y1, v1, ...],
+                    "bbox": [x, y, w, h], "num_keypoints": 22}],
+  "categories": [{"id": 1, "name": "mouse", "keypoints": [...], "skeleton": [...]}]
+}
+```
+
+**스크립트**: `mouse_extensions/scripts/keypoint_detection/convert_dannce_to_coco.py`
+
+### Phase C: HRNet-w48 Fine-tuning
+
+**Config**: `mouse_extensions/configs/mmpose/hrnet_w48_mouse_22kp.py`
+
+| 항목 | 값 |
+|------|------|
+| Backbone | HRNet-w48 (AP-10K pretrained) |
+| Head | HeatmapHead, out_channels=22 |
+| Codec | MSRAHeatmap, input (256,192), heatmap (64,48), σ=2 |
+| LR | 5e-4 (head), 5e-5 (backbone, lr_mult=0.1) |
+| Schedule | LinearLR warmup (5ep) → CosineAnnealing (5-100ep, η_min=1e-6) |
+| Batch | 32/GPU |
+| Augmentation | RandomFlip, RandomHalfBody, RandomBBoxTransform (rot±30°, scale 0.75-1.25) |
+| EMA | momentum=0.0002 |
+| Checkpoint | Best coco/AP, max_keep=3 |
+
+**Data flow (training)**:
+```
+Image (1152×1024) → LoadImage
+    → GetBBoxCenterScale (bbox → center, scale)
+    → RandomFlip (horizontal, with flip_indices)
+    → RandomHalfBody (prob=0.3, min 6kp)
+    → RandomBBoxTransform (rotate, scale, shift)
+    → TopdownAffine → crop+resize to (256, 192)
+    → GenerateTarget → MSRAHeatmap (64, 48) × 22 channels
+    → PackPoseInputs
+```
+
+**학습 명령어**:
+```bash
+conda activate mmpose && cd ~/dev/FaceLift
+CUDA_VISIBLE_DEVICES=4 python tools/train.py \
+    mouse_extensions/configs/mmpose/hrnet_w48_mouse_22kp.py \
+    --work-dir work_dirs/hrnet_w48_mouse_22kp
+```
+
+**Checkpoint 위치**: `work_dirs/hrnet_w48_mouse_22kp/best_coco_AP.pth`
+
+### Phase D: Novel View Rendering + Detection + Triangulation
+
+#### D-1: GS-LRM Rendering (facelift env)
+
+**스크립트**: `mouse_extensions/scripts/keypoint_detection/render_novel_views_for_detection.py`
+
+```bash
+conda activate facelift && cd ~/dev/FaceLift
+CUDA_VISIBLE_DEVICES=6 python mouse_extensions/scripts/keypoint_detection/render_novel_views_for_detection.py \
+    --config configs/mouse/uniform/base_uniform_v2.yaml \
+    --checkpoint checkpoints/gslrm/M5t2_E0_1_facelift/best_psnr.pt \
+    --num_views 6 12 24 --render_size 384
+```
+
+**출력**:
+```
+~/outputs/neural_triangulation/renders/
+├── 6views/{003240-003599}/cam_{000-005}.png + cameras.json
+├── 12views/{003240-003599}/cam_{000-011}.png + cameras.json
+└── 24views/{003240-003599}/cam_{000-023}.png + cameras.json
+```
+
+#### D-2: Detection + Triangulation (mmpose env)
+
+**스크립트**: `mouse_extensions/scripts/keypoint_detection/detect_and_triangulate.py`
+
+```bash
+conda activate mmpose && cd ~/dev/FaceLift
+for NV in 6 12 24; do
+    CUDA_VISIBLE_DEVICES=4 python mouse_extensions/scripts/keypoint_detection/detect_and_triangulate.py \
+        --render_dir ~/outputs/neural_triangulation/renders/${NV}views \
+        --mmpose_config mouse_extensions/configs/mmpose/hrnet_w48_mouse_22kp.py \
+        --mmpose_checkpoint work_dirs/hrnet_w48_mouse_22kp/best_coco_AP.pth \
+        --gt_3d_path /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz \
+        --output_dir ~/outputs/neural_triangulation/results/${NV}views
+done
+```
+
+**Detection data flow**:
+```
+Rendered image (384×384, RGB/RGBA)
+    → get_bbox_from_alpha() → [x1,y1,x2,y2]
+    → inference_topdown(HRNet-w48, image, bbox)
+    → pred_instances.keypoints (22, 2) + keypoint_scores (22,)
+    → keypoints_2d (N_views, 22, 3) — [x, y, confidence]
+```
+
+**Triangulation data flow**:
+```
+keypoints_2d (N, 22, 3) + proj_matrices (N, 3, 4)
+    → conf > 0.3 필터링
+    → triangulate_batch() — per-joint DLT/SVD
+    → pred_3d_fl (22, 3) FaceLift normalized
+    → facelift_to_mammal() = points / 0.008772 + [59.672, 51.517, 107.099]
+    → pred_3d_mm (22, 3) MAMMAL world (mm)
+    → compute_mpjpe(pred, gt) → per-joint error (mm)
+```
+
+**결과**: `~/outputs/neural_triangulation/results/{N}views/neural_results.json`
+
+### Phase E: Oracle vs Neural 비교 분석
+
+**스크립트**: `mouse_extensions/scripts/keypoint_detection/compare_oracle_vs_real.py`
+
+```bash
+python mouse_extensions/scripts/keypoint_detection/compare_oracle_vs_real.py \
+    --oracle_path ~/outputs/triangulation/saturation_analysis.json \
+    --neural_path ~/outputs/neural_triangulation/results \
+    --output_dir ~/outputs/neural_triangulation/comparison
+```
+
+**핵심 분석**:
+- `estimate_effective_sigma()`: Oracle MPJPE vs σ curve에서 보간하여 detector effective noise 추정
+- Per-joint error 비교 (head/spine/tail/legs)
+- Domain gap: detection rate by joint group × view count
+
+**출력**:
+```
+~/outputs/neural_triangulation/comparison/
+├── plots/
+│   ├── oracle_vs_real.png          # MPJPE vs view count (oracle curves + neural point)
+│   ├── per_joint_error.png         # Bar chart: per-joint MPJPE + detection rate
+│   └── domain_gap_analysis.png     # Detection rate by joint group
+└── report.md                       # Summary table + effective σ + key findings
+```
+
+### Coordinate Transform Constants (M5)
+
+| Constant | Value | Source |
+|----------|-------|--------|
+| `M5_SCENE_CENTER` | `[59.672, 51.517, 107.099]` mm | 6-camera centroid |
+| `M5_DISTANCE_SCALE` | `2.7 / 307.785 = 0.008772` | target_dist / mean_cam_dist |
+
+**Forward**: `p_fl = (p_mammal - center) × scale`
+**Inverse**: `p_mammal = p_fl / scale + center`
+
+---
+
+*Updated: 2026-03-05*

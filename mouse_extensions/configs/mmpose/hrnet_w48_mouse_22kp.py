@@ -329,9 +329,9 @@ test_evaluator = dict(
 # ---------------------------------------------------------------------------
 # Training schedule
 # ---------------------------------------------------------------------------
-train_cfg = dict(max_epochs=100, val_interval=5)
-val_cfg = dict()
-test_cfg = dict()
+train_cfg = dict(type='EpochBasedTrainLoop', max_epochs=100, val_interval=5)
+val_cfg = dict(type='ValLoop')
+test_cfg = dict(type='TestLoop')
 
 # Differential LR: backbone 10x lower than head
 optim_wrapper = dict(
