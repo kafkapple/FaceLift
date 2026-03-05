@@ -77,7 +77,14 @@
 | → [[chapters/CH1_ENVIRONMENT_AND_DATA]] | 환경, 데이터 구조, 전처리, Dataset 코드 | 🆕 |
 | → [[chapters/CH2_GSLRM_CODE_FLOW]] | Config 시스템, 학습 루프, 모델 Forward Pass, Loss | 🆕 |
 | → [[chapters/CH3_EXPERIMENTS_AND_RESULTS]] | 전체 실험 흐름 (Phase 1→6), 코드, 명령어, 결과 | 🆕 |
-| **[[PIPELINE_DEEP_DIVE]]** | **mouse_extensions 코드 워크스루 (Phase 1-7, 라인번호 포함)** | **🆕 v2.0** |
+| **[[PIPELINE_DEEP_DIVE]]** | **mouse_extensions 코드 워크스루 Hub (MoC + Issues + QuickRef)** | **🆕 v3.0** |
+| → [[pipeline/PH1_PREPROCESSING]] | Phase 1: Data Preprocessing (M5) | 🆕 |
+| → [[pipeline/PH2_DATA_LOADING]] | Phase 2: Training Data Loading | 🆕 |
+| → [[pipeline/PH3_MODEL_FORWARD_LOSS]] | Phase 3: Model Forward & Loss | 🆕 |
+| → [[pipeline/PH4_POSE_CONDITIONING]] | Phase 4: Pose Conditioning (Plucker) | 🆕 |
+| → [[pipeline/PH5_E2E_INFERENCE]] | Phase 5: E2E Inference Pipeline | 🆕 |
+| → [[pipeline/PH6_FAIR_EVALUATION]] | Phase 6: Fair Evaluation | 🆕 |
+| → [[pipeline/PH7_3D_KEYPOINT]] | Phase 7: 3D Keypoint Pipeline | 🆕 |
 | [[MVDIFFUSION_FINETUNE_GUIDE]] | Multi-view diffusion (Stage 1) fine-tuning | ✅ |
 | [[MOUSE_DATASET_GUIDE]] | MouseViewDataset 구현 참조 | ✅ |
 | [[POSE_SPLATTER_GUIDE]] | Pose Splatter 비교 프로토콜 | ✅ |
@@ -215,4 +222,4 @@ experiments/comparison/
 
 ---
 
-*MoC v10.3 | Updated: 2026-03-05 | eval_protocol duplicate removed*
+*MoC v10.4 | Updated: 2026-03-05 | PIPELINE_DEEP_DIVE MoC split (pipeline/)*
