@@ -2,7 +2,7 @@
 
 > **MoC (Map of Content)** — Central hub for all project documents.
 > **Updated**: 2026-02-23 | **Version**: v10.1
-> **Active**: 37개 | **Archive**: 22개
+> **Active**: 38개 | **Archive**: 22개
 
 ---
 
@@ -55,7 +55,6 @@
 |------|------|:----:|
 | [[COMMANDS]] | 명령어 SSOT (GS-LRM, MVDiff, Turntable) | ✅ |
 | [[EXPERIMENT_CONFIG_GUIDE]] | Config 시스템 (Modular 3-Layer) | ✅ |
-| [[evaluation_protocol_v1]] | 평가 유형 / Split 전략 | ✅ |
 | [[EXPERIMENT_REGISTRY]] | 실험 설정/결과 기록 | ✅ |
 | [[INFERENCE_E2E_GUIDE]] | E2E 추론 파이프라인 + CLI | ✅ |
 | [[TRAINING_LOGGING_GUIDE]] | 학습 단위/WandB 로깅 | ✅ |
@@ -78,6 +77,7 @@
 | → [[chapters/CH1_ENVIRONMENT_AND_DATA]] | 환경, 데이터 구조, 전처리, Dataset 코드 | 🆕 |
 | → [[chapters/CH2_GSLRM_CODE_FLOW]] | Config 시스템, 학습 루프, 모델 Forward Pass, Loss | 🆕 |
 | → [[chapters/CH3_EXPERIMENTS_AND_RESULTS]] | 전체 실험 흐름 (Phase 1→6), 코드, 명령어, 결과 | 🆕 |
+| **[[PIPELINE_DEEP_DIVE]]** | **mouse_extensions 코드 워크스루 (Phase 1-7, 라인번호 포함)** | **🆕 v2.0** |
 | [[MVDIFFUSION_FINETUNE_GUIDE]] | Multi-view diffusion (Stage 1) fine-tuning | ✅ |
 | [[MOUSE_DATASET_GUIDE]] | MouseViewDataset 구현 참조 | ✅ |
 | [[POSE_SPLATTER_GUIDE]] | Pose Splatter 비교 프로토콜 | ✅ |
@@ -190,6 +190,20 @@ experiments/comparison/
 
 ---
 
+## Obsidian 교차 참조
+
+> 로컬 Obsidian vault에서 이론/분석/논문 초안을 관리합니다.
+> **SSOT 규칙**: 실험 수치/설정은 본 서버 docs/ 우선. Obsidian은 학습/참조/논문 작성용.
+
+| Obsidian 문서 | 내용 |
+|--------------|------|
+| `docs/INDEX.md` (v5.0) | Obsidian 전체 문서 인덱스 |
+| `docs/paper/` | 논문 초안 (BehaviorSplatter), NeurIPS Gap 분석 |
+| `docs/theory/` | 파이프라인 이론 (Stage1/2, 좌표계, Loss) |
+| `_Notes/` | 연구 노트 (세션별, `docs/notes/`에서 통합 이전) |
+
+---
+
 ## 용어 참고 (Terminology)
 
 | 용어 | 의미 |
@@ -201,4 +215,4 @@ experiments/comparison/
 
 ---
 
-*MoC v10.1 | Updated: 2026-02-23 | Terminology note added*
+*MoC v10.3 | Updated: 2026-03-05 | eval_protocol duplicate removed*
