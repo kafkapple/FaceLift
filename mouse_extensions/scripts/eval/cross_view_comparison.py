@@ -3,7 +3,7 @@
 Creates publication-quality comparison grids showing quality progression
 as input view count increases from 1 to 6.
 
-Output: outputs/visualizations/cross_view_comparison/
+Output: outputs/comparison/cross_view_comparison/
 """
 import os
 import json
@@ -15,7 +15,7 @@ from pathlib import Path
 TIER_DIR = Path("/home/joon/dev/FaceLift/outputs/tier_comparison")
 GT_DIR = Path("/home/joon/data/preprocessed/FaceLift_mouse/M5")
 FAIR_DIR = Path("/home/joon/dev/FaceLift/experiments/comparison/tier")
-OUT_DIR = Path("/home/joon/dev/FaceLift/outputs/visualizations/cross_view_comparison")
+OUT_DIR = Path("/home/joon/dev/FaceLift/outputs/comparison/cross_view_comparison")
 
 # Representative test frames (spread across test set 3240-3599)
 FRAMES = ["003240", "003320", "003400", "003500"]

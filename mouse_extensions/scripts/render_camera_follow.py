@@ -239,31 +239,51 @@ def make_multiview_grid(
     return grid
 
 
-def frames_to_video(
-    frame_dir: str,
-    output_path: str,
-    fps: int = 10,
-    pattern: str = "frame_*.png",
-):
-    """Compile saved frames into MP4 video."""
-    import glob
-    frame_files = sorted(glob.glob(os.path.join(frame_dir, pattern)))
-    if not frame_files:
-        print(f"  No frames found for {output_path}")
-        return
+class StreamingVideoWriter:
+    """Write frames directly to video without saving individual PNGs.
 
-    first = cv2.imread(frame_files[0])
-    h, w = first.shape[:2]
+    Writes with OpenCV (mp4v) then converts to H.264 via ffmpeg for
+    macOS QuickTime compatibility.
+    """
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
+    def __init__(self, output_path: str, fps: int = 10):
+        self.output_path = output_path
+        self.fps = fps
+        self._tmp_path = output_path + ".tmp.mp4"
+        self._writer = None
+        self._count = 0
 
-    for ff in frame_files:
-        img = cv2.imread(ff)
-        writer.write(img)
+    def write(self, frame: np.ndarray):
+        if self._writer is None:
+            h, w = frame.shape[:2]
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            self._writer = cv2.VideoWriter(
+                self._tmp_path, fourcc, self.fps, (w, h),
+            )
+        self._writer.write(frame)
+        self._count += 1
 
-    writer.release()
-    print(f"  Video: {output_path} ({len(frame_files)} frames, {fps}fps)")
+    def release(self):
+        if self._writer is not None:
+            self._writer.release()
+            # Convert mp4v → H.264 for macOS compatibility
+            import subprocess
+            result = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-i", self._tmp_path,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                    "-pix_fmt", "yuv420p",
+                    self.output_path,
+                ],
+                capture_output=True,
+            )
+            if result.returncode == 0 and os.path.exists(self.output_path):
+                os.remove(self._tmp_path)
+            else:
+                # Fallback: keep mp4v version
+                os.rename(self._tmp_path, self.output_path)
+                print(f"  Warning: ffmpeg conversion failed, using mp4v fallback")
+            print(f"  Video: {self.output_path} ({self._count} frames, {self.fps}fps)")
 
 
 def main():
@@ -272,7 +292,7 @@ def main():
     parser.add_argument("--keypoints_npz", required=True)
     parser.add_argument("--data_txt", required=True)
     parser.add_argument("--start_frame", type=int, default=3240)
-    parser.add_argument("--num_frames", type=int, default=200)
+    parser.add_argument("--num_frames", type=int, default=360)
     parser.add_argument("--output_dir", required=True)
     parser.add_argument("--distance", type=float, default=0.8,
                         help="Camera distance from face")
@@ -360,11 +380,13 @@ def main():
 
     # ===== Camera-follow rendering =====
     if not args.grid_only:
-        dirs = {}
+        # Streaming video writers (no intermediate PNGs)
+        writers = {}
         for name in ("clean", "overlay", "sidebyside"):
-            d = os.path.join(args.output_dir, f"frames_{name}")
-            os.makedirs(d, exist_ok=True)
-            dirs[name] = d
+            path = os.path.join(args.output_dir, f"camera_follow_face_{name}.mp4")
+            writers[name] = StreamingVideoWriter(path, fps=args.fps)
+
+        rep_frame_idx = len(valid_frames) // 2  # representative frame = middle
 
         if not args.no_inference:
             print("Loading GS-LRM pipeline...")
@@ -402,30 +424,36 @@ def main():
             # Side-by-side version
             sbs_img = make_side_by_side(clean_img, overlay_img, legend)
 
-            # Save all three
-            fname = f"frame_{i:04d}.png"
-            cv2.imwrite(os.path.join(dirs["clean"], fname), clean_img)
-            cv2.imwrite(os.path.join(dirs["overlay"], fname), overlay_img)
-            cv2.imwrite(os.path.join(dirs["sidebyside"], fname), sbs_img)
+            # Write directly to video streams
+            writers["clean"].write(clean_img)
+            writers["overlay"].write(overlay_img)
+            writers["sidebyside"].write(sbs_img)
+
+            # Save one representative image (middle frame)
+            if i == rep_frame_idx:
+                cv2.imwrite(
+                    os.path.join(args.output_dir, "representative_sidebyside.png"),
+                    sbs_img,
+                )
 
             print("  [OK]")
 
-        # Compile camera-follow videos
+        # Finalize videos
         if not args.no_inference:
-            print("Compiling camera-follow videos...")
-            for name in ("clean", "overlay", "sidebyside"):
-                video_path = os.path.join(
-                    args.output_dir, f"camera_follow_face_{name}.mp4",
-                )
-                frames_to_video(dirs[name], video_path, fps=args.fps)
+            print("Finalizing camera-follow videos...")
+            for w in writers.values():
+                w.release()
 
     # ===== Multi-view grid (GT 6-camera views + keypoint overlay) =====
     if not args.no_grid:
         print("Generating multi-view grid...")
-        grid_dir = os.path.join(args.output_dir, "frames_grid")
-        os.makedirs(grid_dir, exist_ok=True)
+        grid_writer = StreamingVideoWriter(
+            os.path.join(args.output_dir, "multiview_grid_overlay.mp4"),
+            fps=args.fps,
+        )
 
         cam_labels = [f"cam_{c:03d}" for c in range(6)]
+        grid_rep_idx = len(valid_frames) // 2
 
         for i, (m5_idx, sample_dir, kp_fl) in enumerate(
             zip(valid_frames, valid_dirs, kp_sequence)
@@ -458,11 +486,16 @@ def main():
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA,
             )
 
-            cv2.imwrite(os.path.join(grid_dir, f"frame_{i:04d}.png"), grid)
+            grid_writer.write(grid)
 
-        # Compile grid video
-        grid_video = os.path.join(args.output_dir, "multiview_grid_overlay.mp4")
-        frames_to_video(grid_dir, grid_video, fps=args.fps)
+            # Save one representative grid image
+            if i == grid_rep_idx:
+                cv2.imwrite(
+                    os.path.join(args.output_dir, "representative_grid.png"),
+                    grid,
+                )
+
+        grid_writer.release()
 
     # --- Save trajectory summary ---
     traj_path = os.path.join(args.output_dir, "trajectory.npz")

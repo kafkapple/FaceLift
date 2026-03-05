@@ -406,7 +406,7 @@ MPJPE (mm) per joint
 
 ### 결과 위치
 ```
-~/outputs/triangulation/saturation_analysis.json
+outputs/triangulation/oracle_saturation/saturation_analysis.json
 ```
 
 ---
@@ -447,7 +447,7 @@ GS-LRM rendered novel view에서 keypoint를 검출하고 triangulation하는 en
 │       ↓                                                      │
 │  Save: cam_{000-N}.png + cameras.json                       │
 │                                                              │
-└────────── ~/outputs/neural_triangulation/renders/ ───────────┘
+└────────── outputs/triangulation/neural_detection/renders/ ───────────┘
                               ↓ (disk)
 ┌─────────────────── mmpose env (GPU 4) ────────────────────┐
 │                                                              │
@@ -463,7 +463,7 @@ GS-LRM rendered novel view에서 keypoint를 검출하고 triangulation하는 en
 │       ↓                                                      │
 │  compute_mpjpe() vs MAMMAL GT → MPJPE (mm)                 │
 │                                                              │
-└────────── ~/outputs/neural_triangulation/results/ ───────────┘
+└────────── outputs/triangulation/neural_detection/results/ ───────────┘
 ```
 
 ### Phase A: 환경 설치
@@ -572,7 +572,7 @@ CUDA_VISIBLE_DEVICES=6 python mouse_extensions/scripts/keypoint_detection/render
 
 **출력**:
 ```
-~/outputs/neural_triangulation/renders/
+outputs/triangulation/neural_detection/renders/
 ├── 6views/{003240-003599}/cam_{000-005}.png + cameras.json
 ├── 12views/{003240-003599}/cam_{000-011}.png + cameras.json
 └── 24views/{003240-003599}/cam_{000-023}.png + cameras.json
@@ -586,11 +586,11 @@ CUDA_VISIBLE_DEVICES=6 python mouse_extensions/scripts/keypoint_detection/render
 conda activate mmpose && cd ~/dev/FaceLift
 for NV in 6 12 24; do
     CUDA_VISIBLE_DEVICES=4 python mouse_extensions/scripts/keypoint_detection/detect_and_triangulate.py \
-        --render_dir ~/outputs/neural_triangulation/renders/${NV}views \
+        --render_dir outputs/triangulation/neural_detection/renders/${NV}views \
         --mmpose_config mouse_extensions/configs/mmpose/hrnet_w48_mouse_22kp.py \
         --mmpose_checkpoint work_dirs/hrnet_w48_mouse_22kp/best_coco_AP.pth \
         --gt_3d_path /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz \
-        --output_dir ~/outputs/neural_triangulation/results/${NV}views
+        --output_dir outputs/triangulation/neural_detection/results/${NV}views
 done
 ```
 
@@ -614,7 +614,19 @@ keypoints_2d (N, 22, 3) + proj_matrices (N, 3, 4)
     → compute_mpjpe(pred, gt) → per-joint error (mm)
 ```
 
-**결과**: `~/outputs/neural_triangulation/results/{N}views/neural_results.json`
+**결과**: `outputs/triangulation/neural_detection/results/{N}views/neural_results.json`
+
+#### D-2 Results (HRNet-w48, epoch 100, best AP=0.9086)
+
+| Views | MPJPE (mm) | PA-MPJPE (mm) | Det. Rate | Effective σ |
+|:-----:|:----------:|:-------------:|:---------:|:-----------:|
+| 6 | 41.85 ± 35.07 | 23.72 ± 4.00 | 29.1% | 55.5 px |
+| 12 | 79.77 ± 197.27 | 22.92 ± 4.50 | 29.2% | 174.7 px |
+| 24 | 55.53 ± 137.05 | 23.09 ± 4.10 | 29.1% | 181.9 px |
+
+**Per-joint detection rate (24v)**:
+- Best: tail_end (83.5%), nose (70.2%), tail_root (65.6%), L_knee (63.8%)
+- Worst: shoulders (0%), elbows (0%), paw_end (<1%), neck (0.1%)
 
 ### Phase E: Oracle vs Neural 비교 분석
 
@@ -622,9 +634,9 @@ keypoints_2d (N, 22, 3) + proj_matrices (N, 3, 4)
 
 ```bash
 python mouse_extensions/scripts/keypoint_detection/compare_oracle_vs_real.py \
-    --oracle_path ~/outputs/triangulation/saturation_analysis.json \
-    --neural_path ~/outputs/neural_triangulation/results \
-    --output_dir ~/outputs/neural_triangulation/comparison
+    --oracle_path outputs/triangulation/oracle_saturation/saturation_analysis.json \
+    --neural_path outputs/triangulation/neural_detection/results \
+    --output_dir outputs/triangulation/neural_detection/comparison
 ```
 
 **핵심 분석**:
@@ -634,13 +646,27 @@ python mouse_extensions/scripts/keypoint_detection/compare_oracle_vs_real.py \
 
 **출력**:
 ```
-~/outputs/neural_triangulation/comparison/
+outputs/triangulation/neural_detection/comparison/
 ├── plots/
-│   ├── oracle_vs_real.png          # MPJPE vs view count (oracle curves + neural point)
-│   ├── per_joint_error.png         # Bar chart: per-joint MPJPE + detection rate
-│   └── domain_gap_analysis.png     # Detection rate by joint group
-└── report.md                       # Summary table + effective σ + key findings
+│   ├── oracle_vs_real.png              # MPJPE vs view count (oracle curves + neural)
+│   ├── per_joint_error.png             # Bar chart: per-joint MPJPE + detection rate
+│   └── domain_gap_analysis.png         # Detection rate by joint group
+├── viewcount/
+│   ├── per_joint_viewcount_comparison.png  # 6v/12v/24v per-joint bars
+│   ├── group_summary_comparison.png        # Joint group level comparison
+│   ├── oracle_neural_gap_log.png           # Log-scale gap visualization
+│   └── summary_table.png                  # Summary metrics table
+└── report.md                           # Summary table + effective σ + key findings
 ```
+
+**Viewcount visualization script**: `mouse_extensions/scripts/keypoint_detection/viewcount_comparison_viz.py`
+
+#### Phase E Key Findings
+
+- Oracle (σ=5px) vs Neural 격차: **12~37x** — domain gap이 지배적
+- PA-MPJPE ~23mm stable across views → alignment 후에도 절대 위치 오차 존재
+- Detection rate ~29% 가 주요 병목 (GS-LRM render ↔ real camera domain gap)
+- 뷰 수 증가(6→24)가 MPJPE를 낮추지 않음 → 뷰 수보다 detection 품질이 핵심
 
 ### Coordinate Transform Constants (M5)
 
@@ -651,6 +677,79 @@ python mouse_extensions/scripts/keypoint_detection/compare_oracle_vs_real.py \
 
 **Forward**: `p_fl = (p_mammal - center) × scale`
 **Inverse**: `p_mammal = p_fl / scale + center`
+
+---
+
+*Updated: 2026-03-05*
+
+
+## 11. Methodological Rationale & Literature Review
+
+### 11.1 Ground Truth 특성 (MAMMAL Pseudo-GT)
+
+현재 GT 3D keypoints는 **marker-based motion capture가 아닌** MAMMAL (An et al., NeurIPS 2023) pseudo-GT입니다.
+
+| Criteria | Marker-based MoCap | Markerless (DANNCE/MAMMAL) |
+|----------|-------------------|---------------------------|
+| **정확도** | Sub-mm (gold standard) | ~2-5mm (DANNCE), ~3-8mm (MAMMAL 추정) |
+| **침습성** | 마커 부착 필요 (행동 변형) | 비침습적 |
+| **마우스 적용** | 극히 어려움 (소형, 모피) | 실용적 |
+| **데이터셋** | 마우스용 사실상 없음 | DANNCE, MAMMAL 공개 |
+
+**핵심 사항**:
+- 마우스는 체구(~3cm 체폭)와 모피로 인해 reflective marker 부착 비실용적
+- Dunn et al. (2021)은 **painted marker**(잉크 도트)를 reference로 사용 — 전통적 MoCap과 다름
+- MAMMAL pseudo-GT는 2D detection 품질에 직접 의존하므로 ~3-8mm 오차 가능
+- **결과 보고 시**: "MAMMAL pseudo-GT 대비 MPJPE"로 명시 필요
+
+### 11.2 왜 HRNet인가? (vs DANNCE)
+
+| Aspect | DANNCE | HRNet + DLT |
+|--------|--------|-------------|
+| **입력** | 고정 6-cam multi-view 이미지 (동시) | 단일 이미지 |
+| **방식** | 직접 3D: 이미지 → 3D voxel volume → 3D heatmap | 2D detection → 삼각측량 |
+| **카메라 요구** | 학습 시와 정확히 동일한 배치 필수 | 임의 가상 카메라 적용 가능 |
+| **Novel view 적용** | **불가** (카메라 기하학 종속) | **가능** (단일 이미지로 동작) |
+
+**DANNCE가 GS-LRM 렌더뷰에 적용 불가한 이유**:
+1. DANNCE는 학습 시 사용한 **정확히 같은 카메라 배치**에서만 동작 (3D voxel 구성이 extrinsics 종속)
+2. 단일 뷰 적용 설계 아님 (multi-view 입력 필수)
+3. 적용하려면 DANNCE 재학습 + 원본 카메라 배치 재현 필요 → 비실용적
+
+**DANNCE vs MAMMAL의 2D 처리 차이**:
+- **DANNCE**: 2D 중간 단계 없이 **직접 3D 예측** (multi-view → 3D volume → 3D heatmap → soft-argmax)
+  - 단, 학습 GT는 사람 annotate 2D → triangulation으로 생성 (아이러니)
+- **MAMMAL**: **2D detection을 명시적 중간 단계로 사용** (2D backbone → cross-view attention → 3D lifting)
+
+### 11.3 2D vs 3D 비교 평가 방법론
+
+| Approach | 장점 | 단점 |
+|----------|------|------|
+| **2D per-view (PCK)** | 단순, 추가 오류 없음, 뷰별 진단 가능 | Depth 정보 없음, GT 2D 필요 |
+| **3D via triangulation (MPJPE)** | 최종 목표 직접 대응, 타 논문 비교 가능 | 렌더링+검출+삼각측량 오류 누적 |
+
+**SOTA 관행**: 대부분 **3D MPJPE를 primary metric**으로 사용 (Pose-Splatter, DANNCE, MAMMAL).
+**권장 보강**: 2D PCK를 보조 metric으로 추가하여 오류 원인 분리 (렌더링 품질 vs 기하학 문제).
+
+### 11.4 현재 파이프라인 평가
+
+```
+GS-LRM renders → HRNet 2D detection → DLT triangulation → 3D MPJPE vs MAMMAL pseudo-GT
+```
+
+**판단**: 방법론적으로 sound하며, SOTA 관행에 부합.
+
+**알려진 한계**:
+1. HRNet domain gap: 실제 카메라 이미지로 학습 → GS-LRM 렌더링 아티팩트에 취약 (Detection rate ~29%)
+2. MAMMAL pseudo-GT 오차 (~3-8mm) → MPJPE < 5mm 차이는 GT noise floor 안에 있을 가능성
+3. Triangulation은 detection rate가 낮으면 (2 view 미만 검출 시) 3D 추정 불가
+
+**References**:
+- Dunn et al. (2021). *Nature Methods* 18, 564-573. (DANNCE)
+- An et al. (2023). *NeurIPS 2023*. (MAMMAL)
+- Marshall et al. (2021). *Neuron* 109(3), 420-437. (Rodent MoCap)
+- Iskakov et al. (2019). *ICCV 2019*. (Learnable Triangulation)
+- Sun et al. (2019). *CVPR 2019*. (HRNet)
 
 ---
 
