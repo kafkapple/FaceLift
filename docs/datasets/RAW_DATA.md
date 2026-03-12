@@ -44,7 +44,7 @@ M5 데이터 (3,600 frames × 6 views × 512×512)
 **서버 경로**:
 ```
 /home/joon/data/raw/markerless_mouse_1_nerf/
-├── raw_videos/           # 6개 MP4 비디오 (카메라별)
+├── videos_undist/        # 6개 undistorted MP4 비디오 (카메라별)
 │   ├── 0.mp4
 │   ├── 1.mp4
 │   ├── 2.mp4
@@ -55,7 +55,10 @@ M5 데이터 (3,600 frames × 6 views × 512×512)
 │   ├── 0.mp4
 │   ├── 1.mp4
 │   └── ...
-└── new_cam.pkl           # 카메라 파라미터
+├── keypoints2d_undist/   # DANNCE 2D detections (6, 18000, 22, 3)
+├── new_cam.pkl           # 카메라 파라미터
+├── camera_params.h5      # 카메라 캘리브레이션 원본
+└── center_rotation.npz   # 센터/회전 정보
 ```
 
 ---
@@ -89,8 +92,8 @@ M5 데이터 (3,600 frames × 6 views × 512×512)
 | 설정 | 값 | 설명 |
 |------|-----|------|
 | **frame_interval** | 5 | 5프레임마다 1개 샘플링 |
-| **원본 FPS** | 30 fps | |
-| **유효 FPS** | 6 fps | 30 / 5 = 6 |
+| **원본 FPS** | 100 fps | DANNCE 녹화 원본 (1152×1024) |
+| **유효 FPS** | 20 fps | 100 / 5 = 20 |
 
 ### 3.2 샘플 수 계산
 
@@ -194,10 +197,11 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
 ## 7. 관련 문서
 
 - [[PREPROCESSING_REGISTRY]] - 프리셋 정의
+- [[../../mouse_extensions/docs/DATASET_FRAME_INDEXING]] - **⚠️ 프레임 인덱싱 매핑 (step=5 규칙)**
 
 ---
 
-*Raw Data Sources v1.0 | 2026-01-26*
+*Raw Data Sources v1.1 | Updated: 2026-03-11 (FPS 수정: 30→100, 유효 6→20)*
 
 ## 6-Camera Configuration (from archive)
 

@@ -1,8 +1,8 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-03-03 | **Version**: v11.0
-> **Active**: 42개 | **Archive**: 22개
+> **Updated**: 2026-03-12 | **Version**: v12.0
+> **Active**: 48개 | **Archive**: 삭제됨 (현행 문서에 통합)
 
 ---
 
@@ -15,7 +15,7 @@
 | **Stage 1 병목 분석** | [[experiments/mvdiffusion_bottleneck_analysis]] **v1.1** |
 | **Domain Adaptation** | [[experiments/domain_adaptation_DA1]] **v1.1** |
 | **평가 프로토콜** | [[experiments/evaluation_protocol_v1]] **v1.0** |
-| **가설 로드맵** | [[experiments/hypothesis_roadmap]] |
+| **가설 SSOT (로드맵)** | [[experiments/hypothesis_roadmap]] **v3.0** |
 | **명령어 SSOT** | [[experiments/COMMANDS]] |
 | **레포트 시스템 가이드** | [[experiments/REPORT_SYSTEM_GUIDE]] **v1.0** |
 | **Stage 1 대체 후보** | [[experiments/STAGE1_REPLACEMENT_CANDIDATES]] **v1.0** |
@@ -41,16 +41,17 @@
 | **[[domain_adaptation_DA1]]** | GS-LRM domain adaptation (H_T1 검증) | **🆕 v1.1** | → bottleneck, training_settings |
 | **[[evaluation_protocol_v1]]** | 9-exp NVS 평가 프로토콜 (Temporal/Spatial/Combined) | **🆕 v1.0** | → FL_vs_PS, bottleneck |
 | **[[hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v2.1 | → H4-H7, bottleneck |
+| **[[comprehensive_analysis_report]]** | **종합 실험 보고서** (H1-H8 + Phase 2-3 전체 정량 비교) | **🆕 v1.0** | → 모든 실험 문서 |
 
 #### Reference Documents (안정, 참조용)
 
 | 문서 | 내용 | 상태 |
 |------|------|:----:|
-| [[training_optimal_settings]] | Stage 1/2 최적 학습 설정 | ✅ |
-| [[mvdiff_improvement_roadmap]] | MVDiff 아키텍처 개선 로드맵 | ✅ (→ bottleneck에서 요약) |
-| [[FL_PS_metric_consistency]] | 메트릭/데이터 일관성 코드 레벨 검증 | ✅ v2.1 |
-| [[_archive/260216_PHASE3_REPORT]] (archived) | Phase 3 종합 보고서 | ✅ |
-| [[_archive/260216_MVDIFF_TRAINING_ANALYSIS]] (archived) | MVDiff LR 전략 분석 | ✅ |
+| ~~training_optimal_settings~~ | _(삭제됨 — bottleneck에 통합)_ | 📦 |
+| ~~mvdiff_improvement_roadmap~~ | _(삭제됨 — bottleneck에 통합)_ | 📦 |
+| ~~FL_PS_metric_consistency~~ | _(삭제됨 — evaluation_protocol에 통합)_ | 📦 |
+| ~~260216_PHASE3_REPORT~~ | _(삭제됨 — comprehensive_analysis_report로 대체)_ | 📦 |
+| ~~260216_MVDIFF_TRAINING_ANALYSIS~~ | _(삭제됨 — comprehensive_analysis_report로 대체)_ | 📦 |
 | **[[REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 (코드+메트릭+프로토콜) | **🆕 v1.0** |
 | **[[STAGE1_REPLACEMENT_CANDIDATES]]** | Stage 1 대체 모델 후보 연구 (10개 모델 분석) | **🆕 v1.0** |
 
@@ -112,6 +113,22 @@
 | [[MV_ADAPTER_TECHNICAL]] | MV-Adapter 아키텍처 분석 |
 | [[SLIDES_FACELIFT_PIPELINE]] | 파이프라인 발표 슬라이드 (Marp) |
 
+### mouse_extensions/docs/ (구현 상세)
+
+| 문서 | 내용 | 상태 |
+|------|------|:----:|
+| [[../../mouse_extensions/docs/COORDINATE_SYSTEMS]] | 좌표계 변환 (MAMMAL↔FaceLift↔OpenGL) | ✅ |
+| [[../../mouse_extensions/docs/DATASET_FRAME_INDEXING]] | 프레임 인덱싱 & 데이터 명세 | ✅ |
+| [[../../mouse_extensions/docs/CAMERA_CALIBRATION]] | 카메라 캘리브레이션 상세 | ✅ |
+| [[../../mouse_extensions/docs/UV_TEXTURE_RENDERING_BUG]] | UV 텍스처 렌더링 버그 분석 & 수정 | ✅ 해결 |
+| [[../../mouse_extensions/docs/MESH_GUIDED_REFINEMENT]] | Mesh-guided artifact refinement 제안 | 📋 계획 |
+
+### experiments/ — Mesh-GS Pair Collection
+
+| 문서 | 내용 | 상태 |
+|------|------|:----:|
+| [[mesh_gs_pair_collection]] | MAMMAL mesh + GS-LRM pair 수집 전략 | ✅ |
+
 ### tools/ (스크립트 & 레포트)
 
 | 도구 | 위치 | 용도 |
@@ -121,24 +138,10 @@
 | **DA datagen** | `mouse_extensions/scripts/domain_adapt/` | MVDiff→GS-LRM dataset 생성 |
 | **Generated reports** | `reports/` | HTML 비교 레포트 |
 
-### _archive/ (22 files)
+### _archive/ (삭제됨)
 
-완료·대체·폐기된 문서. 역사적 참조용.
-
-<details>
-<summary>아카이브 목록 (펼치기)</summary>
-
-| 문서 | 사유 |
-|------|------|
-| FL_vs_PS_comparison_v5/v6/v7 | v11으로 대체 |
-| comparison_report | v11에 통합 |
-| H1bis_v2_REVALIDATION | ✅ 완료 |
-| H8_* (3 files) | ✅ 완료 (기각) |
-| hp_preprocessing_ablation | experiments/ (실험 진행 중) |
-| RTX3060_GUIDE | A6000 환경으로 이전 |
-| Others (10 files) | 통합/폐기 |
-
-</details>
+> ⚠️ _archive/ 디렉토리는 삭제됨. 이전 문서들은 현행 문서에 통합되었거나 폐기됨.
+> 주요 통합: comprehensive_analysis_report (←PHASE3_REPORT), evaluation_protocol_v1 (←metric_consistency)
 
 ---
 
@@ -205,4 +208,4 @@ experiments/comparison/
 
 ---
 
-*MoC v11.0 | Updated: 2026-03-03 | Paper draft, NeurIPS gap analysis, project synthesis added*
+*MoC v12.0 | Updated: 2026-03-12 | comprehensive_analysis_report 추가, _archive 정리, mouse_extensions/docs 연결, 깨진 링크 수정*
