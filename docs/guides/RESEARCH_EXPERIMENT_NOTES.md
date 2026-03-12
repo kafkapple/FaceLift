@@ -771,6 +771,9 @@ Baseline (E0: 22.34 dB, 4-view GT)
 
 ## 11. Current Status and Next Steps
 
+> **⚠️ 최신 상태**: [[experiments/EXPERIMENT_REGISTRY]] 및 [[experiments/hypothesis_roadmap]] 참조.
+> 아래는 2026-02-23 시점의 스냅샷입니다.
+
 ### Active Experiments (as of 2026-02-23)
 
 | Experiment | GPU | Progress | ETA | Purpose |

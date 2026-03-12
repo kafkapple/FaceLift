@@ -300,7 +300,7 @@ GT alpha fg=2.2% vs white-BG fg=4.8% (2.1×). Even GT input images have IoU=0.24
 
 > **CRITICAL CAVEAT (v8.1)**: B-3 결과는 **카메라 파라미터 불일치**로 인해 정량적 의미가 없습니다. PS 렌더(fj5_ds2 카메라, HFOV≈35°)와 M5 GT(M5 카메라, HFOV=50°)는 pixel-wise로 정렬되지 않습니다. 아래 수치는 모델 품질이 아닌 **카메라 기하학 차이**를 반영합니다.
 >
-> **Detail**: See [[FL_PS_metric_consistency]] for analysis.
+> **Detail**: See [[evaluation_protocol_v1]] for analysis.
 
 **Camera Parameter Comparison:**
 
@@ -783,248 +783,38 @@ With camera mismatch resolved (PS retrained on M5 data), **Tier A is now a valid
 
 ---
 
-## 11. Option A: Fair Tier B via M5→PS Retraining
+## 11. Option A: PS M5 Retraining (COMPLETED ✅)
 
-### 11.1 Why Option A Is Needed
-
-Tier B (E2E vs PS) pixel-wise comparison is currently **invalid** because:
-- FL outputs are in M5 camera space (HFOV=50°, fx=549, cx=256)
-- PS outputs are in fj5_ds2 camera space (HFOV≈35°, fx≈810, cx≈269)
-
-**Solution**: Retrain PS on M5 preprocessed data → both models render from identical cameras → pixel-wise comparison valid against same M5 GT.
-
-### 11.2 Data Conversion
-
-`convert_m5_for_ps.py` (gpu03 배포 완료):
-- M5 RGBA PNGs → zarr (3600, 6, 512, 512, 3) white-BG composite
-- M5 opencv_cameras.json → PS camera_params.h5 (K at 2× for ds=2 compat)
-- center_rotation.npz: `centers_m5 = scale * (centers_fj5 - centroid)`
-- Coordinate transform: **scale = 0.008772**, centroid = [59.67, 51.52, 107.10]
-
-**Key parameter adjustments:**
-
-| Parameter | fj5_ds2 (original) | M5 (converted) | Reason |
-|-----------|:------------------:|:---------------:|--------|
-| `ell` | 0.22 | **0.00193** | Scaled by 0.008772 |
-| `image_width/height` | 1152/1024 | 1024/1024 | M5 = 512×512, stored at 2× |
-| `image_downsample` | 2 | 2 | Kept for code compat |
-| `frame_jump` | 5 | 1 | M5 already subsampled |
-| Camera intrinsics | fx=1632, cx=601 | fx=1098, cx=512 | M5 params at 2× |
-
-### 11.3 Execution
-
-> Conversion and training completed. See §11.5-11.6 for verification and results.
-
-### 11.4 Outcome
-
-> All expected outcomes met. Tier A/B now valid with same-camera data.
-
-### 11.5 Data Conversion Verification (COMPLETED)
-
-`verify_dataset_consistency.py` — ALL 5 CHECKS PASSED:
-
-| Check | Status | Key Metric |
-|-------|:------:|------------|
-| Images | PASS | PSNR=**inf** (120/120 pixel-exact match) |
-| Cameras | PASS | K/R/T diff = **0.00** |
-| Center rotation | PASS | centers/angles/covs diff = **0.00** |
-| Split | PASS | Train 2880 / Val 360 / Test 360 |
-| Config | PASS | ell=0.00193, 512×512, ds=2 |
-
-> Full report: `outputs/dataset_verification/dataset_consistency_report.md`
-
-### 11.6 PS M5 Retraining Status — COMPLETED ✅
-
-**Status (2026-02-22)**: Training **completed** (50 epochs) on joon server. Fair evaluation completed with `fair_test_only_eval.py`.
+PS를 M5 카메라 공간에서 재학습하여 fair same-camera 비교를 가능하게 함.
 
 | Item | Value |
 |------|-------|
-| **Model** | `m5_baseline_gs` (GS-LRM baseline, joon server) |
-| **Data** | `m5_for_ps_fj1` (M5 → PS format, verified pixel-exact) |
-| **Training** | 50 epochs, `output/m5_baseline_gs/latest/` |
-| **Test frames** | 3240-3599 (360 frames × 6 views = 2160 renders) |
-| **PSNR_fg** | **13.78** |
-| **PSNR_intersection** | **20.47** |
-| **IoU** | **0.846** |
-| **Coverage** | **89.3%** |
-| **PSNR_gt (whole)** | **29.00** |
+| **Problem** | FL (M5, HFOV=50°) vs PS (fj5_ds2, HFOV≈35°) camera mismatch |
+| **Solution** | `convert_m5_for_ps.py` → PS M5 retraining (50 epochs, joon) |
+| **Verification** | 5/5 checks PASS (pixel-exact, K/R/T diff=0.00) |
+| **PS M5 Result** | PSNR_fg=13.78, IoU=0.846, Coverage=89.3% |
+| **Outcome** | Tier A/B now valid with same-camera data (see §3) |
 
-> See Tier A (§3) for same-camera comparison with FL GS-LRM.
-
-### 11.7 Validation
-
-> All 4 criteria met: PS PSNR_gt=29.00, same M5 GT, same alpha mask, pixel-wise comparable.
+> Key conversion params: scale=0.008772, ell=0.00193, fx=1098@2x
+> Data conversion script: `mouse_extensions/scripts/eval/convert_m5_for_ps.py`
 
 ---
 
-## 12. File Locations
+## Appendix: Metric Protocol Summary
 
-### gpu03 (`/home/joon/dev/FaceLift/`)
+> Metric functions verified identical between `fair_comparison.py` (FL) and `fair_test_only_eval.py` (PS).
+> Full verification details: see git history (consolidated from `FL_PS_metric_consistency.md` v2.1).
 
-| File | Purpose |
-|------|---------|
-| **Evaluation** | |
-| `experiments/comparison/tier/*_fair.json` | Per-experiment fair metrics (1v-6v) |
-| `experiments/analysis/mvdiff_quality/` | A1 MVDiff diagnostic |
-| `outputs/analysis/oracle_mvdiff/oracle_analysis.json` | A2 summary |
-| `mouse_extensions/scripts/eval/fair_comparison.py` | Fair evaluation (canonical) |
-| `mouse_extensions/scripts/eval/convert_m5_for_ps.py` | M5→PS data conversion |
-| `mouse_extensions/scripts/eval/verify_dataset_consistency.py` | Dataset verification |
-| **Renders / Visualization** | |
-| `outputs/tier_comparison/gslrm_{1-6}view_test/samples/{frame_id}/` | FL renders (360 frames per view count) |
-| `outputs/tier_comparison/gslrm_{N}view_test/samples/{id}/render_view_0{0-5}.png` | Per-view rendered images |
-| `outputs/tier_comparison/gslrm_{N}view_test/samples/{id}/comparison_grid.png` | Render vs GT grid |
-| `outputs/tier_comparison/gslrm_{N}view_test/samples/{id}/turntable_grid.png` | Turntable visualization |
-| `outputs/tier_comparison/gslrm_{N}view_test/metrics.json` | Per-model aggregate metrics |
-| `outputs/visualizations/cross_view_comparison/` | 1-6v side-by-side grids (11 PNGs) |
-| **Documents** | |
-| `docs/experiments/FL_vs_PS_comparison.md` | **This document (SSOT)** |
-| `outputs/dataset_verification/` | Verification report + visuals |
+| Metric | Formula | Higher=Better |
+|--------|---------|:---:|
+| `psnr_gt_masked` | `-10*log10(MSE)` on GT FG pixels (alpha > 127) | YES |
+| `psnr_intersection` | Same, on pred ∩ GT FG pixels | YES |
+| `ssim_gt_masked` | SSIM on white-BG composite, bbox crop | YES |
+| `iou` | Binary mask IoU | YES |
+| `coverage` | GT FG pixels covered by pred FG | YES |
 
-### joon (`/home/joon/dev/pose-splatter/`)
-
-| File | Purpose |
-|------|---------|
-| **Evaluation** | |
-| `scripts/mouse/analysis/fair_test_only_eval.py` | PS fair evaluation (test-only, FL-compatible) |
-| `output/m5_baseline_gs/latest/fair_test_only_evaluation.json` | PS M5 fair eval results (canonical) |
-| `experiments/fair/posesplatter_fair_360f_v15.json` | PS fj5_ds2 fair metrics (historical) |
-| `experiments/fair/posesplatter_fair_360f_v15_gtmask.json` | PS with GT alpha mask (historical) |
-| **Renders / Visualization** | |
-| `output/m5_baseline_gs/latest/renders/` | PS training renders (101 files, `gt_epochXXX_frameYYYY.png`) |
-| `output/m5_baseline_gs/latest/fair_eval_images/` | PS fair eval comparison grids (3 PNGs) |
-| `output/m5_baseline_gs/latest/reconstruction.pdf` | Reconstruction summary |
-| **Data** | |
-| `data/preprocessed/.../fj5_ds2/` | PS original data (fj5 camera) |
-| `data/preprocessed/.../m5_fj1/` | PS M5 data (same camera as FL) |
+**Unified Evaluation Pipeline**: PS renders → dump to disk → `fair_comparison.py` (same M5 GT, same masks, same metrics) → comparable results.
 
 ---
 
-## 13. Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| v1-v6 | ~260215 | Initial comparison, tier framework, fair eval |
-| v7 | 260218 | Phase 3 results (E1/E2/E3), A1+A2 analysis |
-| v8.0 | 260219 | Unified evaluation (B-3), metric consistency v2 |
-| v8.1 | 260219 | **Camera mismatch discovery** → B-3 INVALIDATED |
-| v9.0 | 260219 | Option A plan, metric consistency merged, docs consolidated |
-| v9.1 | 260219 | Data conversion complete + verification (ALL PASS) |
-| v9.2 | 260219 | Complete view ablation (1v-6v), 5v > 6v discovery |
-| v10.0 | 260220 | 6v PSNR corrected (21.02→23.84): was A2 oracle (4v model), now proper 6v model. 6v optimal confirmed. |
-| v11.0 | 260222 | PS M5 same-camera fair eval COMPLETE. Camera mismatch RESOLVED. GS-LRM ablations (H6/H7/HP). |
-| **v12.0** | **260223** | **PS Paper vs Our Protocol analysis (§2.4): metric protocol decomposition (full-image vs FG-masked PSNR, 19.7 dB gap explained), dataset differences table, 3 rebuttal strategies. H_Split hypothesis (§2.5). Cross-species Rat7M plan (§2.6).** |
-
-### Merged Documents
-- `FL_PS_metric_consistency.md` v2.0 → B-3 camera mismatch section (§3) + §11에 통합
-- `FL_PS_metric_consistency.md` v2.1 → Appendix (아래) 통합 (2026-02-24)
-- INDEX v6 → v7 (이 문서 참조)
-
----
-
-*FaceLift vs Pose-Splatter Comparison v12.0 | SSOT | 2026-02-23*
-
----
-
-## Appendix: Metric Consistency Verification
-
-> Consolidated from `FL_PS_metric_consistency.md` (2026-02-24)
-> Sections 8-9 (SUPERSEDED by camera mismatch discovery and Option A resolution) are excluded.
-
-### A.1 Metric Functions: Verified Identical
-
-Line-by-line comparison of `fair_comparison.py` (FL, gpu03) and `fair_test_only_eval.py` (PS, joon) confirms **all 6 metric functions are identical**:
-
-| Function | Match | Description |
-|----------|:-----:|-------------|
-| `compute_masked_psnr` | YES | `fg = pred[mask>0.5]; mse = mean((fg_pred-fg_gt)^2)` |
-| `compute_masked_ssim` | YES | White-BG composite, bbox crop, `skimage.ssim` |
-| `compute_masked_l1` | YES | `sum(abs(pred-gt)*mask) / (3*sum(mask))` |
-| `compute_iou` | YES | `(pred>0.5 & gt>0.5).sum / (pred>0.5 | gt>0.5).sum` |
-| `extract_foreground_mask` | YES | `any(render < 0.98, axis=2)` |
-| `compute_all_metrics` | YES | All sub-metrics + multi-threshold IoU |
-
-Both files contain explicit comments: "MUST be identical to" the other file.
-
-**Metric definitions summary**:
-
-| Metric | Formula | Range | Higher=Better |
-|--------|---------|-------|:---:|
-| `psnr_gt_masked` | `-10*log10(MSE)` on GT FG pixels | 0-100 dB | YES |
-| `psnr_intersection` | Same, on pred intersect GT FG pixels | 0-100 dB | YES |
-| `ssim_gt_masked` | SSIM on white-BG composite, bbox crop | 0-1 | YES |
-| `l1_gt_masked` | `sum(abs)/3*sum(mask)` on GT FG | 0-1 | NO |
-| `iou` | Binary mask IoU | 0-1 | YES |
-| `coverage` | GT FG pixels covered by pred FG | 0-1 | YES |
-| `pred_precision` | Pred FG pixels overlapping GT FG | 0-1 | YES |
-
-### A.2 GT Data Source: Critical Difference
-
-Despite identical metric functions, FL and PS use **different GT sources**, producing incomparable results when cross-evaluated.
-
-| Factor | FL (M5 RGBA) | PS (zarr) |
-|--------|:---:|:---:|
-| Path | `M5/{frame}/images/cam_{view}.png` | `images.zarr` (3600,6,512,576,3) |
-| Format | 512x512, RGBA, uint8 | 512x576 RGB, uint8 |
-| Mask source | Alpha > 127 (tight silhouette) | White-BG extraction (any non-white = FG) |
-| gt_fg_ratio | **2.33%** (~6,100 px) | **5.04%** (~13,200 px) |
-| Ratio gap | -- | **2.17x larger FG** |
-
-**Impact**: Even with identical metric functions, different GT images produce different PSNR/IoU values for the same render. PSNR_gt_masked evaluates different pixel sets; IoU denominators differ; coverage denominators differ. Cross-model numbers are NOT directly comparable without unified GT.
-
-### A.3 Mask Definition Analysis
-
-| Mask Type | FG Pixels | FG Ratio | IoU Between Masks |
-|-----------|:---------:|:--------:|:-----------------:|
-| M5 alpha > 127 | ~6,100 | 2.33% | -- |
-| White-BG extraction | ~13,200 | 5.04% | **~0.24** |
-
-The two mask definitions overlap by only ~24% (IoU), defining substantially different foreground regions. PS white-BG extraction includes semi-transparent edges and shadows that M5 alpha excludes.
-
-### A.4 Resolution & Framing
-
-| Pipeline | Raw | Preprocessed | Eval |
-|----------|-----|-------------|------|
-| FL | render | 512x512 RGBA (native) | 512x512 (no crop) |
-| PS | 1152x1024 | 576x512 (ds=2) | 512x512 (center crop, -32px each side) |
-
-The 576 to 512 center crop in PS removes background at edges; minimal impact on FG metrics since the mouse is centered.
-
-### A.5 Pred Mask Extraction
-
-Both models use the same extraction function:
-```python
-def extract_foreground_mask(render, threshold=0.98):
-    return np.any(render < threshold, axis=2).astype(np.float32)
-```
-PS renders require white-BG compositing (`rgb * alpha + (1-alpha)`) before extraction.
-
-### A.6 Unified Evaluation Pipeline (Solution)
-
-To eliminate GT source confounds, PS renders are dumped to disk and evaluated against the **same M5 RGBA GT** using FL's `fair_comparison.py`:
-
-```
-PS Model (joon) -> dump_ps_renders (512x512 PNG, white-BG) -> fair_comparison.py (M5 GT) -> Unified Results
-FL Model (gpu03) -> existing renders --------------------------> fair_comparison.py (M5 GT) -> Unified Results
-```
-
-**Guarantees after unification**:
-- Same GT images (M5 RGBA PNG)
-- Same GT mask (alpha > 127)
-- Same metric functions (same script)
-- Same resolution (512x512)
-- Same pred mask extraction
-
-> **Note**: Sections 8-9 of the original document (Unified Evaluation Results and GT Source Artifact Analysis) were superseded by the camera parameter mismatch discovery (M5 HFOV=50 vs fj5_ds2 HFOV~35). Option A (PS retrained on M5 data) resolved this; see Section 3 (Tier A) for valid same-camera results.
-
-### A.7 File Inventory
-
-| Script | Server | Purpose |
-|--------|--------|---------|
-| `fair_comparison.py` | gpu03: `mouse_extensions/scripts/eval/` | FL eval + unified comparison |
-| `fair_test_only_eval.py` | joon: `scripts/eval/` | PS eval (zarr-based) |
-| `dump_ps_renders.py` | joon: `scripts/eval/` | Dump PS renders to disk for unified eval |
-
----
-
-*Appendix consolidated from FL_PS_metric_consistency.md v2.1 | 2026-02-24*
+*FaceLift vs Pose-Splatter Comparison v13.0 | SSOT | 2026-03-12*

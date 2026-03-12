@@ -1,6 +1,8 @@
 # CH3: Experiments & Results
 
 > 모든 실험의 가설, 근거, 설정, 명령어, 코드 흐름, 결과, 후속 실험 도출까지 시간순으로 상세히 설명합니다.
+> **"How" 관점** — 코드 재현에 초점. "Why" 관점은 [[RESEARCH_EXPERIMENT_NOTES]] 참조.
+> **정량 결과 SSOT**: [[experiments/comprehensive_analysis_report]] | **가설 SSOT**: [[experiments/hypothesis_roadmap]]
 >
 > ← [[CH2_GSLRM_CODE_FLOW]] | [[EXPERIMENT_MASTER_GUIDE]] | → 개별 실험 문서 참조
 
