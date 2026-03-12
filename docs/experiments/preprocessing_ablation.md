@@ -1,6 +1,6 @@
 # HP: Preprocessing Ablation Study
 
-> ← [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) | **상태**: ⏳ 실험 대기 | **Updated**: 2026-02-09
+> ← [hypothesis_roadmap](hypothesis_roadmap.md) | **상태**: ⏳ 실험 대기 | **Updated**: 2026-02-09
 
 Created: 2026-02-09
 

@@ -354,7 +354,7 @@ Hypothesis: Optimal guidance scale for E2E may differ from optimal for image qua
 | ← Hub | [[INDEX]] |
 | ← Bottleneck analysis | [[mvdiffusion_bottleneck_analysis]] (parent: hypothesis context) |
 | ← FL vs PS | [[FL_vs_PS_comparison]] |
-| → Training settings | [[training_optimal_settings]] (base config reference) |
+| → Training settings | [[mvdiff_bottleneck_analysis]] (training strategy consolidated) |
 | → Eval protocol | [[evaluation_protocol_v1]] (DA1 eval method) |
 | → Preprocessing | [[datasets/PREPROCESSING_REGISTRY]] (M5 dataset specs) |
 

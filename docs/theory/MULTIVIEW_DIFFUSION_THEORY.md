@@ -2,7 +2,7 @@
 
 > **목적**: FaceLift 파이프라인의 불변 이론 기반 — 모델 계보, attention 메커니즘, 포즈 조건화, 대안 모델 비교
 > **성격**: 이론/배경 문서 (실험 결과는 → [Hypothesis Roadmap (H8)](../experiments/hypothesis_roadmap.md))
-> ← [RESEARCH_HYPOTHESES](../RESEARCH_HYPOTHESES.md) | [INDEX](../INDEX.md)
+> ← [hypothesis_roadmap](../experiments/hypothesis_roadmap.md) | [INDEX](../INDEX.md)
 
 ---
 

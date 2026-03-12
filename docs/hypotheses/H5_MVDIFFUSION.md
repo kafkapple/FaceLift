@@ -6,7 +6,7 @@
 
 > **가설**: Multi-view diffusion (Stage 1)을 mouse 데이터에 맞게 fine-tuning하면 E2E 품질이 개선될 것이다.
 >
-> ← [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) | **상태**: 🔄 진행중 | **Updated**: 2026-02-15
+> ← [hypothesis_roadmap](../experiments/hypothesis_roadmap.md) | **상태**: 🔄 진행중 | **Updated**: 2026-02-15
 
 ---
 
@@ -188,7 +188,7 @@ Base: `/node_data/joon/checkpoints/FaceLift/mvdiffusion/`
 ## 6. 관련 문서
 
 - [COMMANDS.md](../experiments/COMMANDS.md) — 명령어 SSOT
-- [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) — 전체 가설 맵
+- [hypothesis_roadmap](../experiments/hypothesis_roadmap.md) — 가설 SSOT
 - [260215_EXPERIMENT_ANALYSIS.md](../experiments/260215_EXPERIMENT_ANALYSIS.md) — Phase 3 분석
 
 ---

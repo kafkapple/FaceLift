@@ -1,6 +1,6 @@
 # H4: View Ablation Study — Final Report
 
-> ← [RESEARCH_HYPOTHESES.md](../RESEARCH_HYPOTHESES.md) | **상태**: ✅ 완료 | **Updated**: 2026-02-11
+> ← [hypothesis_roadmap](../experiments/hypothesis_roadmap.md) | **상태**: ✅ 완료 | **Updated**: 2026-02-11
 
 **목표**: 통일된 조건에서 1-6개 입력 뷰에 따른 GS-LRM 재구성 품질 비교
 
@@ -236,7 +236,7 @@ E2E 대비 GS-LRM 단독 성능이 훨씬 높음 → **MVDiffusion이 병목** (
 
 | 문서 | 내용 |
 |------|------|
-| [RESEARCH_HYPOTHESES](../RESEARCH_HYPOTHESES.md) | 가설 대시보드 |
+| [hypothesis_roadmap](../experiments/hypothesis_roadmap.md) | 가설 SSOT |
 | [EXPERIMENT_REGISTRY](../experiments/EXPERIMENT_REGISTRY.md) | 실험 레지스트리 |
 | [TRAINING_LOGGING_GUIDE](../experiments/TRAINING_LOGGING_GUIDE.md) | +1 Epoch Rounding 상세 |
 

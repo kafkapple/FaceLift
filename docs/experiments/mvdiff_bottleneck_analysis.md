@@ -243,7 +243,7 @@ All in: `gpu03:experiments/comparison/tier/`
 | → DA1 details | [[domain_adaptation_DA1]] |
 | → Eval protocol | [[evaluation_protocol_v1]] |
 | → Hypothesis roadmap | [[hypothesis_roadmap]] |
-| → MVDiff roadmap | [[mvdiff_improvement_roadmap]] |
+| → MVDiff roadmap | [[hypothesis_roadmap]] (consolidated) |
 | → Pipeline arch | [[theory/PIPELINE_ARCHITECTURE]] |
 
 ---
