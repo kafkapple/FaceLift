@@ -1,8 +1,12 @@
-# FaceLift 연구 가설 대시보드
+# FaceLift 연구 가설 대시보드 (ARCHIVED)
 
-> **Map of Content (MoC)** - 모든 가설과 실험의 메인 허브
+> **⚠️ ARCHIVED (2026-03-12)**: 이 문서는 `experiments/hypothesis_roadmap.md`로 통합되었습니다.
+> **SSOT → [[experiments/hypothesis_roadmap]]**
 >
-> Last Updated: 2026-02-20 | Project: FaceLift
+> 아래 내용은 참고용으로 보존되지만, 최신 데이터는 hypothesis_roadmap.md를 참조하세요.
+> 특히 H4 View Ablation 결과는 이 문서가 정확합니다 (6v=23.84 > 5v=22.16, monotonic).
+>
+> Original Last Updated: 2026-02-20 | Project: FaceLift
 
 ---
 

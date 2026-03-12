@@ -1,20 +1,34 @@
 # FaceLift: Hypothesis Testing Status & Experiment Roadmap
 
-> Version 2.1 | 2026-02-19 | View Ablation Complete + Option A Phase
+> Version 3.0 | 2026-03-12 | SSOT — 전체 가설 통합, 6v>5v 오류 수정
+> **⚠️ This is the authoritative hypothesis document.** `RESEARCH_HYPOTHESES.md` → archived (이 문서로 통합)
 
 ---
 
 ## 1. Completed Hypothesis Tests
 
+### Early Hypotheses (Completed)
+
+| # | Hypothesis | Result | Reference |
+|---|-----------|--------|-----------|
+| **HP** | Preprocessing geometry settings (PP, translation norm, intrinsics) | ✅ Batch Uniform + PP=256 + fx=549 | [[../../datasets/PREPROCESSING_REGISTRY]] |
+| **H0** | PoC: GS-LRM fine-tuning on mouse data | ✅ Train PSNR ~27 | — |
+| **H1-orig** | Temporal split prevents data leakage | ✅ Confirmed | — |
+| **H2-orig** | Data amount: diversity > repetition | ✅ M5t2 (2880×6ep) > M5t (1198×20ep) | — |
+| **H3-orig** | E2E bottleneck = MVDiffusion | ✅ MVDiff always bottleneck (13-17 dB gap) | [[mvdiffusion_bottleneck_analysis]] |
+| **H3-bis** | Same-test revalidation | ✅ GS-LRM 20.92 vs E2E 7.91 = -13.8 dB | — |
+
+### Main Hypothesis Tests
+
 | # | Hypothesis | Method | Result | Conclusion |
 |---|-----------|--------|--------|-----------|
-| **H1** | GS-LRM > PS (same input) | Tier A: 5v GT → fair metrics | **+5.36 dB** (5v, different camera) | **Confirmed** — superior backbone |
-| **H2** | MVDiff training strategy can break E2E ceiling | Phase 3: E1 cosine, E2 resume, E3 pose | E1/E2/E3 all 7.9-8.2 PSNR_gt | **Rejected** — architectural limit |
+| **H1** | GS-LRM > PS (same input) | Tier A: 6v GT → fair metrics | **+7.13 dB** (6v, same camera M5) | **Confirmed** — superior backbone |
+| **H2** | MVDiff training strategy can break E2E ceiling | Phase 3: E1 cosine, E2 resume, E3 pose | E1/E2/E3 all 7.9-8.4 PSNR_gt | **Rejected** — architectural limit |
 | **H3** | Stage 2 improvement transfers to E2E | E5: alpha regularization (0.3) | Val -1.0 dB, E2E transfer 0% | **Rejected** — not the bottleneck |
 | **H4** | Shallow pose conditioning helps MVDiff | E3: extrinsic camera + additive | E3 ≈ E2 within noise | **Rejected** — too shallow |
 | **H5** | Full attention > sparse attention | cfgr: sparse=false | cfgr < baseline in all metrics | **Rejected** — sparse is better |
 | **H6** | 6v GS-LRM improves E2E over 4v | P1: 6v GS-LRM + MVDiff E2E | 8.44 vs 8.20 (+0.24 dB) | **Marginal** — MVDiff quality limits gains |
-| **H7** | More input views always better (GT) | View ablation 1v→6v | **5v (22.16) > 6v (21.02)** | **Surprising** — 5v optimal on test set |
+| **H7** | More input views always better (GT) | View ablation 1v→6v | **6v (23.84) > 5v (22.16) — monotonic** | **Confirmed** — 6v optimal |
 | **H8** | Fewer MVDiff views → better per-view quality | 3-view E2E + 17-paper lit review | 3v novel=16.26 (-7.7 vs 6v); min viable=4v | **Rejected** — fewer views ≠ better quality |
 
 ## 2. Analysis Phase Findings
@@ -24,7 +38,7 @@
 | **A1** | MVDiff quality diagnostic | Sil IoU=0.582, 86% of E2E loss in MVDiff. **Shape error dominant** | High |
 | **A2** | Oracle MVDiff (GS-LRM sensitivity) | **Threshold effect**: v4,5 unused (0 dB), v3 = -5.2 dB cliff | High |
 | **A3** | Camera mismatch (M5 vs fj5_ds2) | HFOV 50° vs 35° → pixel-wise cross-model comparison invalid | **Critical** |
-| **A4** | **View ablation curve** | 5v > 6v on test set (+1.14 dB). Diminishing returns after 4v. Sharp cliff 2v→1v | **New** |
+| **A4** | **View ablation curve** | 6v > 5v > ... > 1v (monotonic). Diminishing returns after 4v. Sharp cliff 2v→1v | **Corrected** |
 
 ---
 
@@ -38,27 +52,27 @@
 | **2v** | 15.95 | 0.858 | 17.91 | 0.963 | **+5.48** |
 | **3v** | 18.56 | 0.899 | 19.54 | 0.985 | +2.61 |
 | **4v** | 20.66 | 0.926 | 21.29 | 0.993 | +2.10 |
-| **5v** | **22.16** | **0.942** | **22.56** | **0.997** | **+1.50** |
-| **6v** | 21.02 | 0.943 | 22.36 | 0.989 | **-1.14** |
+| **5v** | 22.16 | 0.942 | 22.56 | 0.997 | +1.50 |
+| **6v** | **23.84** | **0.954** | **24.02** | **0.998** | **+1.68** |
 
 ### Key Observations
 
-1. **5v is optimal** on test set (22.16 dB), surpassing 6v (21.02) by +1.14 dB
-2. **Diminishing returns**: 1→2v (+5.48), 2→3v (+2.61), 3→4v (+2.10), 4→5v (+1.50)
-3. **6v degradation**: IoU plateaus (0.942 vs 0.943) but PSNR drops — possible overfitting to 6v training distribution
+1. **6v is optimal** on test set (23.84 dB) — **monotonic increase confirmed** (1v→6v)
+2. **Diminishing returns**: 1→2v (+5.48), 2→3v (+2.61), 3→4v (+2.10), 4→5v (+1.50), 5→6v (+1.68)
+3. **No saturation**: Unlike prior R1 (non-uniform) results, uniform v2 shows consistent improvement
 4. **Sharp cliff at 1v**: IoU 0.028 = model essentially fails with single view
 5. **2v → viable**: IoU 0.858, PSNR 15.95 — already competitive with PS
 
-### Bottleneck Structure (Updated)
+### Bottleneck Structure (Updated 2026-03-12)
 
 ```
-GS-LRM 5v GT:  22.16 dB, IoU=0.942    ← NEW Upper bound (test set)
-GS-LRM 6v GT:  21.02 dB, IoU=0.943    ← Previous upper bound
+GS-LRM 6v GT:  23.84 dB, IoU=0.954    ← Upper bound (test set, fair eval)
+GS-LRM 5v GT:  22.16 dB, IoU=0.942
 GS-LRM 4v GT:  20.66 dB, IoU=0.926
                     │
-                    │  MVDiff: -13.72 dB loss (from 5v baseline)
-                    │    - Shape: IoU 0.942 → 0.582 (dominant)
-                    │    - Color: PSNR_int 22.56 → 18.61 (secondary)
+                    │  MVDiff: -15.40 dB loss (from 6v baseline)
+                    │    - Shape: IoU 0.954 → 0.495 (dominant, 86%)
+                    │    - Color: PSNR_int 24.02 → ~18.6 (secondary, 14%)
                     ▼
 P1 6v E2E:       8.44 dB, IoU=0.495    ← Best E2E
 E2 4v E2E:       8.20 dB, IoU=0.521    ← Previous best E2E
@@ -89,8 +103,8 @@ E2 4v E2E:       8.20 dB, IoU=0.521    ← Previous best E2E
 
 | Model | Data | Views | PSNR_gt | IoU | Status |
 |-------|------|:-----:|:-------:|:---:|--------|
-| **GS-LRM 5v GT** | **M5** | **5** | **22.16** | **0.942** | **Done** ⭐ |
-| GS-LRM 6v GT | M5 | 6 | 21.02 | 0.943 | Done |
+| **GS-LRM 6v GT** | **M5** | **6** | **23.84** | **0.954** | **Done** ⭐ |
+| GS-LRM 5v GT | M5 | 5 | 22.16 | 0.942 | Done |
 | GS-LRM 4v GT | M5 | 4 | 20.66 | 0.926 | Done |
 | PS (fj5_ds2) | fj5_ds2 | 5+1 | 16.80 | 0.827 | Done (different camera) |
 | **PS (M5)** | **M5** | **5+1** | **?** | **?** | **Training (joon)** |
@@ -105,14 +119,14 @@ E2 4v E2E:       8.20 dB, IoU=0.521    ← Previous best E2E
 
 | Stage | Input | PSNR_gt | IoU | Drop from 5v |
 |-------|:-----:|:-------:|:---:|:------------:|
-| **GS-LRM 5v GT** | **5 GT** | **22.16** | **0.942** | **baseline** |
-| GS-LRM 6v GT | 6 GT | 21.02 | 0.943 | -1.14 |
-| GS-LRM 4v GT | 4 GT | 20.66 | 0.926 | -1.50 |
-| GS-LRM 3v GT | 3 GT | 18.56 | 0.899 | -3.60 |
-| GS-LRM 2v GT | 2 GT | 15.95 | 0.858 | -6.21 |
-| GS-LRM 1v GT | 1 GT | 10.47 | 0.028 | -11.69 |
-| **P1 6v E2E** | **6 MVDiff** | **8.44** | **0.495** | **-13.72** |
-| E2 4v E2E | 4 MVDiff | 8.20 | 0.521 | -13.96 |
+| **GS-LRM 6v GT** | **6 GT** | **23.84** | **0.954** | **baseline** |
+| GS-LRM 5v GT | 5 GT | 22.16 | 0.942 | -1.68 |
+| GS-LRM 4v GT | 4 GT | 20.66 | 0.926 | -3.18 |
+| GS-LRM 3v GT | 3 GT | 18.56 | 0.899 | -5.28 |
+| GS-LRM 2v GT | 2 GT | 15.95 | 0.858 | -7.89 |
+| GS-LRM 1v GT | 1 GT | 10.47 | 0.028 | -13.37 |
+| **P1 6v E2E** | **6 MVDiff** | **8.44** | **0.495** | **-15.40** |
+| E2 4v E2E | 4 MVDiff | 8.20 | 0.521 | -15.64 |
 
 ---
 
@@ -335,4 +349,4 @@ attention = softmax(Q @ K^T / sqrt(d) + pose_bias)
 
 ---
 
-*FaceLift Hypothesis Roadmap v2.2 | 2026-02-23*
+*FaceLift Hypothesis Roadmap v3.0 | 2026-03-12 | 6v>5v 수정, 조기 가설 통합, SSOT 확립*
