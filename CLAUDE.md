@@ -4,12 +4,25 @@ GS-LRM 기반 Multi-view Mouse 3D Reconstruction
 
 ---
 
+## 0. Phase Structure (2026-03-12~)
+
+| Phase | Focus | Status | SSOT |
+|:-----:|-------|:------:|------|
+| **Phase 1** | MVDiff bottleneck (Sil loss, DA, Spatial Token) | 🔧 유지보수 | `docs/experiments/hypothesis_roadmap.md` |
+| **Phase 2** ⭐ | Novel View + Multi-Species + NeurIPS Dataset Track | **🔬 ACTIVE** | `docs/experiments/PHASE2_NOVEL_VIEW_ROADMAP.md` |
+
+> **기본 포커스는 Phase 2.** Phase 1 작업은 명시적 요청 시에만.
+> 핵심 인프라(GS-LRM, eval, turntable, coordinate transforms)는 공통 활용.
+
+---
+
 ## 1. Research Goal
 
 **목표**: Template-free, monocular input → 3D reconstruction 모델을 **small non-rigid moving object**로 확장
 
 - **첫 대상**: 6개 카메라 뷰 생쥐 데이터
-- **후속 계획**: Pose-Splatter와 비교, behavior analysis downstream task용 feature로 활용
+- **Phase 2 확장**: Multi-species (rat, marmoset), novel view rendering, body-part camera follow
+- **Target**: NeurIPS 2026 Evaluations & Datasets Track
 
 ### Success Criteria
 
