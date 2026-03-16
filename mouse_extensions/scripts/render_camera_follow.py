@@ -49,6 +49,7 @@ import numpy as np
 import torch
 
 from mouse_extensions.visualization.keypoint_overlay import (
+    CAMERA_TARGET_PRESETS,
     CameraFollowConfig,
     KeypointFollowCamera,
     KeypointVisualizer,
@@ -294,8 +295,15 @@ def main():
     parser.add_argument("--start_frame", type=int, default=3240)
     parser.add_argument("--num_frames", type=int, default=360)
     parser.add_argument("--output_dir", required=True)
+    parser.add_argument("--target", default="face",
+                        choices=list(CAMERA_TARGET_PRESETS.keys()),
+                        help="Camera target (default: face)")
+    parser.add_argument("--targets", nargs="+", default=None,
+                        help="Render multiple targets in batch (overrides --target)")
+    parser.add_argument("--stabilize", action="store_true",
+                        help="Enable body-stabilized rendering (fix spine axis)")
     parser.add_argument("--distance", type=float, default=0.8,
-                        help="Camera distance from face")
+                        help="Camera distance from target")
     parser.add_argument("--smoothing", type=float, default=0.3,
                         help="EMA smoothing alpha (0=max smooth, 1=no smooth)")
     parser.add_argument("--fps", type=int, default=10)
@@ -307,6 +315,15 @@ def main():
                         help="Skip multi-view grid generation")
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
+
+    # Resolve target list
+    if args.targets:
+        for t in args.targets:
+            if t not in CAMERA_TARGET_PRESETS:
+                parser.error(f"Unknown target: {t}. Available: {list(CAMERA_TARGET_PRESETS.keys())}")
+        target_list = args.targets
+    else:
+        target_list = [args.target]
 
     # --- Load keypoints ---
     data = np.load(args.keypoints_npz, allow_pickle=True)
@@ -332,15 +349,7 @@ def main():
     m5_frames = list(range(args.start_frame, args.start_frame + args.num_frames))
     print(f"Frames: {m5_frames[0]}-{m5_frames[-1]} ({len(m5_frames)} total)")
 
-    # --- Compute camera trajectory ---
-    config = CameraFollowConfig(
-        target="face",
-        distance=args.distance,
-        smoothing_alpha=args.smoothing,
-    )
-    cam_follow = KeypointFollowCamera(config)
-
-    # Collect keypoints for trajectory (transform to FaceLift space)
+    # --- Collect keypoints (shared across targets) ---
     kp_sequence = []
     valid_frames = []
     valid_dirs = []
@@ -366,83 +375,121 @@ def main():
         return
 
     kp_seq_arr = np.stack(kp_sequence, axis=0)  # (T, 22, 3)
-    c2ws, intrinsics_list = cam_follow.compute_trajectory(kp_seq_arr)
-    print(f"Camera trajectory: {len(c2ws)} frames")
 
-    # --- Setup output dirs ---
+    # --- Setup ---
     os.makedirs(args.output_dir, exist_ok=True)
-
     viz = KeypointVisualizer(
         joint_radius=3, bone_thickness=1,
         draw_labels=True, draw_skeleton=True,
     )
     legend = create_legend(height=512, width=160)
 
-    # ===== Camera-follow rendering =====
+    # Load pipeline once (shared across targets)
+    pipeline = None
+    if not args.grid_only and not args.no_inference:
+        print("Loading GS-LRM pipeline...")
+        pipeline = load_gslrm_pipeline(args.checkpoint, args.device)
+
+    # ===== Camera-follow rendering (per target) =====
     if not args.grid_only:
-        # Streaming video writers (no intermediate PNGs)
-        writers = {}
-        for name in ("clean", "overlay", "sidebyside"):
-            path = os.path.join(args.output_dir, f"camera_follow_face_{name}.mp4")
-            writers[name] = StreamingVideoWriter(path, fps=args.fps)
+        stab_suffix = "_stabilized" if args.stabilize else ""
+        print(f"\nTargets to render: {target_list}")
+        print(f"Body stabilization: {'ON' if args.stabilize else 'OFF'}")
 
-        rep_frame_idx = len(valid_frames) // 2  # representative frame = middle
+        for target_name in target_list:
+            print(f"\n{'='*60}")
+            print(f"Rendering target: {target_name} ({CAMERA_TARGET_PRESETS[target_name]})")
+            print(f"{'='*60}")
 
-        if not args.no_inference:
-            print("Loading GS-LRM pipeline...")
-            pipeline = load_gslrm_pipeline(args.checkpoint, args.device)
+            # Distance defaults per target type
+            dist = args.distance
+            if target_name in ("left_front_paw", "right_front_paw",
+                               "left_hind_paw", "right_hind_paw") and args.distance == 0.8:
+                dist = 0.3  # closer for paw views
+            elif target_name == "tail_base" and args.distance == 0.8:
+                dist = 0.5
 
-        n_total = len(valid_frames)
-        for i, (m5_idx, sample_dir, c2w, intr, kp_fl) in enumerate(
-            zip(valid_frames, valid_dirs, c2ws, intrinsics_list, kp_sequence)
-        ):
-            print(f"  [{i+1}/{n_total}] frame_{m5_idx:06d}", end="", flush=True)
-
-            if args.no_inference:
-                np.savez(
-                    os.path.join(args.output_dir, f"frame_{m5_idx:06d}_camera.npz"),
-                    c2w=c2w, **intr,
-                )
-                print("")
-                continue
-
-            rendered = run_inference_and_render(
-                pipeline, sample_dir, c2w, intr, args.device,
+            config = CameraFollowConfig(
+                target=target_name,
+                distance=dist,
+                smoothing_alpha=args.smoothing,
+                stabilize_body=args.stabilize,
             )
+            cam_follow = KeypointFollowCamera(config)
+            c2ws, intrinsics_list = cam_follow.compute_trajectory(kp_seq_arr)
+            print(f"  Camera trajectory: {len(c2ws)} frames")
 
-            if rendered is None:
-                print("  [FAIL]")
-                continue
+            # Output subdirectory per target
+            target_dir_out = os.path.join(args.output_dir, f"{target_name}{stab_suffix}")
+            os.makedirs(target_dir_out, exist_ok=True)
 
-            # Clean version
-            clean_img = rendered.copy()
+            # Streaming video writers
+            writers = {}
+            for vname in ("clean", "overlay", "sidebyside"):
+                path = os.path.join(
+                    target_dir_out,
+                    f"camera_follow_{target_name}{stab_suffix}_{vname}.mp4",
+                )
+                writers[vname] = StreamingVideoWriter(path, fps=args.fps)
 
-            # Overlay version
-            w2c = np.linalg.inv(c2w)
-            overlay_img = viz.overlay_on_image(rendered, kp_fl, w2c, intr)
+            rep_frame_idx = len(valid_frames) // 2
 
-            # Side-by-side version
-            sbs_img = make_side_by_side(clean_img, overlay_img, legend)
+            n_total = len(valid_frames)
+            for i, (m5_idx, sample_dir, c2w, intr, kp_fl) in enumerate(
+                zip(valid_frames, valid_dirs, c2ws, intrinsics_list, kp_sequence)
+            ):
+                if i % 50 == 0 or i == n_total - 1:
+                    print(f"  [{i+1}/{n_total}] frame_{m5_idx:06d}", end="", flush=True)
 
-            # Write directly to video streams
-            writers["clean"].write(clean_img)
-            writers["overlay"].write(overlay_img)
-            writers["sidebyside"].write(sbs_img)
+                if args.no_inference:
+                    np.savez(
+                        os.path.join(target_dir_out, f"frame_{m5_idx:06d}_camera.npz"),
+                        c2w=c2w, **intr,
+                    )
+                    if i % 50 == 0:
+                        print("")
+                    continue
 
-            # Save one representative image (middle frame)
-            if i == rep_frame_idx:
-                cv2.imwrite(
-                    os.path.join(args.output_dir, "representative_sidebyside.png"),
-                    sbs_img,
+                rendered = run_inference_and_render(
+                    pipeline, sample_dir, c2w, intr, args.device,
                 )
 
-            print("  [OK]")
+                if rendered is None:
+                    if i % 50 == 0:
+                        print("  [FAIL]")
+                    continue
 
-        # Finalize videos
-        if not args.no_inference:
-            print("Finalizing camera-follow videos...")
-            for w in writers.values():
-                w.release()
+                clean_img = rendered.copy()
+                w2c = np.linalg.inv(c2w)
+                overlay_img = viz.overlay_on_image(rendered, kp_fl, w2c, intr)
+                sbs_img = make_side_by_side(clean_img, overlay_img, legend)
+
+                writers["clean"].write(clean_img)
+                writers["overlay"].write(overlay_img)
+                writers["sidebyside"].write(sbs_img)
+
+                if i == rep_frame_idx:
+                    cv2.imwrite(
+                        os.path.join(target_dir_out, "representative_sidebyside.png"),
+                        sbs_img,
+                    )
+
+                if i % 50 == 0:
+                    print("  [OK]")
+
+            # Finalize videos for this target
+            if not args.no_inference:
+                print(f"  Finalizing {target_name} videos...")
+                for w in writers.values():
+                    w.release()
+
+            # Save trajectory
+            np.savez(
+                os.path.join(target_dir_out, "trajectory.npz"),
+                c2ws=np.stack(c2ws),
+                frame_indices=np.array(valid_frames),
+                config=str(config),
+            )
 
     # ===== Multi-view grid (GT 6-camera views + keypoint overlay) =====
     if not args.no_grid:
@@ -497,16 +544,11 @@ def main():
 
         grid_writer.release()
 
-    # --- Save trajectory summary ---
-    traj_path = os.path.join(args.output_dir, "trajectory.npz")
-    np.savez(
-        traj_path,
-        c2ws=np.stack(c2ws),
-        frame_indices=np.array(valid_frames),
-        config=str(config),
-    )
-    print(f"Trajectory saved: {traj_path}")
-    print(f"Done. Output: {args.output_dir}")
+    print(f"\nDone. Output: {args.output_dir}")
+    if not args.grid_only:
+        print(f"Targets rendered: {target_list}")
+        if args.stabilize:
+            print("Body stabilization: ENABLED")
 
 
 if __name__ == "__main__":
