@@ -428,9 +428,18 @@ class LossComputer(nn.Module):
         # Alpha supervision loss (LGM style) - uses original GT mask, independent of mask_mode
         alpha_loss_weight = getattr(self.config.training.losses, "alpha_loss_weight", 0.0)
         if alpha_loss_weight > 0 and rendered_alpha is not None and original_gt_mask is not None:
-            alpha_loss_type = getattr(self.config.training.losses, "alpha_loss_type", "mse")
-            loss_type = AlphaLossType.MSE if alpha_loss_type == "mse" else AlphaLossType.BCE
-            losses["alpha_loss"] = compute_alpha_supervision_loss(rendered_alpha, original_gt_mask, loss_type)
+            alpha_loss_type_str = getattr(self.config.training.losses, "alpha_loss_type", "mse")
+            alpha_type_map = {
+                "mse": AlphaLossType.MSE,
+                "bce": AlphaLossType.BCE,
+                "dice": AlphaLossType.DICE,
+                "focal": AlphaLossType.FOCAL,
+            }
+            loss_type = alpha_type_map.get(alpha_loss_type_str, AlphaLossType.MSE)
+            focal_gamma = getattr(self.config.training.losses, "alpha_focal_gamma", 2.0)
+            losses["alpha_loss"] = compute_alpha_supervision_loss(
+                rendered_alpha, original_gt_mask, loss_type=loss_type, focal_gamma=focal_gamma,
+            )
         else:
             losses["alpha_loss"] = torch.tensor(0.0, device=rendering.device)
 

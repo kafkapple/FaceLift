@@ -415,16 +415,14 @@ class LossExtensions:
 
 
 # =============================================================================
-# Alpha Loss Implementation
+# Alpha Loss (delegates to mask_losses.py — SSOT)
 # =============================================================================
 
-class AlphaLossType(Enum):
-    """Alpha loss types."""
-    NONE = "none"
-    BCE = "bce"           # Binary Cross Entropy
-    MSE = "mse"           # Mean Squared Error
-    DICE = "dice"         # Dice Loss
-    FOCAL = "focal"       # Focal Loss (for imbalanced masks)
+# Import from SSOT module to avoid duplication
+from mouse_extensions.model.mask_losses import (
+    AlphaLossType,
+    compute_alpha_supervision_loss,
+)
 
 
 def compute_alpha_loss(
@@ -434,63 +432,27 @@ def compute_alpha_loss(
     focal_gamma: float = 2.0,
 ) -> torch.Tensor:
     """
-    Compute alpha supervision loss.
-    
-    Directly supervises rendered alpha to match GT alpha.
-    
+    Compute alpha supervision loss (thin wrapper around mask_losses.compute_alpha_supervision_loss).
+
     Args:
         rendered_alpha: Rendered alpha from Gaussians [B*V, 1, H, W], range [0, 1]
         gt_alpha: Ground truth alpha [B*V, 1, H, W], range [0, 1]
         loss_type: Loss type ('bce', 'mse', 'dice', 'focal')
         focal_gamma: Gamma for focal loss
-        
+
     Returns:
         Scalar loss tensor
     """
-    if rendered_alpha is None or gt_alpha is None:
-        return torch.tensor(0.0, device=rendered_alpha.device if rendered_alpha is not None else 'cpu')
-    
-    # Ensure same shape
-    if rendered_alpha.shape != gt_alpha.shape:
-        gt_alpha = torch.nn.functional.interpolate(
-            gt_alpha, size=rendered_alpha.shape[-2:], mode='bilinear', align_corners=False
-        )
-    
-    # Clamp to valid range
-    rendered_alpha = rendered_alpha.clamp(1e-7, 1 - 1e-7)
-    gt_alpha = gt_alpha.clamp(0, 1)
-    
-    if loss_type == "mse":
-        return torch.nn.functional.mse_loss(rendered_alpha, gt_alpha)
-    
-    elif loss_type == "bce":
-        # Disable autocast for BCE (not AMP compatible)
-        with torch.amp.autocast(device_type='cuda', enabled=False):
-            return torch.nn.functional.binary_cross_entropy(
-                rendered_alpha.float(), gt_alpha.float()
-            )
-    
-    elif loss_type == "dice":
-        # Dice loss: 1 - 2*intersection / (sum_pred + sum_gt)
-        intersection = (rendered_alpha * gt_alpha).sum()
-        union = rendered_alpha.sum() + gt_alpha.sum()
-        dice = 2.0 * intersection / union.clamp(min=1e-7)
-        return 1.0 - dice
-    
-    elif loss_type == "focal":
-        # Focal loss: -alpha_t * (1 - p_t)^gamma * log(p_t)
-        # Helps with class imbalance (lots of background)
-        # Disable autocast for BCE (not AMP compatible)
-        with torch.amp.autocast(device_type='cuda', enabled=False):
-            bce = torch.nn.functional.binary_cross_entropy(
-                rendered_alpha.float(), gt_alpha.float(), reduction="none"
-            )
-        p_t = rendered_alpha * gt_alpha + (1 - rendered_alpha) * (1 - gt_alpha)
-        focal_weight = (1 - p_t) ** focal_gamma
-        return (focal_weight * bce).mean()
-    
-    else:
-        raise ValueError(f"Unknown alpha loss type: {loss_type}")
+    type_map = {
+        "mse": AlphaLossType.MSE,
+        "bce": AlphaLossType.BCE,
+        "dice": AlphaLossType.DICE,
+        "focal": AlphaLossType.FOCAL,
+    }
+    alpha_type = type_map.get(loss_type, AlphaLossType.BCE)
+    return compute_alpha_supervision_loss(
+        rendered_alpha, gt_alpha, loss_type=alpha_type, focal_gamma=focal_gamma,
+    )
 
 
 def compute_alpha_metrics(

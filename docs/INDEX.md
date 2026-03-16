@@ -1,8 +1,10 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-03-12 | **Version**: v12.0
-> **Active**: 48개 | **Archive**: 삭제됨 (현행 문서에 통합)
+> **Updated**: 2026-03-12 | **Version**: v13.0
+> **Active**: 49개 | **Archive**: 삭제됨 (현행 문서에 통합)
+>
+> **⭐ Phase Structure**: Phase 1 (MVDiff bottleneck) = 유지보수 | **Phase 2 (Novel View + Multi-Species) = 현재 포커스**
 
 ---
 
@@ -25,6 +27,18 @@
 | **🎯 NeurIPS Gap 분석** | [[NEURIPS_GAP_ANALYSIS]] **🆕 v1.0** |
 | **🔍 프로젝트 종합** | [[PROJECT_SYNTHESIS]] **🆕 v1.0** |
 | **📋 문서 감사** | [[DOCUMENT_AUDIT_260303]] **🆕 v1.0** |
+| **🎯 Phase 2 로드맵** | [[experiments/PHASE2_NOVEL_VIEW_ROADMAP]] **🆕 v1.0** |
+
+---
+
+## Phase Structure (2026-03-12~)
+
+| Phase | Focus | Status | Key Doc |
+|:-----:|-------|:------:|---------|
+| **Phase 1** | MVDiff bottleneck (Sil loss, DA, Spatial Token) | 🔧 유지보수 | [[hypothesis_roadmap]] |
+| **Phase 2** ⭐ | Novel View + Multi-Species + NeurIPS Dataset Track | **🔬 ACTIVE** | [[experiments/PHASE2_NOVEL_VIEW_ROADMAP]] |
+
+> 기본 포커스는 Phase 2. Phase 1 작업은 명시적 요청 시에만.
 
 ---
 
@@ -42,6 +56,9 @@
 | **[[evaluation_protocol_v1]]** | 9-exp NVS 평가 프로토콜 (Temporal/Spatial/Combined) | **🆕 v1.0** | → FL_vs_PS, bottleneck |
 | **[[hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v2.1 | → H4-H7, bottleneck |
 | **[[comprehensive_analysis_report]]** | **종합 실험 보고서** (H1-H8 + Phase 2-3 전체 정량 비교) | **🆕 v1.0** | → 모든 실험 문서 |
+| **[[PHASE2_NOVEL_VIEW_ROADMAP]]** | **⭐ Phase 2 로드맵**: Novel View + Multi-Species + NeurIPS Dataset Track | **🆕 v1.0** | → mesh_gs_pair, KEYPOINT_3D |
+| **[[DIFIX_TRAINING_STRATEGY]]** | DiFix 3D+ 학습 전략: 2.5-stage curriculum, 3 pair types, data pipeline | **🆕 v1.0** | → mesh_gs_pair, PHASE2 |
+| **[[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss의 novel view artifact 억제 효과 분석 (3-model 심의 결과) | **🆕 v1.0** | → H6, PHASE2 |
 
 #### Reference Documents (안정, 참조용)
 
@@ -67,6 +84,7 @@
 | [[TRAINING_LOGGING_GUIDE]] | 학습 단위/WandB 로깅 | ✅ |
 | [[VISUALIZATION_SETTINGS]] | Turntable/시각화 설정 | ✅ |
 | **[[KEYPOINT_3D_PIPELINE]]** | 3D Keypoint 삼각측량 + FL vs PS 비교 | **🆕 v1.0** |
+| **[[DATASET_QA_VIEWER]]** | Novel view dataset QA viewer (stdlib HTTP, exclude 관리) | **🆕 v1.0** |
 
 ### datasets/
 
@@ -95,7 +113,7 @@
 |------|----------|:----:|
 | [[H4_VIEW_ABLATION]] | 최적 입력 뷰 수 | ✅ 6-view 단조 증가 |
 | [[H5_MVDIFFUSION]] | MVDiff 개선 방법 | ✅ Phase 3 완료 |
-| [[H6_ALPHA_MASK]] | Alpha mask loss 효과 | **❌ 기각** (0.3/0.5/1.0 모두 baseline 이하) |
+| [[H6_ALPHA_MASK]] | Alpha mask loss 효과 | **🔄 재평가 중** (novel view 관점, [[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]) |
 | [[H7_SSIM_WEIGHT]] | SSIM weight 최적값 | **❌ 기각** (0.5/1.0 collapse, 0.3 하락) |
 | [[GENERALIZATION_ROADMAP]] | 카메라/피사체 일반화 | 📋 계획 |
 | [[RMA_CAMERA_ANALYSIS]] | M5 카메라 비균일 배치 | 📊 분석 완료 |
@@ -108,6 +126,7 @@
 | 문서 | 내용 |
 |------|------|
 | **[[PIPELINE_ARCHITECTURE]]** | 2-stage 파이프라인 (MVDiff + GS-LRM) |
+| **[[MAMMAL_MESH_RENDERING_PIPELINE]]** | MAMMAL mesh rendering 3단계: fitting → UV texture → per-frame render | **🆕 v1.0** |
 | **[[MULTIVIEW_DIFFUSION_THEORY]]** | MVDiff/GS-LRM 이론 기반 |
 | [[METRICS_PROTOCOL]] | 메트릭 프로토콜 (White-BG, FG-only) |
 | [[MV_ADAPTER_TECHNICAL]] | MV-Adapter 아키텍처 분석 |
@@ -127,7 +146,13 @@
 
 | 문서 | 내용 | 상태 |
 |------|------|:----:|
-| [[mesh_gs_pair_collection]] | MAMMAL mesh + GS-LRM pair 수집 전략 | ✅ |
+| [[mesh_gs_pair_collection]] | Novel view dataset pipeline v2.0 (tier-based, metadata) | **✅ v2.0** |
+
+### tools/ — Novel View Pipeline
+
+| 도구 | 위치 | 용도 |
+|------|------|------|
+| **collect_dataset.py** | `mouse_extensions/scripts/novel_view/` | Tier-based dataset collection (migrate/generate/manifest/visualize) |
 
 ### tools/ (스크립트 & 레포트)
 
@@ -166,8 +191,9 @@
 | gpu03:5 | H4b@20K E2E (재실행) | 진짜 E2E 평가 (--input_view_idx 0) | ~6h |
 | gpu03:6 | H7v2 Spatial Token (재학습) | Pose injector save fix 반영 | ~35h |
 
-> **NeurIPS Top 5**: P1: Silhouette loss, P2: Domain Adaptation, P3: H7v2 완성, P4: Multi-species, P5: Behavior validation
-> See: [[NEURIPS_GAP_ANALYSIS]] for detailed plan
+> **Phase 2 Priority** (현재 포커스): P0: H7v2 E2E eval, P1: Novel view rendering, P2: Body-part cam follow, P3: Multi-species (Rat7M), P4: Temporal consistency
+> **Phase 1 Backlog**: Silhouette loss, Domain Adaptation (명시적 요청 시)
+> See: [[experiments/PHASE2_NOVEL_VIEW_ROADMAP]] for Phase 2 plan, [[NEURIPS_GAP_ANALYSIS]] for Phase 1 gap analysis
 
 ### Completed Hypotheses
 

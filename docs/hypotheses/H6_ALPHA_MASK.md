@@ -2,7 +2,7 @@
 
 > **가설**: Rendered alpha mask를 supervision에 사용하면 foreground 품질이 개선될 것이다.
 >
-> ← [[INDEX]] | [[hypothesis_roadmap]] | **상태**: ❌ **기각** | **Updated**: 2026-02-22
+> ← [[INDEX]] | [[hypothesis_roadmap]] | [[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] | **상태**: 🔄 **재평가 중** | **Updated**: 2026-03-16
 
 ---
 
@@ -11,9 +11,11 @@
 ### 1.1 문헌 근거
 | 논문 | 방식 | 효과 |
 |------|------|------|
-| LGM | MSE alpha loss | "faster convergence of the shape" |
-| Pose Splatter | normalized masked L1 | Mouse/rat 데이터 검증 |
-| Object-Centric 2DGS | background penalty | foreground 집중 |
+| LGM (ECCV 2024) | MSE alpha loss | "faster convergence of the shape" |
+| GaussianObject (SIG Asia 2024) | BCE alpha loss | Object-level reconstruction |
+| Pose Splatter (NeurIPS 2025) | normalized masked L1 | Mouse/rat 데이터 검증 |
+| Object-Centric 2DGS (2025) | background penalty | foreground 집중 |
+| Compact-3DGS (2024) | anisotropy regularization | Elongated Gaussian 억제 |
 
 ### 1.2 주의사항
 - `mask_mode: alpha` → **피드백 루프 위험**
@@ -87,30 +89,65 @@ configs/mouse/uniform/
 
 ### 5.1 Results (v3 configs: alpha_w = 0.3, 0.5, 1.0)
 
-| Alpha Weight | Best PSNR | vs Baseline (21.71) | Trend |
-|:------------:|:---------:|:-------------------:|:-----:|
-| 0.0 (baseline) | **21.71** | — | — |
-| 0.3 | 21.34 | -0.37 | ↓ |
-| 0.5 | 21.20 | -0.51 | ↓ |
-| 1.0 | 20.84 | -0.87 | ↓ |
+| Alpha Weight | Best PSNR | vs Baseline | LPIPS ↓ | SSIM ↑ | Alpha IoU ↑ |
+|:------------:|:---------:|:-----------:|:-------:|:------:|:-----------:|
+| 0.0 (baseline) | **21.82** | — | 0.0429 | 0.9473 | N/A |
+| 0.3 | 21.34 | -0.48 | — | — | — |
+| 0.5 | 21.20 | -0.62 | 0.0204 | 0.9725 | 0.9451 |
+| 1.0 | 20.84 | -0.98 | **0.0147** | **0.9742** | **0.9562** |
 
-### 5.2 결론
+> **주목**: PSNR은 monotonic 하락이나, **LPIPS 3배 개선**, SSIM/IoU 대폭 상승.
+> 이는 geometry 품질이 크게 개선되었다는 강한 신호.
 
-**❌ 기각**: Alpha weight 증가에 따른 **monotonic PSNR 하락**. 모든 설정에서 baseline 이하.
-Alpha mask supervision은 mouse GS-LRM 학습에 해로움.
+### 5.2 Training-View 결론 (2026-02-21)
 
-**원인 추정**: Alpha loss가 L2/perceptual loss와 경쟁하며 색상 재구성 품질을 희생시킴.
-GT alpha 대신 rendered alpha를 사용했으므로 피드백 루프 가능성도 있음.
+**Training view PSNR 관점**: ❌ — Alpha weight 증가 시 monotonic PSNR 하락.
 
-### 5.3 현황
+**원인 분석**: Alpha loss가 mask boundary 근처에서 세밀한 텍스처(모피)를 약간 blurring → pixel-wise 오차(PSNR) 증가. 그러나 perceptual/structural metrics는 오히려 개선.
+
+### 5.3 Novel View 재평가 (2026-03-16)
+
+**새로운 평가 축**: Extrapolated novel view (bottom view -70°) artifact 감소.
+
+Alpha loss → silhouette 외부 Gaussian opacity 억제 → 배경 "pancake" Gaussian 제거 → bottom view artifact 감소 기대.
+
+**상태 변경**: ❌ 기각 → 🔄 **재평가 중** (novel view 관점)
+
+상세 분석: [[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]
+
+### 5.4 현황
 
 | 상태 | 내용 |
 |------|------|
 | ✅ 완료 | 문헌 조사 |
 | ✅ 완료 | Config 생성 (v3: 3개) |
-| ✅ 완료 | 실험 실행 + 결과 분석 |
-| **❌ 기각** | Baseline 최적. 후속 실험 불필요. |
+| ✅ 완료 | 실험 실행 (training view 분석) |
+| 🔄 진행중 | **P0: Novel view artifact 평가** (bottom view 렌더링) |
+| ⏳ 계획 | P2: Alpha + anisotropy reg 결합 |
+| ⏳ 계획 | P5: 6-view + alpha loss 학습 |
+
+### 5.5 Checkpoint 위치
+
+| Config | Checkpoint (서버) |
+|--------|------------------|
+| baseline (4v) | `/node_data/joon/checkpoints/FaceLift/gslrm/base_uniform_v2_4view_v2/best_psnr.pt` |
+| alpha 0.3 | `/node_data/joon/checkpoints/FaceLift/gslrm/base_uniform_v2_4view_alpha03_v3/best_psnr.pt` |
+| alpha 0.5 | `/node_data/joon/checkpoints/FaceLift/gslrm/base_uniform_v2_4view_alpha05_v3/best_psnr.pt` |
+| alpha 1.0 | `/node_data/joon/checkpoints/FaceLift/gslrm/base_uniform_v2_4view_alpha10_v3/best_psnr.pt` |
 
 ---
 
-*H6 Alpha Mask | v3.0 | 2026-02-22*
+## 6. Related Documents
+
+| 문서 | 관계 |
+|------|------|
+| ↑ [[../INDEX]] | MoC |
+| ↔ [[../experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] | Novel view artifact 상세 분석 |
+| ↔ [[../experiments/PHASE2_NOVEL_VIEW_ROADMAP]] | Phase 2 artifact removal |
+| ↔ [[../experiments/EXPERIMENT_REGISTRY]] | 실험 결과 기록 |
+| ↔ [[../../mouse_extensions/docs/MESH_GUIDED_REFINEMENT]] | Mesh-guided 전략 |
+| ↓ `mouse_extensions/model/mask_losses.py` | Alpha loss 구현 (SSOT) |
+
+---
+
+*H6 Alpha Mask | v4.0 | 2026-03-16*

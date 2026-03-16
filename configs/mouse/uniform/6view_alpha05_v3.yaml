@@ -1,0 +1,22 @@
+# 6-view + alpha supervision (weight=0.5)
+# Purpose: Test alpha loss on best model (6-view) for novel view artifact reduction
+# Based on H6 findings: alpha loss reduces anisotropy ratio 14%, alpha entropy 3.4x
+# v3: mask_mode stays "none" for RGB losses; alpha_loss uses GT mask via code fix
+model:
+  num_input_views: 6
+training:
+  losses:
+    alpha_loss_weight: 0.5
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/base_uniform_v2_6view_alpha05_v3
+wandb:
+  name: uniform_v2_6view_alpha05_v3
+  tags:
+  - uniform_v2
+  - M5t2
+  - 6view_alpha
+  - seed42
+  - 6view
+  - alpha_supervision
+  - weight_0.5
+  - novel_view_artifact_study
