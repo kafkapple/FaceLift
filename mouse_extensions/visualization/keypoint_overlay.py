@@ -583,7 +583,8 @@ class KeypointFollowCamera:
         self._prev_pos = None
         self._prev_target = None
         self._prev_up = None
-        self._ref_body = None  # reference body pose for stabilization
+        self._ref_body = None      # reference body offset for stabilization
+        self._ref_rotation = None  # reference rotation for stabilization
 
     def reset(self):
         """Reset smoothing state for a new sequence."""
@@ -591,6 +592,7 @@ class KeypointFollowCamera:
         self._prev_target = None
         self._prev_up = None
         self._ref_body = None
+        self._ref_rotation = None
 
     def compute_frame(self, kp_3d: np.ndarray) -> Tuple[np.ndarray, Dict[str, float]]:
         """Compute camera c2w and intrinsics for one frame.
@@ -639,18 +641,20 @@ class KeypointFollowCamera:
                 f"Available: {list(CAMERA_TARGET_PRESETS.keys())}"
             )
 
-        # Apply body stabilization: fix body root at frame-0 pose.
-        # Camera sees the world as if the body never moved/rotated,
-        # while limbs and head still move relative to body.
+        # Body stabilization: camera follows body_middle position but
+        # uses frame-0's body orientation for the viewing direction.
+        # This keeps the mouse centered while showing limb/head movement
+        # relative to a fixed body frame.
         if cfg.stabilize_body:
-            M_body = compute_body_stabilization_matrix(kp_3d)
+            body_pos = kp_3d[4].copy()  # current body_middle
             if self._ref_body is None:
-                self._ref_body = M_body.copy()
-            # w2c_raw = inv(raw_c2w), we want to render in ref-body space:
-            # V_stable = V_raw @ M_body_current @ inv(M_body_ref)
-            # which maps: world_current → body_local → world_ref → camera
-            delta = np.linalg.inv(self._ref_body) @ M_body
-            raw_c2w = raw_c2w @ np.linalg.inv(delta)
+                # Store frame-0's camera offset from body center
+                self._ref_body = raw_c2w[:3, 3] - body_pos
+                # Also store frame-0's rotation
+                self._ref_rotation = raw_c2w[:3, :3].copy()
+            # Keep frame-0's rotation, but translate to follow body_middle
+            raw_c2w[:3, :3] = self._ref_rotation
+            raw_c2w[:3, 3] = body_pos + self._ref_body
 
         # Apply temporal smoothing (EMA)
         pos = raw_c2w[:3, 3].copy()
