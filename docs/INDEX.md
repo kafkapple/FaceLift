@@ -1,8 +1,8 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-03-12 | **Version**: v13.0
-> **Active**: 49개 | **Archive**: 삭제됨 (현행 문서에 통합)
+> **Updated**: 2026-03-16 | **Version**: v14.0
+> **Active**: 33개 | **Archive**: 16개 (docs/_archive/, git history에 보존)
 >
 > **⭐ Phase Structure**: Phase 1 (MVDiff bottleneck) = 유지보수 | **Phase 2 (Novel View + Multi-Species) = 현재 포커스**
 
@@ -12,22 +12,15 @@
 
 | 목적 | 문서 |
 |------|------|
-| **실험 마스터 가이드 (START HERE)** | [[guides/EXPERIMENT_MASTER_GUIDE]] **v1.0** |
+| **Phase 2 로드맵 (START HERE)** | [[experiments/PHASE2_NOVEL_VIEW_ROADMAP]] **v1.0** |
 | **FL vs PS 비교 (SSOT)** | [[experiments/FL_vs_PS_comparison]] **v11** |
-| **Stage 1 병목 분석** | [[experiments/mvdiffusion_bottleneck_analysis]] **v1.1** |
-| **Domain Adaptation** | [[experiments/domain_adaptation_DA1]] **v1.1** |
-| **평가 프로토콜** | [[experiments/evaluation_protocol_v1]] **v1.0** |
 | **가설 SSOT (로드맵)** | [[experiments/hypothesis_roadmap]] **v3.0** |
+| **평가 프로토콜** | [[experiments/evaluation_protocol_v1]] **v1.0** |
 | **명령어 SSOT** | [[experiments/COMMANDS]] |
-| **레포트 시스템 가이드** | [[experiments/REPORT_SYSTEM_GUIDE]] **v1.0** |
-| **Stage 1 대체 후보** | [[experiments/STAGE1_REPLACEMENT_CANDIDATES]] **v1.0** |
+| **DiFix 학습 전략** | [[experiments/DIFIX_TRAINING_STRATEGY]] **v1.0** |
+| **Alpha Loss 분석** | [[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] **v1.0** |
 | **파이프라인 아키텍처** | [[theory/PIPELINE_ARCHITECTURE]] |
-| **📄 논문 초안** | [[PAPER_DRAFT_BehaviorSplatter]] **🆕 v1.0** |
-| **📊 1페이지 요약** | [[EXECUTIVE_SUMMARY]] **🆕 v1.0** |
-| **🎯 NeurIPS Gap 분석** | [[NEURIPS_GAP_ANALYSIS]] **🆕 v1.0** |
-| **🔍 프로젝트 종합** | [[PROJECT_SYNTHESIS]] **🆕 v1.0** |
-| **📋 문서 감사** | [[DOCUMENT_AUDIT_260303]] **🆕 v1.0** |
-| **🎯 Phase 2 로드맵** | [[experiments/PHASE2_NOVEL_VIEW_ROADMAP]] **🆕 v1.0** |
+| **Mesh Rendering** | [[theory/MAMMAL_MESH_RENDERING_PIPELINE]] **v1.0** |
 
 ---
 
@@ -50,15 +43,15 @@
 
 | 문서 | 내용 | 상태 | 관련 |
 |------|------|:----:|------|
-| **[[FL_vs_PS_comparison]]** | FL vs PS 통합 비교 (9-exp) | **✅ v11** | → eval_protocol, bottleneck |
-| **[[mvdiffusion_bottleneck_analysis]]** | Stage 1 전송률(14%) + 3가설(H_T1/T2/T3) + 전체 실험 현황 | **🆕 v1.1** | → DA1, hypothesis_roadmap |
-| **[[domain_adaptation_DA1]]** | GS-LRM domain adaptation (H_T1 검증) | **🆕 v1.1** | → bottleneck, training_settings |
-| **[[evaluation_protocol_v1]]** | 9-exp NVS 평가 프로토콜 (Temporal/Spatial/Combined) | **🆕 v1.0** | → FL_vs_PS, bottleneck |
-| **[[hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v2.1 | → H4-H7, bottleneck |
-| **[[comprehensive_analysis_report]]** | **종합 실험 보고서** (H1-H8 + Phase 2-3 전체 정량 비교) | **🆕 v1.0** | → 모든 실험 문서 |
-| **[[PHASE2_NOVEL_VIEW_ROADMAP]]** | **⭐ Phase 2 로드맵**: Novel View + Multi-Species + NeurIPS Dataset Track | **🆕 v1.0** | → mesh_gs_pair, KEYPOINT_3D |
-| **[[DIFIX_TRAINING_STRATEGY]]** | DiFix 3D+ 학습 전략: 2.5-stage curriculum, 3 pair types, data pipeline | **🆕 v1.0** | → mesh_gs_pair, PHASE2 |
-| **[[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss의 novel view artifact 억제 효과 분석 (3-model 심의 결과) | **🆕 v1.0** | → H6, PHASE2 |
+| **[[PHASE2_NOVEL_VIEW_ROADMAP]]** | **⭐ Phase 2 로드맵**: Novel View + Multi-Species + NeurIPS Dataset Track | **✅ v1.0** | → mesh_gs_pair, KEYPOINT_3D |
+| **[[DIFIX_TRAINING_STRATEGY]]** | DiFix 3D+ 학습 전략: 2.5-stage curriculum, 3 pair types, data pipeline | **✅ v1.0** | → mesh_gs_pair, PHASE2 |
+| **[[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss novel view artifact 억제 효과 분석 | **✅ v1.0** | → H6, PHASE2 |
+| **[[FL_vs_PS_comparison]]** | FL vs PS 통합 비교 (9-exp) | **✅ v11** | → eval_protocol |
+| **[[hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v3.0 | → H4-H7 |
+| **[[comprehensive_analysis_report]]** | 종합 실험 보고서 (H1-H8) | **✅ v1.0** | → 모든 실험 |
+| **[[evaluation_protocol_v1]]** | NVS 평가 프로토콜 (Fair Eval) | **✅ v1.0** | → FL_vs_PS |
+| **[[mesh_gs_pair_collection]]** | Novel view dataset pipeline v2.0 | **✅ v2.0** | → PHASE2 |
+| **[[DATASET_QA_VIEWER]]** | Novel view dataset QA viewer | **✅ v1.0** | → mesh_gs_pair |
 
 #### Reference Documents (안정, 참조용)
 
@@ -69,8 +62,10 @@
 | ~~FL_PS_metric_consistency~~ | _(삭제됨 — evaluation_protocol에 통합)_ | 📦 |
 | ~~260216_PHASE3_REPORT~~ | _(삭제됨 — comprehensive_analysis_report로 대체)_ | 📦 |
 | ~~260216_MVDIFF_TRAINING_ANALYSIS~~ | _(삭제됨 — comprehensive_analysis_report로 대체)_ | 📦 |
-| **[[REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 (코드+메트릭+프로토콜) | **🆕 v1.0** |
-| **[[STAGE1_REPLACEMENT_CANDIDATES]]** | Stage 1 대체 모델 후보 연구 (10개 모델 분석) | **🆕 v1.0** |
+| **[[REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 (코드+메트릭+프로토콜) | **✅ v1.0** |
+| ~~STAGE1_REPLACEMENT_CANDIDATES~~ | _(archived → Phase 1)_ | 📦 |
+| ~~mvdiffusion_bottleneck_analysis~~ | _(archived → Phase 1)_ | 📦 |
+| ~~domain_adaptation_DA1~~ | _(archived → Phase 1)_ | 📦 |
 
 #### Operational Guides
 
@@ -81,8 +76,8 @@
 | [[evaluation_protocol_v1]] | 평가 유형 / Split 전략 | ✅ |
 | [[EXPERIMENT_REGISTRY]] | 실험 설정/결과 기록 | ✅ |
 | [[INFERENCE_E2E_GUIDE]] | E2E 추론 파이프라인 + CLI | ✅ |
-| [[TRAINING_LOGGING_GUIDE]] | 학습 단위/WandB 로깅 | ✅ |
-| [[VISUALIZATION_SETTINGS]] | Turntable/시각화 설정 | ✅ |
+| ~~TRAINING_LOGGING_GUIDE~~ | _(archived → Phase 1)_ | 📦 |
+| ~~VISUALIZATION_SETTINGS~~ | _(archived → Phase 1)_ | 📦 |
 | **[[KEYPOINT_3D_PIPELINE]]** | 3D Keypoint 삼각측량 + FL vs PS 비교 | **🆕 v1.0** |
 | **[[DATASET_QA_VIEWER]]** | Novel view dataset QA viewer (stdlib HTTP, exclude 관리) | **🆕 v1.0** |
 
@@ -103,9 +98,9 @@
 | → [[chapters/CH1_ENVIRONMENT_AND_DATA]] | 환경, 데이터 구조, 전처리, Dataset 코드 | 🆕 |
 | → [[chapters/CH2_GSLRM_CODE_FLOW]] | Config 시스템, 학습 루프, 모델 Forward Pass, Loss | 🆕 |
 | → [[chapters/CH3_EXPERIMENTS_AND_RESULTS]] | 전체 실험 흐름 (Phase 1→6), 코드, 명령어, 결과 | 🆕 |
-| [[MVDIFFUSION_FINETUNE_GUIDE]] | Multi-view diffusion (Stage 1) fine-tuning | ✅ |
 | [[MOUSE_DATASET_GUIDE]] | MouseViewDataset 구현 참조 | ✅ |
-| [[POSE_SPLATTER_GUIDE]] | Pose Splatter 비교 프로토콜 | ✅ |
+| ~~MVDIFFUSION_FINETUNE_GUIDE~~ | _(archived → Phase 1)_ | 📦 |
+| ~~POSE_SPLATTER_GUIDE~~ | _(archived → Phase 1)_ | 📦 |
 
 ### hypotheses/ (연구 가설)
 
@@ -160,13 +155,13 @@
 |------|------|------|
 | **Report system** | `mouse_extensions/scripts/report/` | YAML→HTML 비교 레포트 자동 생성 |
 | **Fair eval** | `mouse_extensions/scripts/eval/fair_comparison.py` | Fair comparison metric 계산 |
-| **DA datagen** | `mouse_extensions/scripts/domain_adapt/` | MVDiff→GS-LRM dataset 생성 |
+| **Camera follow** | `mouse_extensions/scripts/render_camera_follow.py` | 13 camera targets + body stabilization |
 | **Generated reports** | `reports/` | HTML 비교 레포트 |
 
-### _archive/ (삭제됨)
+### _archive/ (Phase 1 보존)
 
-> ⚠️ _archive/ 디렉토리는 삭제됨. 이전 문서들은 현행 문서에 통합되었거나 폐기됨.
-> 주요 통합: comprehensive_analysis_report (←PHASE3_REPORT), evaluation_protocol_v1 (←metric_consistency)
+> 16개 Phase 1 문서가 `docs/_archive/`로 이동됨 (git history에도 보존).
+> 분류: `phase1_experiments/` (10), `phase1_guides/` (4), `phase1_root/` (2)
 
 ---
 
