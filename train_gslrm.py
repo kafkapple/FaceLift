@@ -1523,6 +1523,78 @@ class GSLRMTrainer:
 
 
 
+def resolve_config_path(
+    name_or_path: str,
+    config_type: str,
+    base_dir: str = "configs",
+) -> str:
+    """Resolve a config name or path to an actual file path.
+
+    Search order:
+    1. If name_or_path is a valid file path, use it directly
+    2. Search in {base_dir}/{config_type}/
+    3. Search in {base_dir}/ (root)
+
+    Args:
+        name_or_path: Config name (e.g., "E0_1_facelift") or full path
+        config_type: Subdirectory to search (e.g., "experiments", "datasets")
+        base_dir: Base config directory
+
+    Returns:
+        Resolved absolute path
+
+    Raises:
+        FileNotFoundError if config cannot be found
+    """
+    if os.path.exists(name_or_path):
+        return name_or_path
+
+    search_dirs = [
+        os.path.join(base_dir, config_type),
+        base_dir,
+    ]
+
+    for search_dir in search_dirs:
+        candidate = os.path.join(search_dir, f"{name_or_path}.yaml")
+        if os.path.exists(candidate):
+            return candidate
+
+    raise FileNotFoundError(
+        f"Config '{name_or_path}' not found. Searched: "
+        + ", ".join(f"{d}/" for d in search_dirs)
+    )
+
+
+def _coerce_value(value: str):
+    """Convert string value to appropriate Python type."""
+    try:
+        if value.lower() == "true":
+            return True
+        elif value.lower() == "false":
+            return False
+        else:
+            try:
+                return int(value)
+            except ValueError:
+                try:
+                    return float(value)
+                except ValueError:
+                    return value
+    except AttributeError:
+        return value
+
+
+def _set_nested_key(data: dict, keys: list, value: str):
+    """Set value in nested dictionary with auto type coercion."""
+    key = keys[0]
+    if len(keys) > 1:
+        if key not in data:
+            data[key] = {}
+        _set_nested_key(data[key], keys[1:], value)
+    else:
+        data[key] = _coerce_value(value)
+
+
 def load_modular_config(
     dataset: str = None,
     experiment: str = None,
@@ -1548,21 +1620,14 @@ def load_modular_config(
     Returns:
         Merged OmegaConf DictConfig
     """
-    import os
-
     # Determine base config path
     if base_path is not None:
-        # Flexible mode: use provided base path
         resolved_base_path = base_path
     else:
-        # Standard mode: use default base
         resolved_base_path = os.path.join(base_dir, "base", "gslrm_mouse.yaml")
 
-    # Determine experiment path (can be name or full path)
-    if os.path.exists(experiment):
-        experiment_path = experiment
-    else:
-        experiment_path = os.path.join(base_dir, "experiments", f"{experiment}.yaml")
+    # Resolve experiment path (searches experiments/, then root)
+    experiment_path = resolve_config_path(experiment, "experiments", base_dir)
 
     # Check base exists
     if not os.path.exists(resolved_base_path):
@@ -1677,45 +1742,14 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def load_and_process_config(config_path: str, overrides: Optional[list] = None) -> edict:
-    """Load and process configuration file."""
-    def set_nested_key(data: dict, keys: list, value: str):
-        """Set value in nested dictionary."""
-        key = keys.pop(0)
-        if keys:
-            if key not in data:
-                data[key] = {}
-            set_nested_key(data[key], keys, value)
-        else:
-            data[key] = value_type(value)
-            
-    def value_type(value: str):
-        """Convert string to appropriate type."""
-        try:
-            if value.lower() == "true":
-                return True
-            elif value.lower() == "false":
-                return False
-            else:
-                try:
-                    return int(value)
-                except ValueError:
-                    try:
-                        return float(value)
-                    except ValueError:
-                        return value
-        except AttributeError:
-            return value
-            
-    # Load base config
+    """Load and process configuration file (legacy mode)."""
     config = yaml.safe_load(open(config_path, "r"))
-    
-    # Apply overrides
+
     if overrides:
         for key_value in overrides:
             key_parts = key_value[0].split(".")
-            value = key_value[1]
-            set_nested_key(config, key_parts, value)
-            
+            _set_nested_key(config, key_parts, key_value[1])
+
     return edict(config)
 
 
@@ -1744,30 +1778,21 @@ def main():
         config = edict(OmegaConf.to_container(merged_cfg, resolve=True))
     else:
         # Legacy mode: single config file
+        import warnings
+        warnings.warn(
+            "Legacy --config mode is deprecated. Use modular mode: "
+            "-d <dataset> -e <experiment>. "
+            "See configs/README.md for migration guide.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
         config = load_and_process_config(args.config, args.set)
 
-    # Apply overrides if any (for modular modes, overrides already applied in legacy)
+    # Apply overrides if any (for modular modes; legacy applies in load_and_process_config)
     if (args.dataset and args.experiment or args.base and args.experiment) and args.set:
         for key_value in args.set:
             key_parts = key_value[0].split(".")
-            value = key_value[1]
-            def set_nested(data, keys, val):
-                key = keys.pop(0)
-                if keys:
-                    if key not in data:
-                        data[key] = {}
-                    set_nested(data[key], keys, val)
-                else:
-                    try:
-                        if val.lower() == "true": data[key] = True
-                        elif val.lower() == "false": data[key] = False
-                        else:
-                            try: data[key] = int(val)
-                            except: 
-                                try: data[key] = float(val)
-                                except: data[key] = val
-                    except: data[key] = val
-            set_nested(config, key_parts.copy(), value)
+            _set_nested_key(config, key_parts, key_value[1])
     
     print_rank0(config)
     
