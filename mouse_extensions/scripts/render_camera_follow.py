@@ -401,22 +401,20 @@ def main():
             print(f"Rendering target: {target_name} ({CAMERA_TARGET_PRESETS[target_name]})")
             print(f"{'='*60}")
 
-            # Distance defaults per target type (scene radius ~2.7)
+            # Distance defaults per target type
+            # Follow cameras: close-up (0.6~1.2), Preset: wide (2.5)
             dist = args.distance
-            _PRESET_VIEWS = {
-                "top_down", "bottom_up", "frontal",
-                "lateral_left", "lateral_right", "posterior", "body",
+            _DEFAULT_DISTANCES = {
+                "face": 0.8,
+                "tail_base": 1.0,
+                "left_front_paw": 0.6, "right_front_paw": 0.6,
+                "left_hind_paw": 0.6, "right_hind_paw": 0.6,
+                "frontal": 1.0, "posterior": 1.0,
+                "lateral_left": 1.2, "lateral_right": 1.2,
+                "top_down": 2.5, "bottom_up": 2.5, "body": 2.5,
             }
-            if args.distance == 0.8:  # user didn't override, use sensible defaults
-                if target_name == "face":
-                    dist = 0.8   # close-up face (proven)
-                elif target_name in ("left_front_paw", "right_front_paw",
-                                     "left_hind_paw", "right_hind_paw"):
-                    dist = 1.2   # limb view
-                elif target_name == "tail_base":
-                    dist = 1.5   # tail view
-                elif target_name in _PRESET_VIEWS:
-                    dist = 2.5   # full body view
+            if args.distance == 0.8:  # user didn't override
+                dist = _DEFAULT_DISTANCES.get(target_name, 1.0)
 
             config = CameraFollowConfig(
                 target=target_name,

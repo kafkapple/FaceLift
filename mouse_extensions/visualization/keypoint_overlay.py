@@ -367,6 +367,15 @@ def _build_c2w(cam_pos: np.ndarray, look_at: np.ndarray, up_hint: np.ndarray) ->
     return c2w
 
 
+def _ear_axis(kp_3d: np.ndarray) -> np.ndarray:
+    """Ear axis (L_ear → R_ear): most stable up hint for the mouse body.
+
+    This keeps the dorsal side up in all camera views, analogous to how
+    the face camera uses ears to keep the image horizontally stable.
+    """
+    return _normalize(kp_3d[0] - kp_3d[1])  # L_ear - R_ear
+
+
 def _body_center(kp_3d: np.ndarray) -> np.ndarray:
     """Robust body center: average of spine keypoints (neck + body_middle)."""
     return kp_3d[3:5].mean(axis=0)
@@ -377,176 +386,179 @@ def _spine_direction(kp_3d: np.ndarray) -> np.ndarray:
     return _normalize(kp_3d[3] - kp_3d[4])
 
 
-# Scene scale constant — FaceLift mouse is normalized to this radius
-_SCENE_RADIUS = 2.7
+# =====================================================================
+# Follow Cameras — close-up, perpendicular tracking (like face camera)
+# =====================================================================
+#
+# Pattern (same as face):
+#   look_at  = target keypoint
+#   approach = outward normal from the body part surface
+#   cam_pos  = look_at + distance × approach
+#   up_hint  = ear axis (L_ear - R_ear) for stable horizontal framing
+#   distance = 0.6 ~ 1.2 (close-up, body part fills frame)
 
 
 def compute_tail_base_camera_c2w(
     kp_3d: np.ndarray,
-    distance: float = 1.5,
+    distance: float = 1.0,
 ) -> np.ndarray:
-    """Camera behind tail root, looking along the tail.
+    """Camera perpendicular to tail base, tracking tail_root.
 
-    Uses world Z-up for stable orientation.
+    Approach: body_middle → tail_root direction (behind the mouse).
+    Camera looks directly at tail_root from behind.
     """
-    tail_root = kp_3d[5]
-    tail_mid = kp_3d[6]
-    tail_dir = _normalize(tail_mid - tail_root)
-
-    # Position behind tail, looking toward tail tip
-    cam_pos = tail_root - distance * tail_dir
-    return _build_c2w(cam_pos, tail_root, up_hint=np.array([0.0, 0.0, 1.0]))
+    look_at = kp_3d[5]  # tail_root
+    approach = _normalize(kp_3d[5] - kp_3d[4])  # body_mid → tail_root
+    cam_pos = look_at + distance * approach
+    return _build_c2w(cam_pos, look_at, up_hint=_ear_axis(kp_3d))
 
 
 def compute_paw_camera_c2w(
     kp_3d: np.ndarray,
-    distance: float = 1.2,
+    distance: float = 0.6,
     paw_side: str = "left_front",
 ) -> np.ndarray:
-    """Camera looking at a paw from an outward-and-slightly-below angle.
+    """Camera perpendicular to paw, tracking from above (elbow→paw direction).
 
-    Positioned outside the body looking inward at the paw, with enough
-    distance to keep the whole limb in frame.
+    Approach: elbow → paw direction (looking down the limb at the paw).
     """
     paw_indices = {
-        "left_front": (8, 9, 10),    # L_paw, L_paw_end, L_elbow
-        "right_front": (12, 13, 14),  # R_paw, R_paw_end, R_elbow
-        "left_hind": (16, 17, 18),    # L_foot, L_knee, L_hip
-        "right_hind": (19, 20, 21),   # R_foot, R_knee, R_hip
+        "left_front": (8, 10),    # L_paw, L_elbow
+        "right_front": (12, 14),  # R_paw, R_elbow
+        "left_hind": (16, 17),    # L_foot, L_knee
+        "right_hind": (19, 20),   # R_foot, R_knee
     }
     if paw_side not in paw_indices:
         raise ValueError(f"Unknown paw_side: {paw_side}. Use: {list(paw_indices)}")
 
-    paw_idx, paw_end_idx, joint_idx = paw_indices[paw_side]
-    paw = kp_3d[paw_idx]
-    joint = kp_3d[joint_idx]
+    paw_idx, joint_idx = paw_indices[paw_side]
+    look_at = kp_3d[paw_idx]
+    # Approach: from joint toward paw (camera above paw looking down)
+    approach = _normalize(kp_3d[joint_idx] - kp_3d[paw_idx])
+    cam_pos = look_at + distance * approach
+    return _build_c2w(cam_pos, look_at, up_hint=_ear_axis(kp_3d))
 
-    # Look-at: midpoint of limb (between paw and upper joint)
-    look_at = (paw + joint) / 2.0
 
-    # Camera direction: outward from body center + slightly below
-    body_ctr = _body_center(kp_3d)
-    outward = _normalize(look_at - body_ctr)
-    # Add downward offset (world Z) for "below" angle
-    cam_dir = _normalize(outward - 0.3 * np.array([0.0, 0.0, 1.0]))
+def compute_frontal_camera_c2w(
+    kp_3d: np.ndarray,
+    distance: float = 1.0,
+) -> np.ndarray:
+    """Camera in front of the mouse head, facing backward.
 
-    cam_pos = look_at + distance * cam_dir
-    return _build_c2w(cam_pos, look_at, up_hint=np.array([0.0, 0.0, 1.0]))
+    Approach: neck → nose direction extended (in front of head).
+    Like face camera but slightly wider and includes upper body.
+    """
+    look_at = kp_3d[2]  # nose
+    approach = _normalize(kp_3d[2] - kp_3d[3])  # neck → nose (outward)
+    cam_pos = look_at + distance * approach
+    return _build_c2w(cam_pos, look_at, up_hint=_ear_axis(kp_3d))
+
+
+def compute_lateral_camera_c2w(
+    kp_3d: np.ndarray,
+    distance: float = 1.2,
+    side: str = "left",
+) -> np.ndarray:
+    """Camera to the side of the body, perpendicular to spine axis.
+
+    Approach: shoulder axis (L_shoulder → R_shoulder for left view).
+    """
+    look_at = _body_center(kp_3d)
+    if side == "left":
+        approach = _normalize(kp_3d[11] - kp_3d[15])  # R_shoulder → L_shoulder
+    else:
+        approach = _normalize(kp_3d[15] - kp_3d[11])  # L_shoulder → R_shoulder
+    cam_pos = look_at + distance * approach
+    return _build_c2w(cam_pos, look_at, up_hint=_ear_axis(kp_3d))
+
+
+def compute_posterior_camera_c2w(
+    kp_3d: np.ndarray,
+    distance: float = 1.0,
+) -> np.ndarray:
+    """Camera behind the mouse, facing forward along spine.
+
+    Approach: neck → body_middle direction (behind the mouse).
+    """
+    look_at = _body_center(kp_3d)
+    approach = _normalize(kp_3d[4] - kp_3d[3])  # neck → body_mid (backward)
+    cam_pos = look_at + distance * approach
+    return _build_c2w(cam_pos, look_at, up_hint=_ear_axis(kp_3d))
 
 
 def compute_generic_camera_c2w(
     kp_3d: np.ndarray,
     target_indices: List[int],
     look_from_indices: Optional[List[int]] = None,
-    distance: float = 1.5,
+    distance: float = 1.0,
     elevation_deg: float = 0.0,
 ) -> np.ndarray:
-    """Generic keypoint-driven camera with world-up stability."""
+    """Generic keypoint-driven camera with ear-axis up hint."""
     target_center = kp_3d[target_indices].mean(axis=0)
     origin = kp_3d[look_from_indices].mean(axis=0) if look_from_indices else kp_3d[4]
 
     approach_dir = _normalize(target_center - origin)
 
     if abs(elevation_deg) > 0.1:
-        world_up = np.array([0.0, 0.0, 1.0])
-        horiz = _normalize(np.cross(approach_dir, world_up))
+        horiz = _normalize(np.cross(approach_dir, _ear_axis(kp_3d)))
         rad = np.radians(elevation_deg)
         approach_dir = _normalize(
             approach_dir * np.cos(rad) + np.cross(horiz, approach_dir) * np.sin(rad)
         )
 
-    cam_pos = target_center - distance * approach_dir
-    return _build_c2w(cam_pos, target_center, up_hint=np.array([0.0, 0.0, 1.0]))
+    cam_pos = target_center + distance * approach_dir
+    return _build_c2w(cam_pos, target_center, up_hint=_ear_axis(kp_3d))
 
 
-# --- View Presets (body-relative direction, world-up stabilized) ---
+# =====================================================================
+# View Presets — wide-angle, entire mouse in frame
+# =====================================================================
 
 def compute_preset_camera_c2w(
     kp_3d: np.ndarray,
     preset: str,
     distance: float = 2.5,
 ) -> np.ndarray:
-    """Fixed-direction camera relative to the body center.
+    """Fixed-direction camera for full-body overview.
 
-    All presets use world Z-up for stable orientation and sufficient distance
-    (~scene radius) to keep the entire mouse in frame.
-
-    Presets:
-        top_down: directly above, looking down
-        bottom_up: directly below, looking up
-        frontal: in front of face, eye level
-        lateral_left / lateral_right: side views
-        posterior: behind the tail
+    Uses world Z-up for stable orientation. Distance ~scene radius
+    to keep the entire mouse visible.
     """
     center = _body_center(kp_3d)
-    spine = _spine_direction(kp_3d)  # head direction (horizontal)
+    spine = _spine_direction(kp_3d)
     world_up = np.array([0.0, 0.0, 1.0])
-    # Lateral direction: perpendicular to spine in horizontal plane
     lateral = _normalize(np.cross(spine, world_up))
 
     if preset == "top_down":
         cam_pos = center + distance * world_up
-        up_hint = spine  # head direction = "up" in top-down image
+        up_hint = spine
     elif preset == "bottom_up":
         cam_pos = center - distance * world_up
         up_hint = spine
-    elif preset == "frontal":
-        # In front of head, at eye level (slight upward angle)
-        cam_pos = center + distance * spine + 0.3 * distance * world_up
-        up_hint = world_up
-    elif preset == "lateral_left":
-        cam_pos = center + distance * lateral
-        up_hint = world_up
-    elif preset == "lateral_right":
-        cam_pos = center - distance * lateral
-        up_hint = world_up
-    elif preset == "posterior":
-        # Behind tail, slightly above
-        cam_pos = center - distance * spine + 0.3 * distance * world_up
-        up_hint = world_up
     else:
-        raise ValueError(
-            f"Unknown preset: {preset}. Use: top_down, bottom_up, "
-            "frontal, lateral_left, lateral_right, posterior"
-        )
+        raise ValueError(f"Unknown preset: {preset}. Use: top_down, bottom_up")
 
     return _build_c2w(cam_pos, center, up_hint)
-
-
-# --- Body Stabilization ---
-
-def compute_body_stabilization_matrix(kp_3d: np.ndarray) -> np.ndarray:
-    """Compute body-root transform for stabilized rendering.
-
-    Returns a simple translation + rotation that places body_middle at
-    the origin with spine along +Z and world-up preserved.
-    Using only translation (position) for stabilization to avoid
-    rotation artifacts from noisy keypoints.
-
-    Returns:
-        M_body: (4, 4) body-to-world transform (translation only)
-    """
-    M = np.eye(4)
-    M[:3, 3] = kp_3d[4].copy()  # body_middle position
-    return M
 
 
 # --- Config & Follow Camera ---
 
 CAMERA_TARGET_PRESETS = {
-    "face": "Face frontal (nose→neck direction)",
-    "body": "Body top-down (above body center)",
-    "tail_base": "Tail base (looking along tail)",
-    "left_front_paw": "Left front paw (below/side view)",
-    "right_front_paw": "Right front paw (below/side view)",
-    "left_hind_paw": "Left hind paw (below/side view)",
-    "right_hind_paw": "Right hind paw (below/side view)",
-    "top_down": "Top-down (above body, looking down)",
-    "bottom_up": "Bottom-up (below body, looking up)",
-    "frontal": "Frontal (in front, eye level)",
-    "lateral_left": "Left lateral (side view)",
-    "lateral_right": "Right lateral (side view)",
-    "posterior": "Posterior (behind tail)",
+    # Follow cameras (close-up, perpendicular tracking)
+    "face": "Face close-up (perpendicular to face plane, d=0.8)",
+    "tail_base": "Tail base close-up (perpendicular from behind, d=1.0)",
+    "left_front_paw": "Left front paw (from above limb, d=0.6)",
+    "right_front_paw": "Right front paw (from above limb, d=0.6)",
+    "left_hind_paw": "Left hind paw (from above limb, d=0.6)",
+    "right_hind_paw": "Right hind paw (from above limb, d=0.6)",
+    "frontal": "Frontal follow (ahead of head, d=1.0)",
+    "lateral_left": "Left lateral follow (perpendicular to spine, d=1.2)",
+    "lateral_right": "Right lateral follow (perpendicular to spine, d=1.2)",
+    "posterior": "Posterior follow (behind body, d=1.0)",
+    # Wide-angle presets (full body overview)
+    "top_down": "Top-down overview (above body, d=2.5)",
+    "bottom_up": "Bottom-up overview (below body, d=2.5)",
+    "body": "Body top-down (alias for top_down)",
 }
 
 
@@ -606,11 +618,7 @@ class KeypointFollowCamera:
         """
         cfg = self.config
 
-        # Dispatch to target-specific camera computation
-        _PRESET_VIEWS = {
-            "top_down", "bottom_up", "frontal",
-            "lateral_left", "lateral_right", "posterior",
-        }
+        # Dispatch: follow cameras (close-up) vs preset cameras (wide-angle)
         _PAW_MAP = {
             "left_front_paw": "left_front",
             "right_front_paw": "right_front",
@@ -626,12 +634,20 @@ class KeypointFollowCamera:
             raw_c2w = compute_paw_camera_c2w(
                 kp_3d, distance=cfg.distance, paw_side=_PAW_MAP[cfg.target],
             )
-        elif cfg.target in _PRESET_VIEWS:
+        elif cfg.target == "frontal":
+            raw_c2w = compute_frontal_camera_c2w(kp_3d, distance=cfg.distance)
+        elif cfg.target in ("lateral_left", "lateral_right"):
+            side = "left" if cfg.target == "lateral_left" else "right"
+            raw_c2w = compute_lateral_camera_c2w(
+                kp_3d, distance=cfg.distance, side=side,
+            )
+        elif cfg.target == "posterior":
+            raw_c2w = compute_posterior_camera_c2w(kp_3d, distance=cfg.distance)
+        elif cfg.target in ("top_down", "bottom_up"):
             raw_c2w = compute_preset_camera_c2w(
                 kp_3d, preset=cfg.target, distance=cfg.distance,
             )
         elif cfg.target == "body":
-            # Legacy body target: top-down from above
             raw_c2w = compute_preset_camera_c2w(
                 kp_3d, preset="top_down", distance=cfg.distance,
             )
