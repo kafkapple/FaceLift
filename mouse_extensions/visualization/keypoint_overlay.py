@@ -342,30 +342,21 @@ def compute_face_camera_c2w(
     return c2w
 
 
-def compute_tail_base_camera_c2w(
-    kp_3d: np.ndarray,
-    distance: float = 0.5,
-) -> np.ndarray:
-    """Camera at tail base, looking along the tail direction.
+def _build_c2w(cam_pos: np.ndarray, look_at: np.ndarray, up_hint: np.ndarray) -> np.ndarray:
+    """Build c2w matrix from position, look-at point, and up hint.
 
-    Positioned behind the tail root, looking toward tail_middle/tail_end.
-    Uses spine direction as up hint to keep dorsal side up.
+    Uses OpenCV convention: z=forward into scene, y=down in image.
+    Robust: if up_hint is nearly parallel to forward, falls back to world Z-up.
     """
-    tail_root, tail_mid = kp_3d[5], kp_3d[6]
-    body_mid, neck = kp_3d[4], kp_3d[3]
+    forward = _normalize(look_at - cam_pos)
 
-    # Look along tail direction (root → middle)
-    tail_dir = _normalize(tail_mid - tail_root)
-    cam_pos = tail_root - distance * tail_dir  # behind tail root
+    # Check if up_hint is nearly parallel to forward
+    if abs(np.dot(forward, _normalize(up_hint))) > 0.95:
+        up_hint = np.array([0.0, 0.0, 1.0])  # world Z-up fallback
+        if abs(np.dot(forward, up_hint)) > 0.95:
+            up_hint = np.array([0.0, 1.0, 0.0])  # Y-up last resort
 
-    forward = _normalize(tail_root - cam_pos)
-
-    # Up hint: dorsal direction (spine cross hip-axis)
-    spine_dir = _normalize(neck - body_mid)
-    hip_axis = _normalize(kp_3d[21] - kp_3d[18])  # R_hip - L_hip
-    dorsal = _normalize(np.cross(spine_dir, hip_axis))
-
-    right = _normalize(np.cross(forward, dorsal))
+    right = _normalize(np.cross(forward, up_hint))
     down = np.cross(forward, right)
 
     c2w = np.eye(4)
@@ -376,18 +367,46 @@ def compute_tail_base_camera_c2w(
     return c2w
 
 
+def _body_center(kp_3d: np.ndarray) -> np.ndarray:
+    """Robust body center: average of spine keypoints (neck + body_middle)."""
+    return kp_3d[3:5].mean(axis=0)
+
+
+def _spine_direction(kp_3d: np.ndarray) -> np.ndarray:
+    """Spine direction: body_middle → neck (head direction)."""
+    return _normalize(kp_3d[3] - kp_3d[4])
+
+
+# Scene scale constant — FaceLift mouse is normalized to this radius
+_SCENE_RADIUS = 2.7
+
+
+def compute_tail_base_camera_c2w(
+    kp_3d: np.ndarray,
+    distance: float = 1.5,
+) -> np.ndarray:
+    """Camera behind tail root, looking along the tail.
+
+    Uses world Z-up for stable orientation.
+    """
+    tail_root = kp_3d[5]
+    tail_mid = kp_3d[6]
+    tail_dir = _normalize(tail_mid - tail_root)
+
+    # Position behind tail, looking toward tail tip
+    cam_pos = tail_root - distance * tail_dir
+    return _build_c2w(cam_pos, tail_root, up_hint=np.array([0.0, 0.0, 1.0]))
+
+
 def compute_paw_camera_c2w(
     kp_3d: np.ndarray,
-    distance: float = 0.3,
+    distance: float = 1.2,
     paw_side: str = "left_front",
 ) -> np.ndarray:
-    """Camera looking at a paw from below/side.
+    """Camera looking at a paw from an outward-and-slightly-below angle.
 
-    Positioned below-and-slightly-outward from the paw, looking up at it.
-    Useful for observing paw pad contact and grip mechanics.
-
-    Args:
-        paw_side: one of "left_front", "right_front", "left_hind", "right_hind"
+    Positioned outside the body looking inward at the paw, with enough
+    distance to keep the whole limb in frame.
     """
     paw_indices = {
         "left_front": (8, 9, 10),    # L_paw, L_paw_end, L_elbow
@@ -400,184 +419,115 @@ def compute_paw_camera_c2w(
 
     paw_idx, paw_end_idx, joint_idx = paw_indices[paw_side]
     paw = kp_3d[paw_idx]
-    paw_end = kp_3d[paw_end_idx]
     joint = kp_3d[joint_idx]
 
-    # Target: center between paw and paw_end
-    paw_center = (paw + paw_end) / 2.0
+    # Look-at: midpoint of limb (between paw and upper joint)
+    look_at = (paw + joint) / 2.0
 
-    # Camera below and slightly outward from body center
-    body_center = kp_3d[4]  # body_middle
-    outward = _normalize(paw_center - body_center)
-    # Dorsal direction for "below"
-    spine_dir = _normalize(kp_3d[3] - kp_3d[4])
-    hip_axis = _normalize(kp_3d[21] - kp_3d[18])
-    ventral = -_normalize(np.cross(spine_dir, hip_axis))
+    # Camera direction: outward from body center + slightly below
+    body_ctr = _body_center(kp_3d)
+    outward = _normalize(look_at - body_ctr)
+    # Add downward offset (world Z) for "below" angle
+    cam_dir = _normalize(outward - 0.3 * np.array([0.0, 0.0, 1.0]))
 
-    cam_pos = paw_center + distance * (0.7 * ventral + 0.3 * outward)
-    forward = _normalize(paw_center - cam_pos)
-
-    # Up hint: limb direction (joint→paw) keeps limb vertical in frame
-    limb_dir = _normalize(paw - joint)
-    right = _normalize(np.cross(forward, limb_dir))
-    down = np.cross(forward, right)
-
-    c2w = np.eye(4)
-    c2w[:3, 0] = right
-    c2w[:3, 1] = down
-    c2w[:3, 2] = forward
-    c2w[:3, 3] = cam_pos
-    return c2w
+    cam_pos = look_at + distance * cam_dir
+    return _build_c2w(cam_pos, look_at, up_hint=np.array([0.0, 0.0, 1.0]))
 
 
 def compute_generic_camera_c2w(
     kp_3d: np.ndarray,
     target_indices: List[int],
     look_from_indices: Optional[List[int]] = None,
-    distance: float = 0.5,
+    distance: float = 1.5,
     elevation_deg: float = 0.0,
 ) -> np.ndarray:
-    """Generic keypoint-driven camera.
-
-    Args:
-        target_indices: keypoint indices to average as look-at center
-        look_from_indices: keypoints defining approach direction (avg→target).
-            If None, uses body_middle as origin.
-        distance: camera distance from target center
-        elevation_deg: elevation offset in degrees (positive = above)
-    """
+    """Generic keypoint-driven camera with world-up stability."""
     target_center = kp_3d[target_indices].mean(axis=0)
-
-    if look_from_indices is not None:
-        origin = kp_3d[look_from_indices].mean(axis=0)
-    else:
-        origin = kp_3d[4]  # body_middle
+    origin = kp_3d[look_from_indices].mean(axis=0) if look_from_indices else kp_3d[4]
 
     approach_dir = _normalize(target_center - origin)
 
-    # Apply elevation rotation around the horizontal axis
     if abs(elevation_deg) > 0.1:
-        # Rotate approach_dir around the cross(approach, world_up)
         world_up = np.array([0.0, 0.0, 1.0])
         horiz = _normalize(np.cross(approach_dir, world_up))
         rad = np.radians(elevation_deg)
-        approach_dir = (
+        approach_dir = _normalize(
             approach_dir * np.cos(rad) + np.cross(horiz, approach_dir) * np.sin(rad)
         )
-        approach_dir = _normalize(approach_dir)
 
     cam_pos = target_center - distance * approach_dir
-    forward = _normalize(target_center - cam_pos)
-
-    # Up hint: dorsal direction
-    spine_dir = _normalize(kp_3d[3] - kp_3d[4])
-    hip_axis = _normalize(kp_3d[21] - kp_3d[18])
-    dorsal = _normalize(np.cross(spine_dir, hip_axis))
-
-    right = _normalize(np.cross(forward, dorsal))
-    down = np.cross(forward, right)
-
-    c2w = np.eye(4)
-    c2w[:3, 0] = right
-    c2w[:3, 1] = down
-    c2w[:3, 2] = forward
-    c2w[:3, 3] = cam_pos
-    return c2w
+    return _build_c2w(cam_pos, target_center, up_hint=np.array([0.0, 0.0, 1.0]))
 
 
-# --- View Presets (fixed direction, body-relative) ---
+# --- View Presets (body-relative direction, world-up stabilized) ---
 
 def compute_preset_camera_c2w(
     kp_3d: np.ndarray,
     preset: str,
-    distance: float = 1.2,
+    distance: float = 2.5,
 ) -> np.ndarray:
-    """Fixed-direction camera relative to the body.
+    """Fixed-direction camera relative to the body center.
+
+    All presets use world Z-up for stable orientation and sufficient distance
+    (~scene radius) to keep the entire mouse in frame.
 
     Presets:
         top_down: directly above, looking down
-        bottom_up: directly below, looking up (-70° equivalent)
+        bottom_up: directly below, looking up
         frontal: in front of face, eye level
         lateral_left / lateral_right: side views
         posterior: behind the tail
     """
-    body_center = kp_3d[3:5].mean(axis=0)  # neck + body_middle
-    spine_dir = _normalize(kp_3d[3] - kp_3d[4])  # neck - body_middle
-    hip_axis = _normalize(kp_3d[21] - kp_3d[18])  # R_hip - L_hip
-    dorsal = _normalize(np.cross(spine_dir, hip_axis))  # up from back
+    center = _body_center(kp_3d)
+    spine = _spine_direction(kp_3d)  # head direction (horizontal)
+    world_up = np.array([0.0, 0.0, 1.0])
+    # Lateral direction: perpendicular to spine in horizontal plane
+    lateral = _normalize(np.cross(spine, world_up))
 
     if preset == "top_down":
-        cam_pos = body_center + distance * dorsal
-        forward = -dorsal
-        up_hint = spine_dir
+        cam_pos = center + distance * world_up
+        up_hint = spine  # head direction = "up" in top-down image
     elif preset == "bottom_up":
-        cam_pos = body_center - distance * dorsal
-        forward = dorsal
-        up_hint = spine_dir
+        cam_pos = center - distance * world_up
+        up_hint = spine
     elif preset == "frontal":
-        cam_pos = body_center + distance * spine_dir
-        forward = -spine_dir
-        up_hint = dorsal
+        # In front of head, at eye level (slight upward angle)
+        cam_pos = center + distance * spine + 0.3 * distance * world_up
+        up_hint = world_up
     elif preset == "lateral_left":
-        cam_pos = body_center - distance * hip_axis
-        forward = hip_axis
-        up_hint = dorsal
+        cam_pos = center + distance * lateral
+        up_hint = world_up
     elif preset == "lateral_right":
-        cam_pos = body_center + distance * hip_axis
-        forward = -hip_axis
-        up_hint = dorsal
+        cam_pos = center - distance * lateral
+        up_hint = world_up
     elif preset == "posterior":
-        cam_pos = body_center - distance * spine_dir
-        forward = spine_dir
-        up_hint = dorsal
+        # Behind tail, slightly above
+        cam_pos = center - distance * spine + 0.3 * distance * world_up
+        up_hint = world_up
     else:
         raise ValueError(
             f"Unknown preset: {preset}. Use: top_down, bottom_up, "
             "frontal, lateral_left, lateral_right, posterior"
         )
 
-    forward = _normalize(forward)
-    right = _normalize(np.cross(forward, up_hint))
-    down = np.cross(forward, right)
-
-    c2w = np.eye(4)
-    c2w[:3, 0] = right
-    c2w[:3, 1] = down
-    c2w[:3, 2] = forward
-    c2w[:3, 3] = cam_pos
-    return c2w
+    return _build_c2w(cam_pos, center, up_hint)
 
 
 # --- Body Stabilization ---
 
 def compute_body_stabilization_matrix(kp_3d: np.ndarray) -> np.ndarray:
-    """Compute body-root transform M_body for stabilized rendering.
+    """Compute body-root transform for stabilized rendering.
 
-    The body coordinate frame is:
-        - Origin: body_middle (kp 4)
-        - Forward (+Z): neck direction (body_middle → neck)
-        - Right (+X): hip axis (L_hip → R_hip)
-        - Up (-Y): dorsal (cross of forward × right)
-
-    To stabilize: V_stabilized = V_camera @ inv(M_body)
-    This fixes the body center in space while limbs/head move freely.
+    Returns a simple translation + rotation that places body_middle at
+    the origin with spine along +Z and world-up preserved.
+    Using only translation (position) for stabilization to avoid
+    rotation artifacts from noisy keypoints.
 
     Returns:
-        M_body: (4, 4) body-to-world transform
+        M_body: (4, 4) body-to-world transform (translation only)
     """
-    origin = kp_3d[4].copy()  # body_middle
-    fwd = _normalize(kp_3d[3] - kp_3d[4])  # neck direction
-    side_raw = _normalize(kp_3d[21] - kp_3d[18])  # R_hip - L_hip
-
-    # Gram-Schmidt orthogonalization
-    side = _normalize(side_raw - np.dot(side_raw, fwd) * fwd)
-    up = np.cross(side, fwd)  # dorsal direction
-
     M = np.eye(4)
-    M[:3, 0] = side
-    M[:3, 1] = -up  # OpenCV convention: y = down
-    M[:3, 2] = fwd
-    M[:3, 3] = origin
+    M[:3, 3] = kp_3d[4].copy()  # body_middle position
     return M
 
 
