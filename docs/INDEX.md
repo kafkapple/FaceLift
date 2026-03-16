@@ -73,7 +73,6 @@
 |------|------|:----:|
 | [[COMMANDS]] | 명령어 SSOT (GS-LRM, MVDiff, Turntable) | ✅ |
 | [[EXPERIMENT_CONFIG_GUIDE]] | Config 시스템 (Modular 3-Layer) | ✅ |
-| [[evaluation_protocol_v1]] | 평가 유형 / Split 전략 | ✅ |
 | [[EXPERIMENT_REGISTRY]] | 실험 설정/결과 기록 | ✅ |
 | [[INFERENCE_E2E_GUIDE]] | E2E 추론 파이프라인 + CLI | ✅ |
 | ~~TRAINING_LOGGING_GUIDE~~ | _(archived → Phase 1)_ | 📦 |
@@ -98,6 +97,14 @@
 | → [[chapters/CH1_ENVIRONMENT_AND_DATA]] | 환경, 데이터 구조, 전처리, Dataset 코드 | 🆕 |
 | → [[chapters/CH2_GSLRM_CODE_FLOW]] | Config 시스템, 학습 루프, 모델 Forward Pass, Loss | 🆕 |
 | → [[chapters/CH3_EXPERIMENTS_AND_RESULTS]] | 전체 실험 흐름 (Phase 1→6), 코드, 명령어, 결과 | 🆕 |
+| **[[PIPELINE_DEEP_DIVE]]** | **mouse_extensions 코드 워크스루 Hub (MoC + Issues + QuickRef)** | **🆕 v3.0** |
+| → [[pipeline/PH1_PREPROCESSING]] | Phase 1: Data Preprocessing (M5) | 🆕 |
+| → [[pipeline/PH2_DATA_LOADING]] | Phase 2: Training Data Loading | 🆕 |
+| → [[pipeline/PH3_MODEL_FORWARD_LOSS]] | Phase 3: Model Forward & Loss | 🆕 |
+| → [[pipeline/PH4_POSE_CONDITIONING]] | Phase 4: Pose Conditioning (Plucker) | 🆕 |
+| → [[pipeline/PH5_E2E_INFERENCE]] | Phase 5: E2E Inference Pipeline | 🆕 |
+| → [[pipeline/PH6_FAIR_EVALUATION]] | Phase 6: Fair Evaluation | 🆕 |
+| → [[pipeline/PH7_3D_KEYPOINT]] | Phase 7: 3D Keypoint Pipeline | 🆕 |
 | [[MOUSE_DATASET_GUIDE]] | MouseViewDataset 구현 참조 | ✅ |
 | ~~MVDIFFUSION_FINETUNE_GUIDE~~ | _(archived → Phase 1)_ | 📦 |
 | ~~POSE_SPLATTER_GUIDE~~ | _(archived → Phase 1)_ | 📦 |
@@ -218,6 +225,20 @@ experiments/comparison/
 
 ---
 
+## Obsidian 교차 참조
+
+> 로컬 Obsidian vault에서 이론/분석/논문 초안을 관리합니다.
+> **SSOT 규칙**: 실험 수치/설정은 본 서버 docs/ 우선. Obsidian은 학습/참조/논문 작성용.
+
+| Obsidian 문서 | 내용 |
+|--------------|------|
+| `docs/INDEX.md` (v5.0) | Obsidian 전체 문서 인덱스 |
+| `docs/paper/` | 논문 초안 (BehaviorSplatter), NeurIPS Gap 분석 |
+| `docs/theory/` | 파이프라인 이론 (Stage1/2, 좌표계, Loss) |
+| `_Notes/` | 연구 노트 (세션별, `docs/notes/`에서 통합 이전) |
+
+---
+
 ## 용어 참고 (Terminology)
 
 | 용어 | 의미 |
@@ -229,4 +250,4 @@ experiments/comparison/
 
 ---
 
-*MoC v12.0 | Updated: 2026-03-12 | comprehensive_analysis_report 추가, _archive 정리, mouse_extensions/docs 연결, 깨진 링크 수정*
+*MoC v14.0 | Updated: 2026-03-16 | PIPELINE_DEEP_DIVE entries added from server*

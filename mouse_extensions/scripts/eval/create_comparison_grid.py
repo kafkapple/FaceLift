@@ -12,7 +12,7 @@ Usage:
         --ps-dir /tmp/ps_renders \
         --gt-dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
         --frames 3240 3300 3360 3420 3480 3540 3599 \
-        --output-dir outputs/visualizations/fl_vs_ps_comparison
+        --output-dir outputs/comparison/fl_vs_ps_comparison
 """
 
 import argparse
