@@ -27,10 +27,11 @@ import sys
 import numpy as np
 from pathlib import Path
 
-# === Shared Constants ===
-# MAMMAL world coords (mm) -> FaceLift normalized space
-M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])
-M5_DISTANCE_SCALE = 2.7 / 307.785  # ~0.008781
+# Coordinate transforms — SSOT: mouse_extensions/coordinate_utils.py
+from mouse_extensions.coordinate_utils import (
+    M5_SCENE_CENTER, M5_DISTANCE_SCALE,
+    mammal_to_gslrm, gslrm_to_mammal,
+)
 
 MAMMAL_OBJ_DIR = (
     "/home/joon/dev/MAMMAL_mouse/results/fitting/"
@@ -55,14 +56,9 @@ RENDER_RESOLUTION = 384
 TURNTABLE_RADIUS = 2.7  # GS-LRM default
 
 
-def mammal_to_facelift(points_mm: np.ndarray) -> np.ndarray:
-    """Transform MAMMAL world coordinates (mm) to FaceLift normalized space."""
-    return (points_mm - M5_SCENE_CENTER) * M5_DISTANCE_SCALE
-
-
-def facelift_to_mammal(points_fl: np.ndarray) -> np.ndarray:
-    """Transform FaceLift normalized coords back to MAMMAL world (mm)."""
-    return points_fl / M5_DISTANCE_SCALE + M5_SCENE_CENTER
+# Aliases for backward compatibility within this file
+mammal_to_facelift = mammal_to_gslrm
+facelift_to_mammal = gslrm_to_mammal
 
 
 def get_frame_obj_path(frame_idx: int) -> str:

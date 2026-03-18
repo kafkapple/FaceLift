@@ -63,9 +63,8 @@ SKELETON = [
     (4, 21), (21, 20), (20, 19),
 ]
 
-# Coordinate transform constants (M5)
-M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])
-M5_DISTANCE_SCALE = 2.7 / 307.785
+# Coordinate transforms — SSOT: mouse_extensions/coordinate_utils.py
+from mouse_extensions.coordinate_utils import M5_SCENE_CENTER, M5_DISTANCE_SCALE, mammal_to_gslrm
 
 
 def get_joint_color(joint_idx):
@@ -107,8 +106,8 @@ def project_3d_to_2d(kp3d_mammal, gt_dir, frame_str, view_idx, img_size=512):
     """Project 3D MAMMAL keypoints to 2D image coordinates."""
     K, w2c = load_camera(gt_dir, frame_str, view_idx)
 
-    # Transform MAMMAL -> FaceLift normalized
-    kp3d_fl = (kp3d_mammal - M5_SCENE_CENTER) * M5_DISTANCE_SCALE  # (22, 3)
+    # Transform MAMMAL mm -> GS-LRM normalized
+    kp3d_fl = mammal_to_gslrm(kp3d_mammal)  # (22, 3)
 
     # Homogeneous
     kp3d_h = np.hstack([kp3d_fl, np.ones((22, 1))])  # (22, 4)

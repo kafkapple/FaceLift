@@ -76,11 +76,11 @@ data = np.load(kp_path)
 kp_all = data[list(data.keys())[0]]
 kp0 = kp_all[0]  # Frame 0 keypoints
 
-M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])
-M5_DISTANCE_SCALE = 2.7 / 307.785
+# Coordinate transforms — SSOT: mouse_extensions/coordinate_utils.py
+from mouse_extensions.coordinate_utils import mammal_to_gslrm
 
-kp0_fl = (kp0 - M5_SCENE_CENTER) * M5_DISTANCE_SCALE
-mesh_centroid_fl = (flat.vertices.mean(0) - M5_SCENE_CENTER) * M5_DISTANCE_SCALE
+kp0_fl = mammal_to_gslrm(kp0)
+mesh_centroid_fl = mammal_to_gslrm(flat.vertices.mean(0))
 
 print(f'\n=== FaceLift Space Alignment ===')
 print(f'Keypoint centroid: {kp0_fl.mean(0)}')

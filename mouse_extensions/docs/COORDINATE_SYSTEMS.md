@@ -51,17 +51,21 @@ FaceLift 프로젝트의 다중 좌표계 간 변환 규칙. **모든 렌더링 
 ### 2.1 MAMMAL → FaceLift (핵심 변환)
 
 ```python
-M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])  # mm
-M5_DISTANCE_SCALE = 2.7 / 307.785  # ≈ 0.008781
+# SSOT: mouse_extensions/coordinate_utils.py
+from mouse_extensions.coordinate_utils import mammal_to_gslrm, gslrm_to_mammal
 
-# Forward
-point_fl = (point_mammal_mm - M5_SCENE_CENTER) * M5_DISTANCE_SCALE
+# Constants (for reference — always import from coordinate_utils):
+# M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])  # mm
+# M5_DISTANCE_SCALE = 2.7 / 307.785  # ≈ 0.008781
 
-# Inverse
-point_mammal_mm = point_fl / M5_DISTANCE_SCALE + M5_SCENE_CENTER
+# Forward: MAMMAL mm → GS-LRM normalized
+point_gslrm = mammal_to_gslrm(point_mm)
+
+# Inverse: GS-LRM normalized → MAMMAL mm
+point_mm = gslrm_to_mammal(point_gslrm)
 ```
 
-**출처**: `keypoint_viz.py:164-165`, `render_camera_follow.py`
+**SSOT**: `mouse_extensions/coordinate_utils.py` (상수 + 변환 함수 + assertion guards)
 
 **의미**:
 - `M5_SCENE_CENTER` = 원본 6개 카메라 rig의 centroid (mm 좌표)
@@ -149,12 +153,11 @@ fxfycxcy = np.array([fx, fy, cx, cy])
 
 | 파일 | 역할 |
 |------|------|
-| `keypoint_viz.py:164-165` | M5_SCENE_CENTER, M5_DISTANCE_SCALE 정의 |
-| `render_camera_follow.py` | transform_mammal_to_facelift() 함수 |
+| **`mouse_extensions/coordinate_utils.py`** | **SSOT: 상수 + 변환 함수 + assertion guards** |
+| `behavior/coordinate_utils.py` | Re-export wrapper (backward compat) |
 | `render_mammal_32view_v2.py` | Blender 좌표 변환 (별도 체계) |
 | `gslrm_pipeline.py:load_sample_data()` | opencv_cameras.json → C2W 변환 |
 | `gaussians_renderer.py:render_opencv_cam()` | C2W + fxfycxcy로 렌더링 |
-| `poc_mesh_gs_pairs.py` | PoC 스크립트 (이 문서의 변환 공식 사용) |
 | `DATASET_FRAME_INDEXING.md` | **프레임 인덱싱 매핑 (step=5 규칙)** |
 
 ---

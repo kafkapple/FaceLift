@@ -57,13 +57,8 @@ from mouse_extensions.visualization.keypoint_overlay import (
     project_3d_to_2d,
 )
 
-# M5 coordinate transform constants
-M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])
-M5_DISTANCE_SCALE = 2.7 / 307.785
-
-
-def transform_mammal_to_facelift(kp: np.ndarray) -> np.ndarray:
-    return (kp - M5_SCENE_CENTER) * M5_DISTANCE_SCALE
+# Coordinate transforms — SSOT: mouse_extensions/coordinate_utils.py
+from mouse_extensions.coordinate_utils import mammal_to_gslrm as transform_mammal_to_facelift
 
 
 def load_gslrm_pipeline(checkpoint_name: str, device: str = "cuda"):

@@ -33,29 +33,10 @@ import torch
 from PIL import Image
 
 
-# --- M5 coordinate transform constants ---
-# Derived from FaceLift M5 preprocessing: _normalize_cameras_batch() in
-# mouse_extensions/preprocessing/preprocess.py
-# Raw camera file: ~/data/raw/markerless_mouse_1_nerf/new_cam.pkl
-# Scene center = centroid of 6 camera positions in MAMMAL world space (mm)
-# Distance scale = target_distance / mean_centered_camera_distance
-M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])  # mm
-M5_DISTANCE_SCALE = 2.7 / 307.785  # = 0.008772
-
-
-def transform_mammal_to_facelift(keypoints_3d: np.ndarray) -> np.ndarray:
-    """Transform MAMMAL world coordinates (mm) to FaceLift normalized world.
-
-    FaceLift M5 preprocessing re-centers cameras at origin and scales
-    so mean camera distance = 2.7. Same transform applies to keypoints.
-
-    Args:
-        keypoints_3d: (..., 3) coordinates in MAMMAL world space (mm)
-
-    Returns:
-        Transformed coordinates in FaceLift normalized world
-    """
-    return (keypoints_3d - M5_SCENE_CENTER) * M5_DISTANCE_SCALE
+# Coordinate transforms — SSOT: mouse_extensions/coordinate_utils.py
+# Derivation: M5 preprocessing _normalize_cameras_batch() in preprocess.py
+# Scene center = centroid of 6 camera positions, scale = 2.7 / mean distance
+from mouse_extensions.coordinate_utils import mammal_to_gslrm as transform_mammal_to_facelift
 
 
 def load_keypoints_npz(npz_path: str) -> Tuple[np.ndarray, np.ndarray, list]:

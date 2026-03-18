@@ -30,14 +30,8 @@ FACELIFT_ROOT = os.path.expanduser("~/dev/FaceLift")
 MOUSE_EXT_ROOT = os.path.join(FACELIFT_ROOT, "mouse_extensions")
 sys.path.insert(0, MOUSE_EXT_ROOT)
 
-# Coordinate transform constants (MAMMAL world mm <-> FaceLift normalized)
-M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])  # mm
-M5_DISTANCE_SCALE = 2.7 / 307.785  # = 0.008772
-
-
-def facelift_to_mammal(points_3d: np.ndarray) -> np.ndarray:
-    """Convert FaceLift normalized coords back to MAMMAL world (mm)."""
-    return points_3d / M5_DISTANCE_SCALE + M5_SCENE_CENTER
+# Coordinate transforms — SSOT: mouse_extensions/coordinate_utils.py
+from mouse_extensions.coordinate_utils import gslrm_to_mammal as facelift_to_mammal
 
 
 def get_bbox_from_alpha(image: np.ndarray, threshold: float = 0.5, padding: float = 0.1):

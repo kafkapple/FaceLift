@@ -178,15 +178,17 @@ Split strategy: `temporal`, seed: 42
 ## 5. Coordinate Transform Quick Reference
 
 ```python
-# MAMMAL world (mm) → FaceLift normalized
-M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])  # camera rig centroid
-M5_DISTANCE_SCALE = 2.7 / 307.785  # ≈ 0.008781
+# SSOT: mouse_extensions/coordinate_utils.py
+from mouse_extensions.coordinate_utils import mammal_to_gslrm, gslrm_to_mammal
 
-point_fl = (point_mm - M5_SCENE_CENTER) * M5_DISTANCE_SCALE
-point_mm = point_fl / M5_DISTANCE_SCALE + M5_SCENE_CENTER
+# M5_SCENE_CENTER = [59.672, 51.517, 107.099] mm (camera rig centroid)
+# M5_DISTANCE_SCALE = 2.7 / 307.785 ≈ 0.008781
+
+point_gslrm = mammal_to_gslrm(point_mm)   # MAMMAL mm → GS-LRM normalized
+point_mm = gslrm_to_mammal(point_gslrm)   # GS-LRM normalized → MAMMAL mm
 ```
 
-See [[COORDINATE_SYSTEMS]] for full details.
+See [[COORDINATE_SYSTEMS]] for full details. Guards: `assert_gslrm_space()`, `assert_mammal_space()`.
 
 ---
 

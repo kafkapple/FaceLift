@@ -64,11 +64,11 @@ from pathlib import Path
 
 import numpy as np
 
-# ============================================================
-# Constants (shared with poc_mesh_gs_pairs.py)
-# ============================================================
-M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])
-M5_DISTANCE_SCALE = 2.7 / 307.785  # ~0.008781
+# Coordinate transforms — SSOT: mouse_extensions/coordinate_utils.py
+from mouse_extensions.coordinate_utils import (
+    M5_SCENE_CENTER, M5_DISTANCE_SCALE,
+    mammal_to_gslrm, gslrm_to_mammal,
+)
 
 NOVEL_VIEWS = {
     "bottom": {"elevation": -70.0, "azimuth": 0.0},
@@ -113,17 +113,9 @@ NUM_GT_CAMERAS = 6
 # (same approach as H4 view ablation experiment)
 
 
-# ============================================================
-# Coordinate transforms
-# ============================================================
-def mammal_to_facelift(points_mm: np.ndarray) -> np.ndarray:
-    """MAMMAL mm → FaceLift normalized coordinates."""
-    return (points_mm - M5_SCENE_CENTER) * M5_DISTANCE_SCALE
-
-
-def facelift_to_mammal(points_fl: np.ndarray) -> np.ndarray:
-    """FaceLift normalized → MAMMAL mm coordinates."""
-    return points_fl / M5_DISTANCE_SCALE + M5_SCENE_CENTER
+# Aliases for backward compatibility within this file
+mammal_to_facelift = mammal_to_gslrm
+facelift_to_mammal = gslrm_to_mammal
 
 
 # ============================================================
