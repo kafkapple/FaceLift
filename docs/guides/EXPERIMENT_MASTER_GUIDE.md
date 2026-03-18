@@ -102,9 +102,9 @@ Single Image ──→ [Multi-view Diffusion] ──→ 6-view Images ──→ 
 
 | Chapter | 내용 | 대상 독자 | 링크 |
 |---------|------|-----------|------|
-| **CH1** | 환경 설정, 데이터 구조, 전처리 | 프로젝트 시작 | [[CH1_ENVIRONMENT_AND_DATA]] |
-| **CH2** | Config 시스템, 학습 코드, 모델 구조 | 코드 이해 | [[CH2_GSLRM_CODE_FLOW]] |
-| **CH3** | 전체 실험 흐름, 결과, 분석 | 실험 재현 | [[CH3_EXPERIMENTS_AND_RESULTS]] |
+| **CH1** | 환경 설정, 데이터 구조, 전처리 | 프로젝트 시작 | [[chapters/CH1_ENVIRONMENT_AND_DATA]] |
+| **CH2** | Config 시스템, 학습 코드, 모델 구조 | 코드 이해 | [[chapters/CH2_GSLRM_CODE_FLOW]] |
+| **CH3** | 전체 실험 흐름, 결과, 분석 | 실험 재현 | [[chapters/CH3_EXPERIMENTS_AND_RESULTS]] |
 
 ---
 

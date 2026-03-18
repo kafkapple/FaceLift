@@ -372,4 +372,15 @@ python -m mouse_extensions.preprocessing.split_generator \
 
 ---
 
+## Related Documents
+
+- ↑ [[../INDEX]] — Document hub
+- ↔ [[M5_SERIES_SPEC]] — M5 카메라 정규화 상세
+- ↔ [[RAW_DATA]] — Raw 데이터 출처
+- ↔ [[MULTI_ANIMAL_PREPROCESSING]] — 다중 동물 전처리 스펙
+- ↔ [[../experiments/EXPERIMENT_CONFIG_GUIDE]] — Config 시스템
+- ↔ [[../experiments/COMMANDS]] — 전처리 명령어
+
+---
+
 *Preprocessing Registry v7.0 | 2026-01-29 | Added M5 ablation, M0 baseline, normalization modes, temporal split*

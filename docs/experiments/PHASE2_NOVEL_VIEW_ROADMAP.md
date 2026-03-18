@@ -324,14 +324,15 @@ Week 4: P9 + P10 (Marmoset + behavior labels)
 |----------|---------|
 | [[hypothesis_roadmap]] | Phase 1 가설 테스트 SSOT |
 | [[mesh_gs_pair_collection]] | Mesh-GS pair pipeline (Phase 2 핵심) |
-| [[../../mouse_extensions/docs/COORDINATE_SYSTEMS]] | 좌표계 변환 참조 |
-| [[../../mouse_extensions/docs/UV_TEXTURE_RENDERING_BUG]] | UV texture bug 분석 & 수정 (✅ 해결) |
-| [[../../mouse_extensions/docs/MESH_GUIDED_REFINEMENT]] | Mesh-guided artifact refinement 전략 (📋 계획) |
-| [[KEYPOINT_3D_PIPELINE]] | 22-joint triangulation |
-| [[STAGE1_REPLACEMENT_CANDIDATES]] | Stage 1 대체 모델 (Phase 1) |
-| [[FL_vs_PS_comparison]] | FL vs PS 비교 (Phase 1) |
-| [[NOVEL_VIEW_RENDERING]] | Novel view 렌더링 문서 |
 | [[DIFIX_TRAINING_STRATEGY]] | DiFix 3D+ 2.5-stage training strategy |
+| [[fl_vs_ps_comparison]] | FL vs PS 비교 (Phase 1) |
+| [[../KEYPOINT_3D_PIPELINE]] | 22-joint triangulation |
+| [[../datasets/PREPROCESSING_REGISTRY]] | 전처리 SSOT (M/D-series) |
+| [[../datasets/MULTI_ANIMAL_PREPROCESSING]] | 다중 동물 (s-DANNCE) 전처리 스펙 |
+| [[../datasets/RAW_DATA]] | Raw 데이터 출처 (DANNCE) |
+| [[../../mouse_extensions/docs/COORDINATE_SYSTEMS]] | 좌표계 변환 참조 |
+| [[../../mouse_extensions/docs/UV_TEXTURE_RENDERING_BUG]] | UV texture bug (✅ 해결) |
+| [[../../mouse_extensions/docs/MESH_GUIDED_REFINEMENT]] | Mesh-guided artifact refinement (📋 계획) |
 
 ---
 
