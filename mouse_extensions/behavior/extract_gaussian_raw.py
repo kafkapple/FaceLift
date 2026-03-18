@@ -101,12 +101,16 @@ def main():
             # Predict using existing GSLRMInference
             result = model.predict(images, c2ws, fxfycxcys, index)
 
-            # Extract raw Gaussian parameters
+            # Extract raw Gaussian parameters (GS-LRM normalized space)
             gaussians = result.gaussians[0]  # first (only) batch element
             xyz = gaussians.get_xyz.detach().cpu().half().numpy()       # (N, 3)
             opacity = gaussians.get_opacity.detach().cpu().half().numpy()  # (N, 1)
             scale = gaussians.get_scaling.detach().cpu().half().numpy()    # (N, 3)
             rotation = gaussians.get_rotation.detach().cpu().half().numpy()  # (N, 4)
+
+            # Coordinate guard: GS-LRM output must be in normalized space
+            from mouse_extensions.behavior.coordinate_utils import assert_gslrm_space
+            assert_gslrm_space(xyz.astype(np.float32), f"frame_{fi}_gaussians")
 
             # Save raw params NPZ
             if args.save_raw:

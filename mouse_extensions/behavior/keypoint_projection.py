@@ -22,6 +22,12 @@ from typing import Optional
 
 import numpy as np
 
+from mouse_extensions.behavior.coordinate_utils import (
+    mammal_to_gslrm,
+    M5_SCENE_CENTER,
+    M5_DISTANCE_SCALE,
+)
+
 
 # MAMMAL skeleton connections and colors (consistent across all visualizations)
 MAMMAL_BONES = [
@@ -58,18 +64,8 @@ KEYPOINT_NAMES = [
 ]
 
 
-# MAMMAL mm → GS-LRM normalized space transform
-M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])
-M5_DISTANCE_SCALE = 2.7 / 307.785  # ≈ 0.008781
-
-
-def mammal_to_gslrm(kp_mm: np.ndarray) -> np.ndarray:
-    """Convert MAMMAL mm coordinates to GS-LRM normalized space.
-
-    The camera w2c matrices in opencv_cameras.json expect GS-LRM normalized
-    coordinates, NOT raw MAMMAL mm coordinates.
-    """
-    return (kp_mm - M5_SCENE_CENTER) * M5_DISTANCE_SCALE
+# Re-exported from coordinate_utils for backward compatibility
+# SSOT: mouse_extensions.behavior.coordinate_utils
 
 
 def project_keypoints(

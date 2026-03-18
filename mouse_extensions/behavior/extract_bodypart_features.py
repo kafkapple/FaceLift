@@ -205,11 +205,15 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load keypoints and transform to GS-LRM normalized space
-    from mouse_extensions.behavior.keypoint_projection import mammal_to_gslrm
+    from mouse_extensions.behavior.coordinate_utils import (
+        mammal_to_gslrm, assert_mammal_space, assert_gslrm_space,
+    )
     kp_all_mm = np.load(GPU03_KEYPOINTS, allow_pickle=True)["keypoints"]
+    assert_mammal_space(kp_all_mm, "raw keypoints from MAMMAL")
     # CRITICAL: Gaussians are in GS-LRM normalized space, keypoints in MAMMAL mm
     # Must transform keypoints to match Gaussian coordinate system
     kp_all = np.stack([mammal_to_gslrm(kp_all_mm[i]) for i in range(len(kp_all_mm))])
+    assert_gslrm_space(kp_all, "transformed keypoints")
     print(f"Keypoints transformed: MAMMAL mm → GS-LRM normalized")
     all_valid = sorted(set(range(3600)) - FRAME_JUMPS)
 
