@@ -14,6 +14,35 @@ GS-LRM 기반 Multi-view Mouse 3D Reconstruction
 > **기본 포커스는 Phase 2.** Phase 1 작업은 명시적 요청 시에만.
 > 핵심 인프라(GS-LRM, eval, turntable, coordinate transforms)는 공통 활용.
 
+### Documentation Split Principle (문서 배치 원칙)
+
+**서버 docs/ = "이걸 어떻게 실행하나?"** — 구현/실행에 직접 필요한 문서만.
+**Obsidian = "이게 왜 이런 설계인가?"** — 이론/분석/전략/논문/연구 노트.
+
+| 서버 (gpu03) | 역할 | Obsidian | 역할 |
+|-------------|------|----------|------|
+| `experiments/` | 실험 설정, 결과, 비교 | `neurips/` | 논문 초안, Gap 분석, 전략 |
+| `specs/` | 기술 사양 (I/O, 프로토콜) | `theory/` | 수학, 이론, 원리, 모델 계보 |
+| `guides/` | 실행 가이드, 코드 워크스루 | `research/` | 분석, 비교, 대안 기술 |
+| `datasets/` | 전처리 레지스트리, 데이터 명세 | `_Notes/` | 날짜 기반 연구 일지 |
+| `hypotheses/` | 가설 검증 결과 (수치 테이블) | `Presentation/` | 발표 슬라이드 |
+
+**판단 기준**: 문서 작성 시 "이 문서 없이 실험을 실행할 수 있는가?"
+- **Yes** → Obsidian (이론/전략)
+- **No** → 서버 docs (실행 필수)
+
+**중복 금지**: 동일 내용을 양쪽에 두지 않음. 서버에서 Obsidian 참조 시 포인터만 남김.
+
+### Obsidian 경로
+
+| 경로 | 내용 |
+|------|------|
+| `~/Documents/Obsidian/30_Projects/_CODES/FaceLift/docs/INDEX.md` | **Obsidian MoC** (v7.0) |
+| `docs/neurips/` | 논문 초안, Gap 분석, Executive Summary, 프로젝트 종합 |
+| `docs/theory/` | 좌표계, Stage1/2 이론, MVDiff 이론, Loss 수식 |
+| `docs/research/` | E2E 분석, PS 비교, MV-Adapter 기술 분석 |
+| `_Notes/` | 24개 연구 노트 (260114~260317) |
+
 ---
 
 ## 1. Research Goal
@@ -71,12 +100,11 @@ GS-LRM 기반 Multi-view Mouse 3D Reconstruction
 ```
 docs/
 ├── INDEX.md           ← ★ 문서 허브 (항상 최신 유지)
-├── RESEARCH_HYPOTHESES.md  ← 가설 MoC
-├── hypotheses/        # 연구 가설 문서 (H1~H8, HP)
+├── hypotheses/        # 실험 가설 검증 결과 (H4~H7)
 ├── experiments/       # 실험 운영 가이드, 명령어
 ├── datasets/          # 데이터셋 명세
 ├── guides/            # How-to 가이드
-├── theory/            # 이론 문서
+├── specs/             # 기술 사양 (구 theory/ — 구현 밀착 문서만)
 └── _archive/          # 통합/폐기된 문서
 ```
 
@@ -87,10 +115,11 @@ docs/
 | 새 문서 생성 | `INDEX.md` | Backlink 추가 |
 | 전처리 변경 | `PREPROCESSING_REGISTRY.md` | 버전 이력 |
 | 실험 완료 | `experiments/EXPERIMENT_REGISTRY.md` | 결과 반영 |
-| 이론/스펙 추가 | `theory/*.md` | 해당 문서 업데이트 |
+| 기술 사양 추가 | `specs/*.md` | 해당 문서 업데이트 |
+| 이론/연구 추가 | Obsidian `docs/theory/` 또는 `docs/research/` | Obsidian INDEX 업데이트 |
 
 **통합 규칙:**
-- 동일 주제 reports 3개 이상 → `theory/`로 통합
+- 동일 주제 reports 3개 이상 → Obsidian `theory/`로 통합 (이론) 또는 서버 `specs/`로 통합 (구현)
 - 통합된 원본 → `_archive/reports/`로 이동
 - **MoC.md에 통합 문서 링크 추가** (필수)
 
@@ -197,7 +226,7 @@ python -m mouse_extensions.preprocessing.preprocess \
     --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
 ```
 
-**상세**: [[docs/_archive/MOUSE_QUICK_REFERENCE.md]]
+**상세**: [[docs/experiments/COMMANDS]]
 
 ---
 
@@ -217,15 +246,15 @@ python -m mouse_extensions.preprocessing.preprocess \
 | 문서 | 내용 |
 |------|------|
 | [[experiments/EXPERIMENT_REGISTRY]] | 실험 설정, 우선순위 |
-| [[experiments/comparison/comprehensive_analysis_report]] | Tier A/B/C 종합 분석 + View Ablation |
-| [[_archive/MOUSE_QUICK_REFERENCE]] | 명령어 참조 |
+| [[experiments/comprehensive_analysis_report]] | Tier A/B/C 종합 분석 + View Ablation |
+| [[experiments/COMMANDS]] | 명령어 SSOT |
 | _(삭제됨)_ | Train/Val 성능 Gap 분석 |
 
 ---
 
 ## 7. Conventions
 
-> **상세**: [[_archive/MOUSE_QUICK_REFERENCE.md#Conventions]]
+> **상세**: `configs/README.md` 참조
 
 | 항목 | 규칙 |
 |------|------|
