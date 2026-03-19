@@ -66,6 +66,7 @@ from mouse_extensions.visualization import (
 from mouse_extensions.model.mask_losses import (
     compute_alpha_supervision_loss,
     compute_background_penalty_loss,
+    compute_effective_rank_loss,
     AlphaLossType,
 )
 
@@ -353,7 +354,8 @@ class LossComputer(nn.Module):
         # Compute individual losses (pass rendered_alpha for mask_mode=alpha)
         losses = self._compute_all_losses(
             rendering_flat, target_flat, img_aligned_xyz, input, mask, b, v, h, w,
-            rendered_alpha=rendered_alpha_flat
+            rendered_alpha=rendered_alpha_flat,
+            gaussian_params=result_softpa,
         )
         
         # Compute total weighted loss
@@ -367,12 +369,14 @@ class LossComputer(nn.Module):
         # Compile loss metrics
         return self._compile_loss_metrics(losses, total_loss, visual)
     
-    def _compute_all_losses(self, rendering, target, img_aligned_xyz, input, mask, b, v, h, w, rendered_alpha=None):
+    def _compute_all_losses(self, rendering, target, img_aligned_xyz, input, mask, b, v, h, w, rendered_alpha=None, gaussian_params=None):
         """Compute all individual loss components.
-        
+
         Args:
             rendered_alpha: If provided and config.use_rendered_alpha_mask is True,
                            use this instead of GT mask for loss computation.
+            gaussian_params: Gaussian splatting parameters (edict with scaling, etc.)
+                           for geometry regularization losses.
         """
         losses = {}
         debug_break("loss")  # BP4: _compute_all_losses entry
@@ -449,6 +453,17 @@ class LossComputer(nn.Module):
             losses["bg_loss"] = compute_background_penalty_loss(rendered_alpha, original_gt_mask)
         else:
             losses["bg_loss"] = torch.tensor(0.0, device=rendering.device)
+
+        # Effective Rank Regularization (ERR) - penalizes pancake Gaussians
+        err_weight = getattr(self.config.training.losses, "effective_rank_weight", 0.0)
+        if err_weight > 0 and gaussian_params is not None and hasattr(gaussian_params, "scaling"):
+            target_rank = getattr(self.config.training.losses, "effective_rank_target", 3.0)
+            losses["effective_rank_loss"] = compute_effective_rank_loss(
+                gaussian_params.scaling, target_rank=target_rank,
+            )
+        else:
+            losses["effective_rank_loss"] = torch.tensor(0.0, device=rendering.device)
+
         return losses
 
     def _compute_mask_iou(self, rendering, target, gt_mask, rendered_alpha=None):
@@ -676,7 +691,12 @@ class LossComputer(nn.Module):
         if iou_weight > 0:
             # IoU is similarity (higher=better), convert to loss (1 - IoU)
             total = total + iou_weight * losses.get("iou", 0.0)
-        
+
+        # Effective Rank Regularization (ERR) - penalizes pancake Gaussians
+        err_weight = getattr(weights, "effective_rank_weight", 0.0)
+        if err_weight > 0:
+            total = total + err_weight * losses.get("effective_rank_loss", 0.0)
+
         return total
     
     def _create_visual(self, rendering, target, v, mask=None, rendered_alpha=None, view_indices=None):
@@ -732,6 +752,8 @@ class LossComputer(nn.Module):
             pred_min=losses['pred_min'],
             pred_max=losses['pred_max'],
             pred_mean=losses['pred_mean'],
+            # Geometry regularization
+            effective_rank_loss=losses.get('effective_rank_loss', torch.tensor(0.0)),
         )
 
 class GSLRM(nn.Module):

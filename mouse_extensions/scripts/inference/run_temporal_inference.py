@@ -519,10 +519,6 @@ def main():
     print(f"Output: {output_dir}")
 
 
-if __name__ == "__main__":
-    main()
-
-
 def render_gaussians_to_video(
     gaussian_files: List[str],
     output_path: str,
@@ -648,3 +644,7 @@ def create_comparison_video(
     
     out.release()
     print(f"Saved comparison video to {output_path}")
+
+
+if __name__ == "__main__":
+    main()

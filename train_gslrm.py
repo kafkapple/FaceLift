@@ -987,7 +987,7 @@ class GSLRMTrainer:
             # Primary metrics: main losses for optimization (always log)
             primary_losses = ["loss", "l2_loss", "psnr", "mask_iou", "l1_loss", "iou_loss"]
             # Secondary losses: may be 0 during warmup, log only when non-zero
-            secondary_losses = ["perceptual_loss", "ssim_loss", "lpips_loss", "background_loss", "alpha_loss"]
+            secondary_losses = ["perceptual_loss", "ssim_loss", "lpips_loss", "background_loss", "alpha_loss", "effective_rank_loss"]
             # Auxiliary metrics: debugging (skip constants like gt_min=0, gt_max=1)
             auxiliary_metrics = ["gt_mean", "pred_mean", "mask_coverage", "gaussians_usage"]
             # Ghosting metrics (NEW)

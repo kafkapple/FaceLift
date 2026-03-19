@@ -1,0 +1,61 @@
+# Example: Alpha loss sweep comparison
+#
+# Renders the same sample from multiple viewpoints using different
+# experiment checkpoints, then composites into comparison grids/videos.
+#
+# Usage:
+#   CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.visualization.comparison.compare \
+#       --config configs/comparison/example_alpha_sweep.yaml \
+#       --sample-dir /home/joon/data/preprocessed/FaceLift_mouse/M5t2/003240
+
+comparison:
+  name: "alpha_sweep_6v"
+  device: "cuda"
+
+  # Optional: default sample to render (can override via --sample-dir CLI)
+  # sample_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5t2/003240
+
+  experiments:
+    - name: "6v baseline"
+      checkpoint: checkpoints/gslrm/6view_v2/best_psnr.pt
+      # config_path: auto-discovered from checkpoint dir
+
+    - name: "6v alpha=0.5"
+      checkpoint: checkpoints/gslrm/6view_alpha05/best_psnr.pt
+
+  camera_presets:
+    # Full orbit — standard turntable comparison
+    - type: orbit_360
+      n_frames: 120
+      elevation: 20.0
+
+    # Bird's-eye view — shows top-down structure
+    - type: top_down
+      n_frames: 30
+      height: 2.5
+
+    # Bottom-up — shows ventral surface quality
+    - type: bottom_up
+      n_frames: 30
+
+    # Novel views — extreme angles not seen in training
+    - type: extrapolated_novel
+      n_frames: 60
+      elevation_range: [-30.0, 60.0]
+      distance_range: [1.5, 4.0]
+
+    # Body-follow — requires keypoints (skipped if not available)
+    # - type: body_follow
+    #   keypoint_idx: 0  # nose
+    #   offset: [0, 0.1, 0]
+    #   distance: 0.8
+    #   n_frames: 60
+
+  output:
+    grid_layout: [1, 2]   # rows x cols (1 row, 2 experiments side by side)
+    resolution: 512
+    fps: 30
+    output_dir: experiments/comparison/
+    save_video: true
+    save_frames: false     # individual frame PNGs (large)
+    save_strip: true       # temporal strip image

@@ -297,6 +297,72 @@ def compute_composite_loss(
         return F.mse_loss(pred_composite, gt_composite)
 
 
+def compute_effective_rank_loss(
+    scales: torch.Tensor,
+    target_rank: float = 3.0,
+    eps: float = 1e-8,
+    log_scale: bool = True,
+) -> torch.Tensor:
+    """
+    Effective Rank Regularization (ERR) to penalize pancake Gaussians.
+
+    Encourages Gaussians to have higher effective rank (more isotropic)
+    by maximizing the entropy of the normalized covariance eigenvalues.
+
+    Effective rank = exp(H) where H = -sum(p_i * log(p_i)) and p_i = s_i^2 / sum(s_j^2).
+    Range: [1.0, 3.0] where 1 = degenerate (needle/pancake), 3 = sphere.
+
+    Implementation note:
+        When scales are in log-space (log_s), the normalized eigenvalues become:
+            p_i = exp(2*log_s_i) / sum_j(exp(2*log_s_j)) = softmax(2*log_s)_i
+        This avoids numerical issues from explicit exp and is more stable.
+
+    Reference:
+        Roy & Bhattacharyya (2007), "Effective Rank" concept applied to
+        3D Gaussian Splatting regularization.
+
+    Args:
+        scales: Gaussian scales [B, N, 3] or [N, 3].
+        target_rank: Target effective rank (3.0 = sphere, default).
+        eps: Small constant for numerical stability.
+        log_scale: If True (default), treat input as log-scale values.
+                   GS-LRM's to_gs() returns log-scales (pre-exp activation).
+                   If False, treat as raw scale values.
+
+    Returns:
+        Scalar loss: mean(target_rank - effective_rank), >= 0.
+    """
+    if scales.numel() == 0:
+        return torch.tensor(0.0, device=scales.device)
+
+    # Flatten to [M, 3] for uniform handling
+    scales_flat = scales.reshape(-1, 3)
+
+    if log_scale:
+        # Use log-sum-exp trick for numerical stability:
+        # p_i = exp(2*log_s_i) / sum(exp(2*log_s_j)) = softmax(2*log_s)
+        log_eigenvalues = 2.0 * scales_flat  # [M, 3]
+        log_p = torch.nn.functional.log_softmax(log_eigenvalues, dim=-1)  # [M, 3]
+        p = torch.exp(log_p)  # [M, 3]
+    else:
+        # Raw scales: eigenvalues = s^2, then normalize
+        eigenvalues = scales_flat ** 2  # [M, 3]
+        eigenvalues_sum = eigenvalues.sum(dim=-1, keepdim=True)  # [M, 1]
+        p = eigenvalues / (eigenvalues_sum + eps)  # [M, 3]
+        log_p = torch.log(p + eps)
+
+    # Shannon entropy: H = -sum(p_i * log(p_i))
+    entropy = -(p * log_p).sum(dim=-1)  # [M]
+
+    # Effective rank = exp(H)
+    effective_rank = torch.exp(entropy)  # [M], range [1, 3]
+
+    # Loss: penalize low effective rank
+    loss = (target_rank - effective_rank).clamp(min=0.0).mean()
+
+    return loss
+
+
 def compute_silhouette_iou_loss(
     rendered_alpha: torch.Tensor,
     gt_mask: torch.Tensor,
