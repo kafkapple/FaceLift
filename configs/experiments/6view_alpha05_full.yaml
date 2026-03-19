@@ -1,0 +1,26 @@
+# 6-view + alpha=0.5 + FULL dataset (train+val+test)
+# Purpose: Maximum quality novel view generation using all 3600 frames
+# No held-out validation — train for fixed steps only
+model:
+  num_input_views: 6
+training:
+  dataset:
+    dataset_path: ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_all.txt
+  losses:
+    alpha_loss_weight: 0.5
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha05_full
+validation:
+  enabled: false
+wandb:
+  name: uniform_v2_6view_alpha05_full
+  tags:
+  - uniform_v2
+  - M5t2
+  - 6view_alpha
+  - seed42
+  - 6view
+  - alpha_supervision
+  - weight_0.5
+  - full_dataset
+  - novel_view_generation

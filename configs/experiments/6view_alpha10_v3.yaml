@@ -1,0 +1,21 @@
+# 6-view + alpha supervision (weight=1.0)
+# Purpose: Alpha loss sweep on 6-view model
+# Based on 4v alpha trend: best LPIPS (0.0147) and artifact suppression at alpha=1.0
+model:
+  num_input_views: 6
+training:
+  losses:
+    alpha_loss_weight: 1.0
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha10_v3
+wandb:
+  name: uniform_v2_6view_alpha10_v3
+  tags:
+  - uniform_v2
+  - M5t2
+  - 6view_alpha
+  - seed42
+  - 6view
+  - alpha_supervision
+  - weight_1.0
+  - novel_view_artifact_study

@@ -1,0 +1,21 @@
+# 6-view + alpha supervision (weight=0.3)
+# Purpose: Alpha loss sweep on 6-view model
+# Based on 4v alpha trend: PSNR -0.48 dB at alpha=0.3, minimal quality tradeoff
+model:
+  num_input_views: 6
+training:
+  losses:
+    alpha_loss_weight: 0.3
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3
+wandb:
+  name: uniform_v2_6view_alpha03_v3
+  tags:
+  - uniform_v2
+  - M5t2
+  - 6view_alpha
+  - seed42
+  - 6view
+  - alpha_supervision
+  - weight_0.3
+  - novel_view_artifact_study
