@@ -11,7 +11,6 @@ covariance matrix Sigma = R @ diag(exp(s))^2 @ R^T.
 
 Usage on gpu03:
     python -m mouse_extensions.behavior.extract_covariance_features
-    python -m mouse_extensions.behavior.extract_covariance_features --n_filter 2  # N>=2 visibility
 
 Output:
     - covariance_static.npy:   (N_frames, 22*7) per-joint shape features
@@ -94,8 +93,7 @@ def compute_gaussian_covariance(scale_raw, rotation_raw):
 
 
 def compute_per_joint_features(xyz, eigenvalues, scale, R, opacity,
-                               keypoints, n_joints=22, pruning_level=12500,
-                               vis_mask=None):
+                               keypoints, n_joints=22, pruning_level=12500):
     """Compute per-joint covariance-based features.
 
     Per joint (7d):
@@ -112,23 +110,16 @@ def compute_per_joint_features(xyz, eigenvalues, scale, R, opacity,
         assignments: (N,) per-Gaussian joint assignment
     """
     N = len(xyz)
+    op = opacity.flatten()
 
-    if vis_mask is not None:
-        # N>=2 multi-view visibility filter (preferred over opacity pruning)
-        idx = np.where(vis_mask)[0]
+    # Opacity-based pruning (foreground focus)
+    if N > pruning_level:
+        idx = np.argsort(op)[-pruning_level:]
         xyz = xyz[idx]
         eigenvalues = eigenvalues[idx]
         scale = scale[idx]
         R = R[idx]
-    else:
-        # Legacy: opacity-based pruning (foreground focus)
-        op = opacity.flatten()
-        if N > pruning_level:
-            idx = np.argsort(op)[-pruning_level:]
-            xyz = xyz[idx]
-            eigenvalues = eigenvalues[idx]
-            scale = scale[idx]
-            R = R[idx]
+        op = op[idx]
 
     # NN hard assignment
     dists = cdist(xyz, keypoints)  # (N, 22)
@@ -240,26 +231,12 @@ def main():
     parser = argparse.ArgumentParser(description="Extract covariance eigenvalue features")
     parser.add_argument("--npz_dir", default=str(FEATURES_DIR / "gaussians_raw"))
     parser.add_argument("--pruning_level", type=int, default=12500)
-    parser.add_argument("--n_filter", type=int, default=0,
-                        help="Multi-view visibility threshold (0=disabled, 2=recommended)")
-    parser.add_argument("--m5_dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5t",
-                        help="M5t frame directory (for visibility filter)")
     parser.add_argument("--output_dir", default=str(FEATURES_DIR / "covariance"))
     args = parser.parse_args()
 
     npz_dir = Path(args.npz_dir)
-    m5_dir = Path(args.m5_dir)
     output_dir = Path(args.output_dir)
-    if args.n_filter > 0:
-        output_dir = Path(str(output_dir) + f"_n{args.n_filter}")
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    use_vis_filter = args.n_filter > 0
-    if use_vis_filter:
-        from mouse_extensions.behavior.multiview_visibility_filter import compute_visibility_counts
-        print(f"Visibility filter: N>={args.n_filter} (multi-view)")
-    else:
-        print(f"Visibility filter: disabled (opacity pruning, level={args.pruning_level})")
 
     # Load keypoints → GS-LRM space
     from mouse_extensions.coordinate_utils import mammal_to_gslrm, assert_mammal_space, assert_gslrm_space
@@ -300,22 +277,11 @@ def main():
         # Compute covariance eigenvalues
         eigenvalues, scale, R = compute_gaussian_covariance(scale_raw, rotation_raw)
 
-        # Apply N>=2 multi-view visibility filter
-        vis_mask = None
-        if use_vis_filter:
-            frame_dir = str(m5_dir / f"{fi:06d}")
-            if Path(frame_dir).exists():
-                counts = compute_visibility_counts(xyz, frame_dir)
-                vis_mask = counts >= args.n_filter
-            else:
-                vis_mask = opacity.flatten() > 0.5  # fallback
-
         # Compute per-joint features
         kp = kp_all[fi]
         feat, _ = compute_per_joint_features(
             xyz, eigenvalues, scale, R, opacity, kp,
             pruning_level=args.pruning_level,
-            vis_mask=vis_mask,
         )
         static_features.append(feat)
 
@@ -378,9 +344,6 @@ def main():
                            "window_delta_std_ev1", "window_delta_std_ev2", "window_delta_std_ev3"],
         "dim_report": dim_report,
         "pruning_level": args.pruning_level,
-        "n_filter": args.n_filter,
-        "visibility_filter": use_vis_filter,
-        "m5_dir": str(m5_dir) if use_vis_filter else None,
         "n_frames": N,
         "extraction_time_s": round(time.time() - t0, 1),
     }
