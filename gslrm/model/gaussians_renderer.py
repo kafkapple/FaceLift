@@ -355,8 +355,8 @@ def add_row_labels_to_grid(
 def get_turntable_cameras(
     hfov=50,
     num_views=8,
-    w=384,
-    h=384,
+    w=512,
+    h=512,
     radius=2.7,
     elevation=20,
     elevation_end=None,  # For spiral/arc modes
@@ -1340,7 +1340,7 @@ deferred_gaussian_render = DeferredGaussianRender.apply
 
 @torch.no_grad()
 @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
-def render_turntable(pc: GaussianModel, rendering_resolution=384, num_views=8, elevation=20, radius=2.7,
+def render_turntable(pc: GaussianModel, rendering_resolution=512, num_views=8, elevation=20, radius=2.7,
                      trajectory_mode="turntable", elevation_end=None, center=None, clockwise=True):
     w, h, v, fxfycxcy, c2w = get_turntable_cameras(
         h=rendering_resolution, w=rendering_resolution, num_views=num_views,

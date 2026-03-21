@@ -77,7 +77,7 @@ NOVEL_VIEWS = {
     "side_low": {"elevation": -30.0, "azimuth": 90.0},
 }
 
-RENDER_RESOLUTION = 384
+RENDER_RESOLUTION = 512  # Must match GS-LRM training resolution for best quality
 TURNTABLE_RADIUS = 2.7
 
 # Paths

@@ -1,0 +1,39 @@
+# 6-View Grid Config: GT views and novel views as 2x3 grid
+# Generates two videos:
+#   1. GT 6-view grid (all 6 camera views, temporal flow)
+#   2. Novel 6-view grid (6 turntable elevations, temporal flow with render)
+
+global:
+  fps: 10
+  resolution: 512
+  bg_color: [0.0, 0.0, 0.0]
+  n_filter: 2
+  gt_view: 0
+  crossfade: 0.0
+  mask_border_color: null
+  keypoint_overlay: true
+
+model:
+  config: configs/base/gslrm_mouse.yaml
+  checkpoint: checkpoints/gslrm/base_uniform_v2_6view_v2/best_psnr.pt
+  m5_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5t
+  kp_path: /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz
+
+camera:
+  radius: 2.7
+  hfov: 50
+
+frame_range: "195:255"
+
+# Grid mode: renders all 6 views per frame as 2x3 grid
+grid_mode: true
+grid_views: [0, 1, 2, 3, 4, 5]
+
+segments:
+  - type: flow_gt
+    duration: 6.0
+    label: "GT 6-View"
+
+  - type: flow_render
+    duration: 6.0
+    label: "GS-LRM Reconstruction"

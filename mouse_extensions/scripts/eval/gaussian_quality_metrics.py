@@ -267,7 +267,7 @@ def extract_gaussians_from_checkpoint(
             c2w_t = torch.tensor(cam["c2w"], dtype=torch.float32, device=device)
             fxfy_t = torch.tensor(cam["fxfycxcy"], dtype=torch.float32, device=device)
             rendered = render_opencv_cam(
-                gaussians, height=384, width=384,
+                gaussians, height=512, width=512,
                 C2W=c2w_t, fxfycxcy=fxfy_t, bg_color=(1.0, 1.0, 1.0),
             )
             if "alpha" in rendered:

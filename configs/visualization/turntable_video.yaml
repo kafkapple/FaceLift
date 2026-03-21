@@ -4,7 +4,7 @@
 visualization:
   turntable:
     num_views: 64
-    resolution: 384
+    resolution: 512
     elevation: 20
     radius: 2.7
     trajectory_mode: dataset_cameras

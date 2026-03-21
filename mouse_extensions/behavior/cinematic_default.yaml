@@ -1,0 +1,82 @@
+# Cinematic Sequence Config v10 (final)
+
+global:
+  fps: 15
+  resolution: 512
+  bg_color: [1.0, 1.0, 1.0]
+  n_filter: 2
+  gt_view: 0
+  crossfade: 0.3
+  mask_border_color: null
+  keypoint_overlay: false
+
+model:
+  config: configs/base/gslrm_mouse.yaml
+  checkpoint: checkpoints/gslrm/base_uniform_v2_6view_v2/best_psnr.pt
+  m5_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5t
+  kp_path: /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz
+
+camera:
+  radius: 2.7
+  hfov: 50
+
+frame_range: "195:315"
+
+segments:
+  # --- Raw GT with original background + camera info ---
+  - type: flow_gt
+    duration: 3.0
+    raw: true
+    label: "GT Camera 0 | 6view_v2 | 512x512"
+
+  # --- Foreground mask overlay ---
+  - type: flow_mask
+    duration: 2.0
+    label: "Foreground Segmentation"
+
+  # --- GS-LRM render ---
+  - type: flow_render
+    duration: 3.0
+    label: "GS-LRM Reconstruction (N>=2 filter)"
+
+  # --- Slow turntable orbit ---
+  - type: freeze_orbit
+    duration: 8.0
+    elevation: 20
+    transition_frames: 15
+    label: "360-deg Turntable"
+
+  # --- Bottom view (-80 deg, slow orbit frozen) ---
+  - type: freeze_elev
+    duration: 6.0
+    start_elevation: -80
+    end_elevation: -80
+    label: "Bottom View (-80 deg)"
+
+  # --- Bottom view + temporal flow ---
+  - type: flow_orbit
+    duration: 4.0
+    elevation: -80
+    label: "Bottom View + Temporal Flow"
+
+  # --- Elevation sweep ---
+  - type: freeze_elev
+    duration: 3.0
+    start_elevation: -80
+    end_elevation: 80
+    label: "Elevation Sweep"
+
+  # --- Body-part isolation (face, torso, tail only) ---
+  - type: freeze_bodypart
+    duration: 12.0
+    parts: [face, torso, tail]
+    per_part_duration: 4.0
+    elevation: 25
+    zoom: 2.0
+    label: "Body-Part Isolation"
+
+  # --- Moving + orbit ---
+  - type: flow_orbit
+    duration: 4.0
+    elevation: 25
+    label: "Temporal Flow + Orbit"

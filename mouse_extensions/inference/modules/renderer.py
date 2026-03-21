@@ -11,7 +11,7 @@ class RendererModule:
 
     def __init__(
         self,
-        resolution: int = 384,
+        resolution: int = 512,
         num_views: int = 36,
         elevation: float = 20.0,
         radius: float = 2.7,

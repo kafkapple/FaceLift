@@ -8,7 +8,7 @@ visualization:
     num_views: 36             # 6x6 = 36
     grid_rows: 6
     grid_cols: 6
-    resolution: 384
+    resolution: 512
     elevation: 20
     radius: 2.7
     trajectory_mode: dataset_cameras

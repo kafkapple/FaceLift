@@ -365,3 +365,67 @@ H(A) = -Σ p(a) * log2(p(a))  (Shannon entropy of alpha histogram)
 ---
 
 *Alpha Loss & Novel View Artifact Analysis | v1.0 | 2026-03-16*
+
+## 10. 6-View Alpha Loss Results (2026-03-22)
+
+### 10.1 Training Status
+
+3개 6-view + alpha loss variant 학습 완료 (15840 steps each):
+
+| Variant | α Weight | Checkpoint |
+|---------|:--------:|-----------|
+| M5t2_6view_alpha03_v3 | 0.3 | `/node_data/.../ckpt_0000000000015840.pt` |
+| M5t2_6view_alpha05_v3 | 0.5 | `/node_data/.../ckpt_0000000000015840.pt` |
+| M5t2_6view_alpha10_v3 | 1.0 | `/node_data/.../ckpt_0000000000015840.pt` |
+
+### 10.2 GT-View Metrics (512×512, test set)
+
+| Model | PSNR↑ | SSIM↑ |
+|-------|:-----:|:-----:|
+| Baseline (α=0) | 34.00 ± 4.63 | 0.9898 |
+| **α=0.3** | **34.10 ± 4.56** | **0.9912** |
+| α=0.5 | 34.07 ± 4.46 | 0.9912 |
+| α=1.0 | 33.82 ± 4.30 | 0.9911 |
+
+> α=0.3이 PSNR/SSIM 모두 최고. α=1.0은 PSNR 미세 감소.
+
+### 10.3 Novel-View Artifact Metrics (512×512)
+
+| Model | FG Ratio↓ | Edge Density↓ |
+|-------|:---------:|:------------:|
+| Baseline | 0.0329 | 38.36 |
+| α=0.3 | 0.0318 | 37.76 |
+| α=0.5 | 0.0316 | 37.62 |
+| α=1.0 | 0.0314 | 37.93 |
+
+> Alpha loss → FG ratio 감소 (artifact 줄어듦). Edge density 감소 추세.
+
+### 10.4 Resolution Fix (2026-03-22)
+
+이전 렌더 해상도 384×384 → **512×512로 수정** (training resolution 일치).
+- PSNR +0.4 dB 향상 (33.64→34.00 baseline)
+- GT와 동일 해상도로 리사이즈 없이 직접 비교
+
+### 10.5 Gaussian Count (GS-LRM 6v, frame 3310)
+
+| Filter | Count |
+|--------|:-----:|
+| Total (512×512 × n_gaussians=2) | 1,048,578 |
+| Opacity > 0.01 (visible) | 36,380 (3.5%) |
+| Opacity > 0.5 (solid) | 4,571 (0.4%) |
+| N≥2 multiview filter | ~39K-73K |
+
+### 10.6 Result Files
+
+| Type | Location |
+|------|----------|
+| Grids (512) | `outputs/report/6v_alpha_comparison_512/grids/` |
+| Videos (512) | `outputs/report/6v_alpha_comparison_512/videos/` |
+| Metrics JSON | `outputs/report/6v_alpha_comparison_512/metrics/` |
+
+### 10.7 Conclusion
+
+- **α=0.3이 6-view에서 최적**: PSNR 최고 + artifact 감소
+- Alpha loss는 GT-view 품질을 유지하면서 novel view artifact를 줄임
+- 384→512 해상도 수정으로 이전 PSNR 값이 과소평가되었음을 확인
+

@@ -517,4 +517,144 @@ configs/mouse/uniform/
 ```
 
 
-*Commands Reference v1.0 | 2026-02-15*
+---
+
+## 13. Behavior Analysis: Gaussian Body-Part Features
+
+> **목표**: 3DGS 기반 body-part 분리 및 가우시안 파라미터 분석
+> **전제**: `extract_gaussian_raw.py`로 NPZ 추출 완료 (outputs/report/clustering/features/gaussians_raw/)
+> **키포인트**: MAMMAL 22-keypoint (v012345_kp22)
+
+### 13.1 가우시안 파라미터 분포 분석
+
+3D bone-segment distance 기반 body-part assignment + opacity/scale 분포 분석.
+Modality 판정: Hartigan's Dip Test + GMM BIC.
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# 기본 (4 frames 분석)
+python -m mouse_extensions.behavior.analyze_gaussian_distributions \
+    --frame-idx 0 500 1000 2000 \
+    --output-dir outputs/sdannce_poc/gaussian_distributions
+
+# 전체 분석 (특정 frame 지정)
+python -m mouse_extensions.behavior.analyze_gaussian_distributions \
+    --frame-idx 0 100 200 500 1000 1500 2000 2500 3000 3500 \
+    --output-dir outputs/sdannce_poc/gaussian_distributions
+```
+
+**출력**:
+- `frame_{idx}_distributions.png` — 4×3 패널 (global hist, violin, per-part KDE, BIC curve + summary table)
+- `distribution_analysis.json` — 전체 통계 + modality 판정 결과
+
+**해석**:
+- Dip p < 0.05 AND/OR GMM best_k > 1 → **Multimodal** (부위 내 이질 구조)
+- Multimodal opacity → 표면 모피 vs 내부 구조 분리 가능성
+- Multimodal scale → fine-grained vs coarse Gaussian 혼재
+
+### 13.2 View-Projected Filtering (BBox 모드)
+
+2D 프로젝션 후 body-part bounding box로 가우시안 필터링.
+
+```bash
+cd /home/joon/dev/FaceLift
+
+python -m mouse_extensions.behavior.view_projected_filtering \
+    --mode bbox \
+    --frame-idx 0 100 500 1000 2000 \
+    --view-idx 0 --padding-px 20 \
+    --output-dir outputs/sdannce_poc/view_projected_filtering
+```
+
+### 13.3 Radial Filtering + Radius Sweep
+
+원형 필터 + 반경 파라미터 sweep 그리드 시각화.
+BBox 대비 장점: 자연스러운 경계, 단일 파라미터 탐색.
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# 기본 sweep (7 radii: 10~100px)
+python -m mouse_extensions.behavior.view_projected_filtering \
+    --mode radial \
+    --radii 10 20 30 40 50 70 100 \
+    --frame-idx 0 500 1000 \
+    --output-dir outputs/sdannce_poc/radial_filtering
+
+# 세밀 sweep (face/paw 최적화)
+python -m mouse_extensions.behavior.view_projected_filtering \
+    --mode radial \
+    --radii 5 10 15 20 25 30 40 50 60 80 100 120 \
+    --frame-idx 0 500 1000 \
+    --output-dir outputs/sdannce_poc/radial_filtering_fine
+
+# 다른 카메라 뷰에서도 확인
+python -m mouse_extensions.behavior.view_projected_filtering \
+    --mode radial --view-idx 3 \
+    --radii 10 20 30 50 70 100 \
+    --frame-idx 0 500 \
+    --output-dir outputs/sdannce_poc/radial_filtering_view3
+```
+
+**출력**:
+- `frame_{idx}_radius_sweep.png` — Grid: rows=radii, cols=body parts + overview
+- `frame_{idx}_coverage_curve.png` — Coverage vs radius + per-part count curves
+- `filtering_summary.json` — 전체 sweep 통계
+
+**최적 radius 선택 기준**:
+- Coverage curve에서 90% 달성 반경 확인
+- Per-part count curve의 saturation point
+- 시각적으로 부위 경계가 자연스러운 반경
+
+### 13.4 Body-Part Gaussian Rendering (실제 splatting)
+
+GS splatting renderer로 body-part별 가우시안을 실제 렌더링 + 키포인트 오버레이.
+Grid: rows=body parts (+GT), columns=views.
+
+```bash
+cd /home/joon/dev/FaceLift
+
+# Body-part color (각 부위별 단색)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.behavior.render_bodypart_gaussians \
+    --frame-idx 0 500 1000 \
+    --views 0 2 4 \
+    --color-mode bodypart \
+    --output-dir outputs/sdannce_poc/bodypart_renders
+
+# Opacity colormap (viridis)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.behavior.render_bodypart_gaussians \
+    --frame-idx 0 500 \
+    --views 0 2 4 \
+    --color-mode opacity \
+    --output-dir outputs/sdannce_poc/bodypart_renders_opacity
+
+# Scale magnitude colormap (plasma)
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.behavior.render_bodypart_gaussians \
+    --frame-idx 0 500 \
+    --views 0 2 4 \
+    --color-mode scale \
+    --output-dir outputs/sdannce_poc/bodypart_renders_scale
+```
+
+**출력**: `frame_{idx}_{color_mode}.png` — (n_parts+1) × n_views grid
+
+### Dependency
+
+```bash
+pip install diptest  # Hartigan's Dip Test (optional, fallback 구현 있음)
+```
+
+### 출력 디렉토리
+
+```
+outputs/sdannce_poc/
+├── gaussian_distributions/   # 13.1: 분포 분석
+├── view_projected_filtering/ # 13.2: BBox 필터링
+├── radial_filtering/         # 13.3: Radial sweep
+└── radial_filtering_fine/    # 13.3: Fine-grained sweep
+```
+
+---
+
+*Commands Reference v2.0 | 2026-03-20*

@@ -1,8 +1,8 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-03-18 | **Version**: v15.0
-> **Active**: 47개 | **Archive**: 19개 (docs/_archive/, git history에 보존)
+> **Updated**: 2026-03-21 | **Version**: v16.0
+> **Active**: 50개 | **Archive**: 19개 (docs/_archive/, git history에 보존)
 >
 > **Phase Structure**: Phase 1 (MVDiff bottleneck) = 유지보수 | **Phase 2 (Novel View + Multi-Species) = 현재 포커스**
 >
@@ -50,6 +50,8 @@
 |------|------|:----:|------|
 | **[[experiments/PHASE2_NOVEL_VIEW_ROADMAP]]** | **Phase 2 로드맵**: Novel View + Multi-Species + NeurIPS Dataset Track | **✅ v2.0** | → mesh_gs_pair, KEYPOINT_3D |
 | **[[experiments/DIFIX_TRAINING_STRATEGY]]** | DiFix 3D+ 학습 전략: 2.5-stage curriculum, 3 pair types, data pipeline | **✅ v1.0** | → mesh_gs_pair, PHASE2 |
+| **[[experiments/TEMPORAL_CONSISTENCY_STUDY]]** | Temporal flickering 분석 + smoothing 방법 비교 (EMA/OptFlow/DeformV2) | **✅ v1.0** | → TEMPORAL_EVAL_STANDARD |
+| **[[experiments/TEMPORAL_EVAL_STANDARD]]** | Temporal 평가 기준 SSOT (프레임/뷰/메트릭) | **✅ v1.0** | → TEMPORAL_CONSISTENCY_STUDY |
 | **[[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss novel view artifact 억제 효과 분석 | **✅ v1.0** | → [[hypotheses/H6_ALPHA_MASK]], PHASE2 |
 | **[[experiments/fl_vs_ps_comparison]]** | FL vs PS 통합 비교 (9-exp) | **✅ v11** | → eval_protocol |
 | **[[experiments/hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v3.0 | → H4-H7 |
@@ -96,6 +98,7 @@
 | **[[guides/RESEARCH_EXPERIMENT_NOTES]]** | 연구 노트 (Lab Meeting용, 가설→실험→결과) | **✅ v1.0** |
 | [[guides/MOUSE_DATASET_GUIDE]] | MouseViewDataset 구현 참조 | ✅ |
 | **[[guides/PIPELINE_DEEP_DIVE]]** | mouse_extensions 코드 워크스루 Hub (MoC + Issues + QuickRef) | **✅ v3.0** |
+| **[[guides/VISUALIZATION_GUIDE]]** | 시각화 모듈 가이드 (cinematic, 6-view grid, N-filter, 배치) | **✅ v1.0** |
 
 #### guides/chapters/ (EXPERIMENT_MASTER_GUIDE 하위)
 
@@ -142,6 +145,15 @@
 > **이론 문서 → Obsidian으로 이동** (2026-03-17):
 > MULTIVIEW_DIFFUSION_THEORY → `Obsidian/docs/theory/`, MV_ADAPTER_TECHNICAL → `Obsidian/docs/research/`, SLIDES → `Obsidian/Presentation/`
 
+### outputs/reports/ (실험 보고서)
+
+| 문서 | 내용 | 상태 |
+|------|------|:----:|
+| **[[outputs/reports/260321_behaviorsplatter_comprehensive]]** | **BehaviorSplatter 종합 보고서**: N>=2 filter, opacity 분석, feature 필터링 부재 발견, 실험 계획, s-DANNCE 현황 | **✅ SSOT** |
+| [[outputs/reports/260320_gaussian_bodypart_analysis]] | Gaussian body-part 분포 분석 + bone-distance 한계 | ✅ |
+
+> **🔴 Critical**: 이전 covariance feature 실험에 GT mask 필터링 미적용 → 재검증 필수. 상세: [[outputs/reports/260321_behaviorsplatter_comprehensive]] §4
+
 ### mouse_extensions/docs/ (구현 상세)
 
 | 문서 | 내용 | 상태 |
@@ -170,6 +182,8 @@
 | **Report system** | `mouse_extensions/scripts/report/` | YAML→HTML 비교 레포트 자동 생성 |
 | **Fair eval** | `mouse_extensions/scripts/eval/fair_comparison.py` | Fair comparison metric 계산 |
 | **Camera follow** | `mouse_extensions/scripts/render_camera_follow.py` | 13 camera targets + body stabilization |
+| **Gaussian distributions** | `mouse_extensions/behavior/analyze_gaussian_distributions.py` | Per-body-part parameter analysis + modality tests |
+| **Radial filtering** | `mouse_extensions/behavior/view_projected_filtering.py --mode radial` | Radius sweep grid for body-part Gaussian filtering |
 
 ### _archive/ (Phase 1 보존)
 
