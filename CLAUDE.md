@@ -173,6 +173,31 @@ conda activate facelift
 | **허용 GPU** | `CUDA_VISIBLE_DEVICES=4,5,6,7` (4~7번만 사용) |
 | **동시 실행** | VRAM 허용 시 같은 GPU에서 2-3개 작업 가능 |
 
+### Data Directory Convention
+
+**GS-LRM 이미지 데이터** (기존 — 변경 없음):
+```
+/home/joon/data/
+├── raw/              # 원본 (영상, 이미지)
+├── preprocessed/     # 파이프라인 전처리 출력 (M3_2, M5t2 등)
+└── processed/        # 후처리
+```
+
+**s-DANNCE 행동 데이터** (별도 구조):
+```
+/home/joon/data/sdannce/
+├── mouse/
+│   ├── dataverse/    # Harvard Dataverse .mat 다운로드 원본 (keypoints + labels)
+│   └── features/     # 우리 추출 .npz (covariance, S1, S3 등)
+├── rat/
+│   ├── dataverse/    # Harvard Dataverse .mat 다운로드 원본
+│   └── features/     # 우리 추출 .npz
+└── metadata/         # cohort 메타데이터, HLAC 매핑 등
+```
+
+> ⚠️ s-DANNCE는 `preprocessed/`가 아닌 `sdannce/` 독립 경로 사용.
+> 이유: 행동 .mat ≠ 이미지 전처리. `dataverse/` = 출처 명시, `features/` = 우리 산출물.
+
 ---
 
 ## 4. Project Structure
