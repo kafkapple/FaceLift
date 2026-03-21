@@ -53,6 +53,12 @@ class ClusteringMetrics:
     nmi: float = float("nan")
     mi: float = float("nan")
 
+    # Flickering / Distribution
+    short_bout_ratio: float = 0.0  # fraction of bouts < threshold (flickering proxy)
+    short_bout_threshold_sec: float = 0.3  # default 300ms
+    bout_cv: float = 0.0  # coefficient of variation of bout durations
+    label_autocorrelation: float = float("nan")  # lag-1 autocorrelation
+
     # Statistical
     silhouette_ci_lower: float = float("nan")
     silhouette_ci_upper: float = float("nan")
@@ -115,6 +121,11 @@ def compute_all_metrics(
     m.tpi_per_cluster, m.tpi_mean = _compute_tpi(lab_v)
     m.entropy_rate = _entropy_rate(lab_v)
     m.temporal_consistency = _temporal_consistency(lab_v)
+
+    # === Flickering / Distribution ===
+    m.short_bout_ratio, m.bout_cv = _flickering_stats(lab_v, fps, threshold_sec=0.3)
+    m.short_bout_threshold_sec = 0.3
+    m.label_autocorrelation = _label_autocorrelation(lab_v)
 
     # === Supervised (if GT available) ===
     if gt_labels is not None:
@@ -221,6 +232,43 @@ def _temporal_consistency(labels: np.ndarray) -> float:
     transitions = np.sum(np.diff(labels) != 0)
     max_transitions = len(labels) - 1
     return float(1.0 - transitions / max_transitions)
+
+
+def _flickering_stats(
+    labels: np.ndarray, fps: float, threshold_sec: float = 0.3
+) -> tuple[float, float]:
+    """Compute flickering ratio and bout CV.
+
+    Args:
+        labels: cluster assignments
+        fps: frames per second
+        threshold_sec: bouts shorter than this are 'flickering'
+
+    Returns:
+        (short_bout_ratio, bout_cv)
+    """
+    changes = np.where(np.diff(labels) != 0)[0]
+    bout_lengths = np.diff(np.concatenate([[0], changes + 1, [len(labels)]]))
+    bouts_sec = bout_lengths / fps
+
+    if len(bouts_sec) == 0:
+        return 0.0, 0.0
+
+    short_ratio = float(np.mean(bouts_sec < threshold_sec))
+    cv = float(bouts_sec.std() / bouts_sec.mean()) if bouts_sec.mean() > 0 else 0.0
+    return short_ratio, cv
+
+
+def _label_autocorrelation(labels: np.ndarray, lag: int = 1) -> float:
+    """Label autocorrelation at given lag.
+
+    Measures temporal structure: high = labels persist over time.
+    Uses indicator match: corr = P(label[t] == label[t+lag]).
+    """
+    if len(labels) <= lag:
+        return float("nan")
+    matches = (labels[:-lag] == labels[lag:]).astype(float)
+    return float(matches.mean())
 
 
 def _bootstrap_silhouette(
@@ -374,3 +422,176 @@ def compare_methods_comprehensive(
         all_metrics[name] = m.to_dict()
 
     return all_metrics
+
+
+# === Advanced Statistical Tests ===
+
+
+def cohens_d(group_a: np.ndarray, group_b: np.ndarray) -> float:
+    """Compute Cohen's d effect size between two groups.
+
+    Uses pooled standard deviation. Interpretation:
+    |d| < 0.2 = negligible, 0.2-0.5 = small, 0.5-0.8 = medium, > 0.8 = large.
+    """
+    n_a, n_b = len(group_a), len(group_b)
+    if n_a < 2 or n_b < 2:
+        return float("nan")
+    var_a, var_b = group_a.var(ddof=1), group_b.var(ddof=1)
+    pooled_std = np.sqrt(((n_a - 1) * var_a + (n_b - 1) * var_b) / (n_a + n_b - 2))
+    if pooled_std == 0:
+        return 0.0
+    return float((group_a.mean() - group_b.mean()) / pooled_std)
+
+
+def mcnemar_test(labels_a: np.ndarray, labels_b: np.ndarray) -> dict:
+    """McNemar test for comparing two clusterings on the same data.
+
+    Tests whether the two methods disagree symmetrically. Useful when
+    both methods cluster the same frames and you want to know if the
+    disagreement pattern is significant.
+
+    Returns dict with chi2 statistic and p-value.
+    """
+    from scipy.stats import chi2 as chi2_dist
+
+    agree = labels_a == labels_b
+    # Build contingency: count frames where methods agree/disagree
+    # For behavior clustering: compare whether each pair of frames
+    # is co-clustered (same cluster) or not
+    n = min(len(labels_a), 2000)  # subsample for efficiency
+    rng = np.random.RandomState(42)
+    idx = rng.choice(len(labels_a), n, replace=False) if len(labels_a) > n else np.arange(len(labels_a))
+
+    la, lb = labels_a[idx], labels_b[idx]
+
+    # Pairwise co-clustering agreement
+    b_count = 0  # A says same, B says different
+    c_count = 0  # A says different, B says same
+    sample_pairs = min(5000, n * (n - 1) // 2)
+    pair_idx = rng.choice(n, (sample_pairs, 2), replace=True)
+
+    for i, j in pair_idx:
+        if i == j:
+            continue
+        a_same = la[i] == la[j]
+        b_same = lb[i] == lb[j]
+        if a_same and not b_same:
+            b_count += 1
+        elif not a_same and b_same:
+            c_count += 1
+
+    # McNemar statistic with continuity correction
+    if b_count + c_count == 0:
+        return {"chi2": 0.0, "p_value": 1.0, "b_count": b_count, "c_count": c_count}
+
+    chi2 = (abs(b_count - c_count) - 1) ** 2 / (b_count + c_count)
+    p_value = 1.0 - chi2_dist.cdf(chi2, df=1)
+
+    return {
+        "chi2": round(float(chi2), 4),
+        "p_value": round(float(p_value), 4),
+        "b_count": b_count,
+        "c_count": c_count,
+        "significant_005": p_value < 0.05,
+    }
+
+
+def bout_duration_distribution_test(
+    labels: np.ndarray, fps: float = 20.0
+) -> dict:
+    """Test whether bout durations follow an exponential distribution.
+
+    Exponential durations suggest memoryless (Poisson) transitions.
+    Non-exponential suggests structured/hierarchical behavior.
+
+    Returns KS test statistic and p-value.
+    """
+    from scipy.stats import kstest, expon
+
+    changes = np.where(np.diff(labels) != 0)[0]
+    bout_lengths = np.diff(np.concatenate([[0], changes + 1, [len(labels)]]))
+    bouts_sec = bout_lengths / fps
+
+    if len(bouts_sec) < 10:
+        return {"ks_statistic": float("nan"), "p_value": float("nan"), "is_exponential": False}
+
+    # Fit exponential and test
+    stat, p_value = kstest(bouts_sec, "expon", args=(0, bouts_sec.mean()))
+
+    return {
+        "ks_statistic": round(float(stat), 4),
+        "p_value": round(float(p_value), 4),
+        "is_exponential": p_value > 0.05,
+        "mean_bout_sec": round(float(bouts_sec.mean()), 4),
+        "n_bouts": len(bouts_sec),
+    }
+
+
+def label_autocorrelation_multi_lag(
+    labels: np.ndarray, max_lag_frames: int = 40, fps: float = 20.0
+) -> dict:
+    """Compute label autocorrelation at multiple lags.
+
+    Returns autocorrelation curve and decay time constant.
+    """
+    lags = list(range(1, min(max_lag_frames + 1, len(labels))))
+    autocorrs = []
+
+    for lag in lags:
+        matches = (labels[:-lag] == labels[lag:]).astype(float)
+        autocorrs.append(float(matches.mean()))
+
+    autocorrs = np.array(autocorrs)
+    lag_sec = [l / fps for l in lags]
+
+    # Estimate decay: find lag where autocorrelation drops below 1/e of initial
+    if len(autocorrs) > 0 and autocorrs[0] > 0:
+        threshold = autocorrs[0] / np.e
+        decay_idx = np.where(autocorrs < threshold)[0]
+        decay_time = lag_sec[decay_idx[0]] if len(decay_idx) > 0 else lag_sec[-1]
+    else:
+        decay_time = 0.0
+
+    return {
+        "lags_sec": [round(l, 3) for l in lag_sec],
+        "autocorrelations": [round(a, 4) for a in autocorrs],
+        "decay_time_sec": round(decay_time, 4),
+        "lag1_autocorr": round(autocorrs[0], 4) if len(autocorrs) > 0 else float("nan"),
+    }
+
+
+def transition_matrix(labels: np.ndarray) -> dict:
+    """Compute transition probability matrix and related statistics.
+
+    Returns transition matrix, stationary distribution, and
+    per-state self-transition probabilities.
+    """
+    unique = sorted(set(labels))
+    K = len(unique)
+    if K < 2:
+        return {"n_clusters": K}
+
+    label_map = {l: i for i, l in enumerate(unique)}
+    T = np.zeros((K, K))
+    for t in range(len(labels) - 1):
+        T[label_map[labels[t]], label_map[labels[t + 1]]] += 1
+
+    # Normalize rows
+    row_sums = T.sum(axis=1, keepdims=True)
+    row_sums[row_sums == 0] = 1
+    P = T / row_sums
+
+    # Stationary distribution
+    counts = np.zeros(K)
+    for l in labels:
+        counts[label_map[l]] += 1
+    pi = counts / counts.sum()
+
+    return {
+        "n_clusters": K,
+        "cluster_labels": unique,
+        "transition_matrix": [[round(float(p), 4) for p in row] for row in P],
+        "stationary_distribution": [round(float(x), 4) for x in pi],
+        "self_transition_probs": [round(float(P[i, i]), 4) for i in range(K)],
+        "count_matrix": [[int(c) for c in row] for row in T],
+    }

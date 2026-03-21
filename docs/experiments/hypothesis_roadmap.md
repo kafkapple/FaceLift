@@ -30,6 +30,7 @@
 | **H6** | 6v GS-LRM improves E2E over 4v | P1: 6v GS-LRM + MVDiff E2E | 8.44 vs 8.20 (+0.24 dB) | **Marginal** — MVDiff quality limits gains |
 | **H7** | More input views always better (GT) | View ablation 1v→6v | **6v (23.84) > 5v (22.16) — monotonic** | **Confirmed** — 6v optimal |
 | **H8** | Fewer MVDiff views → better per-view quality | 3-view E2E + 17-paper lit review | 3v novel=16.26 (-7.7 vs 6v); min viable=4v | **Rejected** — fewer views ≠ better quality |
+| **H9** | Dense feature temporal advantage over sparse | HY_Concat vs SP_RawPCA temporal metrics | SP_MAE (same sparse input) > HY_Concat on ALL temporal metrics | **Rejected** — temporal advantage = representation method, not dense input. See Obsidian [[260317_Core_Hypothesis_Dense_Temporal_Stability]] §9 |
 
 ## 2. Analysis Phase Findings
 

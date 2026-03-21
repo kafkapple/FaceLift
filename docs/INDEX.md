@@ -150,6 +150,7 @@
 | 문서 | 내용 | 상태 |
 |------|------|:----:|
 | **[[outputs/reports/260321_behaviorsplatter_comprehensive]]** | **BehaviorSplatter 종합 보고서**: N>=2 filter, opacity 분석, feature 필터링 부재 발견, 실험 계획, s-DANNCE 현황 | **✅ SSOT** |
+| — | **Behavior Metrics**: `mouse_extensions/behavior/metrics.py` — Silhouette, TPI, Entropy Rate, Bout stats, Short Bout Ratio, Autocorrelation, Cohen's d, McNemar, KS test 등 20+ metrics. Obsidian [[260317_Core_Hypothesis_Dense_Temporal_Stability]] §4 참조 | **✅ v2.0** |
 | [[outputs/reports/260320_gaussian_bodypart_analysis]] | Gaussian body-part 분포 분석 + bone-distance 한계 | ✅ |
 
 > **🔴 Critical**: 이전 covariance feature 실험에 GT mask 필터링 미적용 → 재검증 필수. 상세: [[outputs/reports/260321_behaviorsplatter_comprehensive]] §4

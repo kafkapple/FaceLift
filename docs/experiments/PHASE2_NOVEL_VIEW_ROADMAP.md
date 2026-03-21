@@ -272,7 +272,7 @@ Per species:
 | **P7** | Multi-species data prep (Rat7M) | NeurIPS 일반성 입증 | 3-5일 | — |
 | **P8** | Evaluation protocol 구축 (no-ref + pseudo-GT) | §3.5 메트릭 구현 | 2-3일 | P2 |
 | **P9** | s-DANNCE marmoset data | 3종 달성 | 5-7일 | P7 |
-| P10 | Behavior label integration | downstream task 입증 | 5-7일 | P5 |
+| P10 | ~~Behavior label integration~~ | ✅ **COMPLETED** (260322): metrics.py 20+ metrics 구현, HLAC probe CV=91.5%, N>=2 filter 적용. [[outputs/reports/260321_behaviorsplatter_comprehensive]] 참조 | — | — |
 | P11 | H7v2 E2E eval (Phase 1) | Phase 1 잔여, 비용 0 | 0.5일 | — |
 | P12 | Silhouette loss (Phase 1) | E2E 개선 | 3-5일 | — |
 
