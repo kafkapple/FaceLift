@@ -198,6 +198,12 @@ segments:
 기존 3DGS feature 논문(Feature 3DGS, LangSplat 등)은 전부 학습 기반 pruning에 의존.
 Feed-forward GS-LRM의 opacity=0.5 문제는 미탐구 영역 → multi-view consensus가 novel contribution.
 
+## Related
+
+- ↑ [[docs/INDEX]] — 문서 허브
+- ↔ [[outputs/reports/260321_behaviorsplatter_comprehensive]] — 종합 보고서 (N>=2 상세, 실험 계획)
+- ↔ [[outputs/reports/260320_gaussian_bodypart_analysis]] — Gaussian 분포 분석
+
 ---
 
 *BehaviorSplatter | Visualization Guide | 2026-03-21*
