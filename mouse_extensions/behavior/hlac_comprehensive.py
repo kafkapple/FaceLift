@@ -253,7 +253,7 @@ def main():
             "delta_vs_gauss": round(delta_g, 4),
             "p_vs_kp": round(p1, 4),
             "p_vs_gauss": round(p2, 4),
-            "complementary": is_comp,
+            "complementary": bool(is_comp),
         }
         status = "✅ YES" if is_comp else "❌ NO"
         print(f"  {clf_name}: Combined={np.mean(f1_combined):.4f}, "
