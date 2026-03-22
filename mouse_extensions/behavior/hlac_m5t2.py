@@ -43,6 +43,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 KP_PATH = "/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz"
 TEMPORAL_PATH = "outputs/report/clustering/features/temporal/temporal_features.npz"
 GAUSSIAN_RAW_PATH = "outputs/report/clustering/features/gaussian_raw_features.npz"
+COV_N2_STATIC_PATH = "outputs/report/clustering/features/covariance_n2/covariance_static.npy"
+COV_N2_TEMPORAL_PATH = "outputs/report/clustering/features/covariance_n2/covariance_temporal.npy"
 
 # MAMMAL 22 keypoint names
 KP_NAMES = None  # Loaded from data
@@ -78,6 +80,16 @@ def load_m5t2_data() -> Dict[str, np.ndarray]:
     gf_frame_idx = gf_data["frame_indices"]  # (3007,)
     print(f"  Gaussian raw: {gaussian_raw.shape}, frames {gf_frame_idx.min()}-{gf_frame_idx.max()}")
 
+    # Covariance N>=2 features (foreground-masked via multiview visibility)
+    cov_n2_static = None
+    cov_n2_temporal = None
+    if Path(COV_N2_STATIC_PATH).exists():
+        cov_n2_static = np.load(COV_N2_STATIC_PATH)  # (3585, 154)
+        cov_n2_temporal = np.load(COV_N2_TEMPORAL_PATH)  # (3585, 198)
+        print(f"  Covariance N>=2: static={cov_n2_static.shape}, temporal={cov_n2_temporal.shape}")
+    else:
+        print(f"  Covariance N>=2: NOT FOUND at {COV_N2_STATIC_PATH}")
+
     # Align to common frames (intersection of all three)
     # Temporal: frames 0..3584
     # Gaussian: frames 578..3599 (variable)
@@ -106,6 +118,10 @@ def load_m5t2_data() -> Dict[str, np.ndarray]:
     kp_indices = [kp_idx_map[f] for f in common_frames]
     keypoints_aligned = keypoints[kp_indices]
 
+    # Covariance alignment (indexed by frame number directly)
+    cov_static_aligned = cov_n2_static[common_arr] if cov_n2_static is not None else None
+    cov_temporal_aligned = cov_n2_temporal[common_arr] if cov_n2_temporal is not None else None
+
     # Body-centered normalization for keypoints
     center = keypoints_aligned[:, BODY_CENTER_JOINT:BODY_CENTER_JOINT+1, :]
     kp_centered = keypoints_aligned - center  # (N, 22, 3)
@@ -113,8 +129,11 @@ def load_m5t2_data() -> Dict[str, np.ndarray]:
 
     print(f"  Aligned: keypoints={kp_flat.shape}, temporal={temporal_aligned.shape}, "
           f"gaussian={gaussian_aligned.shape}")
+    if cov_static_aligned is not None:
+        print(f"  Covariance N>=2 aligned: static={cov_static_aligned.shape}, "
+              f"temporal={cov_temporal_aligned.shape}")
 
-    return {
+    result = {
         "kp_raw": keypoints_aligned,
         "kp_centered": kp_centered,
         "kp_flat": kp_flat,  # body-centered, flattened (N, 66)
@@ -122,12 +141,18 @@ def load_m5t2_data() -> Dict[str, np.ndarray]:
         "temporal_centroid": temporal_centroid_aligned,  # 7d
         "temporal_bodypart": temporal_bodypart_aligned,  # 88d
         "temporal_rigid": temporal_rigid_aligned,  # 25d
-        "gaussian_raw": gaussian_aligned,  # 31d
+        "gaussian_raw": gaussian_aligned,  # 31d (NO foreground masking)
         "fps": fps,
         "n_frames": len(common_frames),
         "frame_indices": common_arr,
         "kp_names": kp_names,
     }
+    # Foreground-masked features (N>=2 multiview visibility filter)
+    if cov_static_aligned is not None:
+        result["cov_n2_static"] = cov_static_aligned    # 154d
+        result["cov_n2_temporal"] = cov_temporal_aligned  # 198d
+        result["cov_n2_combined"] = np.hstack([cov_static_aligned, cov_temporal_aligned])  # 352d
+    return result
 
 
 def generate_hlacs(
@@ -354,8 +379,17 @@ def main():
         "Temporal_centroid": data["temporal_centroid"],  # 7d
         "Temporal_bodypart": data["temporal_bodypart"],  # 88d
         "Temporal_rigid": data["temporal_rigid"],  # 25d
-        "Gaussian_raw": data["gaussian_raw"],      # 31d ← KEY comparison
+        "Gaussian_raw": data["gaussian_raw"],      # 31d (NO fg mask)
     }
+    # Foreground-masked features (N>=2 multiview visibility filter)
+    if "cov_n2_static" in data:
+        feature_sets_a["Cov_N2_static"] = data["cov_n2_static"]     # 154d (fg-masked)
+        feature_sets_a["Cov_N2_temporal"] = data["cov_n2_temporal"]  # 198d (fg-masked)
+        feature_sets_a["Cov_N2_combined"] = data["cov_n2_combined"]  # 352d (fg-masked)
+        # Combined: KP + foreground Gaussian
+        feature_sets_a["KP+Cov_N2"] = np.hstack([
+            data["kp_flat"], data["cov_n2_static"]
+        ])  # 66+154=220d — complementarity test
     clf_a = run_classification(feature_sets_a, labels_kp, target_k, args.seed)
 
     # 5. Classification probe — GAUSSIAN-defined HLACs → Feature Probe

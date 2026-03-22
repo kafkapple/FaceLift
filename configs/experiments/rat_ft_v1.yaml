@@ -1,0 +1,23 @@
+# Rat Fine-Tuning v1
+# Transfer from mouse α=0.3 6-view checkpoint → rat domain
+# Lower LR for domain adaptation, keep alpha loss
+model:
+  num_input_views: 6
+training:
+  losses:
+    alpha_loss_weight: 0.3
+  schedule:
+    max_fwdbwd_passes: 5000
+  optimizer:
+    lr: 5e-5  # 1/10 of mouse training LR
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/rat_ft_v1
+    resume_from: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+wandb:
+  name: rat_ft_v1_alpha03
+  tags:
+  - rat
+  - fine_tuning
+  - alpha_0.3
+  - 6view
+  - sdannce

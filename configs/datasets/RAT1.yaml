@@ -1,0 +1,31 @@
+# Dataset: RAT1
+# SCN2A_WK1 lone rat, s-DANNCE → GS-LRM converted, SAM2 masked
+# Generated: 2026-03-22
+
+_name: RAT1
+_description: "Lone rat (SCN2A_WK1) fine-tuning dataset from s-DANNCE pipeline"
+_category: sdannce_rat
+_preprocessing:
+  paradigm: sdannce_to_gslrm
+  transform: zero_pad_1920sq
+  target_fx: 605  # slight mismatch from trained 549 (1.1x)
+  output_size: 512
+  split_strategy: temporal_80_10_10
+
+training:
+  dataset:
+    dataset_path: outputs/sdannce_rat_ft/gslrm_format/data_sdannce_train.txt
+
+validation:
+  dataset_path: outputs/sdannce_rat_ft/gslrm_format/data_sdannce_val.txt
+
+test:
+  dataset_path: outputs/sdannce_rat_ft/gslrm_format/data_sdannce_test.txt
+
+_stats:
+  num_total: 1001
+  num_train: 800
+  num_val: 100
+  num_test: 101
+  split_ratios: [0.8, 0.1, 0.1]
+  source: "s-DANNCE SCN2A_WK1_2022_09_16_M1, step=90, 6 cameras"
