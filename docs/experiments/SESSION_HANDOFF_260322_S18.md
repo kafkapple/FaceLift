@@ -35,14 +35,28 @@
 | α=0.5 | 24.24 | 0.964 |
 | α=1.0 | 23.41 | 0.959 |
 
-**View ablation (vs 6v baseline)**:
+**View ablation — Inference-time (6v 모델에 N개 view 슬라이싱, vs 6v baseline)**:
 
 | Views | PSNR | IoU | DiFix 필요도 |
 |:-----:|:----:|:---:|:----------:|
-| 5v, 4v | 50.00 | 1.000 | 불필요 (동일) |
+| 5v, 4v | 50.00 | 1.000 | 불필요 (**pixel-identical**, MD5 동일) |
 | 3v | 21.33 | 0.921 | 낮음 |
 | 2v | 15.04 | 0.795 | 중간 |
 | 1v | 7.05 | 0.402 | 높음 |
+
+> **Note**: 5v/4v가 6v와 완전 동일한 이유: 6-view 학습 모델에서 5번째/6번째 view 정보가 redundant. 3v부터 critical threshold 이하.
+> **H4 학습 시 ablation**(전용 N-view 모델, 384res)과 비교: 학습 시 1v=10.47 > 추론 시 1v=7.05 (+3.4dB). 학습 시 전용 모델이 저뷰에서 더 강건.
+
+**Gaussian Artifact Metrics (3-frame sample)**:
+
+| Metric | Baseline | α=0.3 | α=0.5 | α=1.0 |
+|--------|:--------:|:-----:|:-----:|:-----:|
+| Alpha Entropy (top) | 4.44 | **0.27** | 0.31 | 0.37 |
+| Opacity Ambiguity % | 0.84 | **0.75** | 0.74 | 0.73 |
+| Aniso Ratio (mean) | **70K** | 110K | 95K | 80K |
+
+> Alpha loss → Alpha Entropy **16× 감소** (깔끔한 렌더링), Anisotropy 증가 (elongated Gaussians).
+> **α=0.3이 entropy 최소 + PSNR 최고의 균형점**.
 
 ---
 
@@ -159,4 +173,21 @@ BUT: cv2.projectPoints()는 DANNCE 캘리브에서 사용 금지!
 
 ---
 
-*Handoff by S18 | 2026-03-22 08:30 KST*
+## 7. 시각화 산출물 경로 (gpu03)
+
+| 산출물 | 경로 |
+|--------|------|
+| 10-condition 비교 그리드 | `outputs/datasets/novel_view_512/comparison_grids/*.png` |
+| 비교 영상 | `outputs/datasets/novel_view_512/comparison_grids/alpha_ablation_comparison.mp4` |
+| Fair eval JSON | `outputs/datasets/novel_view_512/fair_eval_512_vs6v.json` |
+| Gaussian quality JSON | `outputs/reports/gaussian_quality_512/gaussian_quality_comparison.json` |
+| Rat smoke test 렌더 | `outputs/sdannce_smoke_test/gslrm_v3_lone/render_cam0_f0.png` |
+| Rat 6-view KP overlay | `outputs/sdannce_smoke_test/gslrm_v3_lone/diagnostics/6view_kp_correct_*.png` |
+| SAM2 마스크 영상 | `SCN2A_WK1_.../sam2_masks/overlay_6cam_grid.mp4` |
+| SAM2 마스크 그리드 | `gslrm_v3_lone/diagnostics/mask_overlay_*.png` |
+| DiFix 512 pairs | `outputs/datasets/difix_pairs_512/` (43.2K, symlink) |
+| DiFix 전략 문서 | `docs/experiments/DIFIX_TRAINING_STRATEGY.md` v1.0 |
+
+---
+
+*Handoff by S18 | 2026-03-22 15:30 KST (updated)*
