@@ -231,4 +231,91 @@ Rat GT render가 없으므로:
 
 ---
 
-*FaceLift | Rat Fine-Tuning Data Guide | 2026-03-22*
+---
+
+## 9. SAM2 Annotation Workflow (General — 재사용 가이드)
+
+향후 새로운 s-DANNCE 세션(다른 rat, marmoset 등)에서 SAM2 마스크를 생성할 때의 워크플로우.
+
+### 전제 조건
+
+| 항목 | 요구사항 |
+|------|----------|
+| **Conda env** | `sdannce` (Python 3.10, torch 2.4.1+cu121, sam2 설치됨) |
+| **프로젝트** | `gpu03:/home/joon/dev/sdannce-poc/` |
+| **DANNCE keypoints** | `.mat` 파일 (3D keypoints + calibration 필수) |
+| **비디오** | `videos/Camera{1-6}/0.mp4` (DANNCE 표준 구조) |
+| **GPU** | A6000 1개 (VRAM ~8GB for SAM2-Large) |
+
+### 데이터 경로 규칙
+
+```
+/home/joon/data/sdannce/{species}/dataverse/{SESSION_NAME}/
+├── videos/Camera{1-6}/0.mp4          # Source video
+├── SDANNCE/bsl0.5_FM/save_data_AVG0.mat  # 3D keypoints
+├── calibration/                        # Camera params
+└── sam2_masks/                         # ★ Output goes here
+    ├── Camera{1-6}/
+    │   ├── mask_000000.npz            # Binary mask per frame
+    │   ├── mask_000090.npz
+    │   └── ...
+    └── overlay_6cam_grid.mp4          # QC video
+```
+
+> **규칙**: SAM2 마스크는 항상 **세션 디렉토리 내** `sam2_masks/`에 저장.
+> 이유: 원본 데이터와 동일 위치에 두면 `sdannce_to_gslrm.py`에서 `--sam2_mask_dir` 지정이 간편.
+
+### 새 세션 작업 순서
+
+```bash
+# 0. 변수 설정
+SPECIES=rat  # or mouse, marmoset
+SESSION=SCN2A_WK1_2022_09_16_M1
+SESSION_DIR=/home/joon/data/sdannce/${SPECIES}/dataverse/${SESSION}
+GPU=5  # SAM2 용
+
+# 1. 데이터 확인
+ls ${SESSION_DIR}/videos/Camera*/0.mp4
+ls ${SESSION_DIR}/SDANNCE/bsl0.5_FM/save_data_AVG0.mat
+
+# 2. SAM2 마스크 생성 (kp_sam2_lone.py)
+cd /home/joon/dev/sdannce-poc
+conda activate sdannce
+CUDA_VISIBLE_DEVICES=${GPU} python segmentation/kp_sam2_lone.py \
+    --session_dir ${SESSION_DIR} \
+    --output ${SESSION_DIR}/sam2_masks \
+    --cameras 1,2,3,4,5,6 \
+    --start 0 --end 90000 --step 90
+
+# 3. QC: overlay 영상 확인
+# 자동 생성됨: ${SESSION_DIR}/sam2_masks/overlay_6cam_grid.mp4
+
+# 4. GS-LRM 변환 (facelift env로 전환)
+cd /home/joon/dev/FaceLift
+conda activate facelift
+python -m mouse_extensions.scripts.sdannce_to_gslrm \
+    --session_dir ${SESSION_DIR} \
+    --output_dir outputs/sdannce_${SPECIES}_ft/gslrm_format \
+    --animal_id 1 \
+    --frame_indices $(python3 -c "print(' '.join(str(i) for i in range(0, 90000, 90)))") \
+    --sam2_mask_dir ${SESSION_DIR}/sam2_masks
+```
+
+### 소요 시간 (A6000 기준)
+
+| 단계 | 1000 frames × 6 cams |
+|------|:--------------------:|
+| SAM2 마스크 생성 | ~30분 |
+| GS-LRM 변환 | ~15분 |
+| **합계** | ~45분 |
+
+### 주의사항
+
+1. **Conda env 혼용 금지**: `sdannce`(SAM2) ↔ `facelift`(GS-LRM) 전환 필수
+2. **꼬리 마스크 품질**: Rat의 긴 꼬리는 SAM2가 놓칠 수 있음. QC 영상에서 확인
+3. **Multi-animal**: 현재 `kp_sam2_lone.py`는 single animal 전용. Social pair는 `sam2_propagate.py` 적응 필요
+4. **Frame step**: 90K frames 전체가 아닌 step=90 (1000 frames) 권장. Pose diversity가 중요하면 k-means sampling 사용
+
+---
+
+*FaceLift | Rat Fine-Tuning Data Guide | v1.1 | 2026-03-22*
