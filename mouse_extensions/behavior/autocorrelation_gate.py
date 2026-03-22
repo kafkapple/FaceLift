@@ -203,7 +203,8 @@ def run_gate(features_path, output_dir, fps=50):
 
 
 if __name__ == '__main__':
-    features_path = '/home/joon/dev/FaceLift/outputs/report/clustering/features/covariance/covariance_static.npy'
-    output_dir = '/home/joon/dev/FaceLift/outputs/report/clustering/autocorrelation_gate'
+    from mouse_extensions.paths import FEATURES_BASE, REPORT_BASE
+    features_path = str(FEATURES_BASE / "covariance" / "covariance_static.npy")
+    output_dir = str(REPORT_BASE / "autocorrelation_gate")
 
     results = run_gate(features_path, output_dir, fps=50)

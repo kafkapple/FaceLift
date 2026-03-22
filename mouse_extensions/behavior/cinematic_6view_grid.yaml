@@ -17,7 +17,7 @@ model:
   config: configs/base/gslrm_mouse.yaml
   checkpoint: checkpoints/gslrm/base_uniform_v2_6view_v2/best_psnr.pt
   m5_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5t
-  kp_path: /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz
+  kp_path: ~/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz
 
 camera:
   radius: 2.7

@@ -19,7 +19,8 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 # ==================== DATA ====================
-kp_all = np.load("/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz",
+from mouse_extensions.paths import KP_22
+kp_all = np.load(str(KP_22),
                  allow_pickle=True)
 kp_raw = kp_all["keypoints"]
 kp_names = list(kp_all["keypoint_names"])

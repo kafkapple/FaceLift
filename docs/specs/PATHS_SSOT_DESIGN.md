@@ -1,7 +1,8 @@
 # paths.py SSOT Design — Centralized Path Management
 
-> **Status**: DESIGNED (구현 대기) | **Priority**: P1 | **Blast Radius**: 38+ files
-> **Prerequisite**: Rat FT 학습 완료 후 구현 (실행 중 paths.py 변경 시 checkpoint 오류 위험)
+> **Status**: ✅ IMPLEMENTED (Phase 0-2 완료, 260322 S25) | **Priority**: P1
+> features/ 디렉토리 `outputs/report/clustering/features/` → `outputs/features/clustering/` 이동 완료
+> 30+ 파일 hardcoded path → SSOT import 변환 완료
 
 ---
 
@@ -67,12 +68,13 @@ OUTPUTS     = PROJECT / "outputs"
 CONFIGS     = PROJECT / "configs"
 REPORT_BASE = OUTPUTS / "report/clustering"
 
-# === Feature Paths (clustering analysis) ===
-FEATURES_DIR    = REPORT_BASE / "features"
-GAUSSIAN_RAW    = FEATURES_DIR / "gaussian_raw_features.npz"
-COV_N2_STATIC   = FEATURES_DIR / "covariance_n2/covariance_static.npy"
-COV_N2_TEMPORAL  = FEATURES_DIR / "covariance_n2/covariance_temporal.npy"
-TEMPORAL_FEATURES = FEATURES_DIR / "temporal/temporal_features.npz"
+# === Feature Paths (moved to outputs/features/) ===
+FEATURES_BASE   = OUTPUTS / "features" / "clustering"
+FEATURES_DIR    = FEATURES_BASE
+GAUSSIANS_RAW_DIR = FEATURES_BASE / "gaussians_raw"
+GAUSSIAN_RAW_FEATURES = FEATURES_BASE / "gaussian_raw_features.npz"
+COV_N2_DIR      = FEATURES_BASE / "covariance_n2"
+TEMPORAL_DIR    = FEATURES_BASE / "temporal"
 
 # === Validation ===
 def validate(*paths: Path) -> list[Path]:

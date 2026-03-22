@@ -226,7 +226,8 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load data
-    kp_path = "/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz"
+    from mouse_extensions.paths import KP_22
+    kp_path = str(KP_22)
     print(f"Loading {kp_path}")
     data = np.load(kp_path, allow_pickle=True)
     kp_raw = data["keypoints"]

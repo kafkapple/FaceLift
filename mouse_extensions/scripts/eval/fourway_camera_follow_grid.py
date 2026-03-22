@@ -49,8 +49,9 @@ def main():
                         default="/home/joon/dev/FaceLift/outputs/camera_follow/ps_6v_renders")
     parser.add_argument("--traj_path",
                         default="/home/joon/dev/FaceLift/outputs/camera_follow/trajectory.npz")
+    from mouse_extensions.paths import KP_22
     parser.add_argument("--gt_kp_path",
-                        default="/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz")
+                        default=str(KP_22))
     parser.add_argument("--output_dir",
                         default="/home/joon/dev/FaceLift/outputs/camera_follow")
     parser.add_argument("--fps", type=int, default=10)

@@ -8,7 +8,7 @@ Usage:
     CUDA_VISIBLE_DEVICES=4 /home/joon/anaconda3/envs/facelift/bin/python3 \
         mouse_extensions/scripts/visualize_keypoint_inference.py \
         --checkpoint base_uniform_v2_6view_v2 \
-        --keypoints_npz /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz \
+        --keypoints_npz <KP_22 from mouse_extensions.paths> \
         --data_txt ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_test.txt \
         --frames 3240 3280 3320 3360 3400 \
         --output_dir /node_data/joon/outputs/FaceLift/keypoint_viz

@@ -281,8 +281,9 @@ def main():
     parser.add_argument("--fl_dir", required=True)
     parser.add_argument("--ps_dir", required=True)
     parser.add_argument("--gt_dir", required=True)
+    from mouse_extensions.paths import KP_22
     parser.add_argument("--gt_kp_path",
-                        default="/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz")
+                        default=str(KP_22))
     parser.add_argument("--output_dir", required=True)
     parser.add_argument("--frames", nargs="+",
                         default=["003240", "003300", "003360", "003420", "003480", "003540", "003599"])

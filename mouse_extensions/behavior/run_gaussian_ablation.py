@@ -9,7 +9,7 @@ Metrics: Full suite via compute_all_metrics() — Sil, CH, DB, TPI, Entropy Rate
 
 Usage:
     python -m mouse_extensions.behavior.run_gaussian_ablation \
-        --npz_dir outputs/report/clustering/features/gaussians_raw \
+        --npz_dir outputs/features/clustering/gaussians_raw \
         --levels 1000 5000 12500 50000 200000
 """
 

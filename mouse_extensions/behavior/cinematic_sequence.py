@@ -23,6 +23,7 @@ Usage:
 import argparse
 import copy
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -346,8 +347,8 @@ class CinematicPipeline:
         self.cam_cfg = cfg.get("camera", {})
         self.radius = self.cam_cfg.get("radius", 2.7)
         self.hfov = self.cam_cfg.get("hfov", 50)
-        self.m5 = cfg["model"]["m5_dir"]
-        self.kp = cfg["model"]["kp_path"]
+        self.m5 = os.path.expanduser(cfg["model"]["m5_dir"])
+        self.kp = os.path.expanduser(cfg["model"]["kp_path"])
         self.kp_overlay = self.g.get("keypoint_overlay", False)
         self.border_color = self.g.get("mask_border_color", None)
 

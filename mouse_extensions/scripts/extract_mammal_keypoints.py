@@ -8,8 +8,8 @@ Usage:
     CUDA_VISIBLE_DEVICES=4 /home/joon/anaconda3/envs/mammal_stable/bin/python3 \
         mouse_extensions/scripts/extract_mammal_keypoints.py \
         --mammal_dir /home/joon/dev/MAMMAL_mouse \
-        --params_dir /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/params \
-        --output /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz
+        --params_dir <KP_22.parent from mouse_extensions.paths>/params \
+        --output <KP_22 from mouse_extensions.paths>
 """
 
 import argparse

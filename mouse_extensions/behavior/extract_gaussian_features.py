@@ -207,7 +207,8 @@ def cluster_and_compare(features_path: str, output_dir: str):
 
     # Also compare with sparse baseline on SAME frames (test set only)
     print("\n--- Sparse baseline on same frames (test set) ---")
-    kp_path = "/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz"
+    from mouse_extensions.paths import KP_22
+    kp_path = str(KP_22)
     kp_data = np.load(kp_path, allow_pickle=True)
     kp_all = kp_data["keypoints"]
 

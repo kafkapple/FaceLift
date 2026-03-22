@@ -48,7 +48,8 @@ def main():
     parser = argparse.ArgumentParser(description="6-View Grid Video Generator")
     parser.add_argument("--frame-range", default="195:255")
     parser.add_argument("--m5-dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5t")
-    parser.add_argument("--kp-path", default="/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz")
+    from mouse_extensions.paths import KP_22
+    parser.add_argument("--kp-path", default=str(KP_22))
     parser.add_argument("--config-path", default="configs/base/gslrm_mouse.yaml")
     parser.add_argument("--checkpoint", default="checkpoints/gslrm/base_uniform_v2_6view_v2/best_psnr.pt")
     parser.add_argument("--output-dir", default="outputs/sdannce_poc/6view_grid")

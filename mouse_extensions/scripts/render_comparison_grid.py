@@ -18,7 +18,7 @@ Usage:
         --gt-dir ~/data/preprocessed/FaceLift_mouse/M5t2 \
         --fl-dir outputs/tier_comparison/gslrm_6view_test/samples \
         --ps-dir /tmp/ps_renders \
-        --mammal-3d /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz \
+        --mammal-3d <KP_22 from mouse_extensions.paths> \
         --cam-pkl ~/data/raw/markerless_mouse_1_nerf/new_cam.pkl \
         --output-dir outputs/comparison_grids
 

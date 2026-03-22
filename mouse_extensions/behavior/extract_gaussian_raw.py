@@ -7,7 +7,7 @@ Usage on gpu03:
     CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.behavior.extract_gaussian_raw \
         --start_frame 0 --end_frame 3600
 
-Output: outputs/report/clustering/features/gaussians_raw/{frame:06d}.npz (~8MB each)
+Output: outputs/features/clustering/gaussians_raw/{frame:06d}.npz (~8MB each)
 """
 
 import argparse

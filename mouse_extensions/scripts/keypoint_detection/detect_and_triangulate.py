@@ -11,7 +11,7 @@ Usage:
         --render_dir ~/outputs/neural_triangulation/renders/12views \
         --mmpose_config configs/mmpose/hrnet_w48_mouse_22kp.py \
         --mmpose_checkpoint work_dirs/hrnet_w48_mouse_22kp/best_coco_AP.pth \
-        --gt_3d_path /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz \
+        --gt_3d_path <KP_22 from mouse_extensions.paths> \
         --output_dir ~/outputs/neural_triangulation/results
 """
 
@@ -371,10 +371,9 @@ def main():
                         help="MMPose config file path")
     parser.add_argument("--mmpose_checkpoint", type=str, required=True,
                         help="MMPose checkpoint file path")
+    from mouse_extensions.paths import KP_22
     parser.add_argument("--gt_3d_path", type=str,
-                        default=os.path.expanduser(
-                            "/node_data/joon/data/results/MAMMAL_mouse/"
-                            "v012345_kp22_20260126/keypoints_22_3d.npz"),
+                        default=str(KP_22),
                         help="Path to MAMMAL 3D GT NPZ")
     parser.add_argument("--output_dir", type=str,
                         default=os.path.expanduser(

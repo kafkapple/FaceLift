@@ -709,6 +709,7 @@ def plot_noise_experiment(
 def main():
     """Run GT view experiment from command line."""
     import argparse
+    from mouse_extensions.paths import KP_22
 
     parser = argparse.ArgumentParser(
         description="Triangulation accuracy analysis with DANNCE 2D & MAMMAL 3D"
@@ -728,8 +729,7 @@ def main():
     parser.add_argument(
         "--mammal-3d",
         type=str,
-        default="/node_data/joon/data/results/MAMMAL_mouse/"
-                "v012345_kp22_20260126/keypoints_22_3d.npz",
+        default=str(KP_22),
         help="Path to MAMMAL 3D keypoints npz",
     )
     parser.add_argument(

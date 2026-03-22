@@ -19,7 +19,7 @@ Usage:
     CUDA_VISIBLE_DEVICES=4 /home/joon/anaconda3/envs/facelift/bin/python3 \
         mouse_extensions/scripts/render_camera_follow.py \
         --checkpoint base_uniform_v2_6view_v2 \
-        --keypoints_npz /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz \
+        --keypoints_npz <KP_22 from mouse_extensions.paths> \
         --data_txt ~/data/preprocessed/FaceLift_mouse/M5/data_mouse_t2_test.txt \
         --start_frame 3240 --num_frames 200 \
         --output_dir /home/joon/dev/FaceLift/outputs/camera_follow

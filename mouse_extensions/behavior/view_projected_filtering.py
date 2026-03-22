@@ -735,9 +735,10 @@ def main():
     parser.add_argument("--padding-px", type=int, default=20, help="BBox padding in pixels")
     parser.add_argument("--radii", nargs="+", type=float, default=[10, 20, 30, 40, 50, 70, 100],
                         help="Radii to sweep in radial mode (pixels)")
-    parser.add_argument("--gauss-dir", default="outputs/report/clustering/features/gaussians_raw")
+    from mouse_extensions.paths import KP_22, GAUSSIANS_RAW_DIR
+    parser.add_argument("--gauss-dir", default=str(GAUSSIANS_RAW_DIR))
     parser.add_argument("--kp-path",
-                        default="/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz")
+                        default=str(KP_22))
     parser.add_argument("--m5-dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5")
     parser.add_argument("--output-dir", default="outputs/sdannce_poc/view_projected_filtering")
     args = parser.parse_args()

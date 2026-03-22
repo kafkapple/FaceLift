@@ -39,12 +39,14 @@ from sklearn.preprocessing import StandardScaler
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# M5t2 data paths (gpu03)
-KP_PATH = "/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz"
-TEMPORAL_PATH = "outputs/report/clustering/features/temporal/temporal_features.npz"
-GAUSSIAN_RAW_PATH = "outputs/report/clustering/features/gaussian_raw_features.npz"
-COV_N2_STATIC_PATH = "outputs/report/clustering/features/covariance_n2/covariance_static.npy"
-COV_N2_TEMPORAL_PATH = "outputs/report/clustering/features/covariance_n2/covariance_temporal.npy"
+# Data paths (SSOT)
+from mouse_extensions.paths import KP_22, FEATURES_BASE, TEMPORAL_DIR, COV_N2_DIR, GAUSSIAN_RAW_FEATURES
+
+KP_PATH = str(KP_22)
+TEMPORAL_PATH = str(TEMPORAL_DIR / "temporal_features.npz")
+GAUSSIAN_RAW_PATH = str(GAUSSIAN_RAW_FEATURES)
+COV_N2_STATIC_PATH = str(COV_N2_DIR / "covariance_static.npy")
+COV_N2_TEMPORAL_PATH = str(COV_N2_DIR / "covariance_temporal.npy")
 
 # MAMMAL 22 keypoint names
 KP_NAMES = None  # Loaded from data

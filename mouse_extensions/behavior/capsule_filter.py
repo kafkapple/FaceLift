@@ -394,8 +394,9 @@ def main():
     parser.add_argument("--frame-idx", type=int, nargs="+", default=[0, 500, 1000])
     parser.add_argument("--data-dir", type=str,
                         default="/home/joon/data/preprocessed/FaceLift_mouse/M5")
+    from mouse_extensions.paths import KP_22
     parser.add_argument("--kp-path", type=str,
-                        default="/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz")
+                        default=str(KP_22))
     parser.add_argument("--gaussian-dir", type=str, default=None,
                         help="Directory with per-frame Gaussian .npz files")
     parser.add_argument("--n-views-thresh", type=int, default=2)

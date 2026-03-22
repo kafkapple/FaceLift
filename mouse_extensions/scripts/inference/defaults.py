@@ -3,10 +3,16 @@
 import os
 from pathlib import Path
 
-# Base paths
-FACELIFT_ROOT = Path("/home/joon/dev/FaceLift")
-DATA_ROOT = Path("/home/joon/data/preprocessed/FaceLift_mouse")
-CHECKPOINT_ROOT = Path("/node_data/joon/checkpoints/FaceLift")
+from mouse_extensions.paths import (
+    FACELIFT_ROOT,
+    PREPROCESSED_DIR,
+    CKPT_DIR,
+    OUTPUTS_DIR,
+)
+
+# Base paths (SSOT)
+DATA_ROOT = PREPROCESSED_DIR
+CHECKPOINT_ROOT = CKPT_DIR.parent  # /node_data/joon/checkpoints/FaceLift
 
 # Default checkpoints
 DEFAULT_CHECKPOINTS = {
@@ -64,7 +70,7 @@ def expand_path(path: str) -> str:
 PROMPT_EMBED_PATH = Path("/home/joon/dev/FaceLift/mvdiffusion/data/mouse_prompt_embeds_6view_1024")
 
 # Output paths (organized under project)
-OUTPUT_ROOT = FACELIFT_ROOT / "outputs"
+OUTPUT_ROOT = OUTPUTS_DIR
 EVAL_OUTPUT = OUTPUT_ROOT / "eval"
 INFERENCE_OUTPUT = OUTPUT_ROOT / "inference"
 TRAINING_OUTPUT = OUTPUT_ROOT / "training"

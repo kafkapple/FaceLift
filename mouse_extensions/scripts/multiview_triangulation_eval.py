@@ -20,7 +20,7 @@ Usage:
         --config configs/mouse/base_uniform_v2.yaml \
         --checkpoint checkpoints/gslrm/6view_v2/best_psnr.pt \
         --data-dir ~/data/preprocessed/FaceLift_mouse/M5t2 \
-        --mammal-3d /node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz \
+        --mammal-3d <KP_22 from mouse_extensions.paths> \
         --output-dir outputs/triangulation_eval
 
 Date: 2026-03-04

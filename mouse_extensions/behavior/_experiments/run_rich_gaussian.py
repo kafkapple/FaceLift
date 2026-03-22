@@ -49,7 +49,8 @@ scaler = StandardScaler()
 feat_s = scaler.fit_transform(features)
 feat_pca = PCA(n_components=min(30, feat_s.shape[1])).fit_transform(feat_s)
 
-kp = np.load("/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz",
+from mouse_extensions.paths import KP_22
+kp = np.load(str(KP_22),
              allow_pickle=True)["keypoints"]
 kp_test = kp[frames]
 kp_c = kp_test - kp_test.mean(1, keepdims=True)

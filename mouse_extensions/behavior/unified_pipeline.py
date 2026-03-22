@@ -282,9 +282,10 @@ def run_experiment(
 
 def main():
     parser = argparse.ArgumentParser(description="Unified Behavior Clustering Pipeline")
+    from mouse_extensions.paths import KP_22
     parser.add_argument(
         "--keypoints",
-        default="/node_data/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz",
+        default=str(KP_22),
     )
     parser.add_argument("--presets", nargs="+", default=["raw", "centered", "bsoid_standard"])
     parser.add_argument("--groups", nargs="+", default=["minimal_7", "kinematic_18", "full_22"])
