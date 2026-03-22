@@ -263,7 +263,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 |------|------|
 | [[INDEX]] | 문서 허브 (★ 최우선) |
 | [[PREPROCESSING_REGISTRY]] | 버전 이력, 프리셋 정의 |
-| [[datasets/M5_SERIES_SPEC]] | M3 시리즈 상세 명세 |
+| [[datasets/M5_SERIES_SPEC]] | M5 시리즈 상세 명세 |
 | _(삭제됨)_ | PP/fx 이론 + 버그 분석 |
 
 ### 실험 & 결과
@@ -385,4 +385,4 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 
 ---
 
-*Last Updated: 2026-02-20 | 상세 문서는 [[INDEX]] 참조*
+*Last Updated: 2026-03-22 | 상세 문서는 [[INDEX]] 참조*

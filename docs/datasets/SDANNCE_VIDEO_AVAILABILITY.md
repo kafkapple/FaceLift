@@ -1,48 +1,215 @@
-# s-DANNCE Video Data Availability Report
+# s-DANNCE Dataset Guide (SSOT)
 
-> **Date**: 2026-03-22 | **Investigator**: Claude + Web Research Agent
-> **Purpose**: BehaviorSplatter NeurIPS 2026 — BALB/c mouse multi-view video availability
-
----
-
-## Executive Summary
-
-BALB/c mouse multi-view video data is **NOT publicly downloadable**. Harvard Dataverse MOUSE cohort (DVN/VKJHTD) contains only 128 .mat files (keypoints + behavior labels, 1.9 GB total). Video data exists physically (s-DANNCE inference was run on it) but was never uploaded. **Author email request is the only path.**
+> **Version**: v2.0 | **Updated**: 2026-03-22 | **Status**: 🔬 ACTIVE
+> **Purpose**: BehaviorSplatter NeurIPS 2026 — multi-species 3D reconstruction data source
+> **Source**: [Harvard Dataverse socialDANNCE_data](https://dataverse.harvard.edu/dataverse/socialDANNCE_data) | [GitHub tqxli/sdannce](https://github.com/tqxli/sdannce)
 
 ---
 
-## 1. Harvard Dataverse Full Survey (17 Datasets)
+## 1. Executive Summary
 
-| Type | Datasets | Description Pattern | Video? |
-|------|---------|-------------------|:------:|
-| **RAT w/ Video** | SCN2A_SOC1, SOC3, WK1 | "Raw movies and 3D postural tracking" | **Yes** (MP4) |
-| **RAT Keypoints** | ARID1B, CHD8, CNTNAP2, FMR1, GRIN2B, NRXN1, SCN2A, LONG EVANS, BEDDING, TRIADS | "keypoint tracking and behavioral mapping" | No (.mat) |
-| **MOUSE Keypoints** | MOUSE (DVN/VKJHTD) | "keypoint tracking and behavioral mapping" | **No** (.mat) |
+s-DANNCE (social DANNCE)는 6-camera multi-view 환경에서 자유 행동하는 쥐의 3D pose를 추적하는 시스템. Harvard Dataverse에 **17개 데이터셋** (1,690+ 세션) 공개. BehaviorSplatter에서 **cross-species generalization** 실증에 핵심.
 
-### Size Evidence
-
-| Cohort | Files | Size | Video? |
-|--------|:-----:|-----:|:------:|
-| SCN2A_SOC1 (rat, w/ video) | 504 | 25.5 GB | Yes |
-| SCN2A_WK1 (rat, w/ video) | 878 | 37.1 GB | Yes |
-| **MOUSE** (128 recordings) | 128 | **1.9 GB** | **No** |
-
-If 128 mouse recordings included video: 6 cams × ~15 MB × 128 = ~11.5 GB minimum. Actual 1.9 GB matches .mat-only.
+**현재 전략**: SCN2A_WK1 (lone rat) → GS-LRM v3 smoke test → multi-species 논문 서사
 
 ---
 
-## 2. Alternative Sources Checked
+## 2. Harvard Dataverse 전수 조사 (17 Datasets)
 
-| Source | Result |
-|--------|--------|
-| **Duke Box** (s-DANNCE demo) | Rat-only demo data |
-| **Original DANNCE repo** | `markerless_mouse_1/2` = C57BL/6, single-animal, not social BALB/c |
-| **s-DANNCE GitHub** | No mouse video download links |
-| **Cell 2025 Data Availability** | Paywall — likely "upon reasonable request" (Cell Press standard) |
+### 2.1 비디오 포함 데이터셋 (Raw Movies + 3D Tracking)
+
+| Dataset | DOI | Type | Animals | Files | Size | Species |
+|---------|-----|:----:|:-------:|:-----:|-----:|:-------:|
+| **SCN2A_WK1** ⭐ | `DVN/BHQBB7` | **Lone** | **1** | 878 | ~34.5 GB | Rat |
+| SCN2A_SOC1 | `DVN/Q7CA6F` | Social | 2 (dyad) | 504 | ~25.5 GB | Rat |
+| SCN2A_SOC2 | `DVN/C1VOJX` | Social | 2 (dyad) | — | — | Rat |
+| SCN2A_SOC3 | `DVN/TPRHHX` | Social | 2 (dyad) | 540 | — | Rat |
+| TRIADS | `DVN/CYDZ2F` | Social | **3** (triad) | 205 | — | Rat |
+| BEDDING | `DVN/696AK6` | Social | 2 | 199 | — | Rat |
+
+### 2.2 키포인트 + 행동 매핑만 (비디오 없음)
+
+| Dataset | DOI | Files | Species | Notes |
+|---------|-----|:-----:|:-------:|-------|
+| MOUSE | `DVN/VKJHTD` | 128 | Mouse (BALB/c) | .mat only, 1.9 GB |
+| CHD8 | `DVN/WWNZOX` | 360 | Rat | ASD model |
+| SCN2A | `DVN/7RNDJY` | 120 | Rat | ASD model |
+| CNTNAP2 | `DVN/EMI8Z3` | 146 | Rat | ASD model |
+| NRXN1 | `DVN/1DOCOQ` | 376 | Rat | ASD model |
+| GRIN2B | `DVN/XNSYTC` | 120 | Rat | ASD model |
+| ARID1B | `DVN/0LZZMU` | 212 | Rat | ASD model |
+| FMR1 | `DVN/DCII4E` | 276 | Rat | ASD model |
+| LONG EVANS | `DVN/4X8GTB` | 210 | Rat | WT control |
+
+### 2.3 기타
+
+| Dataset | DOI | Files | Content |
+|---------|-----|:-----:|---------|
+| Documentation | `DVN/UKNUWN` | 2 | Data organization docs |
+| Behavioral data sheets | `DVN/F2UMKM` | 8 | PNG behavior sheets per cohort |
+
+**라이선스**: CC0 1.0 Public Domain (전체)
 
 ---
 
-## 3. Author Contacts
+## 3. SCN2A_WK1 상세 (우리의 주요 데이터)
+
+### 3.1 개요
+
+| Item | Value |
+|------|-------|
+| **DOI** | [`10.7910/DVN/BHQBB7`](https://doi.org/10.7910/DVN/BHQBB7) |
+| **Type** | **Lone (single animal)** — open field behavior |
+| **Sessions** | 30 (M1~M6 × 5 days: 2022-09-15 ~ 2022-09-19) |
+| **Duration** | 30 min per session @ 50 fps |
+| **Cameras** | 6 synchronized views |
+| **Keypoints** | 23 joints (DANNCE format) |
+
+### 3.2 파일 구성 (세션당)
+
+```
+{SESSION}/
+├── calibration/           # 6 camera intrinsics + extrinsics
+│   ├── hires_cam1_params.mat
+│   ├── hires_cam2_params.mat
+│   └── ... (cam3~cam6)
+├── videos/                # 6-camera raw video
+│   ├── Camera1/
+│   │   ├── 0.mp4          # ~88-185 MB per camera
+│   │   ├── frametimes.npy  # frame timestamps
+│   │   └── metadata.tab    # video metadata
+│   └── ... (Camera2~Camera6)
+├── COM/predict00/
+│   └── com3d.mat          # Center-of-mass predictions
+└── SDANNCE/bsl0.5_FM/
+    ├── save_data_AVG.mat   # Final keypoint predictions (110 MB)
+    ├── save_data_AVG0.mat  # Initial predictions
+    ├── init_save_data_AVG.mat
+    └── com3d_used.mat      # COM used for inference
+```
+
+### 3.3 파일 타입 통계
+
+| Type | Count | Size | Content |
+|------|:-----:|-----:|---------|
+| .mp4 | 180 | 24.3 GB | 6cam × 30 sessions |
+| .mat | 332 | 9.9 GB | calibrations + keypoints + COM |
+| .npy | 180 | 0.24 GB | frame timestamps |
+| .tab | 181 | ~0 | video metadata |
+| .hdf5 | 2 | 0.12 GB | — |
+| .yaml | 1 | ~0 | — |
+| **Total** | **878** | **~34.5 GB** | |
+
+### 3.4 PoC 세션: `2022_09_16_M1`
+
+| Item | Value |
+|------|-------|
+| **Files** | 29 (6 videos + 6 calibs + 6 frametimes + 5 SDANNCE + 1 COM + 5 metadata) |
+| **Size** | 1.14 GB |
+| **Download** | `wget -O file https://dataverse.harvard.edu/api/access/datafile/{FILE_ID}` |
+| **Location (gpu03)** | `/home/joon/data/sdannce/rat/dataverse/SCN2A_WK1_2022_09_16_M1/` |
+
+#### File IDs (API download reference)
+
+```bash
+# Calibration
+10826356  calibration/hires_cam1_params.mat
+10826339  calibration/hires_cam2_params.mat
+10826621  calibration/hires_cam3_params.mat
+10827163  calibration/hires_cam4_params.mat
+10826682  calibration/hires_cam5_params.mat
+10826863  calibration/hires_cam6_params.mat
+
+# Videos
+10826497  videos/Camera1/0.mp4
+10827049  videos/Camera2/0.mp4
+10827052  videos/Camera3/0.mp4
+10826478  videos/Camera4/0.mp4
+10826463  videos/Camera5/0.mp4
+10826531  videos/Camera6/0.mp4
+
+# SDANNCE keypoints
+10827101  SDANNCE/bsl0.5_FM/save_data_AVG.mat
+10826781  SDANNCE/bsl0.5_FM/save_data_AVG0.mat
+10826831  SDANNCE/bsl0.5_FM/init_save_data_AVG.mat
+10826786  SDANNCE/bsl0.5_FM/com3d_used.mat
+10827013  COM/predict00/com3d.mat
+```
+
+---
+
+## 4. 명명 규칙
+
+### 세션 이름
+
+```
+{COHORT}_{TYPE}{ROUND}_{DATE}_{SUBJECT}
+```
+
+| Component | Values | Example |
+|-----------|--------|---------|
+| COHORT | SCN2A, CHD8, ... | SCN2A |
+| TYPE | WK (lone), SOC (social) | WK1 |
+| DATE | YYYY_MM_DD | 2022_09_16 |
+| SUBJECT | M{N} (lone), M{N}_M{N} (social) | M1 |
+
+### 동물 수 판별
+
+| 패턴 | Type | 동물 수 |
+|------|------|:-------:|
+| `WK` + `M1` | Lone | **1** |
+| `SOC` + `M1_M6` | Social (dyad) | **2** |
+| TRIADS dataset | Social (triad) | **3** |
+
+---
+
+## 5. 카메라 특성 (SCN2A Rat)
+
+### 기존 social 세션 (2022_09_22_M3_M4)에서 측정
+
+| Camera | fx | fy | cx | cy | dist(mm) | k1 |
+|:------:|:--:|:--:|:--:|:--:|:--------:|:--:|
+| 1 | 2268 | 2276 | 940 | 617 | 1115 | -0.090 |
+| 2 | 2293 | 2293 | 959 | 574 | 1235 | -0.063 |
+| 3 | 2230 | 2233 | 977 | 536 | 1229 | -0.085 |
+| 4 | 2229 | 2229 | 956 | 541 | 1047 | -0.081 |
+| 5 | 2293 | 2295 | 959 | 549 | 1179 | -0.063 |
+| 6 | 2237 | 2241 | 965 | 516 | 1103 | -0.084 |
+
+### GS-LRM FOV 호환성
+
+| 방식 | fx (512용) | vs 학습(549) | 정보 손실 |
+|------|:---------:|:-----------:|:---------:|
+| Tight crop | 1700-2700 | 3-5× ❌ | 높음 |
+| Wide crop 1200² | 968 | 1.8× ⚠️ | 좌우 잘림 |
+| **Zero-pad 1920²** | **605** | **1.1×** ✅ | **없음** |
+
+---
+
+## 6. BALB/c Mouse 데이터 현황
+
+### Dataverse MOUSE cohort (DVN/VKJHTD)
+
+- 128개 .mat 파일 (1.9 GB) — **비디오 없음**
+- Keypoints (23j, 3D) + HLAC behavior labels + t-SNE embedding 포함
+- BALB/c = W (White strain), C57BL/6 = B (Black strain)
+
+### .mat 구조
+
+```python
+# MOUSE_W4_20240426_0028_L.mat (Lone BALB/c)
+sdannce.group       = 'mouse'
+sdannce.mousestrain = 'BALB/c'
+sdannce.issoc       = 0 (lone)
+sdannce.m1          = (30000, 3, 23)  # 10 min @ 50fps
+sdannce.hlac        = (30000,)        # behavior labels (unsupervised cluster IDs)
+sdannce.llac        = (30000,)        # fine-grained labels
+sdannce.cz_action   = (30000, 2)      # t-SNE embedding
+```
+
+### 비디오 확보 경로
+
+저자 이메일이 유일:
 
 | Name | Email | Role |
 |------|-------|------|
@@ -50,48 +217,89 @@ If 128 mouse recordings included video: 6 cams × ~15 MB × 128 = ~11.5 GB minim
 | Bence P. Olveczky | olveczky@fas.harvard.edu | PI (Harvard) |
 | Timothy W. Dunn | timothy.dunn@duke.edu | PI (Duke) |
 
-**Request**: "MOUSE cohort raw multi-view video recordings (6-camera MP4) + camera calibration files for BehaviorSplatter NeurIPS 2026 submission"
+---
+
+## 7. 대안 데이터셋 비교
+
+| Dataset | Species | Animals | Video | Calibration | Behavior Labels | Duration | Suitable? |
+|---------|:-------:|:-------:|:-----:|:-----------:|:---------------:|----------|:---------:|
+| **SCN2A_WK1** ⭐ | Rat | 1 | ✅ | ✅ | Via pipeline | 30min × 30 | **Best** |
+| SCN2A_SOC1 | Rat | 2 | ✅ | ✅ | Via pipeline | 30min × ? | Social only |
+| Rat 7M | Rat | 1 | ✅ | ✅ | ❌ (pose only) | 5s clips | Too short |
+| PAIR-R24M | Rat | 2 | ✅ | ✅ | ✅ (11 types) | Long | Pairs only |
+| DANNCE markerless_mouse | Mouse | 1 | ✅ | ✅ | ❌ | 3-60min | Alt. for mouse |
+| MOUSE cohort | Mouse | 1 | ❌ | ❌ | ✅ (HLAC) | 10min | No video |
 
 ---
 
-## 4. Implications for BehaviorSplatter
+## 8. BehaviorSplatter 파이프라인 적합성
 
-| Data | Video | Calibration | Keypoints | Behavior Labels | GS-LRM Feasible? |
-|------|:-----:|:-----------:|:---------:|:---------------:|:-----------------:|
-| **Rat SCN2A** (gpu03) | ✅ | ✅ | ✅ (23j) | ✅ (HLAC via Dataverse .mat) | **Testing now** |
+| Data Source | Video | Calib | Keypoints | Behavior | GS-LRM Status |
+|-------------|:-----:|:-----:|:---------:|:--------:|:-------------:|
+| **M5t2 Mouse** (ours) | ✅ | ✅ | ✅ (22j) | ❌ | ✅ Trained (best PSNR 23.84) |
+| **SCN2A_WK1 Rat** ⭐ | ✅ | ✅ | ✅ (23j) | Via pipeline | ✅ v3 smoke test 성공 (zero-shot) |
+| **SCN2A_SOC Rat** | ✅ | ✅ | ✅ (23j) | Via pipeline | 🔄 v2 tested (mask quality issue) |
 | **BALB/c Mouse** | ❌ | ❌ | ✅ (23j) | ✅ (HLAC) | ❌ No video |
-| **M5t2 Mouse** | ✅ | ✅ | ✅ (22j) | ❌ None | ✅ Trained |
 
-### Strategy
+### Behavior Labels 참고
 
-1. **Rat-first**: Use SCN2A_SOC1 session (complete data on gpu03) for GS-LRM feasibility
-2. **Email authors**: Request BALB/c video (parallel, timeline uncertain)
-3. **Fallback**: Rat as primary species for dense features + behavior labels
+s-DANNCE/SocialMapper는 **비지도 방식**:
+- 3D keypoints → covariance features (S1/S3) → unsupervised embedding → clusters
+- 수동 레이블이 아닌 클러스터 ID → 사후적으로 이름 부여 (grooming, rearing 등)
+- 프리컴퓨팅된 embedding은 공개 데이터에 없음 — `sdannce-poc` 파이프라인으로 직접 계산
 
 ---
 
-## 5. MOUSE Cohort .mat Structure (Verified)
+## 9. gpu03 데이터 현황
 
-```python
-# Example: MOUSE_W4_20240426_0028_L.mat (Lone BALB/c session)
-sdannce.group       = 'mouse'
-sdannce.mousestrain = 'BALB/c'
-sdannce.issoc       = 0 (lone)
-sdannce.m1          = (30000, 3, 23)  # 10 min @ 50fps
-sdannce.m2          = empty
-sdannce.hlac        = (30000,)        # behavior labels
-sdannce.llac        = (30000,)        # fine-grained labels
-sdannce.cz_action   = (30000, 2)      # t-SNE embedding
+```
+/home/joon/data/sdannce/
+├── rat/
+│   └── dataverse/
+│       └── SCN2A_WK1_2022_09_16_M1/   ← ✅ Downloaded (1.2 GB, 23 files)
+│           ├── calibration/             # 6 cam params
+│           ├── videos/Camera{1-6}/      # 6 cam MP4
+│           ├── COM/predict00/           # center-of-mass
+│           └── SDANNCE/bsl0.5_FM/       # 3D keypoints
+├── mouse/
+│   └── dataverse/                       # BALB/c .mat only (128 files)
+└── metadata/
+
+/home/joon/dev/sdannce-poc/data/
+└── 2022_09_22_M3_M4/                    # Social pair (existing, 1.4 GB)
+    ├── calibration/
+    ├── videos/Camera{1-6}/
+    └── SDANNCE/bsl0.5_FM_{rat1,rat2}/
 ```
 
-Mouse sessions: 30,000 frames (10 min) vs Rat: 90,000 frames (30 min).
-BALB/c = W (White), C57BL/6 = B (Black).
+---
+
+## 10. Download Commands
+
+### 단일 세션 (PoC)
+
+```bash
+# SCN2A_WK1_2022_09_16_M1 (1.14 GB)
+# Script: /tmp/download_wk1_wget.sh on gpu03
+wget -O /path/to/file https://dataverse.harvard.edu/api/access/datafile/{FILE_ID}
+```
+
+### 전체 WK1 데이터셋 (34.5 GB)
+
+```bash
+# Harvard Dataverse API — all files for DVN/BHQBB7
+# Requires: script to parse JSON file listing and download each by ID
+curl -s "https://dataverse.harvard.edu/api/datasets/export?exporter=dataverse_json&persistentId=doi:10.7910/DVN/BHQBB7" \
+  | python3 -c "import json,sys; [print(f['dataFile']['id'], f.get('directoryLabel','')+'/'+f['dataFile']['filename']) for f in json.load(sys.stdin)['datasetVersion']['files']]"
+```
 
 ---
 
-*BehaviorSplatter | s-DANNCE Video Availability | 2026-03-22*
+*BehaviorSplatter | s-DANNCE Dataset Guide SSOT | v2.0 | 2026-03-22*
 
 Related:
-- ↑ [INDEX](../INDEX.md)
-- ↔ [SDANNCE_DATA_CONVENTION](../../CLAUDE.md#sdannce-data-convention)
+- ↑ [[INDEX|FaceLift Documentation Hub]]
+- ↔ [[MULTI_ANIMAL_PREPROCESSING|Multi-Animal Preprocessing Spec]]
+- ↔ [[RAW_DATA|Raw Data Sources]]
 - ↔ [sdannce-poc dataset_catalog](~/dev/sdannce-poc/docs/data/dataset_catalog.md)
+- ↔ [CLAUDE.md s-DANNCE data convention](../../CLAUDE.md#sdannce-data-convention)

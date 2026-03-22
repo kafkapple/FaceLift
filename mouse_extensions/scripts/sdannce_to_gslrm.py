@@ -56,10 +56,12 @@ def load_keypoints(session_dir: str, animal_id: int = 1) -> np.ndarray:
 
     Returns: (N, 3, 23) array of 3D keypoints in mm.
     """
-    # Try standard SDANNCE output path
+    # Try standard SDANNCE output paths (lone + social)
     patterns = [
-        f"SDANNCE/bsl0.5_FM_rat{animal_id}/save_data_AVG0.mat",
-        f"SDANNCE/predict01/save_data_AVG.mat",
+        "SDANNCE/bsl0.5_FM/save_data_AVG0.mat",  # lone session
+        "SDANNCE/bsl0.5_FM/save_data_AVG.mat",  # lone session (alt)
+        f"SDANNCE/bsl0.5_FM_rat{animal_id}/save_data_AVG0.mat",  # social
+        f"SDANNCE/predict01/save_data_AVG.mat",  # legacy
     ]
     for pat in patterns:
         path = os.path.join(session_dir, pat)
@@ -77,13 +79,20 @@ def load_com(session_dir: str, animal_id: int = 1) -> np.ndarray:
 
     Returns: (N, 3) array of COM positions in mm.
     """
-    com_path = os.path.join(
-        session_dir, f"COM/predict01/instance{animal_id - 1}com3d.mat"
-    )
-    if os.path.exists(com_path):
+    # Try lone session path first, then social pair path
+    com_paths = [
+        os.path.join(session_dir, "COM/predict00/com3d.mat"),  # lone
+        os.path.join(session_dir, f"COM/predict01/instance{animal_id - 1}com3d.mat"),  # social
+    ]
+    com_path = None
+    for cp in com_paths:
+        if os.path.exists(cp):
+            com_path = cp
+            break
+    if com_path is not None:
         data = sio.loadmat(com_path, squeeze_me=True)
         com = data["com"]  # (N, 3)
-        print(f"Loaded COM: shape={com.shape}")
+        print(f"Loaded COM from {com_path}: shape={com.shape}")
         return com
 
     # Fallback: compute COM from keypoints

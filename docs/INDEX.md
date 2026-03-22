@@ -1,8 +1,8 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-03-21 | **Version**: v16.0
-> **Active**: 50개 | **Archive**: 19개 (docs/_archive/, git history에 보존)
+> **Updated**: 2026-03-22 | **Version**: v16.1
+> **Active**: 51개 | **Archive**: 19개 (docs/_archive/, git history에 보존)
 >
 > **Phase Structure**: Phase 1 (MVDiff bottleneck) = 유지보수 | **Phase 2 (Novel View + Multi-Species) = 현재 포커스**
 >
@@ -89,6 +89,7 @@
 | [[datasets/M5_SERIES_SPEC]] | M5 카메라 정규화 상세 (**← camera mismatch 핵심 참조**) | ✅ |
 | [[datasets/RAW_DATA]] | Raw 데이터 출처 (DANNCE) | ✅ |
 | **[[datasets/MULTI_ANIMAL_PREPROCESSING]]** | 다중 동물 (s-DANNCE) 전처리 스펙: 마스크 전략, Plucker ray, 파이프라인 | **🆕 v1.0** |
+| **[[datasets/SDANNCE_VIDEO_AVAILABILITY]]** | **s-DANNCE 데이터셋 종합 가이드 (SSOT)**: Harvard Dataverse 17개 전수조사, SCN2A_WK1 lone rat, 카메라 특성, 다운로드 명령어 | **✅ v2.0** |
 
 ### guides/ (입문 & 실습)
 
@@ -262,4 +263,4 @@ experiments/comparison/
 
 ---
 
-*MoC v15.0 | Updated: 2026-03-18 | Full restructure: wikilink standardization, orphan registration, section consolidation*
+*MoC v16.1 | Updated: 2026-03-22 | S18: SDANNCE Dataset Guide, view ablation 512, DiFix pairs*
