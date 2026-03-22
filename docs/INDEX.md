@@ -1,8 +1,8 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-03-22 | **Version**: v16.1
-> **Active**: 51개 | **Archive**: 19개 (docs/_archive/, git history에 보존)
+> **Updated**: 2026-03-22 | **Version**: v16.2
+> **Active**: 52개 | **Archive**: 19개 (docs/_archive/, git history에 보존)
 >
 > **Phase Structure**: Phase 1 (MVDiff bottleneck) = 유지보수 | **Phase 2 (Novel View + Multi-Species) = 현재 포커스**
 >
@@ -60,6 +60,7 @@
 | **[[experiments/mesh_gs_pair_collection]]** | Novel view dataset pipeline v2.0 | **✅ v2.0** | → PHASE2, [[experiments/DATASET_QA_VIEWER]] |
 | **[[experiments/DATASET_QA_VIEWER]]** | Novel view dataset QA viewer (stdlib HTTP, exclude 관리) | **✅ v1.0** | → mesh_gs_pair |
 | **[[experiments/REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 (코드+메트릭+프로토콜) | **✅ v1.0** | |
+| **[[experiments/PAST_SESSION_AUDIT_260322]]** | 과거 7개 항목 감사 (HLAC/DiFix/canonical set/VAME 등) | **✅ v1.0** | → PHASE2, hypothesis_roadmap |
 
 #### Reference Documents (안정, 삭제/통합된 문서)
 
