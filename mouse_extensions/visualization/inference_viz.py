@@ -1,6 +1,9 @@
 """
 Inference visualization utilities.
 Creates GT vs Pred comparison grids and multi-elevation turntable grids.
+
+Uses label bars from wandb_image_utils for consistent styling across
+training (wandb) and inference visualizations.
 """
 
 import numpy as np
@@ -10,21 +13,57 @@ from typing import Optional, List
 from PIL import Image
 from einops import rearrange
 
+from mouse_extensions.utils.wandb_image_utils import make_label_bar
+
+
+def _add_view_labels(row_np: np.ndarray, num_views: int, label_height: int = 18) -> np.ndarray:
+    """Add per-view number labels below image row.
+
+    Args:
+        row_np: (H, V*W, 3) uint8 image row
+        num_views: Number of views
+        label_height: Height of label bar
+
+    Returns:
+        (H + label_height, V*W, 3) with view labels
+    """
+    h, total_w = row_np.shape[:2]
+    view_w = total_w // num_views
+    label_row = np.full((label_height, total_w, 3), 30, dtype=np.uint8)
+
+    try:
+        import cv2 as cv
+        font = cv.FONT_HERSHEY_SIMPLEX
+        for v in range(num_views):
+            text = f"View {v}"
+            (tw, th), _ = cv.getTextSize(text, font, 0.4, 1)
+            x = v * view_w + (view_w - tw) // 2
+            y = (label_height + th) // 2
+            cv.putText(label_row, text, (x, y), font, 0.4, (200, 200, 200), 1, cv.LINE_AA)
+    except ImportError:
+        pass
+
+    return np.concatenate([row_np, label_row], axis=0)
+
 
 def save_comparison_grid(
     gt_images: torch.Tensor,
     pred_images: torch.Tensor,
     output_path: str,
     labels: bool = True,
+    num_input_views: int = 0,
+    step: int = 0,
 ) -> str:
     """
-    Save GT (top) vs Pred (bottom) comparison grid.
+    Save GT (top) vs Pred (bottom) comparison grid with label bars.
 
     Args:
         gt_images: [B, V, C, H, W] or [V, C, H, W]
         pred_images: [V, C, H, W]
         output_path: Save path
-        labels: Add row labels
+        labels: Add row/view labels
+        num_input_views: Number of input views (shown in label)
+        step: Training/inference step (shown in label)
 
     Returns:
         Saved file path
@@ -39,17 +78,31 @@ def save_comparison_grid(
     gt_row = rearrange(gt[:nv], "v c h w -> h (v w) c")
     pred_row = rearrange(pred[:nv], "v c h w -> h (v w) c")
 
-    if labels:
-        # Add label column
-        h = gt_row.size(0)
-        w_label = 40
-        gt_label = _make_label_col(h, w_label, "GT")
-        pred_label = _make_label_col(h, w_label, "Pred")
-        gt_row = torch.cat([gt_label.to(gt_row.device), gt_row], dim=1)
-        pred_row = torch.cat([pred_label.to(pred_row.device), pred_row], dim=1)
+    gt_np = (gt_row.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+    pred_np = (pred_row.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
 
-    comparison = torch.cat([gt_row, pred_row], dim=0)
-    comparison = (comparison.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+    if labels:
+        row_w = gt_np.shape[1]
+        input_info = f", {num_input_views} input" if num_input_views > 0 else ""
+        step_info = f" | Step {step}" if step > 0 else ""
+
+        gt_bar = make_label_bar(
+            row_w,
+            f"GT ({nv} views{input_info}){step_info}",
+            text_color=(200, 255, 200),
+        )
+        pred_bar = make_label_bar(
+            row_w,
+            f"Pred ({nv} views){step_info}",
+            text_color=(200, 200, 255),
+        )
+        # Add per-view labels
+        gt_np = _add_view_labels(gt_np, nv)
+        pred_np = _add_view_labels(pred_np, nv)
+
+        comparison = np.concatenate([gt_bar, gt_np, pred_bar, pred_np], axis=0)
+    else:
+        comparison = np.concatenate([gt_np, pred_np], axis=0)
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(comparison).save(output_path)

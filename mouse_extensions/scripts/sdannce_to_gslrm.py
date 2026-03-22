@@ -325,6 +325,35 @@ def save_gslrm_frame(
         json.dump({"frames": frames_data}, f, indent=2)
 
 
+def _extract_mask_from_npz(
+    data: np.lib.npyio.NpzFile,
+    animal_id: int,
+    merge_animals: bool,
+) -> np.ndarray:
+    """Extract mask from npz, handling rat1/rat2 keys or single-key files."""
+    if "rat1" in data:
+        if merge_animals or animal_id == 0:
+            mask = data["rat1"]
+            if "rat2" in data:
+                mask = mask | data["rat2"]
+        elif animal_id == 1:
+            mask = data["rat1"]
+        else:
+            mask = data.get("rat2", np.zeros((1, 1), dtype=bool))
+    else:
+        # Single mask (any key name)
+        mask = list(data.values())[0]
+    return (mask * 255).astype(np.uint8) if mask.dtype == bool else mask
+
+
+def _parse_frame_idx(filename: str) -> int:
+    """Extract frame index from mask filenames like ann_frame_123.npz or mask_000000.npz."""
+    stem = filename.replace(".npz", "")
+    # Try extracting trailing number
+    parts = stem.split("_")
+    return int(parts[-1])
+
+
 def load_sam2_masks(
     ann_dir: str,
     propagated_dir: str = None,
@@ -333,9 +362,14 @@ def load_sam2_masks(
 ) -> dict[int, np.ndarray]:
     """Load SAM2 annotation/propagated masks.
 
+    Supports multiple filename patterns:
+      - ann_frame_*.npz (original annotation format)
+      - mask_frame_*.npz (propagated format)
+      - mask_NNNNNN.npz (kp_sam2_lone.py format)
+
     Args:
-        ann_dir: Directory with ann_frame_*.npz files (rat1/rat2 bool masks).
-        propagated_dir: Directory with mask_frame_*.npz files from SAM2 propagation.
+        ann_dir: Directory with mask npz files (rat1/rat2 bool masks).
+        propagated_dir: Directory with propagated mask npz files.
         animal_id: 0=merge both animals (union), 1=rat1 only, 2=rat2 only.
         merge_animals: If True and animal_id=0, use union of rat1+rat2.
 
@@ -343,48 +377,59 @@ def load_sam2_masks(
     """
     masks = {}
 
-    # Load manual annotations first
+    # Load from annotation directory (supports ann_frame_*, mask_*)
     if ann_dir and os.path.exists(ann_dir):
         for f in sorted(os.listdir(ann_dir)):
-            if f.startswith("ann_frame_") and f.endswith(".npz"):
-                fi = int(f.split("_")[-1].split(".")[0])
+            if not f.endswith(".npz"):
+                continue
+            try:
+                fi = _parse_frame_idx(f)
                 data = np.load(os.path.join(ann_dir, f))
-                if merge_animals or animal_id == 0:
-                    mask = data.get("rat1", np.zeros((1, 1), dtype=bool))
-                    if "rat2" in data:
-                        mask = mask | data["rat2"]
-                elif animal_id == 1:
-                    mask = data.get("rat1", np.zeros((1, 1), dtype=bool))
-                else:
-                    mask = data.get("rat2", np.zeros((1, 1), dtype=bool))
-                masks[fi] = (mask * 255).astype(np.uint8)
+                masks[fi] = _extract_mask_from_npz(data, animal_id, merge_animals)
+            except (ValueError, IndexError):
+                continue
 
     # Load propagated masks (override annotations if both exist)
     if propagated_dir and os.path.exists(propagated_dir):
         mask_dir = os.path.join(propagated_dir, "masks")
-        if os.path.exists(mask_dir):
-            for f in sorted(os.listdir(mask_dir)):
-                if f.startswith("mask_frame_") and f.endswith(".npz"):
-                    fi = int(f.split("_")[-1].split(".")[0])
-                    data = np.load(os.path.join(mask_dir, f))
-                    # Propagated masks may have different structure
-                    if "rat1" in data:
-                        if merge_animals or animal_id == 0:
-                            mask = data["rat1"]
-                            if "rat2" in data:
-                                mask = mask | data["rat2"]
-                        elif animal_id == 1:
-                            mask = data["rat1"]
-                        else:
-                            mask = data.get("rat2", np.zeros((1, 1), dtype=bool))
-                    else:
-                        # Single mask
-                        mask = list(data.values())[0]
-                    masks[fi] = (mask * 255).astype(np.uint8) if mask.dtype == bool else mask
+        search_dir = mask_dir if os.path.exists(mask_dir) else propagated_dir
+        for f in sorted(os.listdir(search_dir)):
+            if not f.endswith(".npz"):
+                continue
+            try:
+                fi = _parse_frame_idx(f)
+                data = np.load(os.path.join(search_dir, f))
+                masks[fi] = _extract_mask_from_npz(data, animal_id, merge_animals)
+            except (ValueError, IndexError):
+                continue
 
     if masks:
         print(f"Loaded {len(masks)} SAM2 masks (animal_id={animal_id}, merge={merge_animals})")
     return masks
+
+
+def load_sam2_masks_multicam(
+    mask_base_dir: str,
+    num_cams: int = 6,
+    animal_id: int = 0,
+    merge_animals: bool = True,
+) -> dict[int, dict[int, np.ndarray]]:
+    """Load SAM2 masks for all cameras from per-camera directories.
+
+    Expected directory structure:
+        mask_base_dir/Camera{1..N}/mask_NNNNNN.npz
+
+    Returns: Dict mapping cam_idx → {frame_idx → mask (H, W) uint8}.
+    """
+    all_masks = {}
+    for cam_idx in range(num_cams):
+        cam_dir = os.path.join(mask_base_dir, f"Camera{cam_idx + 1}")
+        if os.path.exists(cam_dir):
+            cam_masks = load_sam2_masks(cam_dir, None, animal_id, merge_animals)
+            if cam_masks:
+                all_masks[cam_idx] = cam_masks
+                print(f"  Camera{cam_idx + 1}: {len(cam_masks)} masks")
+    return all_masks
 
 
 def compute_background(video_paths: list[str], sample_indices: list[int] = None) -> list[np.ndarray]:
@@ -418,6 +463,7 @@ def process_session(
     num_cams: int = 6,
     sam2_ann_dir: str = None,
     sam2_prop_dir: str = None,
+    sam2_mask_dir: str = None,
     merge_animals: bool = True,
 ):
     """Full DANNCE → GS-LRM conversion pipeline.
@@ -455,10 +501,19 @@ def process_session(
         os.path.join(session_dir, f"videos/Camera{i}/0.mp4") for i in range(1, num_cams + 1)
     ]
 
-    # Load SAM2 masks (Camera1 only for now — multi-cam SAM2 needs annotation)
-    sam2_masks = None
+    # Load SAM2 masks
+    sam2_masks = None        # single-dir: {frame_idx → mask}
+    sam2_masks_mc = None     # multi-cam: {cam_idx → {frame_idx → mask}}
     mask_animal = 0 if merge_animals else animal_id
-    if sam2_ann_dir or sam2_prop_dir:
+
+    if sam2_mask_dir:
+        # Multi-camera mask directory (Camera1/, Camera2/, ...)
+        sam2_masks_mc = load_sam2_masks_multicam(
+            sam2_mask_dir, num_cams, mask_animal, merge_animals
+        )
+        if not sam2_masks_mc:
+            print("WARNING: sam2_mask_dir provided but no masks found")
+    elif sam2_ann_dir or sam2_prop_dir:
         sam2_masks = load_sam2_masks(sam2_ann_dir, sam2_prop_dir, mask_animal, merge_animals)
     else:
         print("No SAM2 masks provided — using full-frame foreground")
@@ -482,9 +537,11 @@ def process_session(
         for cam_idx, camera in enumerate(cameras):
             video_path = video_paths[cam_idx]
 
-            # Load SAM2 mask if available (cam_idx 0 = Camera1 only for now)
+            # Load SAM2 mask if available (multi-cam or single-cam)
             mask_img = None
-            if sam2_masks is not None and cam_idx == 0:
+            if sam2_masks_mc is not None and cam_idx in sam2_masks_mc:
+                mask_img = sam2_masks_mc[cam_idx].get(fi)
+            elif sam2_masks is not None:
                 mask_img = sam2_masks.get(fi)
 
             try:
@@ -575,6 +632,12 @@ if __name__ == "__main__":
         default=True,
         help="Merge rat1+rat2 masks (union) for social pairs",
     )
+    parser.add_argument(
+        "--sam2_mask_dir",
+        type=str,
+        default=None,
+        help="Multi-camera SAM2 mask directory (Camera1/...Camera6/ subdirs with mask_NNNNNN.npz)",
+    )
 
     args = parser.parse_args()
     process_session(
@@ -585,5 +648,6 @@ if __name__ == "__main__":
         num_cams=args.num_cams,
         sam2_ann_dir=args.sam2_ann_dir,
         sam2_prop_dir=args.sam2_prop_dir,
+        sam2_mask_dir=args.sam2_mask_dir,
         merge_animals=args.merge_animals,
     )
