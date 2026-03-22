@@ -646,8 +646,13 @@ class GSLRMTrainer:
         else:
             print(f"[WandB] New run: {wandb.run.id}")
         
-        # Log source code
-        wandb.run.log_code(".")
+        # Log source code (exclude large data dirs to avoid I/O hang)
+        wandb.run.log_code(
+            ".",
+            include_fn=lambda path: (
+                path.endswith(".py") or path.endswith(".yaml")
+            ) and "outputs/" not in path and "checkpoints/" not in path
+        )
         
         # Backup source code
         self._save_config_files()
