@@ -5,6 +5,17 @@
 
 ---
 
+## 0. 세션 종료 심의 — 잠재 이슈 (3-model review)
+
+| # | 이슈 | 심각도 | 조치 |
+|---|------|:------:|------|
+| **1** | **Rat FT checkpoint 검증 필요**: `ckpt_0000000000021125.pt` 로드됨 — `best_psnr.pt`가 아님. resume_from config가 무시되었을 가능성 | 🔴 | 다음 세션에서 로그 확인. 잘못된 ckpt면 재시작 |
+| **2** | **wandb.log_code disable = 재현성 위험**: 코드-실험 연결 끊김. NeurIPS 제출 시 문제 | 🟡 | include_fn 방식으로 재활성화 (outputs/ 제외 패턴) |
+| **3** | **keypoints 삭제 = P0**: hlac_comprehensive 블록 + 38개 파일 영향 | 🔴 | MAMMAL 재추론 우선 |
+| **4** | **데이터 백업 정책 부재**: 삭제 시 즉시 복구 불가 | 🟡 | 삭제 전 /tmp mv + 1주 관찰 규칙 |
+
+---
+
 ## 1. 실행 중 프로세스 (gpu03)
 
 | GPU | 작업 | PID/wandb | 로그 | 예상 완료 |
