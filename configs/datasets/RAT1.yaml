@@ -14,13 +14,16 @@ _preprocessing:
 
 training:
   dataset:
-    dataset_path: outputs/sdannce_rat_ft/gslrm_format/data_sdannce_train.txt
+    data_path: /home/joon/dev/FaceLift/outputs/sdannce_rat_ft/gslrm_format
+    dataset_path: /home/joon/dev/FaceLift/outputs/sdannce_rat_ft/gslrm_format/data_sdannce_train.txt
 
 validation:
-  dataset_path: outputs/sdannce_rat_ft/gslrm_format/data_sdannce_val.txt
+  data_path: /home/joon/dev/FaceLift/outputs/sdannce_rat_ft/gslrm_format
+  dataset_path: /home/joon/dev/FaceLift/outputs/sdannce_rat_ft/gslrm_format/data_sdannce_val.txt
 
 test:
-  dataset_path: outputs/sdannce_rat_ft/gslrm_format/data_sdannce_test.txt
+  data_path: /home/joon/dev/FaceLift/outputs/sdannce_rat_ft/gslrm_format
+  dataset_path: /home/joon/dev/FaceLift/outputs/sdannce_rat_ft/gslrm_format/data_sdannce_test.txt
 
 _stats:
   num_total: 1001
