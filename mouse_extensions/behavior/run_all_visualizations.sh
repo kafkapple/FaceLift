@@ -8,18 +8,18 @@
 #   CUDA_VISIBLE_DEVICES=5 bash mouse_extensions/behavior/run_all_visualizations.sh
 #
 # Outputs:
-#   outputs/sdannce_poc/
+#   outputs/viz/cinematic/mouse/
 #   ├── cinematic_white/        # Cinematic demo (white BG, keypoints off)
 #   ├── cinematic_white_kp/     # Cinematic demo (white BG, keypoints on)
 #   ├── cinematic_black/        # Cinematic demo (black BG)
-#   ├── multiview_filter/       # N-threshold sweep comparison (existing)
-#   ├── multiview_filter_video/ # N>=2 temporal 6-view grid (existing)
-#   └── novel_grid_filtered/    # Novel elevation grid (existing)
+#   outputs/analysis/mouse/filtering/
+#   ├── multiview_filter/       # N-threshold sweep comparison
+#   └── multiview_filter_video/ # N>=2 temporal 6-view grid
 #
 # Estimated time: ~2-3 hours total (GPU dependent)
 
 set -e
-OUTBASE="outputs/sdannce_poc"
+OUTBASE="outputs/viz/cinematic/mouse"
 
 echo "========================================"
 echo "BehaviorSplatter Visualization Suite"
@@ -63,7 +63,8 @@ python -m mouse_extensions.behavior.cinematic_sequence \
     --output-dir "${OUTBASE}/cinematic_black"
 
 # --- 4. N>=2 temporal 6-view grid video (if not already generated) ---
-if [ ! -f "${OUTBASE}/multiview_filter_video/video_all_filtered_white_grid.mp4" ]; then
+FILTER_OUTBASE="outputs/analysis/mouse/filtering"
+if [ ! -f "${FILTER_OUTBASE}/multiview_filter_video/video_all_filtered_white_grid.mp4" ]; then
     echo ""
     echo "[4/4] Multi-view filter temporal 6-view grid"
     python -m mouse_extensions.behavior.multiview_visibility_filter \
@@ -72,7 +73,7 @@ if [ ! -f "${OUTBASE}/multiview_filter_video/video_all_filtered_white_grid.mp4" 
         --n-filter 2 \
         --views 0 1 2 3 4 5 \
         --parts face tail torso \
-        --output-dir "${OUTBASE}/multiview_filter_video" \
+        --output-dir "${FILTER_OUTBASE}/multiview_filter_video" \
         --fps 10
 else
     echo ""
@@ -88,7 +89,7 @@ echo ""
 echo "To re-run individual configs:"
 echo "  python -m mouse_extensions.behavior.cinematic_sequence \\"
 echo "      --config mouse_extensions/behavior/cinematic_default.yaml \\"
-echo "      --output-dir outputs/sdannce_poc/my_output"
+echo "      --output-dir outputs/viz/cinematic/mouse/my_output"
 echo ""
 echo "Config options (edit YAML or override via CLI):"
 echo "  global.fps: 15              # frames per second"

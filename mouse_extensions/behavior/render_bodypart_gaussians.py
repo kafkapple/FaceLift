@@ -9,7 +9,7 @@ Usage on gpu03:
     CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.behavior.render_bodypart_gaussians \
         --frame-idx 0 500 1000 \
         --views 0 2 4 \
-        --output-dir outputs/sdannce_poc/bodypart_renders
+        --output-dir outputs/viz/bodypart/mouse/renders
 """
 
 import argparse
@@ -657,7 +657,7 @@ def main():
     parser.add_argument("--config", default="configs/base/gslrm_mouse.yaml")
     parser.add_argument("--kp-path", default=GPU03_KEYPOINTS)
     parser.add_argument("--m5-dir", default=GPU03_M5_DATA)
-    parser.add_argument("--output-dir", default="outputs/sdannce_poc/bodypart_renders")
+    parser.add_argument("--output-dir", default="outputs/viz/bodypart/mouse/renders")
     parser.add_argument("--parts", nargs="+", type=str,
                         default=["face", "tail", "torso"],
                         help="Body parts to render (default: face tail torso)")

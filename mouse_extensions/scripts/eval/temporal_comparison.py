@@ -9,7 +9,7 @@ Generates:
 Usage:
     python -m mouse_extensions.scripts.eval.temporal_comparison \
         --data_root outputs/datasets/temporal_eval \
-        --output_dir outputs/report/temporal_comparison
+        --output_dir outputs/viz/comparison/mouse/temporal_comparison
 
 See: docs/experiments/TEMPORAL_EVAL_STANDARD.md
 """
@@ -378,7 +378,7 @@ def main():
         help="Root directory with experiment renders",
     )
     parser.add_argument(
-        "--output_dir", default="outputs/report/temporal_comparison",
+        "--output_dir", default="outputs/viz/comparison/mouse/temporal_comparison",
         help="Output directory",
     )
     parser.add_argument(

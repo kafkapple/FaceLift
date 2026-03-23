@@ -190,11 +190,56 @@ FaceLift/
 ├── mouse_extensions/       # ★ 모든 확장 구현은 여기에
 │   ├── preprocessing/      # 전처리 (preset 기반 통합)
 │   ├── model/             # loss, visualization
+│   ├── visualization/     # 렌더링/시각화 모듈
+│   ├── behavior/          # 행동 분석 (HLAC, clustering, BAMS)
 │   └── scripts/           # 유틸리티, 진단
 ├── configs/mouse/          # 실험 설정 (base + dataset + experiment)
 ├── gslrm/                  # GS-LRM 코어 (최소 수정)
 └── docs/                   # 기술 문서
 ```
+
+### Output Directory Structure (v2 — 2026-03-23)
+
+**SSOT**: `mouse_extensions/paths.py` — 모든 경로는 이 모듈에서 관리.
+
+```
+outputs/
+├── experiments/{species}/{experiment_id}/   # Training runs (checkpoints, logs, config)
+├── eval/{species}/{experiment_id}/          # Quantitative evaluation (metrics JSON)
+├── viz/                                     # Visualization media
+│   ├── turntable/{species}/{experiment_id}/ # A-type: 360° orbit MP4
+│   ├── cinematic/{species}/{experiment_id}/ # B-type: 논문용 데모 MP4
+│   ├── bodypart/{species}/{experiment_id}/  # Body-part isolation
+│   └── comparison/{species}/                # Alpha, temporal grids
+├── features/{species}/                      # Extracted features (large NPZ)
+│   ├── gaussian/                            # Raw Gaussian properties
+│   ├── covariance/                          # Covariance features
+│   ├── temporal/                            # Temporal features
+│   └── hlac/                                # HLAC behavior features (통합)
+├── analysis/{species}/                      # Exploratory analysis
+│   ├── behavior_clustering/                 # Behavior clustering + reports
+│   ├── bams/                                # BAMS experiments
+│   ├── neural_texture/                      # Neural texture experiments
+│   └── filtering/                           # View filtering strategies
+├── datasets/                                # Generated/derived datasets
+│   ├── novel_view/                          # Novel view renders
+│   ├── fine_tune/{species}/                 # Fine-tuning data (e.g., rat gslrm_format)
+│   └── generated/                           # Other derived data
+├── reports/{report_slug}/                   # Publication reports (HTML, figures)
+└── _archive/                                # Deprecated experiments (read-only)
+```
+
+**Factory functions** (in `mouse_extensions/paths.py`):
+```python
+get_experiment_dir(species, experiment_id)  # → experiments/{species}/{id}/
+get_eval_dir(species, experiment_id)        # → eval/{species}/{id}/
+get_viz_dir(species, experiment_id, type)   # → viz/{type}/{species}/{id}/
+get_feature_dir(species, feature_type)      # → features/{species}/{type}/
+get_analysis_dir(species, analysis_type)    # → analysis/{species}/{type}/
+```
+
+> **Backward compat**: 이전 경로 (`outputs/sdannce_poc/`, `outputs/report/`, `outputs/hlac_*` 등)는
+> symlink로 새 위치를 가리킴. 새 코드는 반드시 factory 함수 사용.
 
 ### Extension Guidelines
 
@@ -300,6 +345,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 | summary.csv empty (path depth bug) | ✅ 해결됨 | nested dir 탐색 지원 (260323) |
 | Train/Val 로그 구분 불가 | ✅ 해결됨 | `[Train]`/`[Val]` prefix 통일 (260323) |
 | metrics.txt 1-UID only | ✅ 해결됨 | `_save_visualizations` 내부 → run() 루프로 분리 (260323) |
+| outputs/ 구조 비일관 | ✅ 해결됨 | v2 구조 마이그레이션 완료 — `paths.py` SSOT + symlink backward compat (260323) |
 
 ---
 

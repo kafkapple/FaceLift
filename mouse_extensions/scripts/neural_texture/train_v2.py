@@ -9,7 +9,7 @@ Improvements over v1:
 Usage:
     CUDA_VISIBLE_DEVICES=4 python -m \
         mouse_extensions.scripts.neural_texture.train_v2 \
-        --uv-dir outputs/neural_texture/uv_maps \
+        --uv-dir outputs/analysis/mouse/neural_texture/uv_maps \
         --epochs 300 --lr 5e-4 \
         --use-lpips --lpips-weight 0.05 \
         --wandb-project facelift-neural-texture
@@ -230,11 +230,11 @@ def render_comparison(model, uv_file, m5_dir, device, texture_img=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Train Neural Texture v2")
-    parser.add_argument("--uv-dir", default="outputs/neural_texture/uv_maps")
+    parser.add_argument("--uv-dir", default="outputs/analysis/mouse/neural_texture/uv_maps")
     parser.add_argument("--m5-dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
     parser.add_argument("--kp-path", default="/home/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz")
     parser.add_argument("--texture-path", default="/home/joon/data/synthetic/mouse_mesh/FaceLift_mouse/texture_final.png")
-    parser.add_argument("--output-dir", default="outputs/neural_texture/v2")
+    parser.add_argument("--output-dir", default="outputs/analysis/mouse/neural_texture/v2")
     parser.add_argument("--epochs", type=int, default=300)
     parser.add_argument("--lr", type=float, default=5e-4)
     parser.add_argument("--batch-size", type=int, default=8)

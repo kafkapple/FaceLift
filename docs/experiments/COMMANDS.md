@@ -522,7 +522,7 @@ configs/mouse/uniform/
 ## 13. Behavior Analysis: Gaussian Body-Part Features
 
 > **목표**: 3DGS 기반 body-part 분리 및 가우시안 파라미터 분석
-> **전제**: `extract_gaussian_raw.py`로 NPZ 추출 완료 (outputs/report/clustering/features/gaussians_raw/)
+> **전제**: `extract_gaussian_raw.py`로 NPZ 추출 완료 (outputs/features/clustering/gaussians_raw/)
 > **키포인트**: MAMMAL 22-keypoint (v012345_kp22)
 
 ### 13.1 가우시안 파라미터 분포 분석
@@ -536,12 +536,12 @@ cd /home/joon/dev/FaceLift
 # 기본 (4 frames 분석)
 python -m mouse_extensions.behavior.analyze_gaussian_distributions \
     --frame-idx 0 500 1000 2000 \
-    --output-dir outputs/sdannce_poc/gaussian_distributions
+    --output-dir outputs/analysis/mouse/filtering/gaussian_distributions
 
 # 전체 분석 (특정 frame 지정)
 python -m mouse_extensions.behavior.analyze_gaussian_distributions \
     --frame-idx 0 100 200 500 1000 1500 2000 2500 3000 3500 \
-    --output-dir outputs/sdannce_poc/gaussian_distributions
+    --output-dir outputs/analysis/mouse/filtering/gaussian_distributions
 ```
 
 **출력**:
@@ -564,7 +564,7 @@ python -m mouse_extensions.behavior.view_projected_filtering \
     --mode bbox \
     --frame-idx 0 100 500 1000 2000 \
     --view-idx 0 --padding-px 20 \
-    --output-dir outputs/sdannce_poc/view_projected_filtering
+    --output-dir outputs/analysis/mouse/filtering/view_projected_filtering
 ```
 
 ### 13.3 Radial Filtering + Radius Sweep
@@ -580,21 +580,21 @@ python -m mouse_extensions.behavior.view_projected_filtering \
     --mode radial \
     --radii 10 20 30 40 50 70 100 \
     --frame-idx 0 500 1000 \
-    --output-dir outputs/sdannce_poc/radial_filtering
+    --output-dir outputs/analysis/mouse/filtering/radial_filtering
 
 # 세밀 sweep (face/paw 최적화)
 python -m mouse_extensions.behavior.view_projected_filtering \
     --mode radial \
     --radii 5 10 15 20 25 30 40 50 60 80 100 120 \
     --frame-idx 0 500 1000 \
-    --output-dir outputs/sdannce_poc/radial_filtering_fine
+    --output-dir outputs/analysis/mouse/filtering/radial_filtering_fine
 
 # 다른 카메라 뷰에서도 확인
 python -m mouse_extensions.behavior.view_projected_filtering \
     --mode radial --view-idx 3 \
     --radii 10 20 30 50 70 100 \
     --frame-idx 0 500 \
-    --output-dir outputs/sdannce_poc/radial_filtering_view3
+    --output-dir outputs/analysis/mouse/filtering/radial_filtering_view3
 ```
 
 **출력**:
@@ -620,21 +620,21 @@ CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.behavior.render_bodypart_gauss
     --frame-idx 0 500 1000 \
     --views 0 2 4 \
     --color-mode bodypart \
-    --output-dir outputs/sdannce_poc/bodypart_renders
+    --output-dir outputs/viz/bodypart/mouse/renders
 
 # Opacity colormap (viridis)
 CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.behavior.render_bodypart_gaussians \
     --frame-idx 0 500 \
     --views 0 2 4 \
     --color-mode opacity \
-    --output-dir outputs/sdannce_poc/bodypart_renders_opacity
+    --output-dir outputs/viz/bodypart/mouse/renders_opacity
 
 # Scale magnitude colormap (plasma)
 CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.behavior.render_bodypart_gaussians \
     --frame-idx 0 500 \
     --views 0 2 4 \
     --color-mode scale \
-    --output-dir outputs/sdannce_poc/bodypart_renders_scale
+    --output-dir outputs/viz/bodypart/mouse/renders_scale
 ```
 
 **출력**: `frame_{idx}_{color_mode}.png` — (n_parts+1) × n_views grid
@@ -648,7 +648,7 @@ pip install diptest  # Hartigan's Dip Test (optional, fallback 구현 있음)
 ### 출력 디렉토리
 
 ```
-outputs/sdannce_poc/
+outputs/analysis/mouse/filtering/
 ├── gaussian_distributions/   # 13.1: 분포 분석
 ├── view_projected_filtering/ # 13.2: BBox 필터링
 ├── radial_filtering/         # 13.3: Radial sweep

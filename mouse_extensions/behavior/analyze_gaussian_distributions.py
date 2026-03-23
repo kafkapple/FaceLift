@@ -9,7 +9,7 @@ Body-part assignment: 3D nearest-bone-segment distance (view-independent).
 Usage on gpu03:
     python -m mouse_extensions.behavior.analyze_gaussian_distributions \
         --frame-idx 0 500 1000 2000 \
-        --output-dir outputs/sdannce_poc/gaussian_distributions
+        --output-dir outputs/analysis/mouse/filtering/gaussian_distributions
 """
 
 import argparse
@@ -485,7 +485,7 @@ def main():
     parser.add_argument("--frame-idx", nargs="+", type=int, default=[0, 500, 1000, 2000])
     parser.add_argument("--gauss-dir", default=str(GAUSSIANS_RAW_DIR))
     parser.add_argument("--kp-path", default=GPU03_KEYPOINTS)
-    parser.add_argument("--output-dir", default="outputs/sdannce_poc/gaussian_distributions")
+    parser.add_argument("--output-dir", default="outputs/analysis/mouse/filtering/gaussian_distributions")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)

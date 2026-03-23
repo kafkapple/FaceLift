@@ -22,7 +22,7 @@ Usage:
     cd /home/joon/dev/FaceLift
     python -m mouse_extensions.behavior.h1_sdannce_probe \
         --mat-file /home/joon/data/sdannce/mouse/dataverse/MOUSE_B1_20240428_0061_S.mat \
-        --output-dir outputs/sdannce_poc/h1_probe \
+        --output-dir outputs/analysis/mouse/behavior_clustering/h1_probe \
         --animal m1
 """
 
@@ -473,7 +473,7 @@ def plot_hlac_distribution(hlac: np.ndarray, output_dir: Path):
 def main():
     parser = argparse.ArgumentParser(description="H1 Probe: engineered features vs raw keypoints")
     parser.add_argument("--mat-file", required=True, help="Path to s-DANNCE Dataverse .mat")
-    parser.add_argument("--output-dir", default="outputs/sdannce_poc/h1_probe", help="Output directory")
+    parser.add_argument("--output-dir", default="outputs/analysis/mouse/behavior_clustering/h1_probe", help="Output directory")
     parser.add_argument("--animal", default="m1", choices=["m1", "m2"], help="Which animal to analyze")
     parser.add_argument("--fps", type=float, default=50.0)
     parser.add_argument("--group-duration", type=float, default=15.0, help="Group duration (seconds)")

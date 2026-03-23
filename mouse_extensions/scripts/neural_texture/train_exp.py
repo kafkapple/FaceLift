@@ -6,11 +6,11 @@ and loss configurations. Fixes LPIPS bug from train_v2.
 Usage:
     # Smoke test (5 epochs)
     CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.neural_texture.train_exp \
-        --map-dir outputs/neural_texture/xyz_maps --epochs 5 --exp-name smoke_xyz
+        --map-dir outputs/analysis/mouse/neural_texture/xyz_maps --epochs 5 --exp-name smoke_xyz
 
     # Full run
     CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.neural_texture.train_exp \
-        --map-dir outputs/neural_texture/xyz_maps --epochs 300 \
+        --map-dir outputs/analysis/mouse/neural_texture/xyz_maps --epochs 300 \
         --hidden-dim 256 --num-layers 6 --use-lpips \
         --wandb-project facelift-neural-texture --exp-name xyz_full
 """
@@ -234,7 +234,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.output_dir is None:
-        args.output_dir = f"outputs/neural_texture/runs/{args.exp_name}"
+        args.output_dir = f"outputs/analysis/mouse/neural_texture/runs/{args.exp_name}"
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     vis_dir = output_dir / "vis"

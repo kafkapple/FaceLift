@@ -3,16 +3,21 @@
 Imports critical paths from top-level SSOT (mouse_extensions.paths).
 Defines behavior-specific output subdirectories.
 
-Directory structure:
-    outputs/features/clustering/         ← Feature data (SSOT from paths.py)
+Directory structure (v2 — see mouse_extensions/paths.py for full structure):
+    outputs/features/clustering/         ← Legacy feature data (backward compat alias)
     │   ├── gaussians_raw/               ← Per-frame NPZ (1M Gaussians, float16)
     │   ├── covariance_n2/               ← Covariance features
     │   └── temporal/                    ← Temporal features
-    outputs/report/clustering/           ← Reports & visualizations
+    outputs/report/clustering/           ← Legacy reports (symlink → analysis/)
     ├── data/                            ← Input data (keypoints copy)
     ├── results/                         ← JSON experiment results
     ├── visualizations/                  ← Plots, GIFs, images
     └── reports/                         ← Self-contained HTML reports
+
+New canonical paths (use mouse_extensions.paths factory functions):
+    outputs/features/{species}/{feature_type}/   ← Feature extraction
+    outputs/analysis/{species}/{analysis_type}/  ← Exploratory analysis
+    outputs/viz/{viz_type}/{species}/            ← Visualizations
 """
 from pathlib import Path
 

@@ -6,7 +6,7 @@ segments with the most movement for visualization.
 Usage on gpu03:
     python -m mouse_extensions.behavior.find_active_segments \
         --top-k 5 --segment-len 60 \
-        --output-dir outputs/sdannce_poc/motion_analysis
+        --output-dir outputs/analysis/mouse/behavior_clustering/motion_analysis
 
     # Just print top segments without saving
     python -m mouse_extensions.behavior.find_active_segments --top-k 10
@@ -201,7 +201,7 @@ def main():
     parser.add_argument("--segment-len", type=int, default=60, help="Segment length in frames")
     parser.add_argument("--top-k", type=int, default=5, help="Number of segments")
     parser.add_argument("--min-gap", type=int, default=60, help="Minimum gap between segments")
-    parser.add_argument("--output-dir", default="outputs/sdannce_poc/motion_analysis")
+    parser.add_argument("--output-dir", default="outputs/analysis/mouse/behavior_clustering/motion_analysis")
     args = parser.parse_args()
 
     print("Loading keypoints...")

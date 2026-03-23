@@ -9,9 +9,9 @@ not from any learned representation.
 Usage:
     cd /home/joon/dev/FaceLift
     python -m mouse_extensions.behavior.hlac_classification \
-        --sparse-path outputs/sdannce_poc/features/sparse_features.npz \
-        --bams-path outputs/sdannce_poc/bams/bams_embeddings.npz \
-        --output-dir outputs/sdannce_poc/hlac_analysis \
+        --sparse-path outputs/analysis/mouse/bams/features/sparse_features.npz \
+        --bams-path outputs/analysis/mouse/bams/bams_embeddings.npz \
+        --output-dir outputs/analysis/mouse/behavior_clustering/hlac_analysis \
         --target-k 7
 """
 
@@ -829,7 +829,7 @@ def main():
                         help="Path to sparse_features.npz")
     parser.add_argument("--bams-path", type=str, required=True,
                         help="Path to bams_embeddings.npz")
-    parser.add_argument("--output-dir", type=str, default="outputs/sdannce_poc/hlac_analysis",
+    parser.add_argument("--output-dir", type=str, default="outputs/analysis/mouse/behavior_clustering/hlac_analysis",
                         help="Output directory")
     parser.add_argument("--target-k", type=int, default=0,
                         help="Target K for detailed analysis (0=auto-select)")

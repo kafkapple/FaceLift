@@ -115,7 +115,7 @@ def main():
     parser.add_argument("--frame", type=int, default=0)
     parser.add_argument("--obj-dir", default="/home/joon/data/synthetic/textured_obj")
     parser.add_argument("--m5-dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
-    parser.add_argument("--output-dir", default="outputs/neural_texture/geom_v2")
+    parser.add_argument("--output-dir", default="outputs/analysis/mouse/neural_texture/geom_v2")
     parser.add_argument("--epochs-tex", type=int, default=500)
     parser.add_argument("--epochs-joint", type=int, default=500)
     parser.add_argument("--lr-tex", type=float, default=1e-3)

@@ -401,7 +401,7 @@ def main():
         help='Path to dataset file (data_mouse_train.txt)'
     )
     parser.add_argument(
-        '--output_dir', type=str, default='outputs/diagnostics',
+        '--output_dir', type=str, default='outputs/_archive/diagnostics_phase0',
         help='Output directory for reports'
     )
     parser.add_argument(

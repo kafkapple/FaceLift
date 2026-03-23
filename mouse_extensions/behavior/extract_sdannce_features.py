@@ -7,7 +7,7 @@ Reads .mat files from s-DANNCE output (pred shape: T, 3, 23) and produces:
 Usage:
     python -m mouse_extensions.behavior.extract_sdannce_features \
         --session /path/to/session_dir \
-        --output outputs/sdannce_poc/features/ \
+        --output outputs/analysis/mouse/bams/features/ \
         --max_frames 90000
 """
 
@@ -166,7 +166,7 @@ def extract_s3(kp1: np.ndarray, kp2: np.ndarray, fps: float = 50.0) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="Extract sparse features from s-DANNCE")
     parser.add_argument("--session", required=True, help="Path to session directory")
-    parser.add_argument("--output", default="outputs/sdannce_poc/features/", help="Output dir")
+    parser.add_argument("--output", default="outputs/analysis/mouse/bams/features/", help="Output dir")
     parser.add_argument("--max_frames", type=int, default=90000, help="Max frames to process")
     parser.add_argument("--fps", type=float, default=50.0, help="Framerate")
     args = parser.parse_args()

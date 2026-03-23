@@ -11,7 +11,7 @@ for behavior classification, with proper controls for:
 
 Usage on gpu03:
     python -m mouse_extensions.behavior.hlac_comprehensive \
-        --output-dir outputs/hlac_comprehensive
+        --output-dir outputs/features/mouse/hlac/hlac_comprehensive
 """
 
 import argparse
@@ -164,7 +164,7 @@ def run_cv(X, y, seed=42, n_splits=5):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output-dir", default="outputs/hlac_comprehensive")
+    parser.add_argument("--output-dir", default="outputs/features/mouse/hlac/hlac_comprehensive")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 

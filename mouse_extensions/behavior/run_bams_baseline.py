@@ -10,15 +10,15 @@ Usage on gpu03:
 
     # Train BAMS
     CUDA_VISIBLE_DEVICES=7 python -m mouse_extensions.behavior.run_bams_baseline \
-        --features outputs/sdannce_poc/features/sparse_features.npz \
-        --output outputs/sdannce_poc/bams/ \
+        --features outputs/analysis/mouse/bams/features/sparse_features.npz \
+        --output outputs/analysis/mouse/bams/ \
         --epochs 100
 
     # Extract embeddings only (from trained model)
     CUDA_VISIBLE_DEVICES=7 python -m mouse_extensions.behavior.run_bams_baseline \
-        --features outputs/sdannce_poc/features/sparse_features.npz \
-        --output outputs/sdannce_poc/bams/ \
-        --extract_only --checkpoint outputs/sdannce_poc/bams/best_model.pt
+        --features outputs/analysis/mouse/bams/features/sparse_features.npz \
+        --output outputs/analysis/mouse/bams/ \
+        --extract_only --checkpoint outputs/analysis/mouse/bams/best_model.pt
 """
 
 import argparse
@@ -204,7 +204,7 @@ def extract_embeddings(model, device, keypoints: np.ndarray, seq_len: int = 1000
 def main():
     parser = argparse.ArgumentParser(description="BAMS baseline on s-DANNCE")
     parser.add_argument("--features", required=True, help="Path to sparse_features.npz")
-    parser.add_argument("--output", default="outputs/sdannce_poc/bams/")
+    parser.add_argument("--output", default="outputs/analysis/mouse/bams/")
     parser.add_argument("--mode", default="single", choices=["single", "dyadic"])
     parser.add_argument("--seq_len", type=int, default=1000)
     parser.add_argument("--overlap", type=int, default=500)

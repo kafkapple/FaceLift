@@ -7,8 +7,8 @@ pseudo-GT for DiFix Type 2 training pairs.
 Usage:
     PYOPENGL_PLATFORM=egl CUDA_VISIBLE_DEVICES=7 python -m \
         mouse_extensions.scripts.neural_texture.generate_pseudo_gt \
-        --checkpoint outputs/neural_texture/runs/uv16_lpips_500ep/best.pt \
-        --output-dir outputs/neural_texture/pseudo_gt
+        --checkpoint outputs/analysis/mouse/neural_texture/runs/uv16_lpips_500ep/best.pt \
+        --output-dir outputs/analysis/mouse/neural_texture/pseudo_gt
 """
 
 import os
@@ -126,7 +126,7 @@ def render_neural_texture_image(mesh, model, device, cam_params=None, c2w=None, 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--output-dir", default="outputs/neural_texture/pseudo_gt")
+    parser.add_argument("--output-dir", default="outputs/analysis/mouse/neural_texture/pseudo_gt")
     parser.add_argument("--obj-dir", default="/home/joon/data/synthetic/textured_obj")
     parser.add_argument("--m5-dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
     parser.add_argument("--num-frames", type=int, default=100)

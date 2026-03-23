@@ -7,9 +7,9 @@ Usage on gpu03 (bams env):
     source /home/joon/anaconda3/etc/profile.d/conda.sh && conda activate bams
     cd /home/joon/dev/FaceLift
     python -m mouse_extensions.behavior.analyze_bams_embeddings \
-        --bams_emb outputs/sdannce_poc/bams/bams_embeddings.npz \
-        --sparse_feat outputs/sdannce_poc/features/sparse_features.npz \
-        --output outputs/sdannce_poc/bams_analysis/
+        --bams_emb outputs/analysis/mouse/bams/bams_embeddings.npz \
+        --sparse_feat outputs/analysis/mouse/bams/features/sparse_features.npz \
+        --output outputs/analysis/mouse/bams/bams_analysis/
 """
 
 import argparse
@@ -141,7 +141,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--bams_emb", required=True)
     parser.add_argument("--sparse_feat", required=True)
-    parser.add_argument("--output", default="outputs/sdannce_poc/bams_analysis/")
+    parser.add_argument("--output", default="outputs/analysis/mouse/bams/bams_analysis/")
     parser.add_argument("--fps", type=float, default=50.0)
     args = parser.parse_args()
 

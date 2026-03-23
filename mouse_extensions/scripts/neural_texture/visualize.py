@@ -6,7 +6,7 @@ renders at GT camera views and novel viewpoints (bottom, top, front_low, side_lo
 Usage:
     PYOPENGL_PLATFORM=egl CUDA_VISIBLE_DEVICES=4 python -m \
         mouse_extensions.scripts.neural_texture.visualize \
-        --checkpoint outputs/neural_texture/checkpoints/best.pt \
+        --checkpoint outputs/analysis/mouse/neural_texture/checkpoints/best.pt \
         --frame 0
 """
 
@@ -242,13 +242,13 @@ def create_comparison_grid(images, labels, row_labels=None, cell_size=256):
 def main():
     parser = argparse.ArgumentParser(description="Visualize Neural Texture")
     parser.add_argument("--checkpoint", type=str,
-                        default="outputs/neural_texture/checkpoints/best.pt")
+                        default="outputs/analysis/mouse/neural_texture/checkpoints/best.pt")
     parser.add_argument("--obj-dir", type=str,
                         default="/home/joon/data/synthetic/textured_obj")
     parser.add_argument("--m5-dir", type=str,
                         default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
     parser.add_argument("--output-dir", type=str,
-                        default="outputs/neural_texture/visualizations")
+                        default="outputs/analysis/mouse/neural_texture/visualizations")
     parser.add_argument("--frame", type=int, default=0,
                         help="M5 frame index to visualize")
     parser.add_argument("--cell-size", type=int, default=256)

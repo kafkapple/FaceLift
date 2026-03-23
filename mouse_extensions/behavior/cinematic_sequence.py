@@ -13,7 +13,7 @@ Segment types:
 Usage:
     CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.cinematic_sequence \
         --config mouse_extensions/behavior/cinematic_default.yaml \
-        --output-dir outputs/sdannce_poc/cinematic_v4
+        --output-dir outputs/viz/cinematic/mouse/latest
 
     # Or with CLI overrides:
     CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.cinematic_sequence \
@@ -603,7 +603,7 @@ class CinematicPipeline:
 def main():
     parser = argparse.ArgumentParser(description="Cinematic Sequence v4")
     parser.add_argument("--config", default="mouse_extensions/behavior/cinematic_default.yaml")
-    parser.add_argument("--output-dir", default="outputs/sdannce_poc/cinematic_v4")
+    parser.add_argument("--output-dir", default="outputs/viz/cinematic/mouse/latest")
     parser.add_argument("--frame-range", default=None, help="Override: 'start:end[:step]'")
     parser.add_argument("--fps", type=int, default=None)
     args = parser.parse_args()

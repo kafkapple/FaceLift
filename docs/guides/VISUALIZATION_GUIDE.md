@@ -29,7 +29,7 @@ conda activate facelift
 # 기본 시네마틱 영상 (1개)
 CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.cinematic_sequence \
     --config mouse_extensions/behavior/cinematic_default.yaml \
-    --output-dir outputs/sdannce_poc/cinematic_demo
+    --output-dir outputs/viz/cinematic/mouse/demo
 
 # 일괄 배치 (white/black BG, keypoint on/off, 6-view grid)
 CUDA_VISIBLE_DEVICES=5 bash mouse_extensions/behavior/run_all_visualizations.sh
@@ -111,7 +111,7 @@ GT camera의 c2w에서 azimuth를 추출하여 `get_turntable_cameras` 출력을
 CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.multiview_visibility_filter \
     --frame-idx 0 222 1000 \
     --n-thresholds 0 1 2 3 4 5 6 \
-    --output-dir outputs/sdannce_poc/multiview_filter
+    --output-dir outputs/analysis/mouse/filtering/multiview_filter
 ```
 
 출력: N별 × white/black BG × 3뷰 비교 grid PNG + body-part balance 차트
@@ -125,7 +125,7 @@ CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.multiview_visibility_
     --n-filter 2 \
     --views 0 1 2 3 4 5 \
     --parts face tail torso \
-    --output-dir outputs/sdannce_poc/multiview_filter_video
+    --output-dir outputs/analysis/mouse/filtering/multiview_filter_video
 ```
 
 출력: 6-view grid MP4 × (all + 각 body part) × (white + black BG)

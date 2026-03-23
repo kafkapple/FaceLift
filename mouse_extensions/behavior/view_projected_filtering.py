@@ -24,7 +24,7 @@ Usage:
     python -m mouse_extensions.behavior.view_projected_filtering \
         --mode radial --radii 10 20 30 50 70 100 \
         --frame-idx 0 500 1000 \
-        --output-dir outputs/sdannce_poc/radial_filtering
+        --output-dir outputs/analysis/mouse/filtering/radial_filtering
 """
 
 import argparse
@@ -740,7 +740,7 @@ def main():
     parser.add_argument("--kp-path",
                         default=str(KP_22))
     parser.add_argument("--m5-dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5")
-    parser.add_argument("--output-dir", default="outputs/sdannce_poc/view_projected_filtering")
+    parser.add_argument("--output-dir", default="outputs/analysis/mouse/filtering/view_projected_filtering")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)

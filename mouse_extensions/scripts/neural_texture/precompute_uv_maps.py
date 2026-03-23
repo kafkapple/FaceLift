@@ -6,7 +6,7 @@ vertex colors (R=U, G=V). Output: per-pixel UV maps stored as .npz files.
 Usage:
     PYOPENGL_PLATFORM=egl CUDA_VISIBLE_DEVICES=4 python -m \
         mouse_extensions.scripts.neural_texture.precompute_uv_maps \
-        --output-dir outputs/neural_texture/uv_maps \
+        --output-dir outputs/analysis/mouse/neural_texture/uv_maps \
         --num-frames 100
 """
 
@@ -95,7 +95,7 @@ def render_uv_map(
 
 def main():
     parser = argparse.ArgumentParser(description="Pre-compute UV maps")
-    parser.add_argument("--output-dir", type=str, default="outputs/neural_texture/uv_maps")
+    parser.add_argument("--output-dir", type=str, default="outputs/analysis/mouse/neural_texture/uv_maps")
     parser.add_argument("--num-frames", type=int, default=100)
     parser.add_argument("--obj-dir", type=str,
                         default="/home/joon/data/synthetic/textured_obj")

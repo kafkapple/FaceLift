@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 def main():
-    out_dir = Path("outputs/sdannce_poc/bams_analysis")
+    out_dir = Path("outputs/analysis/mouse/bams/bams_analysis")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Load
-    bams = np.load("outputs/sdannce_poc/bams/bams_embeddings.npz", allow_pickle=True)
-    sparse = np.load("outputs/sdannce_poc/features/sparse_features.npz", allow_pickle=True)
+    bams = np.load("outputs/analysis/mouse/bams/bams_embeddings.npz", allow_pickle=True)
+    sparse = np.load("outputs/analysis/mouse/bams/features/sparse_features.npz", allow_pickle=True)
 
     s1 = sparse["s1_single_rat1"][:90000]
     bams_long = bams["long_term"][:90000]

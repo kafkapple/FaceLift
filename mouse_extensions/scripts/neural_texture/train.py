@@ -6,7 +6,7 @@ trains an MLP to predict RGB from UV coordinates.
 Usage:
     CUDA_VISIBLE_DEVICES=4 python -m \
         mouse_extensions.scripts.neural_texture.train \
-        --uv-dir outputs/neural_texture/uv_maps \
+        --uv-dir outputs/analysis/mouse/neural_texture/uv_maps \
         --epochs 200 \
         --lr 1e-4
 """
@@ -229,12 +229,12 @@ def render_validation_image(
 
 def main():
     parser = argparse.ArgumentParser(description="Train Neural Texture MLP")
-    parser.add_argument("--uv-dir", type=str, default="outputs/neural_texture/uv_maps")
+    parser.add_argument("--uv-dir", type=str, default="outputs/analysis/mouse/neural_texture/uv_maps")
     parser.add_argument("--m5-dir", type=str,
                         default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
     parser.add_argument("--kp-path", type=str,
                         default="/home/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz")
-    parser.add_argument("--output-dir", type=str, default="outputs/neural_texture/checkpoints")
+    parser.add_argument("--output-dir", type=str, default="outputs/analysis/mouse/neural_texture/checkpoints")
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--batch-size", type=int, default=8)

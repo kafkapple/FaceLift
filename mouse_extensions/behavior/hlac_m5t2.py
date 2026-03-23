@@ -9,7 +9,7 @@ This is the CORE experiment for the BehaviorSplatter paper:
 Usage:
     cd /home/joon/dev/FaceLift
     OPENBLAS_NUM_THREADS=16 python -u -m mouse_extensions.behavior.hlac_m5t2 \
-        --output-dir outputs/m5t2_hlac_analysis
+        --output-dir outputs/features/mouse/hlac/m5t2_hlac_analysis
 """
 
 import argparse
@@ -337,7 +337,7 @@ def plot_k_sweep(hlac_results: Dict, output_dir: Path, label: str = ""):
 
 def main():
     parser = argparse.ArgumentParser(description="M5t2 HLAC Analysis")
-    parser.add_argument("--output-dir", type=str, default="outputs/m5t2_hlac_analysis")
+    parser.add_argument("--output-dir", type=str, default="outputs/features/mouse/hlac/m5t2_hlac_analysis")
     parser.add_argument("--target-k", type=int, default=0, help="0=auto-select")
     parser.add_argument("--k-min", type=int, default=3)
     parser.add_argument("--k-max", type=int, default=8)

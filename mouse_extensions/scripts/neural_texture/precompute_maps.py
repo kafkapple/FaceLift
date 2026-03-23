@@ -8,7 +8,7 @@ Supports 3 modes:
 Usage:
     PYOPENGL_PLATFORM=egl python -m \
         mouse_extensions.scripts.neural_texture.precompute_maps \
-        --mode xyz --output-dir outputs/neural_texture/xyz_maps
+        --mode xyz --output-dir outputs/analysis/mouse/neural_texture/xyz_maps
 """
 
 import os
@@ -134,7 +134,7 @@ def main():
     args = parser.parse_args()
 
     if args.output_dir is None:
-        args.output_dir = f"outputs/neural_texture/{args.mode}_maps"
+        args.output_dir = f"outputs/analysis/mouse/neural_texture/{args.mode}_maps"
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

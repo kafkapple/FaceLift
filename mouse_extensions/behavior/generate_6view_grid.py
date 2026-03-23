@@ -6,7 +6,7 @@ Supports keypoint overlay and side-by-side comparison (with/without KP).
 Usage on gpu03:
     CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.generate_6view_grid \
         --frame-range 195:255 \
-        --output-dir outputs/sdannce_poc/6view_grid
+        --output-dir outputs/viz/comparison/mouse/6view_grid
 """
 
 import argparse
@@ -52,7 +52,7 @@ def main():
     parser.add_argument("--kp-path", default=str(KP_22))
     parser.add_argument("--config-path", default="configs/base/gslrm_mouse.yaml")
     parser.add_argument("--checkpoint", default="checkpoints/gslrm/base_uniform_v2_6view_v2/best_psnr.pt")
-    parser.add_argument("--output-dir", default="outputs/sdannce_poc/6view_grid")
+    parser.add_argument("--output-dir", default="outputs/viz/comparison/mouse/6view_grid")
     parser.add_argument("--n-filter", type=int, default=2)
     parser.add_argument("--fps", type=int, default=10)
     parser.add_argument("--with-kp", action="store_true", help="Overlay keypoints")

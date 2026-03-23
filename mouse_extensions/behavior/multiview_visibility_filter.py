@@ -9,7 +9,7 @@ Usage on gpu03:
     CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.multiview_visibility_filter \
         --frame-idx 0 222 1000 \
         --n-thresholds 0 1 2 3 4 5 6 \
-        --output-dir outputs/sdannce_poc/multiview_filter
+        --output-dir outputs/analysis/mouse/filtering/multiview_filter
 """
 
 import argparse
@@ -599,7 +599,7 @@ def main():
     parser.add_argument("--kp-path", default=str(KP_22))
     parser.add_argument("--config", default="configs/base/gslrm_mouse.yaml")
     parser.add_argument("--checkpoint", default="checkpoints/gslrm/base_uniform_v2_6view_v2/best_psnr.pt")
-    parser.add_argument("--output-dir", default="outputs/sdannce_poc/multiview_filter")
+    parser.add_argument("--output-dir", default="outputs/analysis/mouse/filtering/multiview_filter")
     parser.add_argument("--alpha-threshold", type=int, default=128)
     parser.add_argument("--fps", type=int, default=10)
     args = parser.parse_args()
