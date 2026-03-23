@@ -423,9 +423,27 @@ H(A) = -Σ p(a) * log2(p(a))  (Shannon entropy of alpha histogram)
 | Videos (512) | `outputs/report/6v_alpha_comparison_512/videos/` |
 | Metrics JSON | `outputs/report/6v_alpha_comparison_512/metrics/` |
 
-### 10.7 Conclusion
+### 10.7 Fair Eval Results (2026-03-23, PSNR_gt protocol)
 
-- **α=0.3이 6-view에서 최적**: PSNR 최고 + artifact 감소
-- Alpha loss는 GT-view 품질을 유지하면서 novel view artifact를 줄임
-- 384→512 해상도 수정으로 이전 PSNR 값이 과소평가되었음을 확인
+⚠️ **이전 결론 수정**: §10.2의 PSNR_wh(white-bg) 기준 "α=0.3 최적"은 배경 인플레이션으로 인한 오류.
+Fair eval (PSNR_gt, foreground-only) 결과:
+
+| Model | PSNR_gt ↑ | IoU ↑ | PSNR_int ↑ | SSIM ↑ | n |
+|-------|:---:|:---:|:---:|:---:|:---:|
+| **Baseline (α=0)** | **23.84 ± 1.68** | 0.954 | **24.02** | **0.9627** | 1800 |
+| α=0.3 | 23.29 ± 1.87 | **0.956** | 23.60 | 0.9607 | 1800 |
+| α=0.5 | 23.00 ± 1.87 | 0.953 | 23.28 | 0.9593 | 1800 |
+| α=1.0 | 22.55 ± 1.86 | 0.949 | 22.83 | 0.9573 | 1800 |
+
+> Source: `experiments/comparison/alpha/6view_alpha*_fair.json`
+
+### 10.8 Corrected Conclusion
+
+- **Baseline (α=0) remains best** in fair eval PSNR_gt (23.84 dB).
+- **α=0.3 has highest IoU** (0.956 vs 0.954) — marginal geometry improvement.
+- PSNR_gt cost: -0.55 dB (α=0.3), -1.29 dB (α=1.0).
+- **α=0.3 is the best trade-off** (minimal PSNR loss + highest IoU + artifact reduction) — but NOT strictly optimal.
+- §10.2 PSNR_wh(~34 dB)는 배경 인플레이션 포함 → 교차 비교에 부적합.
+- 384→512 해상도 수정으로 이전 PSNR 값이 과소평가되었음을 확인.
+- **상세**: [[UNIFIED_ABLATION_REPORT]] §3 참조.
 

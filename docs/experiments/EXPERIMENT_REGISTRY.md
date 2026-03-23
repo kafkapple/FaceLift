@@ -101,16 +101,30 @@
 
 > v2 실험은 `alpha_loss=0` bug로 무효화 (삭제됨)
 > v3: `original_gt_mask` 보존으로 alpha/bg/mask_iou 독립 계산
+> ⚠️ **메트릭 주의**: 아래 표는 **Val PSNR** (training log). Fair eval (PSNR_gt)은 [[UNIFIED_ABLATION_REPORT]] §3 참조.
 
-| Config | alpha_w | Best PSNR | Step | LPIPS ↓ | SSIM ↑ | Alpha IoU ↑ | 상태 |
-|--------|:-------:|:---------:|:----:|:-------:|:------:|:-----------:|:----:|
+### 4-View (Val PSNR)
+
+| Config | alpha_w | Val PSNR | Step | LPIPS ↓ | SSIM ↑ | Alpha IoU ↑ | 상태 |
+|--------|:-------:|:--------:|:----:|:-------:|:------:|:-----------:|:----:|
 | **4view_v2 (baseline)** | 0.0 | **21.82** | 9201 | 0.0429 | 0.9473 | N/A | ✅ |
 | alpha03_v3 | 0.3 | 21.34 | - | - | - | - | ✅ (ckpt 존재) |
 | alpha05_v3 | 0.5 | 21.20 | 8901 | 0.0204 | 0.9725 | 0.9451 | ✅ |
 | alpha10_v3 | 1.0 | 20.84 | 8101 | **0.0147** | **0.9742** | **0.9562** | ✅ |
 
-**핵심**: PSNR은 baseline 최고지만, **LPIPS(3x)/SSIM/IoU에서 alpha=1.0이 압도적 우세**.
-**Novel view 재평가 (2026-03-16)**: → [[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] 참조. Artifact 일관 감소 확인, 6v+alpha 학습 필요.
+> 4v baseline: Val PSNR=21.82, Test PSNR_gt=**20.66** (fair eval). 두 수치는 다른 프로토콜.
+
+### 6-View (Fair Eval, PSNR_gt — 2026-03-22)
+
+| Config | alpha_w | PSNR_gt | IoU | SSIM | 상태 |
+|--------|:-------:|:-------:|:---:|:----:|:----:|
+| **6view_v2 (baseline)** | 0.0 | **23.84 ± 1.68** | 0.954 | 0.9627 | ✅ |
+| 6view_alpha03_v3 | 0.3 | 23.29 ± 1.87 | **0.956** | 0.9607 | ✅ |
+| 6view_alpha05_v3 | 0.5 | 23.00 ± 1.87 | 0.953 | 0.9593 | ✅ |
+| 6view_alpha10_v3 | 1.0 | 22.55 ± 1.86 | 0.949 | 0.9573 | ✅ |
+
+**핵심**: PSNR_gt는 baseline 최고. α=0.3은 IoU 최고 (0.956) + PSNR_gt 손실 최소 (-0.55 dB) → **best trade-off**.
+**Novel view artifact**: Alpha loss → alpha entropy 3.4× 개선 (4v 데이터 기준). → [[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]], [[UNIFIED_ABLATION_REPORT]] §3 참조.
 
 ---
 

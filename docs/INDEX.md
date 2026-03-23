@@ -148,6 +148,7 @@
 | **[[specs/MAMMAL_MESH_RENDERING_PIPELINE]]** | MAMMAL mesh rendering 3단계 사양 |
 | [[specs/METRICS_PROTOCOL]] | 평가 메트릭 프로토콜 (White-BG, FG-only) |
 | **[[specs/NEURAL_TEXTURE_ANALYSIS]]** | MoReMouse 기반 neural texture 분석 + 3-model deliberation + 구현 전략 | **🆕 v1.0** |
+| **[[specs/NEURAL_TEXTURE_RENDERING_DIAGNOSIS]]** | Neural texture 렌더 품질 진단: mesh fitting vs UV encoding (MAMMAL 팀 핸드오프) | **🆕 v1.0** |
 
 > **이론 문서 → Obsidian으로 이동** (2026-03-17):
 > MULTIVIEW_DIFFUSION_THEORY → `Obsidian/docs/theory/`, MV_ADAPTER_TECHNICAL → `Obsidian/docs/research/`, SLIDES → `Obsidian/Presentation/`
