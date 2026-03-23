@@ -733,21 +733,24 @@ class GSLRMTrainer:
             self._summarize_evaluation_results(self.config.evaluation_out_dir)
         
     def _summarize_evaluation_results(self, evaluation_folder: str):
-        """Summarize evaluation metrics into a CSV file."""
-        # Check if folder exists
+        """Summarize evaluation metrics into a CSV file.
+
+        Handles two directory structures:
+        - Flat: evaluation_folder/{uid}/metrics.txt (inference mode)
+        - Nested: evaluation_folder/{iter}/metrics.txt OR {iter}/{uid}/metrics.txt (training validation)
+        """
         if not os.path.exists(evaluation_folder):
             os.makedirs(evaluation_folder, exist_ok=True)
-            print(f"Created validation folder: {evaluation_folder}")
-            return  # No results to summarize yet
-        
+            print(f"[Val Summary] Created folder: {evaluation_folder}")
+            return
+
         # Get all subdirectories
         subfolders = [
             os.path.join(evaluation_folder, o)
             for o in os.listdir(evaluation_folder)
             if os.path.isdir(os.path.join(evaluation_folder, o))
         ]
-        
-        # Sort by integer if possible, otherwise by string
+
         subfolders = sorted(
             subfolders,
             key=lambda x: (
@@ -755,36 +758,79 @@ class GSLRMTrainer:
                 else os.path.basename(x)
             ),
         )
-        
-        # Read metrics from each subfolder
-        metrics = {}
+
+        def _read_metrics_from_dir(folder):
+            """Read metrics.txt, searching nested UID subdirs if not found directly."""
+            direct = os.path.join(folder, "metrics.txt")
+            if os.path.exists(direct):
+                return _parse_metrics_file(direct)
+            # Search one level deeper (iter_X/{uid}/metrics.txt)
+            uid_metrics = []
+            for entry in sorted(os.listdir(folder)):
+                nested = os.path.join(folder, entry, "metrics.txt")
+                if os.path.exists(nested):
+                    uid_metrics.append(_parse_metrics_file(nested))
+            if uid_metrics:
+                # Average across UIDs using common keys (handles inconsistent metrics)
+                common_keys = set(uid_metrics[0].keys())
+                for m in uid_metrics[1:]:
+                    common_keys &= set(m.keys())
+                avg = {k: sum(m[k] for m in uid_metrics) / len(uid_metrics) for k in common_keys}
+                return avg if avg else None
+            return None
+
+        def _parse_metrics_file(path):
+            result = {}
+            with open(path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and ":" in line:
+                        k, v = line.split(":", 1)
+                        try:
+                            result[k.strip()] = float(v.strip())
+                        except ValueError:
+                            pass  # Skip non-numeric fields
+            return result
+
+        # Collect metrics from each subfolder
+        all_metrics = []
+        valid_subfolders = []
         for subfolder in subfolders:
-            metrics_file = os.path.join(subfolder, "metrics.txt")
-            if os.path.exists(metrics_file):
-                with open(metrics_file, "r") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line:
-                            k, v = line.split(":")
-                            v = float(v.strip())
-                            if k not in metrics:
-                                metrics[k] = []
-                            metrics[k].append(v)
-                            
+            m = _read_metrics_from_dir(subfolder)
+            if m:
+                all_metrics.append(m)
+                valid_subfolders.append(subfolder)
+
+        if not all_metrics:
+            print(f"[Val Summary] WARNING: No metrics.txt found in {evaluation_folder}. "
+                  f"Checked {len(subfolders)} subdirectories (flat and nested).")
+            return
+
+        # Build columnar structure using common keys across all entries
+        metric_keys = list(all_metrics[0].keys())
+        # Filter to entries that have all keys (handles mid-training code changes)
+        valid_pairs = [(sf, m) for sf, m in zip(valid_subfolders, all_metrics)
+                       if all(k in m for k in metric_keys)]
+        if not valid_pairs:
+            print(f"[Val Summary] WARNING: Inconsistent metric keys across entries.")
+            return
+        valid_subfolders, all_metrics = zip(*valid_pairs)
+        metrics_by_key = {k: [m[k] for m in all_metrics] for k in metric_keys}
+
         # Write summary CSV
         csv_file = os.path.join(evaluation_folder, "summary.csv")
         with open(csv_file, "w") as f:
-            f.write(",".join(["basename"] + list(metrics.keys())) + "\n")
-            for i, subfolder in enumerate(subfolders):
+            f.write(",".join(["basename"] + metric_keys) + "\n")
+            for i, subfolder in enumerate(valid_subfolders):
                 basename = os.path.basename(subfolder)
-                f.write(",".join([basename] + [str(v[i]) for v in metrics.values()]) + "\n")
-            f.write("\n")
-            # Write average
-            averages = [str(sum(v) / len(v)) for v in metrics.values()]
-            f.write(",".join(["average"] + averages) + "\n")
-            
-        print(f"Summary written to {csv_file}")
-        print(f"Average: {','.join(averages)}")
+                f.write(",".join([basename] + [f"{v[i]:.4f}" for v in metrics_by_key.values()]) + "\n")
+            # Average row
+            averages = [sum(v) / len(v) for v in metrics_by_key.values()]
+            f.write(",".join(["average"] + [f"{a:.4f}" for a in averages]) + "\n")
+
+        avg_str = ", ".join(f"{k}={a:.4f}" for k, a in zip(metric_keys, averages))
+        print(f"[Val Summary] {csv_file} ({len(valid_subfolders)} entries)")
+        print(f"[Val Summary] Average: {avg_str}")
         
     def train_step(self, batch: Dict[str, torch.Tensor]) -> Tuple[Any, bool, bool]:
         """Execute a single training step."""
@@ -964,11 +1010,11 @@ class GSLRMTrainer:
             self.fwdbwd_pass_step < 100 + self.start_fwdbwd_pass_step):
             
             cur_epoch = self.fwdbwd_pass_step // self.job_overview.num_fwdbwd_passes_per_epoch
-            print(f"epoch: {cur_epoch}, fwdbwd_pass_step: {self.fwdbwd_pass_step}/"
+            print(f"[Train] epoch: {cur_epoch}, step: {self.fwdbwd_pass_step}/"
                   f"{self.job_overview.num_fwdbwd_passes_per_epoch}, time: {iter_time:.6f}, "
                   f"param_update_step: {self.param_update_step}, "
                   f"lr: {self.optimizer.param_groups[0]['lr']:.6f}")
-            print(f"{', '.join(loss_values_str)}")
+            print(f"[Train] {', '.join(loss_values_str)}")
             
         # Wandb logging
         if (self.fwdbwd_pass_step % self.config.training.logging.wandb.log_every == 0 or
@@ -1190,7 +1236,7 @@ class GSLRMTrainer:
         
     def run_validation(self):
         """Run validation loop."""
-        print(f"Running validation at step {self.fwdbwd_pass_step}; "
+        print(f"[Val] Running validation at step {self.fwdbwd_pass_step}; "
               f"save results to: {self._val_output_dir}")
         self._barrier()
         
@@ -1304,89 +1350,98 @@ class GSLRMTrainer:
                     if torch.is_tensor(v):
                         state[k] = v.to(self.device)
 
-            # Log validation metrics to wandb
-            if self.ddp_rank == 0:
-                # Primary validation metrics
-                avg_psnr = sum(log_val_metrics["psnr"]) / max(len(log_val_metrics["psnr"]), 1)
-                avg_ssim = sum(log_val_metrics["ssim"]) / max(len(log_val_metrics["ssim"]), 1)
-                avg_lpips = sum(log_val_metrics["lpips"]) / max(len(log_val_metrics["lpips"]), 1)
-                avg_mask_iou = sum(log_val_metrics["mask_iou"]) / max(len(log_val_metrics["mask_iou"]), 1)
-                avg_l1 = sum(log_val_metrics.get("l1", [0.0])) / max(len(log_val_metrics.get("l1", [1.0])), 1)
-                avg_psnr_train_mask = sum(log_val_metrics.get("psnr_train_mask", [avg_psnr])) / max(len(log_val_metrics.get("psnr_train_mask", [1])), 1)
-                mask_type = log_val_metrics.get("mask_type", "GT")
-                
-                # Derive losses from metrics
-                # L2 from PSNR: PSNR = -10*log10(MSE) -> MSE = 10^(-PSNR/10)
-                val_l2_loss = 10 ** (-avg_psnr / 10) if avg_psnr > 0 else 1.0
-                val_ssim_loss = 1.0 - avg_ssim
-                val_lpips_loss = avg_lpips
-                
-                # Compute weighted total loss (same as training)
-                loss_weights = self.config.training.losses
-                val_total_loss = (
-                    loss_weights.l2_loss_weight * val_l2_loss
-                    + loss_weights.lpips_loss_weight * val_lpips_loss
-                    + loss_weights.ssim_loss_weight * val_ssim_loss
-                    # perceptual_loss not available in validation metrics
-                )
-                
-                wandb_log_val_metrics = {
-                    # Primary metrics (same structure as train/)
-                    "val/loss": val_total_loss,  # Weighted total
-                    "val/l2_loss": val_l2_loss,
-                    "val/psnr": avg_psnr,
-                    "val/ssim": avg_ssim,
-                    "val/ssim_loss": 1.0 - avg_ssim,
-                    "val/lpips": avg_lpips,
-                    "val/mask_iou": avg_mask_iou,
-                    "val/l1": avg_l1,
-                    "val/psnr_train_mask": avg_psnr_train_mask,
-                    "val/mask_type": mask_type,
-                    # Meta info (NEW - for experiment tracking)
-                    "meta/current_step": self.fwdbwd_pass_step,
-                    "meta/total_steps": self.config.training.schedule.max_fwdbwd_passes,
-                    "meta/progress": self.fwdbwd_pass_step / self.config.training.schedule.max_fwdbwd_passes,
-                }
-                
-                # Add per-view metrics with separate section (val_view/)
-                if log_val_metrics.get("per_view_psnr"):
-                    for view_idx, (psnr, lpips, ssim) in enumerate(zip(
-                        log_val_metrics["per_view_psnr"],
-                        log_val_metrics["per_view_lpips"],
-                        log_val_metrics["per_view_ssim"]
-                    )):
-                        wandb_log_val_metrics[f"val_view/view{view_idx}_psnr"] = psnr
-                        wandb_log_val_metrics[f"val_view/view{view_idx}_lpips"] = lpips
-                        wandb_log_val_metrics[f"val_view/view{view_idx}_ssim"] = ssim
-                
-                # Save best checkpoint by val/psnr and track early stopping
-                is_best = checkpoint_best(
-                    self.config.training.checkpointing.checkpoint_dir,
-                    self.model, self.optimizer, self.lr_scheduler,
-                    self.fwdbwd_pass_step, self.param_update_step,
-                    metric_value=avg_psnr, metric_name="psnr"
-                )
-                
-                # Early stopping logic
-                patience = self.config.training.schedule.get("early_stop_patience", 0)
-                if patience > 0:
-                    if is_best:
-                        self.best_val_psnr = avg_psnr
-                        self.patience_counter = 0
-                        print_rank0(f"[EarlyStopping] New best PSNR: {avg_psnr:.4f}")
-                    else:
-                        self.patience_counter += 1
-                        print_rank0(f"[EarlyStopping] No improvement. Patience: {self.patience_counter}/{patience}")
-                        if self.patience_counter >= patience:
-                            print_rank0(f"[EarlyStopping] Triggered! Best PSNR: {self.best_val_psnr:.4f}")
-                            self.early_stopped = True
-                wandb.log(wandb_log_val_metrics, step=self.fwdbwd_pass_step)
+        # Log validation metrics to console and wandb
+        # NOTE: This block is OUTSIDE if _offloaded_optim so it runs regardless of GPU memory
+        if self.ddp_rank == 0 and not log_val_metrics["psnr"]:
+            print("[Val] WARNING: No validation metrics collected, skipping wandb log")
+        elif self.ddp_rank == 0:
+            # Primary validation metrics
+            avg_psnr = sum(log_val_metrics["psnr"]) / max(len(log_val_metrics["psnr"]), 1)
+            avg_ssim = sum(log_val_metrics["ssim"]) / max(len(log_val_metrics["ssim"]), 1)
+            avg_lpips = sum(log_val_metrics["lpips"]) / max(len(log_val_metrics["lpips"]), 1)
+            avg_mask_iou = sum(log_val_metrics["mask_iou"]) / max(len(log_val_metrics["mask_iou"]), 1)
+            avg_l1 = sum(log_val_metrics.get("l1", [0.0])) / max(len(log_val_metrics.get("l1", [1.0])), 1)
+            avg_psnr_train_mask = sum(log_val_metrics.get("psnr_train_mask", [avg_psnr])) / max(len(log_val_metrics.get("psnr_train_mask", [1])), 1)
+            mask_type = log_val_metrics.get("mask_type", "GT")
 
-                # Log validation images to WandB
-                val_vis_dir = os.path.join(self._val_output_dir, f"iter_{self.fwdbwd_pass_step:08d}")
-                self._log_visuals_to_wandb(val_vis_dir, prefix="val")
+            # Console output for validation metrics
+            n_samples = len(log_val_metrics["psnr"])
+            print(f"[Val] step={self.fwdbwd_pass_step}, samples={n_samples}, "
+                  f"psnr={avg_psnr:.4f}, ssim={avg_ssim:.4f}, lpips={avg_lpips:.4f}, "
+                  f"mask_iou={avg_mask_iou:.4f}, l1={avg_l1:.4f}")
 
-            torch.cuda.empty_cache()
+            # Derive losses from metrics
+            # L2 from PSNR: PSNR = -10*log10(MSE) -> MSE = 10^(-PSNR/10)
+            val_l2_loss = 10 ** (-avg_psnr / 10) if avg_psnr > 0 else 1.0
+            val_ssim_loss = 1.0 - avg_ssim
+            val_lpips_loss = avg_lpips
+
+            # Compute weighted total loss (same as training)
+            loss_weights = self.config.training.losses
+            val_total_loss = (
+                loss_weights.l2_loss_weight * val_l2_loss
+                + loss_weights.lpips_loss_weight * val_lpips_loss
+                + loss_weights.ssim_loss_weight * val_ssim_loss
+                # perceptual_loss not available in validation metrics
+            )
+
+            wandb_log_val_metrics = {
+                # Primary metrics (same structure as train/)
+                "val/loss": val_total_loss,  # Weighted total
+                "val/l2_loss": val_l2_loss,
+                "val/psnr": avg_psnr,
+                "val/ssim": avg_ssim,
+                "val/ssim_loss": 1.0 - avg_ssim,
+                "val/lpips": avg_lpips,
+                "val/mask_iou": avg_mask_iou,
+                "val/l1": avg_l1,
+                "val/psnr_train_mask": avg_psnr_train_mask,
+                "val/mask_type": mask_type,
+                # Meta info (NEW - for experiment tracking)
+                "meta/current_step": self.fwdbwd_pass_step,
+                "meta/total_steps": self.config.training.schedule.max_fwdbwd_passes,
+                "meta/progress": self.fwdbwd_pass_step / self.config.training.schedule.max_fwdbwd_passes,
+            }
+
+            # Add per-view metrics with separate section (val_view/)
+            if log_val_metrics.get("per_view_psnr"):
+                for view_idx, (psnr, lpips, ssim) in enumerate(zip(
+                    log_val_metrics["per_view_psnr"],
+                    log_val_metrics["per_view_lpips"],
+                    log_val_metrics["per_view_ssim"]
+                )):
+                    wandb_log_val_metrics[f"val_view/view{view_idx}_psnr"] = psnr
+                    wandb_log_val_metrics[f"val_view/view{view_idx}_lpips"] = lpips
+                    wandb_log_val_metrics[f"val_view/view{view_idx}_ssim"] = ssim
+
+            # Save best checkpoint by val/psnr and track early stopping
+            is_best = checkpoint_best(
+                self.config.training.checkpointing.checkpoint_dir,
+                self.model, self.optimizer, self.lr_scheduler,
+                self.fwdbwd_pass_step, self.param_update_step,
+                metric_value=avg_psnr, metric_name="psnr"
+            )
+
+            # Early stopping logic
+            patience = self.config.training.schedule.get("early_stop_patience", 0)
+            if patience > 0:
+                if is_best:
+                    self.best_val_psnr = avg_psnr
+                    self.patience_counter = 0
+                    print_rank0(f"[EarlyStopping] New best PSNR: {avg_psnr:.4f}")
+                else:
+                    self.patience_counter += 1
+                    print_rank0(f"[EarlyStopping] No improvement. Patience: {self.patience_counter}/{patience}")
+                    if self.patience_counter >= patience:
+                        print_rank0(f"[EarlyStopping] Triggered! Best PSNR: {self.best_val_psnr:.4f}")
+                        self.early_stopped = True
+            wandb.log(wandb_log_val_metrics, step=self.fwdbwd_pass_step)
+
+            # Log validation images to WandB
+            val_vis_dir = os.path.join(self._val_output_dir, f"iter_{self.fwdbwd_pass_step:08d}")
+            self._log_visuals_to_wandb(val_vis_dir, prefix="val")
+
+        torch.cuda.empty_cache()
             
         self._barrier()
         

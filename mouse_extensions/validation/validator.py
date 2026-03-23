@@ -212,7 +212,7 @@ class ValidationRunner:
         with open(os.path.join(output_dir, "metrics.txt"), "w") as f:
             f.write(f"psnr: {metrics['psnr']:.4f}\nlpips: {metrics['lpips']:.4f}\nssim: {metrics['ssim']:.4f}\n")
         
-        print(f"Validation UID {item_uid}: PSNR={metrics['psnr']:.4f}, LPIPS={metrics['lpips']:.4f}, SSIM={metrics['ssim']:.4f}")
+        print(f"[Val] UID {item_uid}: PSNR={metrics['psnr']:.4f}, LPIPS={metrics['lpips']:.4f}, SSIM={metrics['ssim']:.4f}")
     
     def _save_gaussian_ply(self, model_results, batch_idx, output_dir):
         """Save filtered Gaussian model."""

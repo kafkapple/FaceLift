@@ -1720,7 +1720,7 @@ class GSLRM(nn.Module):
             avg_ssim = per_view_ssim.mean().item()
             with open(os.path.join(item_output_dir, "metrics.txt"), "w") as f:
                 f.write(f"psnr: {avg_psnr:.4f}\nlpips: {avg_lpips:.4f}\nssim: {avg_ssim:.4f}\n")
-            print(f"UID {item_uid}: PSNR={avg_psnr:.4f}, LPIPS={avg_lpips:.4f}, SSIM={avg_ssim:.4f}")
+            print(f"[Val] UID {item_uid}: PSNR={avg_psnr:.4f}, LPIPS={avg_lpips:.4f}, SSIM={avg_ssim:.4f}")
             # Save Gaussian model
             crop_box = None
             if self.config.model.get("clip_xyz", False):

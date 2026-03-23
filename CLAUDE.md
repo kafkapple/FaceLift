@@ -313,6 +313,9 @@ python -m mouse_extensions.preprocessing.preprocess \
 | bf16 NaN (opacity_reg) | ✅ 해결됨 | `.float().clamp(1e-4)` |
 | normalize_after_zoom PP | ✅ 해결됨 | [[PREPROCESSING_REGISTRY]] |
 | Per-sample zoom_after_transform | ✅ 해결됨 | [[PREPROCESSING_REGISTRY]] |
+| Val metrics WandB 미전송 (16GB+ GPU) | ✅ 해결됨 | `_offloaded_optim` 블록 외부로 이동 (260323) |
+| summary.csv empty (path depth bug) | ✅ 해결됨 | nested dir 탐색 지원 (260323) |
+| Train/Val 로그 구분 불가 | ✅ 해결됨 | `[Train]`/`[Val]` prefix 통일 (260323) |
 
 ---
 
@@ -377,6 +380,19 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 - Training strategy optimization is saturated → architecture change needed
 - GS-LRM 6v > PS by +7.13 dB (Tier A fair eval)
 
+### Rat FT (RAT1_rat_ft_v1, 260323)
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Val PSNR | **17.1 dB** | Plateau at step 3400, single UID val |
+| Train PSNR | ~35 dB | Severe overfitting (gap=18 dB) |
+| Val SSIM | 0.69 | |
+| Val LPIPS | 0.28 | |
+| Data | Train 800 / Val 100 | 6cam SAM2 masks |
+| Checkpoint | `RAT1_rat_ft_v1/ckpt_0000000000005200.pt` | |
+
+⚠️ Train/Val gap 18 dB = overfitting. 다음 시도: augmentation, 데이터 증강, early stopping.
+
 ### PS M5 Retraining (in progress)
 
 - Coordinate system fixed (auto_orient space)
@@ -385,4 +401,4 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 
 ---
 
-*Last Updated: 2026-03-22 | 상세 문서는 [[INDEX]] 참조*
+*Last Updated: 2026-03-23 | 상세 문서는 [[INDEX]] 참조*

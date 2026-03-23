@@ -23,7 +23,8 @@
 | **평가 프로토콜** | [[experiments/evaluation_protocol_v1]] **v1.0** |
 | **명령어 SSOT** | [[experiments/COMMANDS]] |
 | **DiFix 학습 전략** | [[experiments/DIFIX_TRAINING_STRATEGY]] **v1.0** |
-| **Alpha Loss 분석** | [[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] **v1.0** |
+| **통합 Ablation 보고서** | [[experiments/UNIFIED_ABLATION_REPORT]] **v1.0** |
+| **Alpha Loss 분석** | [[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] **v2.0** |
 | **파이프라인 아키텍처** | [[specs/PIPELINE_ARCHITECTURE]] |
 | **Mesh Rendering** | [[specs/MAMMAL_MESH_RENDERING_PIPELINE]] **v1.0** |
 
@@ -55,6 +56,7 @@
 | **[[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss novel view artifact 억제 효과 분석 | **✅ v1.0** | → [[hypotheses/H6_ALPHA_MASK]], PHASE2 |
 | **[[experiments/fl_vs_ps_comparison]]** | FL vs PS 통합 비교 (9-exp) | **✅ v11** | → eval_protocol |
 | **[[experiments/hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v3.0 | → H4-H7 |
+| **[[experiments/UNIFIED_ABLATION_REPORT]]** | **통합 Ablation 보고서**: View/Alpha/E2E/Resolution 일관 비교 | **✅ v1.0** | → 모든 ablation |
 | **[[experiments/comprehensive_analysis_report]]** | 종합 실험 보고서 (H1-H8) | **✅ v1.0** | → 모든 실험 |
 | **[[experiments/evaluation_protocol_v1]]** | NVS 평가 프로토콜 (Fair Eval) | **✅ v1.0** | → FL_vs_PS |
 | **[[experiments/mesh_gs_pair_collection]]** | Novel view dataset pipeline v2.0 | **✅ v2.0** | → PHASE2, [[experiments/DATASET_QA_VIEWER]] |
@@ -101,6 +103,8 @@
 | [[guides/MOUSE_DATASET_GUIDE]] | MouseViewDataset 구현 참조 | ✅ |
 | **[[guides/PIPELINE_DEEP_DIVE]]** | mouse_extensions 코드 워크스루 Hub (MoC + Issues + QuickRef) | **✅ v3.0** |
 | **[[guides/VISUALIZATION_GUIDE]]** | 시각화 모듈 가이드 (cinematic, 6-view grid, N-filter, 배치) | **✅ v1.0** |
+| [[guides/RAT_FT_DATA_GUIDE]] | Rat FT 데이터 준비 가이드 | ✅ |
+| [[guides/MAMMAL_REFIT_HANDOFF]] | MAMMAL 23 bad frames 재피팅 핸드오프 (환경, 프레임 매핑, 검증) | **✅ v1.0** |
 
 #### guides/chapters/ (EXPERIMENT_MASTER_GUIDE 하위)
 
