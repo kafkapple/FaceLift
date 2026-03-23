@@ -66,21 +66,26 @@ class ValidationRunner:
         for batch_idx in range(input_data.image.size(0)):
             item_uid = input_data.index[batch_idx, 0, -1].item()
             should_save_visuals = (batch_idx == 0) and save_visualizations
-            
+
             # Compute metrics
             metrics = self._compute_batch_metrics(
                 target_data, model_results, batch_idx, metrics_computer
             )
-            
+
             for key in validation_metrics:
                 if key in metrics:
                     validation_metrics[key].append(metrics[key])
-            
+
             if batch_idx == 0:
                 validation_metrics["per_view_psnr"] = metrics["per_view_psnr"]
                 validation_metrics["per_view_lpips"] = metrics["per_view_lpips"]
                 validation_metrics["per_view_ssim"] = metrics["per_view_ssim"]
-            
+
+            # Always save metrics for every batch item (decoupled from visualizations)
+            item_dir = os.path.join(output_directory, f"{item_uid:08d}")
+            os.makedirs(item_dir, exist_ok=True)
+            self._save_metrics_files(target_data, batch_idx, metrics, item_uid, item_dir)
+
             if should_save_visuals:
                 self._save_visualizations(
                     output_directory, item_uid, batch_idx,
@@ -128,10 +133,9 @@ class ValidationRunner:
         
         # Alpha comparison
         self._save_alpha_comparison(target_data, model_results, batch_idx, item_uid, item_dir)
-        
-        # Metrics files
-        self._save_metrics_files(target_data, batch_idx, metrics, item_uid, item_dir)
-        
+
+        # NOTE: metrics.txt is now saved in run() for ALL batch items, not just visualized ones
+
         # Gaussian PLY
         self._save_gaussian_ply(model_results, batch_idx, item_dir)
         
