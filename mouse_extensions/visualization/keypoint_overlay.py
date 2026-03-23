@@ -7,6 +7,8 @@ Color scheme follows MAMMAL KEYPOINTS.md convention:
     Head (0-2): Yellow | Body (3-4): Magenta | Tail (5-7): Orange
     Left Front (8-11): Blue | Right Front (12-15): Green
     Left Hind (16-18): Cyan | Right Hind (19-21): Red
+
+Constants loaded from configs/keypoints/ via keypoint_config.py (SSOT).
 """
 
 from dataclasses import dataclass
@@ -15,52 +17,21 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+from mouse_extensions.constants import MOUSE_KP_NAMES, SKELETON_BONES
+from mouse_extensions.keypoint_config import load_keypoint_config
 
-# --- Constants ---
 
-KEYPOINT_NAMES = [
-    "L_ear", "R_ear", "nose", "neck", "body_middle",
-    "tail_root", "tail_middle", "tail_end",
-    "L_paw", "L_paw_end", "L_elbow", "L_shoulder",
-    "R_paw", "R_paw_end", "R_elbow", "R_shoulder",
-    "L_foot", "L_knee", "L_hip",
-    "R_foot", "R_knee", "R_hip",
-]
+# --- Constants (derived from YAML SSOT) ---
 
-# Skeleton bones from MAMMAL KEYPOINTS.md (ground truth)
-SKELETON_BONES = [
-    # Head: ears → nose
-    (0, 2), (1, 2),
-    # Spine: nose → neck → body_middle → tail_root
-    (2, 3), (3, 4), (4, 5),
-    # Tail: tail_root → tail_middle → tail_end
-    (5, 6), (6, 7),
-    # Left front limb: shoulder→elbow→paw_end→paw, shoulder→neck
-    (11, 3), (10, 11), (9, 10), (8, 9),
-    # Right front limb
-    (15, 3), (14, 15), (13, 14), (12, 13),
-    # Left hind limb: hip→knee→foot, hip→tail_root
-    (18, 5), (17, 18), (16, 17),
-    # Right hind limb
-    (21, 5), (20, 21), (19, 20),
-]
+KEYPOINT_NAMES = list(MOUSE_KP_NAMES)
+
+_mouse_cfg = load_keypoint_config("mouse")
 
 # Body part grouping with BGR colors (OpenCV convention)
-JOINT_GROUPS = {
-    "head":        {"indices": [0, 1, 2],         "color": (0, 255, 255)},    # yellow
-    "body":        {"indices": [3, 4],             "color": (255, 0, 255)},    # magenta
-    "tail":        {"indices": [5, 6, 7],          "color": (0, 165, 255)},    # orange
-    "left_front":  {"indices": [8, 9, 10, 11],     "color": (255, 0, 0)},      # blue
-    "right_front": {"indices": [12, 13, 14, 15],   "color": (0, 255, 0)},      # green
-    "left_hind":   {"indices": [16, 17, 18],        "color": (255, 255, 0)},    # cyan
-    "right_hind":  {"indices": [19, 20, 21],        "color": (0, 0, 255)},      # red
-}
+JOINT_GROUPS = _mouse_cfg.joint_groups_bgr
 
-# Precomputed index → color map
-_JOINT_COLORS: Dict[int, Tuple[int, int, int]] = {}
-for _info in JOINT_GROUPS.values():
-    for _idx in _info["indices"]:
-        _JOINT_COLORS[_idx] = _info["color"]
+# Precomputed index → BGR color map
+_JOINT_COLORS: Dict[int, Tuple[int, int, int]] = _mouse_cfg.kp_colors_bgr
 
 
 # --- Projection ---

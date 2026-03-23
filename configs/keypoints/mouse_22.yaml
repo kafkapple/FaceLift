@@ -1,0 +1,113 @@
+# Mouse 22-keypoint system (MAMMAL format)
+# Anatomy ref: Dunn 2021 (DANNCE), Nath 2022 (rodent kinematics)
+# Hind limbs connect to tail_root (sacral/pelvic region), not body_middle.
+
+species: mouse
+num_keypoints: 22
+
+keypoint_names:
+  - L_ear        # 0
+  - R_ear        # 1
+  - nose         # 2
+  - neck         # 3
+  - body_middle  # 4
+  - tail_root    # 5
+  - tail_middle  # 6
+  - tail_end     # 7
+  - L_paw        # 8
+  - L_paw_end    # 9
+  - L_elbow      # 10
+  - L_shoulder   # 11
+  - R_paw        # 12
+  - R_paw_end    # 13
+  - R_elbow      # 14
+  - R_shoulder   # 15
+  - L_foot       # 16
+  - L_knee       # 17
+  - L_hip        # 18
+  - R_foot       # 19
+  - R_knee       # 20
+  - R_hip        # 21
+
+# RGB colors grouped by body region
+keypoint_colors:
+  head: [255, 255, 0]        # yellow — indices 0, 1, 2
+  body: [255, 0, 255]        # magenta — indices 3, 4
+  tail: [255, 165, 0]        # orange — indices 5, 6, 7
+  left_front: [0, 0, 255]    # blue — indices 8, 9, 10, 11
+  right_front: [0, 255, 0]   # green — indices 12, 13, 14, 15
+  left_hind: [0, 255, 255]   # cyan — indices 16, 17, 18
+  right_hind: [255, 0, 0]    # red — indices 19, 20, 21
+
+# Region → keypoint index mapping
+color_groups:
+  head: [0, 1, 2]
+  body: [3, 4]
+  tail: [5, 6, 7]
+  left_front: [8, 9, 10, 11]
+  right_front: [12, 13, 14, 15]
+  left_hind: [16, 17, 18]
+  right_hind: [19, 20, 21]
+
+# Skeleton bone connectivity (parent, child)
+# Hind limbs → tail_root(5), NOT body_middle(4)
+# Ref: Dunn 2021, Nath 2022, DeepLabCut, SLEAP
+skeleton_bones:
+  # Head
+  - [2, 0]   # nose → L_ear
+  - [2, 1]   # nose → R_ear
+  # Spine
+  - [2, 3]   # nose → neck
+  - [3, 4]   # neck → body_middle
+  - [4, 5]   # body_middle → tail_root
+  # Tail
+  - [5, 6]   # tail_root → tail_middle
+  - [6, 7]   # tail_middle → tail_end
+  # Left front limb (neck → shoulder → elbow → paw → paw_end)
+  - [3, 11]  # neck → L_shoulder
+  - [11, 10] # L_shoulder → L_elbow
+  - [10, 8]  # L_elbow → L_paw
+  - [8, 9]   # L_paw → L_paw_end
+  # Right front limb
+  - [3, 15]  # neck → R_shoulder
+  - [15, 14] # R_shoulder → R_elbow
+  - [14, 12] # R_elbow → R_paw
+  - [12, 13] # R_paw → R_paw_end
+  # Left hind limb (tail_root → hip → knee → foot)
+  - [5, 18]  # tail_root → L_hip
+  - [18, 17] # L_hip → L_knee
+  - [17, 16] # L_knee → L_foot
+  # Right hind limb
+  - [5, 21]  # tail_root → R_hip
+  - [21, 20] # R_hip → R_knee
+  - [20, 19] # R_knee → R_foot
+
+# Body part definitions (for body-part isolation rendering)
+body_parts:
+  face: [0, 1, 2, 3]
+  left_paw: [8, 9, 10]
+  right_paw: [12, 13, 14]
+  tail: [5, 6, 7]
+  torso: [4, 11, 15, 18, 21]
+
+# Body part display colors (hex, for matplotlib)
+body_part_colors:
+  face: "#FFD700"
+  left_paw: "#4169E1"
+  right_paw: "#32CD32"
+  tail: "#FF6347"
+  torso: "#DA70D6"
+
+# Ablation tiers — functionally named, literature-based
+# Ref: Dunn 2021, Nath 2022, DeepLabCut, SLEAP, Keypoint-MoSeq
+ablation_tiers:
+  # T1: Primary axis — position, heading, speed
+  axis: [2, 4, 5]              # nose, body_middle, tail_root
+  # T2: + Head orientation — social interaction, attention
+  head: [0, 1, 2, 3, 4, 5]     # ears, nose, neck, body_middle, tail_root
+  # T3: + Proximal limbs — posture classification (rearing, crouching)
+  posture: [0, 1, 2, 3, 4, 5, 11, 15, 18, 21]  # + shoulders, hips
+  # T4: + Distal limbs — gait analysis, paw interaction
+  locomotion: [0, 1, 2, 3, 4, 5, 8, 11, 12, 15, 16, 18, 19, 21]  # + paws, feet
+  # T5: Full skeleton — joint angles, fine motor, 3D reconstruction
+  skeleton: all

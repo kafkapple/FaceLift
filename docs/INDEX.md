@@ -152,6 +152,8 @@
 | **[[specs/NEURAL_TEXTURE_ANALYSIS]]** | MoReMouse 기반 neural texture 분석 + 3-model deliberation + 구현 전략 | **🆕 v1.0** |
 | **[[specs/NEURAL_TEXTURE_RENDERING_DIAGNOSIS]]** | Neural texture 렌더 품질 진단: mesh fitting vs UV encoding (MAMMAL 팀 핸드오프) | **🆕 v1.0** |
 | **[[specs/FRAME_SELECTION_LITERATURE_REVIEW]]** | Pose-diversity frame selection 문헌 조사: FPS, k-means, FisherRF, coreset, 3-stage hybrid 제안 | **🆕 v1.0** |
+| **[[specs/KEYPOINT_ABLATION_FRAMEWORK]]** | 5-tier keypoint ablation 프레임워크: tier별 문헌 근거 + task matrix + YAML SSOT | **🆕 v1.0** |
+| **[[specs/PATHS_SSOT_DESIGN]]** | outputs/ v2 경로 설계 + paths.py factory | ✅ |
 
 > **이론 문서 → Obsidian으로 이동** (2026-03-17):
 > MULTIVIEW_DIFFUSION_THEORY → `Obsidian/docs/theory/`, MV_ADAPTER_TECHNICAL → `Obsidian/docs/research/`, SLIDES → `Obsidian/Presentation/`
