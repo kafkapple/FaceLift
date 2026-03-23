@@ -107,7 +107,7 @@ ablation_tiers:
   head: [0, 1, 2, 3, 4, 5]     # ears, nose, neck, body_middle, tail_root
   # T3: + Proximal limbs — posture classification (rearing, crouching)
   posture: [0, 1, 2, 3, 4, 5, 11, 15, 18, 21]  # + shoulders, hips
-  # T4: + Distal limbs — gait analysis, paw interaction
+  # T4: + Distal limbs — gait analysis, paw interaction (superset of posture)
   locomotion: [0, 1, 2, 3, 4, 5, 8, 11, 12, 15, 16, 18, 19, 21]  # + paws, feet
   # T5: Full skeleton — joint angles, fine motor, 3D reconstruction
   skeleton: all

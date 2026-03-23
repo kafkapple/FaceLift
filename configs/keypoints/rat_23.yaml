@@ -1,6 +1,8 @@
 # Rat 23-keypoint system (s-DANNCE format)
 # Source: Harvard Dataverse s-DANNCE dataset
-# Note: Offset1/Offset2 (indices 3, 4) — role TBD, possibly reference markers
+# Note: Offset1/Offset2 (indices 3, 4) — role TBD, possibly pelvis offset markers.
+# Intentionally excluded from skeleton_bones (orphan nodes by design).
+# Included in color_groups/body_parts for visualization coverage.
 
 species: rat
 num_keypoints: 23

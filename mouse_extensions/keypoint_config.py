@@ -121,6 +121,11 @@ def load_keypoint_config(
             f"No keypoint config for '{species}' in {search_dir}. "
             f"Available: {[f.stem for f in search_dir.glob('*.yaml')]}"
         )
+    if len(candidates) > 1:
+        raise FileNotFoundError(
+            f"Ambiguous config for '{species}': {[c.name for c in candidates]}. "
+            f"Expected exactly one file matching '{species}*.yaml'."
+        )
 
     config_path = candidates[0]
     with open(config_path) as f:
