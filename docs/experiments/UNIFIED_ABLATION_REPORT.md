@@ -197,6 +197,8 @@ EXPERIMENT_REGISTRY §8 reports val PSNR (from training logs): 6v=24.49, 4v=21.5
 
 All comparisons use per-frame averaged metrics (5 views averaged per frame) to avoid pseudo-replication.
 
+> ⚠️ **Autocorrelation caveat**: The 360 test frames are consecutive frames from a single video (100 fps, step=5). Adjacent frames are temporally correlated, meaning the effective independent sample size is LESS than 360. Reported p-values may be optimistic. Cohen's d provides a more robust effect size measure. For paper reporting, consider subsampling to every 10th frame (n=36) or using block bootstrap.
+
 #### 6-View: Baseline vs Alpha
 
 | Comparison | PSNR_gt diff | t-stat | p-value | Significance | Cohen's d |

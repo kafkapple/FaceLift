@@ -112,7 +112,7 @@ Input Image(s) → [MVDiffusion] → 6 Novel Views → [GS-LRM] → 3D Gaussians
 | H3 | Stage 2 개선 → E2E 전이 | ❌ **전이율 0%** | HIGH | GS-LRM 개선 무효 |
 | H4 | View ablation | ✅ **6v 최적** | HIGH | Val 6v, Test 5v>6v (경미) |
 | H5 | MVDiff 학습 최적화 | ⚠️ **포화** | HIGH | Sparse > full, 나머지 수렴 |
-| H6 | Alpha mask loss | ❌ **기각** | HIGH | PSNR -1.0 dB, E2E 0% 전이 |
+| H6 | Alpha mask loss | 🔄 **재활성화** | HIGH | PSNR↓ but IoU↑(6v α=0.3), artifact 4×↓ → [[UNIFIED_ABLATION_REPORT]] |
 | H7 | SSIM weight 조정 | ❌ **기각** | HIGH | 불안정, baseline 유지 |
 | H8 | 적은 MVDiff 뷰 | ❌ **기각** | HIGH | 적은 뷰 = 더 나쁜 결과 |
 
@@ -145,9 +145,10 @@ Input Image(s) → [MVDiffusion] → 6 Novel Views → [GS-LRM] → 3D Gaussians
 - **의미**: Sparse attention 유지. 색상 품질은 개선 가능하나 geometry(IoU) 개선 안 됨
 
 #### H6: Alpha Mask Loss
-- **방법**: alpha_weight = 0.5, 1.0으로 GS-LRM 학습
-- **결과**: LPIPS ↓, SSIM ↑ 이나 **PSNR -1.0 dB**, E2E 전이 0%
-- **의미**: 기각. 부분적 metric 개선이 전체 품질 향상으로 이어지지 않음
+- **방법**: alpha_weight = 0.3/0.5/1.0으로 4v + 6v GS-LRM 학습
+- **결과**: PSNR_gt 하락 (-0.55~-1.29 dB), 단 6v α=0.3에서 IoU 유일 개선 (+0.002). Novel view artifact 4.0× 개선 (alpha entropy).
+- **의미**: ~~기각~~ → **조건부 재활성화** (2026-03-23). GT-view PSNR 기준으로는 기각이 맞으나, novel view artifact 억제에서 압도적 우세. 6v α=0.3이 best trade-off.
+- → 상세: [[UNIFIED_ABLATION_REPORT]] §3, [[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] §10.7-10.8
 
 #### H7: SSIM Weight
 - **방법**: SSIM weight 0.1(baseline), 0.3, 0.5, 1.0
