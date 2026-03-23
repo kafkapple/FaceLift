@@ -88,7 +88,99 @@ s-DANNCE (social DANNCE)는 6-camera multi-view 환경에서 자유 행동하는
     └── com3d_used.mat      # COM used for inference
 ```
 
-### 3.3 파일 타입 통계
+### 3.3 Behavioral Label File (별도 Dataverse)
+
+> ⚠️ 행동 레이블은 비디오 데이터셋(DVN/BHQBB7)이 아닌 **별도 데이터셋(DVN/7RNDJY)**에 포함.
+
+**다운로드**:
+```bash
+# SCN2A_M1_20220916_0077_L.mat (25.7 MB, file ID: 10930077)
+wget -O SCN2A_M1_20220916_0077_L.mat \
+  'https://dataverse.harvard.edu/api/access/datafile/10930077'
+```
+
+**파일 구조**:
+```python
+sdannce.ratgroup    = 'SCN2A'
+sdannce.ratid       = 'M1'
+sdannce.ratdate     = '20220916'
+sdannce.issoc       = 0          # lone session
+sdannce.ratgen      = uint8      # genotype code
+sdannce.m1          = (90000, 3, 23)   # 3D keypoints (50fps × 30min)
+sdannce.hlac        = (90000, 1)       # 8 HLAC classes
+sdannce.llac        = (90000, 1)       # 130+ LLAC fine-grained classes
+sdannce.cz_action   = (90000, 2)       # t-SNE 2D behavioral embedding
+sdannce.m2          = empty            # no partner (lone)
+sdannce.part_hlac   = empty            # no partner labels
+```
+
+**HLAC 8-Class 분포 (PoC session: 2022_09_16_M1, 90,000 frames)**:
+
+| Class | Frames | % | Temporal Density | 비고 |
+|:-----:|-------:|----:|:---:|------|
+| 1 | 28,573 | 31.7% | ██████████████████ | 주요 행동 A (최빈) |
+| 2 | 28,505 | 31.7% | ██████████████████ | 주요 행동 B (최빈) |
+| 7 | 15,938 | 17.7% | ██████████ | 중간 빈도 |
+| 8 | 7,678 | 8.5% | █████ | 중간 빈도 |
+| 6 | 6,428 | 7.1% | ████ | 중간 빈도 |
+| 5 | 1,222 | 1.4% | █ | 희소 행동 |
+| 4 | 853 | 0.9% | ▌ | 희소 행동 |
+| 3 | 803 | 0.9% | ▌ | 희소 행동 |
+
+> Class 명칭은 SocialMapper 논문(Cell 2025) 기반 사후 매핑 필요.
+> 뷰어에서 각 class 대표 프레임 확인 후 명명 예정.
+
+**Frame Index Matching (DANNCE ↔ SocialMapper)**:
+
+| 항목 | DANNCE (DVN/BHQBB7) | SocialMapper (DVN/7RNDJY) |
+|------|:-------------------:|:-------------------------:|
+| 파일 | `save_data_AVG.mat` | `SCN2A_M1_20220916_0077_L.mat` |
+| 프레임 수 | **89,000** | **90,000** |
+| 인덱스 범위 | 0-88999 (sampleID) | 0-89999 |
+| 차이 | 마지막 1,000 프레임 누락 | 전체 포함 |
+| Keypoints | `pred (89000, 3, 23)` | `m1 (90000, 3, 23)` |
+| KP 일치 여부 | **다른 모델 출력** (Frame 0 diff=20.2mm) | SocialMapper 자체 추정 |
+
+**매핑 규칙**:
+```python
+# DANNCE frame index → HLAC label
+# sampleID[i] = i (0-indexed, 연속)
+# hlac[frame_idx] for frame_idx in range(89000) — 직접 인덱싱 가능
+hlac_label = social['sdannce'][0,0]['hlac'].flatten()
+for dannce_idx in range(89000):
+    video_frame = int(dannce['sampleID'].flatten()[dannce_idx])
+    label = hlac_label[video_frame]  # HLAC class for this frame
+```
+
+> ⚠️ 두 .mat의 keypoints는 다른 DANNCE 모델 output (Frame 0 diff=20.2mm).
+> HLAC 매핑 시 **frame index 기준**, keypoint 값 비교 아님.
+> 비디오 프레임 인덱스가 공통 키.
+
+**검증 결과 (260323 S37 audit)**:
+- sampleID는 0-88999 연속 → DANNCE 마지막 1K 프레임은 추론 미수행 구간 (비디오 끝부분)
+- `hlac[0:89000]` 직접 인덱싱 안전 (intersection set)
+- HLAC stratified sampling은 **class index 기반** — 행동 명칭 미확인이어도 sampling 자체는 유효
+- 80/20 dual-pool (behavioral 80% + reconstruction 20%) 비율은 검증 필요 hyperparameter
+- SocialMapper 재실행 불필요: .mat subject=M1, date=20220916 일치 확인
+- Smoke test 8/8 통과 (import, session detection, HLAC load, KP load, frame match, CameraPool, social KP)
+
+**LLAC 130+ Classes**: fine-grained behavioral syllables. HLAC는 LLAC를 계층적으로 그룹핑한 상위 분류.
+
+**Stratified Sampling 적용 예시** (RAT2, 3K target):
+
+| HLAC | 원본 % | 3K 비례 할당 | 최소 보장 (50) | 최종 할당 |
+|:----:|------:|:-----------:|:------------:|:--------:|
+| 1 | 31.7% | 951 | — | 951 |
+| 2 | 31.7% | 951 | — | 951 |
+| 7 | 17.7% | 531 | — | 531 |
+| 8 | 8.5% | 255 | — | 255 |
+| 6 | 7.1% | 213 | — | 213 |
+| 5 | 1.4% | 42 | **50** | 50 |
+| 4 | 0.9% | 27 | **50** | 50 |
+| 3 | 0.9% | 27 | **50** | 50 |
+| **합계** | | | | **~3,051** |
+
+### 3.4 파일 타입 통계
 
 | Type | Count | Size | Content |
 |------|:-----:|-----:|---------|
@@ -223,7 +315,7 @@ sdannce.cz_action   = (30000, 2)      # t-SNE embedding
 
 | Dataset | Species | Animals | Video | Calibration | Behavior Labels | Duration | Suitable? |
 |---------|:-------:|:-------:|:-----:|:-----------:|:---------------:|----------|:---------:|
-| **SCN2A_WK1** ⭐ | Rat | 1 | ✅ | ✅ | Via pipeline | 30min × 30 | **Best** |
+| **SCN2A_WK1** ⭐ | Rat | 1 | ✅ | ✅ | ✅ **HLAC 8cls** (DVN/7RNDJY) | 30min × 30 | **Best** |
 | SCN2A_SOC1 | Rat | 2 | ✅ | ✅ | Via pipeline | 30min × ? | Social only |
 | Rat 7M | Rat | 1 | ✅ | ✅ | ❌ (pose only) | 5s clips | Too short |
 | PAIR-R24M | Rat | 2 | ✅ | ✅ | ✅ (11 types) | Long | Pairs only |
@@ -237,16 +329,61 @@ sdannce.cz_action   = (30000, 2)      # t-SNE embedding
 | Data Source | Video | Calib | Keypoints | Behavior | GS-LRM Status |
 |-------------|:-----:|:-----:|:---------:|:--------:|:-------------:|
 | **M5t2 Mouse** (ours) | ✅ | ✅ | ✅ (22j) | ❌ | ✅ Trained (best PSNR 23.84) |
-| **SCN2A_WK1 Rat** ⭐ | ✅ | ✅ | ✅ (23j) | Via pipeline | ✅ v3 smoke test 성공 (zero-shot) |
+| **SCN2A_WK1 Rat** ⭐ | ✅ | ✅ | ✅ (23j) | ✅ **HLAC 8cls** | ✅ v3 smoke test 성공 (zero-shot) |
 | **SCN2A_SOC Rat** | ✅ | ✅ | ✅ (23j) | Via pipeline | 🔄 v2 tested (mask quality issue) |
 | **BALB/c Mouse** | ❌ | ❌ | ✅ (23j) | ✅ (HLAC) | ❌ No video |
 
 ### Behavior Labels 참고
 
-s-DANNCE/SocialMapper는 **비지도 방식**:
-- 3D keypoints → covariance features (S1/S3) → unsupervised embedding → clusters
-- 수동 레이블이 아닌 클러스터 ID → 사후적으로 이름 부여 (grooming, rearing 등)
-- 프리컴퓨팅된 embedding은 공개 데이터에 없음 — `sdannce-poc` 파이프라인으로 직접 계산
+s-DANNCE/SocialMapper는 **비지도 방식** (Cell 2025, Klibaite et al.):
+- 3D keypoints → PCA (15 PCs) → Morlet wavelet (25 freq, 0.5-20Hz) → t-SNE → watershed
+- 클러스터 ID → 사후적으로 연구자가 명명 (grooming, rearing, locomotion 등)
+- **Lone animal에도 적용됨** — Action embedding은 per-animal (Joint만 dyadic)
+
+### ⭐ Behavioral Labels 소재 (2026-03-23 확인)
+
+**핵심 발견**: 행동 레이블은 **별도 Dataverse 데이터셋**에 SocialMapper aggregate .mat로 제공됨.
+
+| 데이터 유형 | Dataverse | DOI | 내용 |
+|------------|-----------|-----|------|
+| **비디오 + DANNCE keypoints** | SCN2A_WK1 | `DVN/BHQBB7` | 878 files, 34.5 GB, save_data_AVG.mat (HLAC 없음) |
+| **행동 레이블 + keypoints** | SCN2A | `DVN/7RNDJY` | 120 files, SocialMapper aggregate (HLAC 포함!) |
+
+**SCN2A_M1_20220916_0077_L.mat (DVN/7RNDJY)** 구조:
+```python
+sdannce.ratgroup  = 'SCN2A'
+sdannce.ratid     = 'M1'
+sdannce.ratdate   = '20220916'
+sdannce.issoc     = 0 (lone)
+sdannce.m1        = (90000, 3, 23)   # 3D keypoints (30min @ 50fps)
+sdannce.hlac      = (90000, 1)       # 8 HLAC classes, 100% coverage
+sdannce.llac      = (90000, 1)       # 130+ LLAC classes
+sdannce.cz_action = (90000, 2)       # t-SNE 2D embedding
+```
+
+**HLAC 8-Class 분포 (90,000 frames)**:
+| Class | Frames | % | 비고 |
+|:-----:|-------:|----:|------|
+| 1 | 28,573 | 31.7% | 주요 행동 A |
+| 2 | 28,505 | 31.7% | 주요 행동 B |
+| 7 | 15,938 | 17.7% | |
+| 8 | 7,678 | 8.5% | |
+| 6 | 6,428 | 7.1% | |
+| 5 | 1,222 | 1.4% | 희소 |
+| 4 | 853 | 0.9% | 희소 |
+| 3 | 803 | 0.9% | 희소 |
+
+### Frame Index Matching
+
+| 항목 | DANNCE (DVN/BHQBB7) | SocialMapper (DVN/7RNDJY) |
+|------|---------------------|---------------------------|
+| **프레임 수** | 89,000 | 90,000 |
+| **인덱스 범위** | 0-88999 (sampleID) | 0-89999 |
+| **차이** | 마지막 1,000 프레임 누락 | 전체 |
+| **매핑** | `hlac[frame_idx]` for frame_idx in 0-88999 | |
+
+> ⚠️ DANNCE pred와 SocialMapper m1의 keypoints는 다른 모델 output (Frame 0 diff=20.2mm).
+> HLAC 매핑 시 **frame index 기준** (sampleID), keypoint 값 비교 아님.
 
 ---
 
