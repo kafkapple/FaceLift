@@ -23,6 +23,7 @@
 | **평가 프로토콜** | [[experiments/evaluation_protocol_v1]] **v1.0** |
 | **명령어 SSOT** | [[experiments/COMMANDS]] |
 | **DiFix 학습 전략** | [[experiments/DIFIX_TRAINING_STRATEGY]] **v1.0** |
+| **Master Results Table** | [[experiments/MASTER_RESULTS_TABLE]] **v1.0** |
 | **통합 Ablation 보고서** | [[experiments/UNIFIED_ABLATION_REPORT]] **v1.0** |
 | **Alpha Loss 분석** | [[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] **v2.0** |
 | **파이프라인 아키텍처** | [[specs/PIPELINE_ARCHITECTURE]] |
