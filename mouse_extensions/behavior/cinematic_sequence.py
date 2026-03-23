@@ -32,6 +32,12 @@ import numpy as np
 import torch
 import yaml
 
+from mouse_extensions.constants import MAMMAL_KP_COLORS, SKELETON_BONES
+from mouse_extensions.behavior.camera_system import (
+    gt_camera_c2w_original as _cs_gt_camera_c2w,
+    gt_camera_fxfycxcy as _cs_gt_camera_fxfycxcy,
+    interpolate_cameras,
+)
 from mouse_extensions.behavior.view_projected_filtering import (
     BODY_PARTS, BODY_PART_COLORS, load_camera, load_keypoints_gslrm,
 )
@@ -47,37 +53,15 @@ from mouse_extensions.behavior.multiview_visibility_filter import (
 # Camera
 # ---------------------------------------------------------------------------
 
+# Camera functions: use camera_system.py as SSOT (2026-03-23)
 def gt_camera_c2w(frame_dir: str, view_idx: int) -> np.ndarray:
-    """Get GT camera c2w (4x4) matrix."""
-    cam = load_camera(str(Path(frame_dir) / "opencv_cameras.json"), view_idx)
-    w2c = np.array(cam["w2c"])
-    return np.linalg.inv(w2c).astype(np.float32)
+    """Get GT camera c2w (4x4) matrix. Delegates to camera_system."""
+    return _cs_gt_camera_c2w(frame_dir, view_idx)
 
 
 def gt_camera_fxfycxcy(frame_dir: str, view_idx: int) -> np.ndarray:
-    """Get GT camera intrinsics as [fx, fy, cx, cy]."""
-    cam = load_camera(str(Path(frame_dir) / "opencv_cameras.json"), view_idx)
-    return np.array([cam["fx"], cam["fy"], cam["cx"], cam["cy"]], dtype=np.float32)
-
-
-def interpolate_cameras(c2w_a: np.ndarray, c2w_b: np.ndarray, n: int) -> np.ndarray:
-    """SLERP rotation + linear translation interpolation between two c2w matrices.
-
-    Returns (n, 4, 4) array of interpolated c2w matrices.
-    """
-    from scipy.spatial.transform import Rotation, Slerp
-    R_a, t_a = c2w_a[:3, :3], c2w_a[:3, 3]
-    R_b, t_b = c2w_b[:3, :3], c2w_b[:3, 3]
-    rots = Rotation.from_matrix(np.stack([R_a, R_b]))
-    slerp = Slerp([0, 1], rots)
-    ts = np.linspace(0, 1, n)
-    interp_R = slerp(ts).as_matrix()
-    interp_t = (1 - ts[:, None]) * t_a + ts[:, None] * t_b
-    out = np.zeros((n, 4, 4), dtype=np.float32)
-    out[:, :3, :3] = interp_R
-    out[:, :3, 3] = interp_t
-    out[:, 3, 3] = 1.0
-    return out
+    """Get GT camera intrinsics as [fx, fy, cx, cy]. Delegates to camera_system."""
+    return _cs_gt_camera_fxfycxcy(frame_dir, view_idx)
 
 
 def gt_camera_spherical(frame_dir: str, view_idx: int) -> Tuple[float, float, float]:
@@ -106,7 +90,7 @@ def get_orbit_cameras(n_frames: int, elevation: float, radius: float = 2.7,
     If match_gt=True, uses GT camera's actual radius/elevation/azimuth
     so orbit starts exactly from the GT camera position.
     """
-    from gslrm.model.gaussians_renderer import get_turntable_cameras
+    from mouse_extensions.visualization.camera_utils import get_turntable_cameras
 
     start_azimuth = None
     if match_gt and gt_frame_dir:
@@ -219,21 +203,7 @@ def load_mask_overlay(fd_path, view, border_color=None, bg_color=(1.0, 1.0, 1.0)
     return out
 
 
-# MAMMAL 22-keypoint colors (RGB tuple, 0-255)
-MAMMAL_KP_COLORS_CV = {
-    0: (255,255,0), 1: (255,255,0), 2: (255,255,0),       # head: yellow
-    3: (255,0,255), 4: (255,0,255),                         # body: magenta
-    5: (255,165,0), 6: (255,165,0), 7: (255,165,0),        # tail: orange
-    8: (0,0,255), 9: (0,0,255), 10: (0,0,255), 11: (0,0,255),  # L_front: blue
-    12: (0,255,0), 13: (0,255,0), 14: (0,255,0), 15: (0,255,0), # R_front: green
-    16: (0,255,255), 17: (0,255,255), 18: (0,255,255),     # L_hind: cyan
-    19: (255,0,0), 20: (255,0,0), 21: (255,0,0),           # R_hind: red
-}
-SKELETON_BONES = [
-    (2,0),(2,1),(2,3),(3,4),(4,5),(5,6),(6,7),
-    (3,11),(11,10),(10,8),(8,9),(3,15),(15,14),(14,12),(12,13),
-    (4,18),(18,17),(17,16),(4,21),(21,20),(20,19),
-]
+# Constants imported from mouse_extensions.constants (SSOT, 2026-03-23)
 
 
 def overlay_keypoints(img, kp_2d, kp_valid):
@@ -252,7 +222,7 @@ def overlay_keypoints(img, kp_2d, kp_valid):
             continue
         x, y = int(kp_2d[i, 0]), int(kp_2d[i, 1])
         if 0 <= x < W and 0 <= y < H:
-            c = MAMMAL_KP_COLORS_CV.get(i, (255, 255, 255))
+            c = MAMMAL_KP_COLORS.get(i, (255, 255, 255))
             cv2.circle(u8, (x, y), 4, (0, 0, 0), -1, cv2.LINE_AA)  # outline
             cv2.circle(u8, (x, y), 3, c, -1, cv2.LINE_AA)
     return u8 / 255.0

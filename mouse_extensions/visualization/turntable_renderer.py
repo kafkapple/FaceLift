@@ -1,21 +1,25 @@
-"""
-Turntable Renderer — Single source of truth for all turntable video generation.
+"""Turntable Renderer — SSOT for all turntable video generation.
 
-Consolidates 4 separate implementations (train / val / inference / batch) into:
-- TurntableVideoConfig: Centralized defaults (rotation direction, speed, fps, etc.)
-- TurntableRenderer: Single-frame A-type videos (orbit, view_traj, grid)
-- TemporalVideoRenderer: Multi-frame B-type videos (time_fixed, time_rotating, grid)
+Classes:
+  - TurntableVideoConfig: Centralized defaults (rotation, speed, fps, etc.)
+  - TurntableRenderer: Single-frame A-type videos (orbit, view_traj, grid)
+  - TemporalVideoRenderer: Multi-frame B-type videos (time_fixed, time_rotating)
 
 Output Files (A-type, single-frame):
-  1. turntable_orbit_{uid}.mp4           — 360° synthetic orbit (CCW), fps=30
+  1. turntable_orbit_{uid}.mp4           — 360 deg synthetic orbit (CCW), fps=30
   2. turntable_orbit_with_input_{uid}.mp4 — orbit + labeled input strip
-  3. turntable_view_with_input_{uid}.mp4  — 6-cam trajectory + hold + input strip, fps=10
-  4. turntable_{uid}.jpg                  — 6×6 grid image
+  3. turntable_view_with_input_{uid}.mp4  — 6-cam trajectory + hold + input strip
+  4. turntable_{uid}.jpg                  — 6x6 grid image
 
 Output Files (B-type, temporal batch):
   5. time_fixed.mp4 (+ _angle{N})        — fixed view, time variation
   6. time_rotating.mp4                    — time + rotation simultaneous
-  7. turntable_grid.jpg                   — 6×6 grid of first frame
+  7. turntable_grid.jpg                   — 6x6 grid of first frame
+
+Dependencies (2026-03-23 refactored):
+  - video_io.py: save_video (videoio + cv2 fallback)
+  - camera_utils.py: get_dynamic_camera_order, compute_camera_convergence_center
+  - grid_utils.py: grid creation, labels, input strip
 """
 
 from __future__ import annotations
@@ -25,7 +29,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import cv2
 import numpy as np
 from einops import rearrange
 from PIL import Image
@@ -132,34 +135,7 @@ class TurntableVideoConfig:
 # Video I/O helper
 # ---------------------------------------------------------------------------
 
-def _save_video(frames: np.ndarray, path: str, fps: int = 30) -> bool:
-    """Save video frames with imageseq2video, falling back to cv2."""
-    from gslrm.model.gaussians_renderer import imageseq2video
-
-    try:
-        imageseq2video(frames, path, fps=fps)
-        return True
-    except Exception as exc:
-        print(f"Warning: videoio failed ({type(exc).__name__}), trying cv2 fallback: {exc}")
-
-    try:
-        h, w = frames.shape[1], frames.shape[2]
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(path, fourcc, fps, (w, h))
-        if not writer.isOpened():
-            print(f"Warning: Could not open video writer for {path}")
-            return False
-        for frame in frames:
-            if frame.dtype in (np.float32, np.float64):
-                frame = (np.clip(frame, 0, 1) * 255).astype(np.uint8)
-            if frame.ndim == 3 and frame.shape[2] == 3:
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            writer.write(frame)
-        writer.release()
-        return True
-    except Exception as exc2:
-        print(f"Warning: cv2 fallback also failed for {path}: {exc2}")
-        return False
+from mouse_extensions.visualization.video_io import save_video as _save_video  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +191,7 @@ class TurntableRenderer:
 
         # Determine camera_order dynamically if not provided
         if camera_order is None and dataset_c2ws is not None:
-            from mouse_extensions.visualization.turntable_config import get_dynamic_camera_order
+            from mouse_extensions.visualization.camera_utils import get_dynamic_camera_order
             camera_order = get_dynamic_camera_order(dataset_c2ws)
 
         # Filter camera_order to valid indices
@@ -312,7 +288,7 @@ class TurntableRenderer:
     ) -> Optional[np.ndarray]:
         """Render 360° orbit and return [V, H, W, 3] uint8 array."""
         from gslrm.model.gaussians_renderer import render_turntable
-        from mouse_extensions.visualization.turntable_config import compute_camera_convergence_center
+        from mouse_extensions.visualization.camera_utils import compute_camera_convergence_center
 
         cfg = self.cfg
 
@@ -398,7 +374,7 @@ class TurntableRenderer:
         if target_images is None or camera_order is None:
             return None
 
-        from gslrm.model.gaussians_renderer import create_labeled_input_strip
+        from mouse_extensions.visualization.grid_utils import create_labeled_input_strip
 
         strip_h = int(rendering_resolution * self.cfg.input_strip_height_ratio)
         try:
@@ -474,11 +450,12 @@ class TurntableRenderer:
         camera_order: Optional[List[int]] = None,
     ) -> None:
         """Create and save grid image (e.g. 6x6)."""
-        from mouse_extensions.visualization.turntable_config import (
+        from mouse_extensions.visualization.grid_utils import (
             create_grid_from_video,
             add_angle_overlay_to_grid,
+            add_row_labels_to_grid,
+            add_left_row_labels,
         )
-        from gslrm.model.gaussians_renderer import add_row_labels_to_grid, add_left_row_labels
 
         cfg = self.cfg
         grid, _all_frames, h_img = create_grid_from_video(

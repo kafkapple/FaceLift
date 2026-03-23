@@ -25,19 +25,11 @@ import matplotlib.patches as mpatches
 import numpy as np
 import torch
 
+from mouse_extensions.constants import SKELETON_BONES  # SSOT (2026-03-23)
 from mouse_extensions.behavior.view_projected_filtering import (
     KP_NAMES, BODY_PARTS, BODY_PART_COLORS, load_camera, load_keypoints_gslrm,
     project_points_to_2d,
 )
-
-# Skeleton bones for overlay
-SKELETON_BONES = [
-    (2, 0), (2, 1), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7),
-    (3, 11), (11, 10), (10, 8), (8, 9),
-    (3, 15), (15, 14), (14, 12), (12, 13),
-    (4, 18), (18, 17), (17, 16),
-    (4, 21), (21, 20), (20, 19),
-]
 
 # Body part to bone segment mapping for 3D assignment
 # Each keypoint's body part

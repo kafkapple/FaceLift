@@ -28,6 +28,7 @@
 | **Alpha Loss 분석** | [[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] **v2.0** |
 | **파이프라인 아키텍처** | [[specs/PIPELINE_ARCHITECTURE]] |
 | **Mesh Rendering** | [[specs/MAMMAL_MESH_RENDERING_PIPELINE]] **v1.0** |
+| **카메라 컨벤션 (SSOT)** | Obsidian `theory/COORDINATE_SYSTEMS.md` → "Camera Conventions" 섹션 |
 
 ---
 

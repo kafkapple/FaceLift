@@ -125,36 +125,19 @@ docs/
 
 ### 2.3 Multi-View Geometry Rigor (중요\!)
 
-**카메라/좌표계 작업 시 필수 검토:**
+> **Canonical Reference**: Obsidian `docs/theory/COORDINATE_SYSTEMS.md` → "Camera Conventions" 섹션
+> **Code SSOT**: `mouse_extensions/behavior/camera_system.py`, `mouse_extensions/visualization/camera_utils.py`
 
-| 항목 | 체크 | 상세 |
-|------|------|------|
-| **Intrinsics** | fx, fy, cx, cy | 단위, 스케일 확인. _(삭제됨)_ |
-| **PP (Principal Point)** | 256 vs 가변 | Center-aligned 권장 |
-| **좌표계** | OpenGL vs OpenCV | Y-up vs Z-up 구분 |
-| **정규화** | fx=549, trans=2.7 | Pretrained 호환 필수 |
+**카메라/좌표계 작업 시 필수 검토:** OpenCV convention (X-right, Y-down, Z-forward), World Z-up, fx=549, trans=2.7 (pretrained 호환).
 
-**⚠️ 카메라 파라미터 변경 시**: 반드시 Ray Error 계산 및 검증
-
-```python
-# Ray Error 계산
-θ_error = arctan(sqrt((Δcx/fx)² + (Δcy/fy)²))
-```
+**⚠️ 카메라 파라미터 변경 시**: Ray Error 검증 필수 — `θ = arctan(√((Δcx/fx)² + (Δcy/fy)²))`
 
 ### 2.4 Rotation Direction Convention
 
-**Orbit vs Camera 좌표계 차이 (2026-02-09 수정):**
+> **상세**: Obsidian `COORDINATE_SYSTEMS.md` → "Turntable vs Camera Order" 참조
 
-| 함수 | 좌표계 | CCW 의미 |
-|------|--------|----------|
-| get_turntable_cameras | cos->x, sin->y (from +X) | Standard math CCW |
-| compute_camera_order | atan2(x,y) (from +Y) | 90 deg rotated |
-
-**규칙**: rotation_direction=ccw 일 때:
-- Camera order는 물리적 CCW (위에서 반시계)
-- Orbit은 clockwise=True 전달 (math CW = physical CCW)
-
-**Smooth Trajectory**: smooth_trajectory: true (base config) -> CubicSpline + RotationSpline, smoothstep easing. Linear SLERP fallback.
+**핵심 규칙**: `rotation_direction=ccw` → physical CCW (위에서 반시계) = math CW → `clockwise=True` 전달.
+**Smooth Trajectory**: `smooth_trajectory: true` → CubicSpline + RotationSpline, smoothstep easing.
 
 ---
 

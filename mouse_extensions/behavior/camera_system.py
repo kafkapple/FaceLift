@@ -8,6 +8,8 @@ Resolves the GT vs turntable camera convention mismatch:
 All cameras use OpenCV convention: X-right, Y-down, Z-forward.
 World coordinate: Z-up.
 
+Canonical spec: Obsidian docs/theory/COORDINATE_SYSTEMS.md -> "Camera Conventions".
+
 Usage:
     from mouse_extensions.behavior.camera_system import CameraSystem
 
@@ -26,7 +28,7 @@ from scipy.spatial.transform import Rotation, Slerp
 
 
 # ---------------------------------------------------------------------------
-# Constants (single source of truth)
+# Constants
 # ---------------------------------------------------------------------------
 
 WORLD_UP = np.array([0.0, 0.0, 1.0])
@@ -35,40 +37,10 @@ DEFAULT_RADIUS = 2.7
 DEFAULT_HFOV = 50
 DEFAULT_RESOLUTION = 512
 
-# MAMMAL 22-keypoint colors (RGB 0-255) — single definition
-MAMMAL_KP_COLORS = {
-    0: (255, 255, 0), 1: (255, 255, 0), 2: (255, 255, 0),        # head: yellow
-    3: (255, 0, 255), 4: (255, 0, 255),                            # body: magenta
-    5: (255, 165, 0), 6: (255, 165, 0), 7: (255, 165, 0),         # tail: orange
-    8: (0, 0, 255), 9: (0, 0, 255), 10: (0, 0, 255), 11: (0, 0, 255),    # L_front: blue
-    12: (0, 255, 0), 13: (0, 255, 0), 14: (0, 255, 0), 15: (0, 255, 0),  # R_front: green
-    16: (0, 255, 255), 17: (0, 255, 255), 18: (0, 255, 255),      # L_hind: cyan
-    19: (255, 0, 0), 20: (255, 0, 0), 21: (255, 0, 0),            # R_hind: red
-}
-
-SKELETON_BONES = [
-    (2, 0), (2, 1), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7),
-    (3, 11), (11, 10), (10, 8), (8, 9),
-    (3, 15), (15, 14), (14, 12), (12, 13),
-    (4, 18), (18, 17), (17, 16),
-    (4, 21), (21, 20), (20, 19),
-]
-
-BODY_PARTS = {
-    "face": [0, 1, 2, 3],
-    "left_paw": [8, 9, 10],
-    "right_paw": [12, 13, 14],
-    "tail": [5, 6, 7],
-    "torso": [4, 11, 15, 18, 21],
-}
-
-BODY_PART_COLORS = {
-    "face": "#FFD700",
-    "left_paw": "#4169E1",
-    "right_paw": "#32CD32",
-    "tail": "#FF6347",
-    "torso": "#DA70D6",
-}
+# Anatomical constants: imported from SSOT (2026-03-23)
+from mouse_extensions.constants import (  # noqa: E402
+    MAMMAL_KP_COLORS, SKELETON_BONES, BODY_PARTS, BODY_PART_COLORS,
+)
 
 
 # ---------------------------------------------------------------------------
