@@ -316,6 +316,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 | Val metrics WandB 미전송 (16GB+ GPU) | ✅ 해결됨 | `_offloaded_optim` 블록 외부로 이동 (260323) |
 | summary.csv empty (path depth bug) | ✅ 해결됨 | nested dir 탐색 지원 (260323) |
 | Train/Val 로그 구분 불가 | ✅ 해결됨 | `[Train]`/`[Val]` prefix 통일 (260323) |
+| metrics.txt 1-UID only | ✅ 해결됨 | `_save_visualizations` 내부 → run() 루프로 분리 (260323) |
 
 ---
 
@@ -382,16 +383,18 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 
 ### Rat FT (RAT1_rat_ft_v1, 260323)
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Val PSNR | **17.1 dB** | Plateau at step 3400, single UID val |
-| Train PSNR | ~35 dB | Severe overfitting (gap=18 dB) |
-| Val SSIM | 0.69 | |
-| Val LPIPS | 0.28 | |
-| Data | Train 800 / Val 100 | 6cam SAM2 masks |
-| Checkpoint | `RAT1_rat_ft_v1/ckpt_0000000000005200.pt` | |
+| Metric | 1-UID (S33) | 100-UID (S34) | Notes |
+|--------|:-----------:|:-------------:|-------|
+| Val PSNR | 17.1 dB | **17.49 dB** | Full val confirms overfitting |
+| Val SSIM | 0.69 | **0.7373** | |
+| Val LPIPS | 0.28 | **0.2542** | |
+| Train PSNR | ~35 dB | ~35 dB | |
+| Gap | 17.9 dB | **17.5 dB** | |
+| PSNR range | — | 16.3~19.3 | Narrow distribution |
+| Data | Train 800 / Val 100 | 6cam SAM2 masks | |
+| Checkpoint | `RAT1_rat_ft_v1/ckpt_0000000000005200.pt` | | |
 
-⚠️ Train/Val gap 18 dB = overfitting. 다음 시도: augmentation, 데이터 증강, early stopping.
+⚠️ Train/Val gap 17.5 dB = overfitting 확정 (100 UID 재현). Feasibility demo 수준 — multi-species 공동 학습 phase에서 개선 예정.
 
 ### PS M5 Retraining (in progress)
 
