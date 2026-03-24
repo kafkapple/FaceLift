@@ -144,7 +144,7 @@ def _run_gslrm_and_extract(n_pilot: int) -> dict:
     sys.path.insert(0, ".")
 
     try:
-        from gslrm.models.gslrm import GSLRM
+        from gslrm.model.gslrm import GSLRM
         from omegaconf import OmegaConf
 
         # Find config
