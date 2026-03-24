@@ -1,110 +1,113 @@
 # Rat 23-keypoint system (s-DANNCE format)
-# Source: Harvard Dataverse s-DANNCE dataset
-# Note: Offset1/Offset2 (indices 3, 4) — role TBD, possibly pelvis offset markers.
-# Intentionally excluded from skeleton_bones (orphan nodes by design).
-# Included in color_groups/body_parts for visualization coverage.
+# Source: Klibaite et al. 2025, Cell — Table S2 + Methods
+# Confirmed: extract_sdannce_features.py KP_NAMES matches paper exactly.
+# Previous version (pre-260324) used Dunn 2021 Rat7M naming — INCORRECT for s-DANNCE data.
 
 species: rat
 num_keypoints: 23
 
 keypoint_names:
-  - SpineF      # 0
-  - SpineM      # 1
-  - SpineL      # 2
-  - Offset1     # 3
-  - Offset2     # 4
-  - HipL        # 5
-  - HipR        # 6
-  - KneeL       # 7
-  - KneeR       # 8
-  - ShinL       # 9
-  - ShinR       # 10
-  - ElbowL      # 11
-  - ElbowR      # 12
-  - ShoulderL   # 13
-  - ShoulderR   # 14
-  - EarL        # 15
-  - EarR        # 16
-  - Snout       # 17
-  - Tail1       # 18
-  - Tail2       # 19
-  - Tail3       # 20
-  - PawL        # 21
-  - PawR        # 22
+  - Snout       # 0   Head
+  - EarL        # 1   Head
+  - EarR        # 2   Head
+  - SpineF      # 3   Trunk (head/trunk boundary)
+  - SpineM      # 4   Trunk
+  - SpineL      # 5   Trunk
+  - TailBase    # 6   Trunk
+  - ShoulderL   # 7   Trunk
+  - ShoulderR   # 8   Trunk
+  - HipL        # 9   Trunk
+  - HipR        # 10  Trunk
+  - ElbowL      # 11  Forelimb L
+  - WristL      # 12  Forelimb L
+  - HandL       # 13  Forelimb L
+  - ElbowR      # 14  Forelimb R
+  - WristR      # 15  Forelimb R
+  - HandR       # 16  Forelimb R
+  - KneeL       # 17  Hindlimb L
+  - AnkleL      # 18  Hindlimb L
+  - FootL       # 19  Hindlimb L
+  - KneeR       # 20  Hindlimb R
+  - AnkleR      # 21  Hindlimb R
+  - FootR       # 22  Hindlimb R
 
-# RGB colors — consistent body regions with mouse
+# RGB colors — body region grouping
 keypoint_colors:
-  spine: [255, 0, 255]       # magenta — indices 0, 1, 2
-  offsets: [255, 0, 255]     # magenta — indices 3, 4
-  left_hind: [0, 255, 255]   # cyan — indices 5, 7, 9
-  right_hind: [255, 0, 0]    # red — indices 6, 8, 10
-  left_front: [0, 0, 255]    # blue — indices 11, 13, 21
-  right_front: [0, 255, 0]   # green — indices 12, 14, 22
-  head: [255, 255, 0]        # yellow — indices 15, 16, 17
-  tail: [255, 165, 0]        # orange — indices 18, 19, 20
+  head: [255, 255, 0]          # yellow — indices 0, 1, 2
+  spine: [255, 0, 255]         # magenta — indices 3, 4, 5
+  tail: [255, 165, 0]          # orange — index 6
+  left_front: [0, 0, 255]     # blue — indices 7, 11, 12, 13
+  right_front: [0, 255, 0]    # green — indices 8, 14, 15, 16
+  left_hind: [0, 255, 255]    # cyan — indices 9, 17, 18, 19
+  right_hind: [255, 0, 0]     # red — indices 10, 20, 21, 22
 
 color_groups:
-  spine: [0, 1, 2]
-  offsets: [3, 4]
-  left_hind: [5, 7, 9]
-  right_hind: [6, 8, 10]
-  left_front: [11, 13, 21]
-  right_front: [12, 14, 22]
-  head: [15, 16, 17]
-  tail: [18, 19, 20]
+  head: [0, 1, 2]
+  spine: [3, 4, 5]
+  tail: [6]
+  left_front: [7, 11, 12, 13]
+  right_front: [8, 14, 15, 16]
+  left_hind: [9, 17, 18, 19]
+  right_hind: [10, 20, 21, 22]
 
-# Skeleton bone connectivity
+# Skeleton bone connectivity (parent → child)
+# Anatomy ref: Klibaite 2025 Cell, s-DANNCE 23kp
 skeleton_bones:
-  # Spine chain
-  - [17, 0]   # Snout → SpineF
-  - [0, 1]    # SpineF → SpineM
-  - [1, 2]    # SpineM → SpineL
-  # Tail
-  - [2, 18]   # SpineL → Tail1
-  - [18, 19]  # Tail1 → Tail2
-  - [19, 20]  # Tail2 → Tail3
   # Head
-  - [17, 15]  # Snout → EarL
-  - [17, 16]  # Snout → EarR
-  # Left front limb
-  - [0, 13]   # SpineF → ShoulderL
-  - [13, 11]  # ShoulderL → ElbowL
-  - [11, 21]  # ElbowL → PawL
-  # Right front limb
-  - [0, 14]   # SpineF → ShoulderR
-  - [14, 12]  # ShoulderR → ElbowR
-  - [12, 22]  # ElbowR → PawR
-  # Left hind limb
-  - [2, 5]    # SpineL → HipL
-  - [5, 7]    # HipL → KneeL
-  - [7, 9]    # KneeL → ShinL
-  # Right hind limb
-  - [2, 6]    # SpineL → HipR
-  - [6, 8]    # HipR → KneeR
-  - [8, 10]   # KneeR → ShinR
+  - [0, 1]    # Snout → EarL
+  - [0, 2]    # Snout → EarR
+  # Spine chain
+  - [0, 3]    # Snout → SpineF
+  - [3, 4]    # SpineF → SpineM
+  - [4, 5]    # SpineM → SpineL
+  - [5, 6]    # SpineL → TailBase
+  # Left forelimb (SpineF → Shoulder → Elbow → Wrist → Hand)
+  - [3, 7]    # SpineF → ShoulderL
+  - [7, 11]   # ShoulderL → ElbowL
+  - [11, 12]  # ElbowL → WristL
+  - [12, 13]  # WristL → HandL
+  # Right forelimb
+  - [3, 8]    # SpineF → ShoulderR
+  - [8, 14]   # ShoulderR → ElbowR
+  - [14, 15]  # ElbowR → WristR
+  - [15, 16]  # WristR → HandR
+  # Left hindlimb (SpineL → Hip → Knee → Ankle → Foot)
+  - [5, 9]    # SpineL → HipL
+  - [9, 17]   # HipL → KneeL
+  - [17, 18]  # KneeL → AnkleL
+  - [18, 19]  # AnkleL → FootL
+  # Right hindlimb
+  - [5, 10]   # SpineL → HipR
+  - [10, 20]  # HipR → KneeR
+  - [20, 21]  # KneeR → AnkleR
+  - [21, 22]  # AnkleR → FootR
 
 body_parts:
-  face: [15, 16, 17]
-  left_paw: [11, 13, 21]
-  right_paw: [12, 14, 22]
-  tail: [18, 19, 20]
-  torso: [0, 1, 2, 3, 4, 5, 6]
+  face: [0, 1, 2]
+  left_paw: [7, 11, 12, 13]
+  right_paw: [8, 14, 15, 16]
+  left_hind: [9, 17, 18, 19]
+  right_hind: [10, 20, 21, 22]
+  tail: [6]
+  torso: [3, 4, 5]
 
 body_part_colors:
   face: "#FFD700"
   left_paw: "#4169E1"
   right_paw: "#32CD32"
+  left_hind: "#00CED1"
+  right_hind: "#DC143C"
   tail: "#FF6347"
   torso: "#DA70D6"
 
 ablation_tiers:
-  # T1: Primary axis
-  axis: [17, 1, 2]                  # Snout, SpineM, SpineL
+  # T1: Primary axis — position, heading, speed
+  axis: [0, 4, 5]                    # Snout, SpineM, SpineL
   # T2: + Head orientation
-  head: [15, 16, 17, 0, 1, 2]       # ears, Snout, SpineF, SpineM, SpineL
-  # T3: + Proximal limbs
-  posture: [15, 16, 17, 0, 1, 2, 13, 14, 5, 6]  # + shoulders, hips
-  # T4: + Distal limbs
-  locomotion: [15, 16, 17, 0, 1, 2, 9, 10, 13, 14, 5, 6, 21, 22]  # + shins, paws
+  head: [0, 1, 2, 3, 4, 5]           # head + spine
+  # T3: + Proximal limbs — posture classification
+  posture: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10]  # + shoulders, hips
+  # T4: + Distal limbs — locomotion
+  locomotion: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 15, 16, 17, 18, 20, 21]
   # T5: Full skeleton
   skeleton: all
