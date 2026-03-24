@@ -1,0 +1,124 @@
+# Dataset: RAT2
+# SCN2A_WK1 lone rat, HLAC-stratified 3K frames, s-DANNCE → GS-LRM
+# Generated: 2026-03-24
+# Supersedes: RAT1 (1001 frames, uniform step=90)
+
+_name: RAT2
+_description: "Lone rat (SCN2A_WK1) HLAC-stratified fine-tuning dataset"
+_category: sdannce_rat
+_version: "2.0"
+
+# ========== Source ==========
+_source:
+  session: SCN2A_WK1_2022_09_16_M1
+  session_dir: /home/joon/data/sdannce/rat/dataverse/SCN2A_WK1_2022_09_16_M1
+  hlac_mat: /home/joon/data/sdannce/rat/dataverse/SCN2A_M1_20220916_0077_L.mat
+  dannce_mat: /home/joon/data/sdannce/rat/dataverse/SCN2A_WK1_2022_09_16_M1/SDANNCE/bsl0.5_FM/save_data_AVG.mat
+  species: rat
+  cameras: 6
+  fps: 50
+  total_frames: 90000  # HLAC coverage
+  dannce_frames: 89000  # DANNCE keypoints (last 1K missing)
+
+# ========== Frame Selection (Phase 1: SAM2 input) ==========
+_frame_selection:
+  method: uniform
+  step: 30
+  start: 0
+  end: 89000  # capped at DANNCE frame count
+  num_sam2_frames: 2966  # floor(89000/30)
+  rationale: "step=30 (0.6s @50fps) < behavior bout duration (~0.5-1s). 3x denser than RAT1 (step=90)."
+
+# ========== HLAC Stratification (Phase 2: GS-LRM split) ==========
+_hlac_stratification:
+  enabled: true
+  source: "Klibaite et al. 2025 Cell, Supplementary Table S2"
+  classes: 8  # class 9 (fast/error) absent in this session
+  min_per_class: 50
+  # Applied AFTER SAM2 mask generation, during train/val/test split
+  # This allows re-balancing without re-running SAM2
+  class_names:
+    1: idle
+    2: sniff_head
+    3: groom
+    4: scrunched
+    5: active_crouched
+    6: reared
+    7: explore
+    8: locomotion
+
+# ========== Preprocessing ==========
+_preprocessing:
+  paradigm: sdannce_to_gslrm
+  script: mouse_extensions/scripts/sdannce_to_gslrm.py
+  transform: zero_pad_1920sq
+  target_fx: 605  # 1920→512 zero-pad, slight mismatch from trained 549 (1.1x)
+  output_size: 512
+  sam2_script: sdannce-poc/segmentation/kp_sam2_lone.py
+  sam2_mask_dir: sam2_masks_rat2  # relative to session_dir
+
+# ========== Split Strategy ==========
+_split:
+  strategy: hlac_stratified_temporal
+  ratios: [0.8, 0.1, 0.1]
+  # Within each HLAC class: first 80% of frames → train, next 10% → val, last 10% → test
+  # Maintains temporal ordering within each class to prevent leakage
+
+# ========== Output Paths (v2 structure) ==========
+training:
+  dataset:
+    data_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2
+    dataset_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2/data_rat2_train.txt
+
+validation:
+  data_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2
+  dataset_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2/data_rat2_val.txt
+
+test:
+  data_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2
+  dataset_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2/data_rat2_test.txt
+
+# ========== Expected Stats (estimated) ==========
+_stats:
+  num_sam2_masks: 2966  # step=30 uniform, before HLAC filtering
+  num_total: ~2966  # after HLAC: all step=30 frames used (stratification at split level)
+  num_train: ~2373  # 80%
+  num_val: ~297     # 10%
+  num_test: ~296    # 10%
+  split_ratios: [0.8, 0.1, 0.1]
+
+# ========== Comparison with RAT1 ==========
+# | Item       | RAT1          | RAT2                |
+# |------------|---------------|---------------------|
+# | Step       | 90            | 30                  |
+# | Frames     | 1001          | ~2966               |
+# | Selection  | Uniform       | Uniform + HLAC split|
+# | HLAC       | Not used      | 8-class stratified  |
+# | Train      | 800           | ~2373               |
+# | Val        | 100           | ~297                |
+# | Masks      | sam2_masks/   | sam2_masks_rat2/    |
+
+# ========== Execution Commands ==========
+# Phase 1: SAM2 mask generation (GPU job, ~2-3 hours)
+#   cd /home/joon/dev/sdannce-poc && conda activate sdannce
+#   CUDA_VISIBLE_DEVICES=6 python segmentation/kp_sam2_lone.py \
+#       --session_dir /home/joon/data/sdannce/rat/dataverse/SCN2A_WK1_2022_09_16_M1 \
+#       --output /home/joon/data/sdannce/rat/dataverse/SCN2A_WK1_2022_09_16_M1/sam2_masks_rat2 \
+#       --cameras 1,2,3,4,5,6 \
+#       --start 0 --end 89000 --step 30
+#
+# Phase 2: GS-LRM format conversion + HLAC split
+#   cd /home/joon/dev/FaceLift && conda activate facelift
+#   python -m mouse_extensions.scripts.sdannce_to_gslrm \
+#       --session_dir /home/joon/data/sdannce/rat/dataverse/SCN2A_WK1_2022_09_16_M1 \
+#       --output_dir outputs/datasets/fine_tune/rat/gslrm_format_rat2 \
+#       --animal_id 1 \
+#       --start 0 --end 89000 --step 30 \
+#       --sam2_mask_dir /home/joon/data/sdannce/rat/dataverse/SCN2A_WK1_2022_09_16_M1/sam2_masks_rat2
+#
+# Phase 3: HLAC-stratified train/val/test split
+#   python -m mouse_extensions.scripts.select_hlac_frames \
+#       --hlac_mat /home/joon/data/sdannce/rat/dataverse/SCN2A_M1_20220916_0077_L.mat \
+#       --gslrm_dir outputs/datasets/fine_tune/rat/gslrm_format_rat2 \
+#       --split_ratios 0.8 0.1 0.1 \
+#       --min_per_class 50
