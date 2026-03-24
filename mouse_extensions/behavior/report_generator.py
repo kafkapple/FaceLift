@@ -21,20 +21,9 @@ from typing import Optional
 
 import numpy as np
 
-# MAMMAL skeleton connections for visualization
-MAMMAL_BONES = [
-    (2, 0), (2, 1),   # nose → ears
-    (2, 3),            # nose → neck
-    (3, 4),            # neck → body_middle
-    (4, 5),            # body_middle → tail_root
-    (5, 6), (6, 7),   # tail chain
-    (3, 11), (11, 10), (10, 8), (8, 9),   # L arm: neck→shoulder→elbow→paw→paw_end
-    (3, 15), (15, 14), (14, 12), (12, 13), # R arm
-    (4, 18), (18, 17), (17, 16),           # L leg: body→hip→knee→foot
-    (4, 21), (21, 20), (20, 19),           # R leg
-]
+from mouse_extensions.constants import SKELETON_BONES as MAMMAL_BONES
 
-# MAMMAL color scheme (matching keypoint_viz.py)
+# MAMMAL color scheme for behavior visualization (distinct from keypoint overlay)
 BODY_PART_COLORS = {
     "head": "#FF6B6B",      # red
     "spine": "#4ECDC4",     # teal

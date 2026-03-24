@@ -37,10 +37,10 @@ class KeypointConfig:
     keypoint_names: tuple[str, ...]
     skeleton_bones: tuple[tuple[int, int], ...]
     kp_colors: dict[int, tuple[int, int, int]]
-    body_parts: dict[str, list[int]]
+    body_parts: dict[str, tuple[int, ...]]
     body_part_colors: dict[str, str]
-    ablation_tiers: dict[str, list[int]]
-    color_groups: dict[str, list[int]] = field(default_factory=dict)
+    ablation_tiers: dict[str, tuple[int, ...]]
+    color_groups: dict[str, tuple[int, ...]] = field(default_factory=dict)
 
     @property
     def kp_colors_bgr(self) -> dict[int, tuple[int, int, int]]:
@@ -81,16 +81,21 @@ def _parse_yaml(data: dict) -> KeypointConfig:
         else:
             ablation_tiers[tier_name] = list(indices)
 
+    # Deep-freeze mutable dict values to prevent cache pollution
+    frozen_body_parts = {k: tuple(v) for k, v in data["body_parts"].items()}
+    frozen_ablation = {k: tuple(v) for k, v in ablation_tiers.items()}
+    frozen_color_groups = {k: tuple(v) for k, v in data.get("color_groups", {}).items()}
+
     return KeypointConfig(
         species=data["species"],
         num_keypoints=num_kp,
         keypoint_names=tuple(data["keypoint_names"]),
         skeleton_bones=tuple(bones),
         kp_colors=kp_colors,
-        body_parts=data["body_parts"],
+        body_parts=frozen_body_parts,
         body_part_colors=data["body_part_colors"],
-        ablation_tiers=ablation_tiers,
-        color_groups=data.get("color_groups", {}),
+        ablation_tiers=frozen_ablation,
+        color_groups=frozen_color_groups,
     )
 
 
@@ -122,7 +127,7 @@ def load_keypoint_config(
             f"Available: {[f.stem for f in search_dir.glob('*.yaml')]}"
         )
     if len(candidates) > 1:
-        raise FileNotFoundError(
+        raise ValueError(
             f"Ambiguous config for '{species}': {[c.name for c in candidates]}. "
             f"Expected exactly one file matching '{species}*.yaml'."
         )

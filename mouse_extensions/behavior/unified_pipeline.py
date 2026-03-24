@@ -27,6 +27,7 @@ from mouse_extensions.behavior.preprocessing import (
     preprocess, PreprocessConfig, PRESETS,
 )
 from mouse_extensions.behavior.run_sparse_ablation import JOINT_GROUPS as JOINT_GROUPS_LEGACY
+from mouse_extensions.constants import MOUSE_KP_NAMES as KEYPOINT_NAMES
 
 # Expanded joint groups (fine-grained ablation)
 JOINT_GROUPS = {
@@ -38,13 +39,6 @@ JOINT_GROUPS = {
     "kinematic_18": [2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21],
     "full_22": list(range(22)),
 }
-
-KEYPOINT_NAMES = [
-    "L_ear", "R_ear", "nose", "neck", "body_middle", "tail_root",
-    "tail_middle", "tail_end", "L_paw", "L_paw_end", "L_elbow", "L_shoulder",
-    "R_paw", "R_paw_end", "R_elbow", "R_shoulder", "L_foot", "L_knee",
-    "L_hip", "R_foot", "R_knee", "R_hip",
-]
 
 
 def extract_features_and_standardize(

@@ -27,28 +27,22 @@ from mouse_extensions.behavior.coordinate_utils import (
     M5_SCENE_CENTER,
     M5_DISTANCE_SCALE,
 )
+from mouse_extensions.constants import (
+    SKELETON_BONES as MAMMAL_BONES,
+    MOUSE_KP_NAMES as KEYPOINT_NAMES,
+    BODY_PARTS as _BODY_PARTS,
+)
 
 
-# MAMMAL skeleton connections and colors (consistent across all visualizations)
-MAMMAL_BONES = [
-    (2, 0), (2, 1),  # nose → ears
-    (2, 3),           # nose → neck
-    (3, 4),           # neck → body_middle
-    (4, 5), (5, 6), (6, 7),  # spine → tail
-    (3, 11), (11, 10), (10, 8), (8, 9),    # L arm
-    (3, 15), (15, 14), (14, 12), (12, 13),  # R arm
-    (4, 18), (18, 17), (17, 16),  # L leg
-    (4, 21), (21, 20), (20, 19),  # R leg
-]
-
+# Build visualization-friendly body parts with colors
+_VIZ_COLORS = {
+    "face": "#FF6B6B", "torso": "#4ECDC4", "tail": "#95E1D3",
+    "left_paw": "#FFD93D", "right_paw": "#6BCB77",
+    "left_hind": "#4D96FF", "right_hind": "#9B59B6",
+}
 BODY_PARTS = {
-    "Head":    {"joints": [0, 1, 2, 3],         "color": "#FF6B6B"},
-    "Spine":   {"joints": [4],                   "color": "#4ECDC4"},
-    "Tail":    {"joints": [5, 6, 7],             "color": "#95E1D3"},
-    "Front_L": {"joints": [8, 9, 10, 11],        "color": "#FFD93D"},
-    "Front_R": {"joints": [12, 13, 14, 15],      "color": "#6BCB77"},
-    "Hind_L":  {"joints": [16, 17, 18],          "color": "#4D96FF"},
-    "Hind_R":  {"joints": [19, 20, 21],          "color": "#9B59B6"},
+    name: {"joints": indices, "color": _VIZ_COLORS.get(name, "#AAAAAA")}
+    for name, indices in _BODY_PARTS.items()
 }
 
 JOINT_COLORS = {}
@@ -56,16 +50,6 @@ for part_name, info in BODY_PARTS.items():
     for j in info["joints"]:
         JOINT_COLORS[j] = info["color"]
 
-KEYPOINT_NAMES = [
-    "L_ear", "R_ear", "nose", "neck", "body_middle", "tail_root",
-    "tail_middle", "tail_end", "L_paw", "L_paw_end", "L_elbow", "L_shoulder",
-    "R_paw", "R_paw_end", "R_elbow", "R_shoulder", "L_foot", "L_knee",
-    "L_hip", "R_foot", "R_knee", "R_hip",
-]
-
-
-# Re-exported from coordinate_utils for backward compatibility
-# SSOT: mouse_extensions.behavior.coordinate_utils
 
 
 def project_keypoints(

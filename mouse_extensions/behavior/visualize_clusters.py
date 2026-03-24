@@ -23,15 +23,12 @@ from typing import Optional
 
 import numpy as np
 
-# MAMMAL skeleton
-MAMMAL_BONES = [
-    (2, 0), (2, 1), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7),
-    (3, 11), (11, 10), (10, 8), (8, 9),
-    (3, 15), (15, 14), (14, 12), (12, 13),
-    (4, 18), (18, 17), (17, 16),
-    (4, 21), (21, 20), (20, 19),
-]
+from mouse_extensions.constants import (
+    SKELETON_BONES as MAMMAL_BONES,
+    MOUSE_KP_NAMES as KEYPOINT_NAMES,
+)
 
+# Per-joint color scheme for behavior visualization (distinct from keypoint overlay)
 BODY_COLORS = {
     0: "#FF6B6B", 1: "#FF6B6B", 2: "#FF6B6B", 3: "#FF6B6B",  # head
     4: "#4ECDC4", 5: "#95E1D3", 6: "#95E1D3", 7: "#95E1D3",  # spine/tail
@@ -40,13 +37,6 @@ BODY_COLORS = {
     16: "#4D96FF", 17: "#4D96FF", 18: "#4D96FF",  # hind_L
     19: "#9B59B6", 20: "#9B59B6", 21: "#9B59B6",  # hind_R
 }
-
-KEYPOINT_NAMES = [
-    "L_ear", "R_ear", "nose", "neck", "body_middle", "tail_root",
-    "tail_middle", "tail_end", "L_paw", "L_paw_end", "L_elbow", "L_shoulder",
-    "R_paw", "R_paw_end", "R_elbow", "R_shoulder", "L_foot", "L_knee",
-    "L_hip", "R_foot", "R_knee", "R_hip",
-]
 
 
 def render_skeleton_frame(kp_2d: np.ndarray, xlim: tuple, ylim: tuple,
