@@ -227,7 +227,7 @@ def extract_gaussians_from_checkpoint(
         List of dicts with 'scales', 'opacities', 'positions', 'alpha_maps'
     """
     from mouse_extensions.inference.gslrm_pipeline import GSLRMInference, load_sample_data
-    from gslrm.model.gaussians_renderer import render_opencv_cam
+    from mouse_extensions.visualization import render_opencv_cam
 
     ckpt_base = Path("checkpoints/gslrm") / checkpoint_name
     config_path = ckpt_base / "config.yaml"

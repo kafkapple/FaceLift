@@ -535,7 +535,7 @@ def render_gaussians_to_video(
         fps: Video FPS
         device: Device for rendering
     """
-    from gslrm.model.gaussians_renderer import GaussianModel, render_turntable, imageseq2video
+    from mouse_extensions.visualization import GaussianModel, render_turntable, imageseq2video
     import numpy as np
     
     print(f"Rendering {len(gaussian_files)} frames to video...")
@@ -584,7 +584,7 @@ def create_comparison_video(
 ):
     """Create side-by-side comparison video."""
     import cv2
-    from gslrm.model.gaussians_renderer import GaussianModel, render_turntable
+    from mouse_extensions.visualization import GaussianModel, render_turntable
     import numpy as np
     
     orig_files = sorted(Path(original_dir).glob('*.pt'))

@@ -209,7 +209,7 @@ def _render_with_cameras(
     """
     import torch
     from mouse_extensions.inference.gslrm_pipeline import load_sample_data
-    from gslrm.model.gaussians_renderer import render_opencv_cam
+    from mouse_extensions.visualization import render_opencv_cam
 
     # Run inference once to get Gaussians
     images, input_c2ws, input_fxfycxcys, index = load_sample_data(

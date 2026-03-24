@@ -83,12 +83,15 @@ skeleton_bones:
   - [20, 19] # R_knee → R_foot
 
 # Body part definitions (for body-part isolation rendering)
+# left_hind/right_hind: knee+foot only; hips (18,21) remain in torso as proximal anchors
 body_parts:
   face: [0, 1, 2, 3]
   left_paw: [8, 9, 10]
   right_paw: [12, 13, 14]
   tail: [5, 6, 7]
   torso: [4, 11, 15, 18, 21]
+  left_hind: [16, 17]
+  right_hind: [19, 20]
 
 # Body part display colors (hex, for matplotlib)
 body_part_colors:
@@ -97,6 +100,8 @@ body_part_colors:
   right_paw: "#32CD32"
   tail: "#FF6347"
   torso: "#DA70D6"
+  left_hind: "#00CED1"
+  right_hind: "#DC143C"
 
 # Ablation tiers — functionally named, literature-based
 # Ref: Dunn 2021, Nath 2022, DeepLabCut, SLEAP, Keypoint-MoSeq

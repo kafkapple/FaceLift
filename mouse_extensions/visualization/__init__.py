@@ -7,8 +7,11 @@ Provides:
 - TurntableRenderer / TemporalVideoRenderer (unified turntable videos)
 - Alpha mask, error annotation, Gaussian export, inference viz
 - Keypoint overlay and camera follow
+- GS-LRM rendering re-exports (render_opencv_cam, render_turntable, GaussianModel)
 
 Refactored 2026-03-23: turntable_config.py split into camera_utils, grid_utils, video_io.
+Re-exports gslrm.model.gaussians_renderer public API to decouple mouse_extensions from
+internal gslrm paths.
 """
 
 from .alpha_visualization import (
@@ -72,6 +75,13 @@ from .keypoint_overlay import (
     KEYPOINT_NAMES,
 )
 
+from gslrm.model.gaussians_renderer import (
+    render_opencv_cam,
+    render_turntable,
+    render_dataset_trajectory,
+    GaussianModel,
+)
+
 __all__ = [
     # Video I/O
     "imageseq2video",
@@ -112,4 +122,9 @@ __all__ = [
     "KEYPOINT_NAMES",
     "CameraFollowConfig",
     "KeypointFollowCamera",
+    # GS-LRM rendering (re-exported from gslrm.model.gaussians_renderer)
+    "render_opencv_cam",
+    "render_turntable",
+    "render_dataset_trajectory",
+    "GaussianModel",
 ]

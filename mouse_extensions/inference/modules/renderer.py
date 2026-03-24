@@ -41,7 +41,7 @@ class RendererModule:
         Returns:
             Array of rendered frames [V, H, W, C]
         """
-        from gslrm.model.gaussians_renderer import render_turntable
+        from mouse_extensions.visualization import render_turntable
 
         nv = num_views or self.num_views
         res = resolution or self.resolution

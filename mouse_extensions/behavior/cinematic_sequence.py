@@ -123,7 +123,7 @@ def get_orbit_cameras(n_frames: int, elevation: float, radius: float = 2.7,
 def render_cam(gaussians, c2w, fxfy, w, h, mask=None,
                bg=(0., 0., 0.), device="cuda"):
     """Render with pre-computed camera matrices."""
-    from gslrm.model.gaussians_renderer import render_opencv_cam
+    from mouse_extensions.visualization import render_opencv_cam
     c2w_t = torch.tensor(c2w, dtype=torch.float32, device=device)
     fxfy_t = torch.tensor(fxfy, dtype=torch.float32, device=device)
     if mask is not None:

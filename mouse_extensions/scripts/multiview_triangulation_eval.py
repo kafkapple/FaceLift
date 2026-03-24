@@ -60,7 +60,7 @@ def build_novel_view_cameras(
         fxfycxcy: (N, 4) intrinsics
         c2ws: (N, 4, 4) camera-to-world matrices
     """
-    from gslrm.model.gaussians_renderer import get_turntable_cameras
+    from mouse_extensions.visualization import get_turntable_cameras
 
     w, h, nv, fxfycxcy, c2ws = get_turntable_cameras(
         hfov=50,
@@ -123,7 +123,7 @@ def render_novel_views(
     Returns:
         List of rendered images as numpy arrays (H, W, 3), float32 [0,1]
     """
-    from gslrm.model.gaussians_renderer import render_opencv_cam
+    from mouse_extensions.visualization import render_opencv_cam
 
     rendered_images = []
 

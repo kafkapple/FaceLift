@@ -124,7 +124,7 @@ def render_filtered_gaussians(
     device: str = "cuda",
 ) -> np.ndarray:
     """Render Gaussians with a boolean mask, on specified background color."""
-    from gslrm.model.gaussians_renderer import render_opencv_cam
+    from mouse_extensions.visualization import render_opencv_cam
 
     mask_t = torch.from_numpy(mask).to(device)
 

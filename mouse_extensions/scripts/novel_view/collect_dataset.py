@@ -475,7 +475,7 @@ def generate_gslrm(
 
     sys.path.insert(0, "/home/joon/dev/FaceLift")
     from mouse_extensions.inference.gslrm_pipeline import GSLRMInference, load_sample_data
-    from gslrm.model.gaussians_renderer import render_opencv_cam
+    from mouse_extensions.visualization import render_opencv_cam
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -829,7 +829,7 @@ def generate_ablation(
 
     sys.path.insert(0, "/home/joon/dev/FaceLift")
     from mouse_extensions.inference.gslrm_pipeline import GSLRMInference, load_sample_data
-    from gslrm.model.gaussians_renderer import render_opencv_cam
+    from mouse_extensions.visualization import render_opencv_cam
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 

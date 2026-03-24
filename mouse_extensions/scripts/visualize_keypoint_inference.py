@@ -141,7 +141,7 @@ def run_gslrm_inference(
             GSLRMInference,
             load_sample_data,
         )
-        from gslrm.model.gaussians_renderer import render_opencv_cam
+        from mouse_extensions.visualization import render_opencv_cam
     except ImportError as e:
         print(f"Warning: Cannot import GS-LRM modules: {e}")
         print("Skipping inference, will only overlay keypoints on GT images.")

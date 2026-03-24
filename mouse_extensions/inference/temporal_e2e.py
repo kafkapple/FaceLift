@@ -167,7 +167,7 @@ class TemporalE2EPipeline:
     ) -> Path:
         """Render side-by-side comparison video using GS-LRM renderer."""
         import cv2
-        from gslrm.model.gaussians_renderer import GaussianModel, render_turntable
+        from mouse_extensions.visualization import GaussianModel, render_turntable
         
         original_path = Path(original_cache_dir)
         smoothed_path = Path(smoothed_cache_dir)

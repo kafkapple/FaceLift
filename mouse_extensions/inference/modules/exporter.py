@@ -274,7 +274,7 @@ class ExporterModule:
         name: str,
         fps: Optional[int] = None,
     ) -> Path:
-        from gslrm.model.gaussians_renderer import imageseq2video
+        from mouse_extensions.visualization import imageseq2video
         path = self.output_dir / f"{name}.mp4"
         imageseq2video(frames, str(path), fps=fps or self.video_fps)
         return path

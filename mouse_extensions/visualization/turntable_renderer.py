@@ -287,7 +287,7 @@ class TurntableRenderer:
         resolution: int,
     ) -> Optional[np.ndarray]:
         """Render 360° orbit and return [V, H, W, 3] uint8 array."""
-        from gslrm.model.gaussians_renderer import render_turntable
+        from mouse_extensions.visualization import render_turntable
         from mouse_extensions.visualization.camera_utils import compute_camera_convergence_center
 
         cfg = self.cfg
@@ -334,7 +334,7 @@ class TurntableRenderer:
         camera_order: Optional[List[int]],
     ) -> Tuple[Optional[np.ndarray], Optional[list]]:
         """Render dataset-camera trajectory. Returns ([V,H,W,3], segments)."""
-        from gslrm.model.gaussians_renderer import render_dataset_trajectory
+        from mouse_extensions.visualization import render_dataset_trajectory
 
         cfg = self.cfg
 

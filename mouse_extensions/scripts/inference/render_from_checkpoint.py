@@ -73,7 +73,7 @@ def render_multiview_grid(
     This is separate from TurntableRenderer because it renders at multiple
     elevation angles simultaneously (TurntableRenderer handles single-elevation orbit).
     """
-    from gslrm.model.gaussians_renderer import render_turntable
+    from mouse_extensions.visualization import render_turntable
     from easydict import EasyDict as edict
 
     with torch.no_grad(), torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):

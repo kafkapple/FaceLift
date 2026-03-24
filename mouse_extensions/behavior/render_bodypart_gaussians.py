@@ -105,7 +105,7 @@ def render_gaussians_masked(
     Creates a shallow copy of the GaussianModel with zeroed-out opacity
     for non-selected Gaussians, preserving SH colors.
     """
-    from gslrm.model.gaussians_renderer import render_opencv_cam
+    from mouse_extensions.visualization import render_opencv_cam
 
     # Create a copy with masked opacity
     masked_gaussians = copy.copy(gaussians)
@@ -147,7 +147,7 @@ def render_all_gaussians(
     gaussians, cam: Dict, device: str = "cuda",
 ) -> np.ndarray:
     """Render all Gaussians (control/unfiltered)."""
-    from gslrm.model.gaussians_renderer import render_opencv_cam
+    from mouse_extensions.visualization import render_opencv_cam
 
     w2c = torch.tensor(cam["w2c"], dtype=torch.float32, device=device)
     c2w = torch.inverse(w2c)
@@ -488,7 +488,7 @@ def _generate_novel_view_videos(
     """
     try:
         import cv2
-        from gslrm.model.gaussians_renderer import render_opencv_cam, get_turntable_cameras
+        from mouse_extensions.visualization import render_opencv_cam, get_turntable_cameras
     except ImportError as e:
         print(f"  Novel views skipped: {e}")
         return
@@ -587,7 +587,7 @@ def _generate_temporal_turntable(
     """
     try:
         from mouse_extensions.inference.gslrm_pipeline import load_sample_data
-        from gslrm.model.gaussians_renderer import render_turntable
+        from mouse_extensions.visualization import render_turntable
         from mouse_extensions.visualization.turntable_renderer import (
             TemporalVideoRenderer, TurntableVideoConfig,
         )

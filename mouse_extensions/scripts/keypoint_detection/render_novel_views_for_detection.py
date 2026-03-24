@@ -58,7 +58,7 @@ def load_test_frame_ids(data_root: str) -> list:
 
 def get_turntable_cameras_safe(num_views, render_size, hfov=50, radius=2.7, elevation=20.0):
     """Generate turntable cameras. Wraps gslrm renderer API."""
-    from gslrm.model.gaussians_renderer import get_turntable_cameras
+    from mouse_extensions.visualization import get_turntable_cameras
 
     w, h, nv, fxfycxcy, c2ws = get_turntable_cameras(
         hfov=hfov,
@@ -76,7 +76,7 @@ def get_turntable_cameras_safe(num_views, render_size, hfov=50, radius=2.7, elev
 
 def render_single_view(gaussians, c2w, fxfycxcy, render_size, device, bg_color=(1.0, 1.0, 1.0)):
     """Render a single view from gaussians."""
-    from gslrm.model.gaussians_renderer import render_opencv_cam
+    from mouse_extensions.visualization import render_opencv_cam
 
     c2w_t = torch.tensor(c2w, dtype=torch.float32, device=device)
     fxfycxcy_t = torch.tensor(fxfycxcy, dtype=torch.float32, device=device)

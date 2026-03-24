@@ -133,7 +133,7 @@ def save_multiview_turntable_grid(
     Returns:
         Saved file path
     """
-    from gslrm.model.gaussians_renderer import render_turntable
+    from mouse_extensions.visualization import render_turntable
 
     all_rows = []
 

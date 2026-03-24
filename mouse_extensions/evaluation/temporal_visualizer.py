@@ -42,7 +42,7 @@ class TemporalVisualizer:
         resolution: int = 512,
     ) -> np.ndarray:
         """Render a single Gaussian to image."""
-        from gslrm.model.gaussians_renderer import GaussianModel
+        from mouse_extensions.visualization import GaussianModel
         
         renderer = self._get_renderer()
         
