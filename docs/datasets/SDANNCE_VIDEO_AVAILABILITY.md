@@ -114,21 +114,38 @@ sdannce.m2          = empty            # no partner (lone)
 sdannce.part_hlac   = empty            # no partner labels
 ```
 
+**HLAC 9-Class Definitions (Klibaite et al. 2025, Cell — Table S2)**:
+
+| Group # | Name | Description | LLAC Count |
+|:-------:|:-----|:-----------|:----------:|
+| 1 | **idle** | skeleton completely still | 16 |
+| 2 | **sniff/head** | small movements, head bob/sweeps, animal stationary | 28 |
+| 3 | **groom** | regular movements of head/limbs | 6 |
+| 4 | **scrunched** | body compressed, anterior body elevated | 16 |
+| 5 | **active crouched** | front limbs off ground, high-velocity anterior movements | 15 |
+| 6 | **reared** | anterior of body high off ground | 24 |
+| 7 | **explore** | variety of movements, steps, sweeps, active sniffing | 35 |
+| 8 | **locomotion** | stereotyped repeated limb movements, body translation | 18 |
+| 9 | **fast/error** | very fast movement, often tracking error | 4 |
+
+> Source: Supplementary Table S2 "High-level class desc." sheet.
+> 162 LLACs (unsupervised watershed) → 9 HLACs (human-annotated).
+
 **HLAC 8-Class 분포 (PoC session: 2022_09_16_M1, 90,000 frames)**:
 
-| Class | Frames | % | Temporal Density | 비고 |
-|:-----:|-------:|----:|:---:|------|
-| 1 | 28,573 | 31.7% | ██████████████████ | 주요 행동 A (최빈) |
-| 2 | 28,505 | 31.7% | ██████████████████ | 주요 행동 B (최빈) |
-| 7 | 15,938 | 17.7% | ██████████ | 중간 빈도 |
-| 8 | 7,678 | 8.5% | █████ | 중간 빈도 |
-| 6 | 6,428 | 7.1% | ████ | 중간 빈도 |
-| 5 | 1,222 | 1.4% | █ | 희소 행동 |
-| 4 | 853 | 0.9% | ▌ | 희소 행동 |
-| 3 | 803 | 0.9% | ▌ | 희소 행동 |
+| Class | Name | Frames | % | Kinematic Signature |
+|:-----:|:-----|-------:|----:|:----|
+| 1 | idle | 28,573 | 31.7% | Speed=0.9, completely still |
+| 2 | sniff/head | 28,505 | 31.7% | Speed=4.2, head movement only |
+| 3 | groom | 803 | 0.9% | Snout low (18mm), body short (165mm) |
+| 4 | scrunched | 853 | 0.9% | Snout=163mm, anterior elevated |
+| 5 | active crouched | 1,222 | 1.4% | Speed=114, high-velocity anterior |
+| 6 | reared | 6,428 | 7.1% | Snout=229mm (highest), body extended (249mm) |
+| 7 | explore | 15,938 | 17.7% | Snout=15mm (floor), active head (91mm/s) |
+| 8 | locomotion | 7,678 | 8.5% | Speed=128, limb=135, body translation |
 
-> Class 명칭은 SocialMapper 논문(Cell 2025) 기반 사후 매핑 필요.
-> 뷰어에서 각 class 대표 프레임 확인 후 명명 예정.
+> Class 9 (fast/error) absent — lone rat, 30min session, no tracking errors.
+> Verified 260324: kinematic signatures match Table S2 descriptions 8/8.
 
 **Frame Index Matching (DANNCE ↔ SocialMapper)**:
 
@@ -283,8 +300,14 @@ for dannce_idx in range(89000):
 ### Dataverse MOUSE cohort (DVN/VKJHTD)
 
 - 128개 .mat 파일 (1.9 GB) — **비디오 없음**
-- Keypoints (23j, 3D) + HLAC behavior labels + t-SNE embedding 포함
+- Keypoints (23j, 3D) + behavior labels + t-SNE embedding 포함
 - BALB/c = W (White strain), C57BL/6 = B (Black strain)
+
+> ⚠️ **Mouse `hlac` 필드는 14-class SocialMapper 체계** (Rat 9-class HLAC와 다름!)
+> Source: `mouseEmbedding.m` — 1:idle, 2:slow, 3:head, 4:groom, 5:crouched,
+> 6:active_crouch, 7:steps_crouched, 8:rear, 9:high_rear, 10:slow_explore,
+> 11:explore, 12:step_explore, 13:locomotion_slow, 14:locomotion_fast.
+> Lone mouse W4에서 11개 활성 (5,8,9 부재), Social B1에서 13개 활성 (1 부재).
 
 ### .mat 구조
 
