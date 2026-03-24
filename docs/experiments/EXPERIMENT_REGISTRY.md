@@ -65,14 +65,16 @@
 | **P0: M5t2_randref_sparse** | true | **random** | piecewise 5e-5 | ✅ ckpt-10K | PSNR ~27, oscillation |
 | **P1: M5t2_pose_spherical** | true | **random** | piecewise 5e-5 | ✅ 완료 | 5K 후 plateau |
 
-### Phase 3 (260215~, 실행중)
+### Phase 3 (260215~)
+
+> ⚠️ 아래 상태는 260215 기준 기록. 실제 완료/중단 여부는 gpu03 서버 확인 필요.
 
 | # | Config | 핵심 변경 | LR | 상태 | GPU |
 |:-:|--------|----------|:--:|:----:|:---:|
-| **E1** | M5t2_20k_cosine | cosine 5e-5→0, 20K, 새 학습 | cosine | 🔄 ~31/20K | 4 |
-| **E2** | M5t2_randref_20k_resume | P0 resume, 1e-5 after 10K | piecewise | 🔄 ~10054/20K | 7 |
-| **E3** | M5t2_pose_extrinsic_add | extrinsic pose + add, cosine | cosine | ⏳ R1 후 | 4 |
-| **E4** | M5t2_pose_spherical_add | spherical + add (vs P1 concat), cosine | cosine | ⏳ R1 후 | 7 |
+| **E1** | M5t2_20k_cosine | cosine 5e-5→0, 20K, 새 학습 | cosine | ✅ 완료 (11K+20K fair eval 존재) | 4 |
+| **E2** | M5t2_randref_20k_resume | P0 resume, 1e-5 after 10K | piecewise | ✅ 완료 (20K fair eval 존재) | 7 |
+| **E3** | M5t2_pose_extrinsic_add | extrinsic pose + add, cosine | cosine | ❌ 미실행 (E2 결과 수렴, 불필요 판단) | — |
+| **E4** | M5t2_pose_spherical_add | spherical + add (vs P1 concat), cosine | cosine | ❌ 미실행 (동상) | — |
 
 ---
 
@@ -149,8 +151,8 @@
 | ID | Config | 변경사항 | LR | Steps | 상태 | 결과 |
 |----|--------|---------|:--:|:-----:|:----:|------|
 | **E0** | M5t2_paper_aligned | aug=OFF, lr=1e-4, 20K | 1e-4 | 20K | ❌ diverge @3956 | loss→2.5, silent crash |
-| **E0v2** | M5t2_E0v2 | aug=OFF, lr=5e-5(scaled), 20K | 5e-5 | 20K | 🔄 | paper-aligned (LR scaled) |
-| **E2** | M5t2_noaug | aug=OFF only | 5e-5 | 10K | 🔄 step ~7K | noaug isolation test |
+| **E0v2** | M5t2_E0v2 | aug=OFF, lr=5e-5(scaled), 20K | 5e-5 | 20K | ⏸ 상태 미확인 | paper-aligned (LR scaled) |
+| **E2** | M5t2_noaug | aug=OFF only | 5e-5 | 10K | ⏸ 상태 미확인 | noaug isolation test |
 | E6 | (planned) | lr=7.5e-5 only | 7.5e-5 | 10K | ⏳ | intermediate LR test |
 
 ### E0 Divergence Analysis (260211)
@@ -184,8 +186,31 @@ Step  3956: process killed (NaN→CUDA crash)
 
 | Config | Views | LR | Loss | 상태 |
 |--------|:-----:|:--:|:----:|:----:|
-| paper_aligned_4view | 4 | 1e-4 | no LPIPS/SSIM | 🔄 step ~8K/20K |
+| paper_aligned_4view | 4 | 1e-4 | no LPIPS/SSIM | ⏸ 상태 미확인 (서버 확인 필요) |
 | paper_aligned_6view | 6 | 1e-4 | no LPIPS/SSIM | ✅ PSNR=24.49 |
+
+### Rat Fine-tuning (Multi-Species)
+
+#### RAT1 — Mouse pretrained → Rat FT (260323)
+
+| Experiment | Train Data | Val Data | Val PSNR | Train PSNR | Gap | Status |
+|-----------|:----------:|:--------:|:--------:|:----------:|:---:|:------:|
+| **Zero-shot baseline** | — (mouse pretrained) | RAT1 val | **2.77 dB** | — | — | ✅ |
+| **RAT1_rat_ft_v1** | 800 UIDs (6cam SAM2) | 100 UIDs | **17.49 dB** | ~35 dB | **17.5 dB** | ✅ 260323 |
+
+> ⚠️ FT gain = +14.72 dB (zero-shot → FT). Train/Val gap 17.5 dB = overfitting 확정.
+> 데이터 부족이 주 병목. Multi-species 공동 학습 phase에서 개선 예정.
+> Checkpoint: `outputs/experiments/rat/RAT1_rat_ft_v1/ckpt_0000000000005200.pt`
+
+#### RAT2 — HLAC-Stratified Annotation (260324, Planned)
+
+| Config | SSOT | Split | Status |
+|--------|------|-------|:------:|
+| `configs/datasets/RAT2.yaml` | commit `8f36c88` | 2371 train / 297 val / 299 test | 🔄 SAM2 annotation 미실행 (gpu03 예정) |
+
+> Phase 1: SAM2 step=30 → 2967 frames × 6cam
+> Phase 2: HLAC stratified temporal split → 2371/297/299
+> Script: `mouse_extensions/scripts/select_hlac_frames.py` (commit `9f4036f`)
 
 ---
 
@@ -325,4 +350,4 @@ Alternative (color accuracy 중시): MVDiff E1 (cosine LR) + GS-LRM 4v baseline.
 
 ---
 
-*Experiment Registry v7.0 | 2026-02-24*
+*Experiment Registry v8.0 | 2026-03-24 | 추가: Rat FT v1, RAT2, Phase3 상태 갱신*

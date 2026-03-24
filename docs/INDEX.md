@@ -1,7 +1,7 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-03-22 | **Version**: v16.2
+> **Updated**: 2026-03-24 | **Version**: v16.3
 > **Active**: 52개 | **Archive**: 19개 (docs/_archive/, git history에 보존)
 >
 > **Phase Structure**: Phase 1 (MVDiff bottleneck) = 유지보수 | **Phase 2 (Novel View + Multi-Species) = 현재 포커스**
@@ -22,7 +22,7 @@
 | **가설 SSOT (로드맵)** | [[experiments/hypothesis_roadmap]] **v3.0** |
 | **평가 프로토콜** | [[experiments/evaluation_protocol_v1]] **v1.0** |
 | **명령어 SSOT** | [[experiments/COMMANDS]] |
-| **DiFix 학습 전략** | [[experiments/DIFIX_TRAINING_STRATEGY]] **v1.0** |
+| ~~DiFix 학습 전략~~ | ~~[[experiments/DIFIX_TRAINING_STRATEGY]]~~ **[DEPRECATED — PoC 실패 260322, mode collapse]** |
 | **Master Results Table** | [[experiments/MASTER_RESULTS_TABLE]] **v1.0** |
 | **통합 Ablation 보고서** | [[experiments/UNIFIED_ABLATION_REPORT]] **v1.0** |
 | **Alpha Loss 분석** | [[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] **v2.0** |
@@ -52,7 +52,7 @@
 | 문서 | 내용 | 상태 | 관련 |
 |------|------|:----:|------|
 | **[[experiments/PHASE2_NOVEL_VIEW_ROADMAP]]** | **Phase 2 로드맵**: Novel View + Multi-Species + NeurIPS Dataset Track | **✅ v2.0** | → mesh_gs_pair, KEYPOINT_3D |
-| **[[experiments/DIFIX_TRAINING_STRATEGY]]** | DiFix 3D+ 학습 전략: 2.5-stage curriculum, 3 pair types, data pipeline | **✅ v1.0** | → mesh_gs_pair, PHASE2 |
+| ~~[[experiments/DIFIX_TRAINING_STRATEGY]]~~ | ~~DiFix 3D+ 학습 전략~~: **[DEPRECATED — PoC 실패 260322 S25, mode collapse]** | ~~v1.0~~ | — |
 | **[[experiments/TEMPORAL_CONSISTENCY_STUDY]]** | Temporal flickering 분석 + smoothing 방법 비교 (EMA/OptFlow/DeformV2) | **✅ v1.0** | → TEMPORAL_EVAL_STANDARD |
 | **[[experiments/TEMPORAL_EVAL_STANDARD]]** | Temporal 평가 기준 SSOT (프레임/뷰/메트릭) | **✅ v1.0** | → TEMPORAL_CONSISTENCY_STUDY |
 | **[[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss novel view artifact 억제 효과 분석 | **✅ v1.0** | → [[hypotheses/H6_ALPHA_MASK]], PHASE2 |
@@ -64,7 +64,8 @@
 | **[[experiments/mesh_gs_pair_collection]]** | Novel view dataset pipeline v2.0 | **✅ v2.0** | → PHASE2, [[experiments/DATASET_QA_VIEWER]] |
 | **[[experiments/DATASET_QA_VIEWER]]** | Novel view dataset QA viewer (stdlib HTTP, exclude 관리) | **✅ v1.0** | → mesh_gs_pair |
 | **[[experiments/REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 (코드+메트릭+프로토콜) | **✅ v1.0** | |
-| **[[experiments/PAST_SESSION_AUDIT_260322]]** | 과거 7개 항목 감사 (HLAC/DiFix/canonical set/VAME 등) | **✅ v1.0** | → PHASE2, hypothesis_roadmap |
+| **[[experiments/PAST_SESSION_AUDIT_260322]]** | 과거 7개 항목 감사 (HLAC/DiFix/canonical set/VAME 등) | **✅ v2.0** (bias-corrected) | → PHASE2, hypothesis_roadmap |
+| **[[experiments/HLAC_COMPREHENSIVE_260322]]** | HLAC 종합 분석: 2992 frames, K=8, Gaussian vs KP feature comparison | **✅ v1.0** | → BehaviorSplatter, PAST_SESSION_AUDIT |
 
 #### Reference Documents (안정, 삭제/통합된 문서)
 
@@ -75,6 +76,9 @@
 | ~~FL_PS_metric_consistency~~ | _(삭제됨 — evaluation_protocol에 통합)_ | 📦 |
 | ~~260216_PHASE3_REPORT~~ | _(삭제됨 — comprehensive_analysis_report로 대체)_ | 📦 |
 | ~~260216_MVDIFF_TRAINING_ANALYSIS~~ | _(삭제됨 — comprehensive_analysis_report로 대체)_ | 📦 |
+
+| **[[experiments/NOVEL_VIEW_QUALITY_STRATEGY]]** | Novel view 품질 개선 전략 (3-model deliberation 기반) | **✅ v1.0** | → PHASE2, ALPHA_LOSS |
+| **[[experiments/RELATED_WORK_SURVEY]]** | NeurIPS 2026 Dataset Track 관련 논문 조사 (2026-03-19) | **✅ v1.0** | → PHASE2, gap analysis |
 
 #### Operational Guides
 
@@ -95,6 +99,8 @@
 | [[datasets/RAW_DATA]] | Raw 데이터 출처 (DANNCE) | ✅ |
 | **[[datasets/MULTI_ANIMAL_PREPROCESSING]]** | 다중 동물 (s-DANNCE) 전처리 스펙: 마스크 전략, Plucker ray, 파이프라인 | **🆕 v1.0** |
 | **[[datasets/SDANNCE_VIDEO_AVAILABILITY]]** | **s-DANNCE 데이터셋 종합 가이드 (SSOT)**: Harvard Dataverse 17개 전수조사, SCN2A_WK1 lone rat, 카메라 특성, 다운로드 명령어 | **✅ v2.0** |
+| _(미생성)_ `datasets/SDANNCE_PREPROCESSING.md` | s-DANNCE→GS-LRM 전처리 통합 스펙 — **계획됨**, 미작성 | ⏳ 작성 필요 |
+| **RAT2 Dataset Config** | `configs/datasets/RAT2.yaml` — 2-phase HLAC stratified split (2371 train / 297 val / 299 test), commit `8f36c88` | **✅ 260324** |
 
 ### guides/ (입문 & 실습)
 
@@ -134,7 +140,7 @@
 |------|----------|:----:|
 | [[hypotheses/H4_VIEW_ABLATION]] | 최적 입력 뷰 수 | ✅ 6-view 단조 증가 |
 | [[hypotheses/H5_MVDIFFUSION]] | MVDiff 개선 방법 | ✅ Phase 3 완료 |
-| [[hypotheses/H6_ALPHA_MASK]] | Alpha mask loss 효과 | **🔄 재평가 중** → [[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] |
+| [[hypotheses/H6_ALPHA_MASK]] | Alpha mask loss 효과 | **✅ 완료 (α=0.3@6v best trade-off, IoU↑ +0.002, PSNR -0.55 dB)** → [[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] |
 | [[hypotheses/H7_SSIM_WEIGHT]] | SSIM weight 최적값 | **❌ 기각** (0.5/1.0 collapse, 0.3 하락) |
 | [[hypotheses/GENERALIZATION_ROADMAP]] | 카메라/피사체 일반화 | 📋 계획 |
 | [[hypotheses/RMA_CAMERA_ANALYSIS]] | M5 카메라 비균일 배치 | 📊 분석 완료 |
@@ -199,6 +205,7 @@
 | **Camera follow** | `mouse_extensions/scripts/render_camera_follow.py` | 13 camera targets + body stabilization |
 | **Gaussian distributions** | `mouse_extensions/behavior/analyze_gaussian_distributions.py` | Per-body-part parameter analysis + modality tests |
 | **Radial filtering** | `mouse_extensions/behavior/view_projected_filtering.py --mode radial` | Radius sweep grid for body-part Gaussian filtering |
+| **HLAC frame selection** | `mouse_extensions/scripts/select_hlac_frames.py` | HLAC-stratified frame selection for RAT2 annotation (commit `9f4036f`) |
 
 ### _archive/ (Phase 1 보존)
 
@@ -207,7 +214,7 @@
 
 ---
 
-## 핵심 결과 요약 (2026-03-03 기준)
+## 핵심 결과 요약 (2026-03-24 updated)
 
 ### FL vs PS Fair Comparison (M5 Same-Camera, Fair Eval)
 
@@ -226,7 +233,7 @@
 |-----------|--------|-----------|
 | H4: View Ablation | ✅ 6-view monotonic | [[hypotheses/H4_VIEW_ABLATION]] |
 | H5: MVDiffusion | ✅ Phase 3 done | [[hypotheses/H5_MVDIFFUSION]] |
-| H6: Alpha Mask | 🔄 재평가 중 | [[hypotheses/H6_ALPHA_MASK]] |
+| H6: Alpha Mask | ✅ 완료 (α=0.3@6v best trade-off) | [[hypotheses/H6_ALPHA_MASK]] |
 | H7: SSIM Weight | ❌ Rejected | [[hypotheses/H7_SSIM_WEIGHT]] |
 | HP: Preprocessing | ✅ M0 diverges, M5_4 baseline match | [[experiments/hypothesis_roadmap]] |
 | **H_T1: Dist. Mismatch** | **🔬 Testing (DA1)** | [[_archive/phase1_experiments/mvdiff_bottleneck_analysis]] §5 |
@@ -276,4 +283,4 @@ experiments/comparison/
 
 ---
 
-*MoC v16.1 | Updated: 2026-03-22 | S18: SDANNCE Dataset Guide, view ablation 512, DiFix pairs*
+*MoC v16.3 | Updated: 2026-03-24 | S43+: RAT2 config, HLAC frame selection, H6 완료, DiFix deprecated*

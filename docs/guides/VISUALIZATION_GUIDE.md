@@ -137,14 +137,27 @@ CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.multiview_visibility_
 CUDA_VISIBLE_DEVICES=5 bash mouse_extensions/behavior/run_all_visualizations.sh
 ```
 
-생성되는 영상:
+생성되는 영상 (전체 경로):
 
-| 디렉터리 | 내용 |
-|----------|------|
-| `cinematic_white/` | 기본 시네마틱 (흰 BG) |
-| `cinematic_white_kp/` | Keypoint overlay 포함 |
-| `cinematic_black/` | 검정 BG 버전 |
-| `multiview_filter_video/` | N>=2 temporal 6-view grid |
+| 출력 경로 | 내용 |
+|-----------|------|
+| `outputs/viz/cinematic/mouse/cinematic_white/` | 기본 시네마틱 (흰 BG) |
+| `outputs/viz/cinematic/mouse/cinematic_white_kp/` | Keypoint overlay 포함 |
+| `outputs/viz/cinematic/mouse/cinematic_black/` | 검정 BG 버전 |
+| `outputs/analysis/mouse/filtering/multiview_filter_video/` | N>=2 temporal 6-view grid |
+
+### 기존 실험 결과 위치 (260321 이전)
+
+> 260324 v2 마이그레이션 완료. 모든 결과가 v2 경로로 이동됨.
+
+| 결과 경로 | 내용 |
+|-----------|------|
+| `outputs/viz/cinematic/mouse/cinematic_final_v2/` | 최종 cinematic (최신) |
+| `outputs/viz/cinematic/mouse/cinematic_v1~v9/`, `cinematic_white/` | 이전 iteration |
+| `outputs/viz/comparison/mouse/6view_grid/` | GT vs GS-LRM 6-view 그리드 |
+| `outputs/analysis/mouse/filtering/novel_grid_filtered/` | Novel view orbit (face/torso/tail/all) |
+| `outputs/analysis/mouse/filtering/multiview_filter_video/` | Body-part mask filter 9종 |
+| `outputs/viz/bodypart/mouse/bodypart_renders_active/` | Body-part 렌더 PNG (최신) |
 
 ## 6. 커스텀 설정 예시
 
@@ -206,4 +219,4 @@ Feed-forward GS-LRM의 opacity=0.5 문제는 미탐구 영역 → multi-view con
 
 ---
 
-*BehaviorSplatter | Visualization Guide | 2026-03-21*
+*BehaviorSplatter | Visualization Guide | 2026-03-24*

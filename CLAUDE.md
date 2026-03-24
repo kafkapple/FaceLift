@@ -382,7 +382,7 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 
 ---
 
-## 11. Key Results Summary (260220)
+## 11. Key Results Summary (260324 updated)
 
 ### View Ablation (Fair Eval, test set, 360f × 5 views)
 
@@ -412,16 +412,26 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 
 ### Rat FT (RAT1_rat_ft_v1, 260323)
 
-| Metric | 1-UID (S33) | 100-UID (S34) | Notes |
-|--------|:-----------:|:-------------:|-------|
-| Val PSNR | 17.1 dB | **17.49 dB** | Full val confirms overfitting |
-| Val SSIM | 0.69 | **0.7373** | |
-| Val LPIPS | 0.28 | **0.2542** | |
-| Train PSNR | ~35 dB | ~35 dB | |
-| Gap | 17.9 dB | **17.5 dB** | |
-| PSNR range | — | 16.3~19.3 | Narrow distribution |
-| Data | Train 800 / Val 100 | 6cam SAM2 masks | |
-| Checkpoint | `RAT1_rat_ft_v1/ckpt_0000000000005200.pt` | | |
+| Metric | Zero-shot baseline | 1-UID (S33) | 100-UID (S34) | Notes |
+|--------|:------------------:|:-----------:|:-------------:|-------|
+| Val PSNR | **2.77 dB** | 17.1 dB | **17.49 dB** | FT gain = +14.72 dB |
+| Val SSIM | — | 0.69 | **0.7373** | |
+| Val LPIPS | — | 0.28 | **0.2542** | |
+| Train PSNR | — | ~35 dB | ~35 dB | |
+| Gap | — | 17.9 dB | **17.5 dB** | overfitting 확정 |
+| PSNR range | — | — | 16.3~19.3 | Narrow distribution |
+| Data | mouse pretrained | Train 800 / Val 100 | 6cam SAM2 masks | |
+| Checkpoint | — | `RAT1_rat_ft_v1/ckpt_0000000000005200.pt` | | |
+
+> 데이터 부족이 주 병목 (domain shift 21.72 dB). Multi-species 공동 학습 phase에서 개선 예정.
+
+### RAT2 (260324, Planned — SAM2 미실행)
+
+| Config | Split | Status |
+|--------|-------|:------:|
+| `configs/datasets/RAT2.yaml` | 2371 train / 297 val / 299 test | 🔄 SAM2 annotation 대기 (gpu03) |
+
+> HLAC-stratified 2-phase split. `mouse_extensions/scripts/select_hlac_frames.py` 완료 (commit `9f4036f`).
 
 ⚠️ Train/Val gap 17.5 dB = overfitting 확정 (100 UID 재현). Feasibility demo 수준 — multi-species 공동 학습 phase에서 개선 예정.
 
