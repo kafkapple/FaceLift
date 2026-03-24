@@ -75,12 +75,32 @@ from .keypoint_overlay import (
     KEYPOINT_NAMES,
 )
 
-from gslrm.model.gaussians_renderer import (
-    render_opencv_cam,
-    render_turntable,
-    render_dataset_trajectory,
-    GaussianModel,
+# GS-LRM rendering symbols — lazy to avoid circular import.
+# gaussians_renderer.py imports mouse_extensions.visualization.grid_utils at top-level,
+# so a top-level import here would create a cycle when gslrm is loaded first.
+# __getattr__ defers the import until the symbol is first accessed.
+_GSLRM_LAZY = frozenset(
+    {"render_opencv_cam", "render_turntable", "render_dataset_trajectory", "GaussianModel"}
 )
+
+
+def __getattr__(name: str):
+    if name in _GSLRM_LAZY:
+        from gslrm.model.gaussians_renderer import (  # noqa: PLC0415
+            render_opencv_cam,
+            render_turntable,
+            render_dataset_trajectory,
+            GaussianModel,
+        )
+        # Cache into module globals so subsequent accesses skip __getattr__
+        g = globals()
+        g["render_opencv_cam"] = render_opencv_cam
+        g["render_turntable"] = render_turntable
+        g["render_dataset_trajectory"] = render_dataset_trajectory
+        g["GaussianModel"] = GaussianModel
+        return g[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # Video I/O

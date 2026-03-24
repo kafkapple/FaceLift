@@ -47,12 +47,15 @@ KP_NAMES = [
 ]
 
 # Body part definitions: name -> list of keypoint indices
+# Must stay consistent with mouse_22.yaml body_parts + constants.BODY_PARTS
 BODY_PARTS = {
     "face": [0, 1, 2, 3],          # L_ear, R_ear, nose, neck
     "left_paw": [8, 9, 10],        # L_paw, L_paw_end, L_elbow
     "right_paw": [12, 13, 14],     # R_paw, R_paw_end, R_elbow
     "tail": [5, 6, 7],             # tail_root, tail_middle, tail_end
     "torso": [4, 11, 15, 18, 21],  # body_middle, L/R_shoulder, L/R_hip
+    "left_hind": [16, 17],         # L_foot, L_knee
+    "right_hind": [19, 20],        # R_foot, R_knee
 }
 
 BODY_PART_COLORS = {
@@ -61,6 +64,8 @@ BODY_PART_COLORS = {
     "right_paw": "#32CD32",  # lime green
     "tail": "#FF6347",       # tomato
     "torso": "#DA70D6",      # orchid
+    "left_hind": "#00CED1",  # dark turquoise
+    "right_hind": "#DC143C", # crimson
 }
 
 
