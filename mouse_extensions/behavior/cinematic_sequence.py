@@ -636,6 +636,10 @@ def main():
         checkpoint_path=cfg["model"]["checkpoint"],
         device=device,
     )
+    # Patch num_input_views from cinematic config if explicitly specified
+    if "num_input_views" in cfg.get("model", {}):
+        model.config.model.num_input_views = cfg["model"]["num_input_views"]
+        print(f"  Patched num_input_views: {cfg['model']['num_input_views']}")
     print("  Model loaded")
 
     pipeline = CinematicPipeline(model, cfg, device)
