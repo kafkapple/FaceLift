@@ -384,3 +384,5 @@ python -m mouse_extensions.preprocessing.split_generator \
 ---
 
 *Preprocessing Registry v7.0 | 2026-01-29 | Added M5 ablation, M0 baseline, normalization modes, temporal split*
+
+> **RAW_DATA.md v2.0** (2026-03-25): DANNCE/MAMMAL/M5t2 버전별 상세 명세 추가 → [[RAW_DATA]]

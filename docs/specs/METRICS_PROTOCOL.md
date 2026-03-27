@@ -257,4 +257,77 @@ Output: `metrics_v2.json` per experiment directory.
 
 ---
 
-*FaceLift Metrics Protocol v2.0 | 2026-02-09*
+## 7. Comprehensive Metric Set (v3.0, 2026-03-26)
+
+> **Code SSOT**: `mouse_extensions/scripts/eval/comprehensive_eval.py`
+> **Design SSOT**: Obsidian `docs/analysis/PRUNING_ABLATION_DESIGN.md` §4
+
+### 7.1 Reconstruction Quality (표준)
+
+| Metric | Code Key | Definition | 용도 |
+|--------|----------|------------|------|
+| **PSNR_gt** | `psnr_gt` | Masked FG only: `MSE = Σ(pred*mask - gt*mask)² / (3·Σmask)` → `-10·log₁₀(MSE)` | **핵심**: BG boost 없는 순수 FG 품질 |
+| **PSNR_int** | `psnr_int` | White-BG full image MSE → dB | 문헌 비교 (LGM, PS 등) |
+| **SSIM** | `ssim` | Structural similarity on white-BG composite | 텍스처 품질 |
+| **LPIPS** | `lpips` | Perceptual distance (AlexNet) on white-BG | 인간 시각 상관 |
+| **IoU** | `iou` | Silhouette: `pred_mask ∩ gt_mask / union` (pred_mask = pixel mean < 0.95) | 형태 정확도 |
+
+### 7.2 Artifact-Specific (신규 v3.0)
+
+| Metric | Code Key | Definition | 용도 |
+|--------|----------|------------|------|
+| **Silhouette Precision** | `sil_precision` | `intersection / pred_fg_area` — 낮으면 배경에 floater 존재 | **Floater 검출** |
+| **Silhouette Recall** | `sil_recall` | `intersection / gt_fg_area` — 낮으면 geometry 누락 | Missing geometry |
+| **Per-camera PSNR_gt** | `per_cam_psnr_gt` | 각 카메라 (0-5) 별 개별 PSNR_gt | **Bottom view 분리** |
+| **N_final** | `n_gaussians` | 필터 후 최종 Gaussian 수 | 효율성 |
+| **Opacity mean/std** | `opacity_mean`, `opacity_std` | 분포 특성 | α supervision 효과 |
+| **Anisotropy % flat** | `aniso_pct_flat` | ratio ≥ 30인 비율 (%) | 형태 분석 |
+| **Floater fraction** | `floater_frac` | DBSCAN 이상치 비율 (main cluster 외) | 배경 노이즈 |
+
+### 7.3 PSNR_gt vs PSNR_int 관계
+
+```
+PSNR_int ≈ PSNR_gt + 10·log₁₀(1/fg_fraction)
+FG fraction ≈ 2.3% → BG boost ≈ +16.4 dB
+
+예: PSNR_gt = 20.1 → PSNR_int ≈ 36.5 (이론값)
+    실측: PSNR_int = 31.1 (white-BG 합성 방식 차이)
+```
+
+> ⚠️ 두 metric을 혼용하면 ~10-16 dB 차이 발생. 논문에서 반드시 어떤 기준인지 명시.
+
+### 7.4 Pareto Frontier (Pruning 평가용)
+
+```
+Y축: PSNR_gt (dB) — 품질
+X축: log(N_final) — 효율성
+각 점: filter 조건 (E1~E5)
+색상: α 값 (0.0 vs 0.3 vs 1.0)
+```
+
+"같은 PSNR_gt에서 N_final 최소화" = Pareto optimal.
+
+### 7.5 PLY 저장 용량 추정
+
+| Pruning 수준 | Gaussians/frame | PLY 크기/frame | 360 test frames | 3600 all frames |
+|:------------:|:---------------:|:--------------:|:---------------:|:---------------:|
+| Raw (unfiltered) | ~100K | ~24 MB | 8.6 GB | 86 GB |
+| apply_all_filters | ~13K | ~3.1 MB | 1.1 GB | 11.2 GB |
+| +Visibility+Orient | ~9K | ~2.1 MB | 0.76 GB | 7.6 GB |
+| Aggressive | ~5K | ~1.2 MB | 0.43 GB | 4.3 GB |
+
+> PLY 공유 시 filtered (~13K) 권장. Raw PLY는 on-demand 생성.
+
+---
+
+## Related
+
+- ↑ [[../INDEX]] — 문서 허브
+- ↔ Obsidian `analysis/PRUNING_ABLATION_DESIGN.md` — Pruning 실험 설계 근거
+- ↔ [[../hypotheses/H8_opacity_anisotropy_analysis]] — Opacity/Anisotropy 분석
+- ↔ [[../guides/ORIENTATION_FILTER_GUIDE]] — Orientation filter 상세
+- ↔ [[../experiments/CHECKPOINT_INVENTORY_260326]] — 체크포인트 현황
+
+---
+
+*FaceLift Metrics Protocol v3.0 | 2026-03-26 | §7 Comprehensive + Artifact metrics 추가*

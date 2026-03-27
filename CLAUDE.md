@@ -311,7 +311,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 
 | 항목 | 규칙 |
 |------|------|
-| **데이터셋 명명** | M-Series: M1, M2, M3_1, M3_2 |
+| **데이터셋 명명** | M-Series: M1~M5. **M5t2** = 표준 split (80:10:10 temporal) |
 | **실험 명명** | `E{Cat}_{Num}_{keywords}` |
 | **Config** | 3 modes: Modular(`-d`+`-e`), Legacy(`--config`), Flexible(`-b`+`-e`) → `configs/README.md` |
 | **문서 날짜** | 파일명 `YYMMDD`, 본문 `YYYY-MM-DD` |
@@ -384,7 +384,7 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 
 ## 11. Key Results Summary (260324 updated)
 
-### View Ablation (Fair Eval, test set, 360f × 5 views)
+### View Ablation (Fair Eval, M5t2 test set 3240-3599, 360f × 5 views)
 
 | Views | PSNR_gt | IoU | PSNR_int |
 |:-----:|:-------:|:---:|:--------:|
@@ -395,13 +395,20 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 | 5 | 22.16 | 0.942 | 22.56 |
 | 6 | **23.84** | **0.954** | **24.02** |
 
-### Best Checkpoints (M5t2)
+### Best Checkpoints — 3-Best Rule (260326 Comprehensive Eval)
 
-| Component | Checkpoint | Key Metric |
-|-----------|-----------|:----------:|
-| GS-LRM 6v | `6view_v2/best_psnr.pt` | **PSNR=23.84** (test, fair eval) |
-| GS-LRM 4v | `M5t2_E0_1_facelift/best_psnr.pt` | PSNR=20.66 (test, fair eval) |
-| MVDiff | `mouse_M5t2/checkpoint-5000` | E2E PSNR_wh=21.29 |
+> **SSOT**: `docs/experiments/CHECKPOINT_INVENTORY_260326.md` + `ALPHA_COMPREHENSIVE_EVAL_260326.md`
+> **모두 M5t2 split (80:10:10)으로 학습**. α=0.0 이름에 M5t2 미포함이나 동일 split 사용.
+
+| 기준 | α | Checkpoint | PSNR_gt | IoU | 용도 |
+|------|:-:|-----------|:-------:|:---:|------|
+| **FG Quality** | 0.0 | `base_uniform_v2_6view_v2` | **20.12** | 0.886 | PSNR_gt 정량 비교 |
+| **Trade-off (Default)** ⭐ | 0.3 | `M5t2_6view_alpha03_v3` | 20.01 | **0.913** | **공유/실용 default** |
+| **Artifact** | 1.0 | `M5t2_6view_alpha10_v3` | 19.55 | **0.925** | 데모/시각화 |
+| GS-LRM 4v | 0.0 | `base_uniform_v2_4view_v2` | — | — | View ablation |
+| MVDiff | — | `mouse_M5t2/checkpoint-5000` | — | — | E2E |
+
+> ⚠️ PSNR_gt (masked FG) ≠ 이전 "23.84" (다른 eval 프로토콜). 상세: `ALPHA_COMPREHENSIVE_EVAL_260326.md` §3.4
 
 ### Phase 3 Conclusion
 

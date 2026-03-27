@@ -1,3 +1,4 @@
+# no-split: single cinematic pipeline with 8 tightly-coupled segment handlers sharing state
 """Cinematic Sequence Visualization v4: config-driven, temporal-flow architecture.
 
 Segment types:
@@ -294,6 +295,13 @@ def zoom_to_content(img, zoom: float = 2.0, bg_thresh: float = 0.05) -> np.ndarr
 
 
 def crossfade(a, b, t):
+    # Resize if shapes differ (e.g., GT 512px → render 768px)
+    if a.shape != b.shape:
+        from PIL import Image as PILImage
+        h, w = b.shape[:2]
+        a = np.array(PILImage.fromarray(
+            (np.clip(a, 0, 1) * 255).astype(np.uint8)
+        ).resize((w, h), PILImage.LANCZOS)) / 255.0
     return np.clip((1 - t) * a + t * b, 0, 1)
 
 

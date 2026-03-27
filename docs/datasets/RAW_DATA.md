@@ -20,188 +20,193 @@ MAMMAL (An et al. 2023)
 본 프로젝트 (FaceLift Mouse)
   │  M5 전처리: center crop → 512×512 RGBA, 카메라 정규화
   v
-M5 데이터 (3,600 frames × 6 views × 512×512)
-```
-
-| 항목 | DANNCE 원본 | MAMMAL 가공 (markerless_mouse_1_nerf) | 본 프로젝트 (M5) |
-|------|:-----------:|:-------------------------------------:|:----------------:|
-| **출처** | Dunn et al. 2021 | An et al. 2023 | 본 연구 |
-| **해상도** | 1152 × 1024 | 512 × 512 (비디오) | 512 × 512 (RGBA) |
-| **FPS** | 100 | ~30 (비디오 변환) | 6 (frame_interval=5) |
-| **프레임** | 18,000 | ~18,000 | 3,600 |
-| **카메라** | 6대 | 6대 | 6대 |
-| **마스크** | 없음 | simpleclick_undist | RGBA alpha |
-| **저장소** | [spoonsso/dannce](https://github.com/spoonsso/dannce) | [anl13/MAMMAL_mouse](https://github.com/anl13/MAMMAL_mouse) | 로컬 |
-
-> **⚠️ PoseSplatter 데이터와의 관계**:
-> PoseSplatter (Goffinet et al. 2025)는 DANNCE/MAMMAL 데이터를 사용하지 **않으며**, **자체 녹화한 별도 데이터**를 사용합니다
-> (Duke, 324K frames, 1536×2048, 30fps, 28cm 플라스틱 실린더, DOI: 10.7924/r4z323k2c).
-> 본 프로젝트에서 PS 코드를 M5 데이터에 적용한 것이지, PS가 원래 DANNCE 데이터를 쓰는 것이 아닙니다.
-> 자세한 비교: [[experiments/FL_vs_PS_comparison]] §2
-
-### 1.2 데이터 위치
-
-**서버 경로**:
-```
-/home/joon/data/raw/markerless_mouse_1_nerf/
-├── videos_undist/        # 6개 undistorted MP4 비디오 (카메라별)
-│   ├── 0.mp4
-│   ├── 1.mp4
-│   ├── 2.mp4
-│   ├── 3.mp4
-│   ├── 4.mp4
-│   └── 5.mp4
-├── simpleclick_undist/   # 마스크 MP4 비디오
-│   ├── 0.mp4
-│   ├── 1.mp4
-│   └── ...
-├── keypoints2d_undist/   # DANNCE 2D detections (6, 18000, 22, 3)
-├── new_cam.pkl           # 카메라 파라미터
-├── camera_params.h5      # 카메라 캘리브레이션 원본
-└── center_rotation.npz   # 센터/회전 정보
+M5t2 데이터 (3,600 samples × 6 views × 512×512 RGBA)
 ```
 
 ---
 
-## 2. v13 vs markerless_mouse_1_nerf
+## 2. 버전별 상세 명세
 
-### 2.1 비교표
+### 2.1 원본 (DANNCE)
+
+| 항목 | 값 |
+|------|-----|
+| **출처** | Harvard, Dunn et al. 2021 (Nature Methods) |
+| **데이터명** | markerless_mouse_1 |
+| **해상도** | 1152 × 1024 px |
+| **FPS** | 100 fps |
+| **총 프레임** | 18,000 |
+| **영상 길이** | 180초 (3분) |
+| **카메라** | 6 views (동기화, 고정 rig) |
+| **마스크** | 없음 |
+| **저장소** | [spoonsso/dannce](https://github.com/spoonsso/dannce) |
+
+> **불연속 위치**: frame 5900, 11800, 17700 — 정보 제공용, 해당 프레임 정상 (제외 불필요)
+
+---
+
+### 2.2 MAMMAL 가공 버전 (markerless_mouse_1_nerf)
+
+> An, L., et al. (2023). *Nature Communications*, 14, 7727.
+> GitHub: [anl13/MAMMAL_mouse](https://github.com/anl13/MAMMAL_mouse)
+
+| 항목 | 값 |
+|------|-----|
+| **출처** | An et al. 2023 — DANNCE에 segment mask 추가 |
+| **데이터명** | markerless_mouse_1_nerf |
+| **해상도** | 1152 × 1024 px (undistorted, 원본 해상도 유지) |
+| **FPS** | 100 fps (원본 동일) |
+| **총 프레임** | 18,000 (원본 동일) |
+| **카메라** | 6 views (동일) |
+| **추가된 것** | segment mask (simpleclick_undist/) |
+| **변경된 것** | undistortion 적용, 카메라 파라미터 재가공 |
+| **마스크 방식** | SimpleClick 반자동 어노테이션 |
+| **서버 경로** | `/home/joon/data/raw/markerless_mouse_1_nerf/` |
+
+**파일 구조**:
+```
+/home/joon/data/raw/markerless_mouse_1_nerf/
+├── videos_undist/         # 6개 undistorted MP4 (cam 0-5, 1152×1024, 100fps)
+│   ├── 0.mp4 ~ 5.mp4
+├── simpleclick_undist/    # segment mask MP4 (동일 해상도/fps)
+│   ├── 0.mp4 ~ 5.mp4
+├── keypoints2d_undist/    # DANNCE 2D keypoints (6, 18000, 22, 3)
+├── new_cam.pkl            # 카메라 파라미터 (fx=549, cx/cy 실측값)
+├── camera_params.h5       # 캘리브레이션 원본
+└── center_rotation.npz    # 센터/회전 정보
+```
+
+**카메라 파라미터 (new_cam.pkl)**:
+| 항목 | 값 |
+|------|-----|
+| **fx** | 549.0 (exact) |
+| **fy** | ~549.0 (fx ≈ fy, 0.46% 차이) |
+| **cx, cy** | 카메라별 실측값 (≠ 256 고정) |
+| **평균 거리** | ~2.6m (범위: 2.4–2.8m) |
+
+---
+
+### 2.3 본 프로젝트 — M5t2 (현재 사용 버전 ⭐)
+
+| 항목 | 값 |
+|------|-----|
+| **전처리 preset** | M5 (recentered_affine, Batch Uniform norm) |
+| **Split 전략** | temporal_80_10_10 (t2 suffix) |
+| **해상도** | 512 × 512 px (RGBA 4채널) |
+| **Target fx** | 548.9938 (원본 549.0과 거의 동일 — recentered affine crop 방식으로 원본 focal length 유지, uniform downscale이 아님) |
+| **총 프레임 (샘플)** | 3,600 (= 18,000 / frame_interval=5) |
+| **유효 FPS** | 20 fps (100 / 5) |
+| **시간 간격 / 샘플** | 0.05초 |
+| **카메라** | 6 views → 6-채널 입력 |
+| **출력 형식** | RGBA PNG (RGB 이미지 + alpha mask) |
+| **카메라 정규화** | Batch Uniform: centroid→origin, avg dist=2.7m |
+| **서버 경로 (데이터)** | `/home/joon/data/preprocessed/FaceLift_mouse/M5/` |
+| **Split 파일** | `data_mouse_t2_{train/val/test}.txt` |
+
+**Train/Val/Test Split (M5t2)**:
+
+| Split | 프레임 수 | 비율 | 샘플 인덱스 범위 | 원본 프레임 범위 |
+|-------|:--------:|:----:|:---------------:|:--------------:|
+| **Train** | 2,880 | 80% | 000000–002879 | 0–14,395 |
+| **Val** | 360 | 10% | 002880–003239 | 14,400–16,195 |
+| **Test** | 360 | 10% | 003240–003599 | 16,200–17,995 |
+| **Total** | **3,600** | 100% | — | 0–17,995 |
+
+---
+
+### 2.4 Fitting Intervals (샘플링 전략 비교)
+
+> 모든 interval은 **원본 18,000 프레임**에 적용됨 (subsampled 3,600이 아님).
+
+| 설정 | frame_interval | samples (=18000/interval) | 시간 간격 | 용도 |
+|------|:--------------:|:-------------------------:|:---------:|------|
+| **Original (paper_fast)** | 5 | 3,600 | 0.05s | 기본 전처리 ⭐ |
+| **PoC subset** | 120 | 150 (→100 used) | 1.20s | 빠른 feasibility 검증 |
+| **Production keyframes** | 20 | 900 | 0.20s | 행동 keyframe 추출 |
+
+---
+
+## 3. 버전 비교 요약
+
+| 항목 | DANNCE 원본 | MAMMAL 가공 | 본 프로젝트 (M5t2) |
+|------|:-----------:|:-----------:|:-----------------:|
+| **출처** | Dunn et al. 2021 | An et al. 2023 | 본 연구 |
+| **해상도** | 1152 × 1024 | 1152 × 1024 (undist) | **512 × 512 RGBA** |
+| **FPS** | 100 | 100 | 20 (effective, step=5) |
+| **총 프레임** | 18,000 | 18,000 | **3,600 samples** |
+| **카메라** | 6대 | 6대 | 6대 |
+| **마스크** | 없음 | simpleclick_undist | RGBA alpha |
+| **fx** | 549.0 | 549.0 | 548.9938 |
+| **카메라 정규화** | 없음 | 없음 | Batch Uniform (avg=2.7m) |
+| **Split** | — | — | 2880 / 360 / 360 |
+
+---
+
+## 4. v13 vs markerless_mouse_1_nerf
 
 | 항목 | v13 | markerless_mouse_1_nerf |
 |------|-----|-------------------------|
 | **형태** | 사전 전처리된 샘플 | Raw 비디오 |
-| **프레임 수** | ~1,800 샘플 | ~18,000 프레임 |
-| **샘플링** | 이미 적용됨 | Raw (frame_jump 필요) |
+| **프레임 수** | ~1,800 샘플 | 18,000 프레임 |
 | **마스크** | PNG 이미지 | MP4 비디오 |
-| **카메라** | 정규화 안됨 | 정규화 안됨 |
-| **권장** | ⚠️ Legacy | ✅ 권장 |
-
-### 2.2 v13 문제점
-
-1. **샘플 수 제한**: 1,800개 (전체의 10%)
-2. **PP 버그**: cx=cy=256 고정 (실제 값 아님)
-3. **정규화 누락**: fx, translation 정규화 안됨
-4. **유지보수 중단**: 더 이상 업데이트 안됨
+| **PP 버그** | ⚠️ cx=cy=256 고정 | ✅ 실측값 사용 |
+| **권장** | ⛔ Legacy | ✅ 권장 |
 
 ---
 
-## 3. 샘플링 전략
+## 5. PoseSplatter 데이터와의 관계
 
-### 3.1 Frame Interval
-
-| 설정 | 값 | 설명 |
-|------|-----|------|
-| **frame_interval** | 5 | 5프레임마다 1개 샘플링 |
-| **원본 FPS** | 100 fps | DANNCE 녹화 원본 (1152×1024) |
-| **유효 FPS** | 20 fps | 100 / 5 = 20 |
-
-### 3.2 샘플 수 계산
-
-```
-Raw frames: 18,000
-frame_interval: 5
-Total samples: 18,000 / 5 = 3,600
-```
-
-### 3.3 Train/Val Split
-
-| Split | 비율 | 샘플 수 | 프레임 범위 |
-|-------|------|---------|-------------|
-| **Train** | 90% | 3,240 | 전체 무작위 |
-| **Val** | 10% | 360 | 전체 무작위 |
-
-**Temporal Split (_t 접미사)**:
-| Split | 비율 | 프레임 범위 |
-|-------|------|-------------|
-| Train | 60% | 0 - 10,800 |
-| Val | 20% | 10,800 - 14,400 |
-| Test | 20% | 14,400 - 18,000 |
+> ⚠️ PoseSplatter (Goffinet et al. 2025)는 DANNCE/MAMMAL 데이터를 사용하지 **않으며**, **자체 녹화한 별도 데이터**를 사용합니다
+> (Duke, 324K frames, 1536×2048, 30fps, 28cm 플라스틱 실린더, DOI: 10.7924/r4z323k2c).
+> 본 프로젝트에서 PS 코드를 M5 데이터에 적용한 것. 자세한 비교: [[experiments/FL_vs_PS_comparison]] §2
 
 ---
 
-## 4. Frame Discontinuity
+## 6. 전처리 명령어
 
-### 4.1 불연속 위치
+```bash
+# M5t2 생성 (M5 기반 temporal split)
+python -m mouse_extensions.preprocessing.preprocess \
+    --preset M5 \
+    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
+    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M5 \
+    --temporal-variant
 
-원본 비디오에서 녹화 갭이 있는 위치:
+# 검증
+python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
+    --datasets M5t2 --verbose
+```
+
+---
+
+## 7. FPS 혼동 주의
+
+> ⚠️ **DANNCE/MAMMAL mouse 데이터는 항상 100fps**. 아래 "30fps" 출처는 전부 **다른 맥락**:
+> - PoseSplatter의 자체 rat 데이터 (30fps) — 다른 데이터셋
+> - MAMMAL fitting 스크립트 `--fps 30` — 출력 영상 FPS (데이터 FPS 아님)
+> - s-DANNCE rat 데이터 (50fps) — 다른 동물
+>
+> **검증**: `ffprobe videos_undist/0.mp4` → `r_frame_rate=100/1, nb_frames=18000, duration=180.0s`
+
+---
+
+## 8. Frame Discontinuity
 
 ```python
 DISCONTINUITY_FRAMES = {5900, 11800, 17700}
 ```
 
-### 4.2 중요 사항
-
-| 오해 | 실제 |
-|------|------|
-| 해당 프레임 제외 필요? | ❌ 아님 |
-| 해당 프레임 불량? | ❌ 정상 |
-| 샘플 수 감소? | ❌ 전체 3,600 사용 |
-
-**결론**: DISCONTINUITY_FRAMES는 **정보 제공용**. 해당 프레임 자체는 정상이며 학습에서 제외하지 않음.
-
-### 4.3 검증 도구
-
-```bash
-# 특정 프레임 주변 슬로우모션 추출
-python /tmp/extract_frame_context.py \
-    --video /home/joon/data/raw/markerless_mouse_1_nerf/raw_videos/0.mp4 \
-    --frames 5900,11800,17700 \
-    --speed 0.1
-```
+해당 위치에서 원본 비디오 녹화 갭 존재. **프레임 자체는 정상** — 학습에서 제외하지 않음.
 
 ---
 
-## 5. 전처리 명령어
+## 관련 문서
 
-### 5.1 M3_2 (권장)
-
-```bash
-cd /home/joon/dev/FaceLift
-
-python -m mouse_extensions.preprocessing.preprocess \
-    --preset M3_2 \
-    --input-dir /home/joon/data/raw/markerless_mouse_1_nerf \
-    --output-dir /home/joon/data/preprocessed/FaceLift_mouse/M3_2
-```
-
-### 5.2 전처리 검증
-
-```bash
-python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
-    --datasets M3_2 --verbose
-```
+- [[PREPROCESSING_REGISTRY]] — 전처리 preset 정의 (M5, M5_4, M5_5 등)
+- [[M5_SERIES_SPEC]] — 카메라 정규화 방식 상세 비교
+- [[MULTI_ANIMAL_PREPROCESSING]] — Plucker ray, 다중 동물 전처리
+- [[SDANNCE_VIDEO_AVAILABILITY]] — Rat (s-DANNCE) 데이터셋 목록
 
 ---
 
-## 6. References
-
-### Primary Citation (DANNCE)
-
-> Dunn, T. W., et al. (2021). **Geometric deep learning enables 3D kinematic profiling across species and environments**. *Nature Methods*, 18(5), 564–573.
-
-### Data Processing (MAMMAL)
-
-> An, L., et al. (2023). **Three-dimensional surface motion capture of multiple freely moving pigs using MAMMAL**. *Nature Communications*, 14, 7727.
-> - DANNCE `markerless_mouse_1` 데이터에 segment mask 추가 및 NeRF용 가공
-> - GitHub: [anl13/MAMMAL_mouse](https://github.com/anl13/MAMMAL_mouse)
-
-### Comparison Method (PoseSplatter) — 별도 데이터
-
-> Goffinet, J., et al. (2025). **PoseSplatter: Pose Conditioned Gaussian Splatting from a Single Image**. arXiv:2505.18342.
-> - **자체 녹화 데이터** 사용 (Duke, 1536×2048, 30fps, 324K frames, DOI: 10.7924/r4z323k2c)
-> - DANNCE/MAMMAL 데이터와 **무관**. 같은 Duke 연구 생태계이나 별도 녹화.
-> - David Carlson (PS 교신저자)은 DANNCE 공저자이기도 하나, 데이터는 새로 촬영.
-
----
-
-## 7. 관련 문서
-
-- [[PREPROCESSING_REGISTRY]] - 프리셋 정의
-- [[../../mouse_extensions/docs/DATASET_FRAME_INDEXING]] - **⚠️ 프레임 인덱싱 매핑 (step=5 규칙)**
-
----
-
-*Raw Data Sources v1.1 | Updated: 2026-03-11 (FPS 수정: 30→100, 유효 6→20)*
-
-> **Note**: Camera Configuration은 별도 문서로 분리됨 → [[M5_SERIES_SPEC]] 참조
-> _(이전 병합되어 있던 Camera Configuration 내용은 [[M5_SERIES_SPEC]]에 포함, 2026-03-22 정리)_
+*Raw Data Sources v2.0 | Updated: 2026-03-25 | DANNCE/MAMMAL/M5t2 버전별 상세 명세 추가, 검증 완료*

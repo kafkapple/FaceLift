@@ -56,6 +56,8 @@
 | **[[experiments/TEMPORAL_CONSISTENCY_STUDY]]** | Temporal flickering 분석 + smoothing 방법 비교 (EMA/OptFlow/DeformV2) | **✅ v1.0** | → TEMPORAL_EVAL_STANDARD |
 | **[[experiments/TEMPORAL_EVAL_STANDARD]]** | Temporal 평가 기준 SSOT (프레임/뷰/메트릭) | **✅ v1.0** | → TEMPORAL_CONSISTENCY_STUDY |
 | **[[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss novel view artifact 억제 효과 분석 | **✅ v1.0** | → [[hypotheses/H6_ALPHA_MASK]], PHASE2 |
+| **[[experiments/ALPHA_COMPREHENSIVE_EVAL_260326]]** | ⭐ **6v Alpha 종합 평가**: PSNR_gt/int, IoU, Sil.Prec, per-cam, Gaussian stats | **✅ 완료** | → METRICS_PROTOCOL §7 |
+| **[[experiments/CHECKPOINT_INVENTORY_260326]]** | 체크포인트 현황 + P0-P3 실행 계획 (17 ckpts) | **✅ P0 완료** | → H8, Pruning Design |
 | **[[experiments/fl_vs_ps_comparison]]** | FL vs PS 통합 비교 (9-exp) | **✅ v11** | → eval_protocol |
 | **[[experiments/hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v3.0 | → H4-H7 |
 | **[[experiments/UNIFIED_ABLATION_REPORT]]** | **통합 Ablation 보고서**: View/Alpha/E2E/Resolution 일관 비교 | **✅ v1.0** | → 모든 ablation |
@@ -96,7 +98,7 @@
 |------|------|:----:|
 | **[[datasets/PREPROCESSING_REGISTRY]]** | 전처리 SSOT (M/D-series 전체) | ✅ SSOT |
 | [[datasets/M5_SERIES_SPEC]] | M5 카메라 정규화 상세 (**← camera mismatch 핵심 참조**) | ✅ |
-| [[datasets/RAW_DATA]] | Raw 데이터 출처 (DANNCE) | ✅ |
+| [[datasets/RAW_DATA]] | Raw 데이터 출처 (DANNCE→MAMMAL→M5t2 버전별 상세 명세) | ✅ v2.0 |
 | **[[datasets/MULTI_ANIMAL_PREPROCESSING]]** | 다중 동물 (s-DANNCE) 전처리 스펙: 마스크 전략, Plucker ray, 파이프라인 | **🆕 v1.0** |
 | **[[datasets/SDANNCE_VIDEO_AVAILABILITY]]** | **s-DANNCE 데이터셋 종합 가이드 (SSOT)**: Harvard Dataverse 17개 전수조사, SCN2A_WK1 lone rat, 카메라 특성, 다운로드 명령어 | **✅ v2.0** |
 | _(미생성)_ `datasets/SDANNCE_PREPROCESSING.md` | s-DANNCE→GS-LRM 전처리 통합 스펙 — **계획됨**, 미작성 | ⏳ 작성 필요 |
@@ -191,6 +193,7 @@
 |------|------|:----:|
 | **[[KEYPOINT_3D_PIPELINE]]** | 3D Keypoint 삼각측량 + FL vs PS 비교 | **✅ v1.0** |
 | [[outputs_inventory_README]] | outputs/ 디렉토리 전체 인벤토리 | ✅ 참조 |
+| [[outputs/STRUCTURE]] | outputs/ v2 구조 문서 (디렉토리 맵, 레거시, 심링크, 사이즈) | **🆕 v1.0** |
 | [[EXECUTIVE_SUMMARY]] | → Obsidian `neurips/executive_summary` (프로젝트 총괄 요약) | 🔗 Stub |
 | [[PROJECT_SYNTHESIS]] | → Obsidian `neurips/project_synthesis` (프로젝트 종합) | 🔗 Stub |
 | [[NEURIPS_GAP_ANALYSIS]] | → Obsidian `neurips/gap_analysis` (NeurIPS Gap 분석) | 🔗 Stub |
@@ -202,6 +205,8 @@
 | **collect_dataset.py** | `mouse_extensions/scripts/novel_view/` | Tier-based dataset collection |
 | **Report system** | `mouse_extensions/scripts/report/` | YAML→HTML 비교 레포트 자동 생성 |
 | **Fair eval** | `mouse_extensions/scripts/eval/fair_comparison.py` | Fair comparison metric 계산 |
+| **Ablation comparison video** | `mouse_extensions/scripts/eval/ablation_comparison.py` | View(1-6v) / Alpha(α=0-1) 분리 그리드 영상 생성 (gpu03, `--type view\|alpha`) |
+| **Ablation charts** | `mouse_extensions/scripts/eval/ablation_chart.py` | View + Alpha ablation 정량 차트 PNG (로컬 실행 가능) |
 | **Camera follow** | `mouse_extensions/scripts/render_camera_follow.py` | 13 camera targets + body stabilization |
 | **Gaussian distributions** | `mouse_extensions/behavior/analyze_gaussian_distributions.py` | Per-body-part parameter analysis + modality tests |
 | **Radial filtering** | `mouse_extensions/behavior/view_projected_filtering.py --mode radial` | Radius sweep grid for body-part Gaussian filtering |
@@ -235,6 +240,7 @@
 | H5: MVDiffusion | ✅ Phase 3 done | [[hypotheses/H5_MVDIFFUSION]] |
 | H6: Alpha Mask | ✅ 완료 (α=0.3@6v best trade-off) | [[hypotheses/H6_ALPHA_MASK]] |
 | H7: SSIM Weight | ❌ Rejected | [[hypotheses/H7_SSIM_WEIGHT]] |
+| **H8: Opacity & Anisotropy** | **✅ 완료 (unimodal, orientation filter 구현)** | [[hypotheses/H8_opacity_anisotropy_analysis]] |
 | HP: Preprocessing | ✅ M0 diverges, M5_4 baseline match | [[experiments/hypothesis_roadmap]] |
 | **H_T1: Dist. Mismatch** | **🔬 Testing (DA1)** | [[_archive/phase1_experiments/mvdiff_bottleneck_analysis]] §5 |
 

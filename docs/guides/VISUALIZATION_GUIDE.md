@@ -153,7 +153,9 @@ CUDA_VISIBLE_DEVICES=5 bash mouse_extensions/behavior/run_all_visualizations.sh
 | 결과 경로 | 내용 |
 |-----------|------|
 | `outputs/viz/cinematic/mouse/cinematic_final_v2/` | 최종 cinematic (최신) |
-| `outputs/viz/cinematic/mouse/cinematic_v1~v9/`, `cinematic_white/` | 이전 iteration |
+| `outputs/viz/cinematic/mouse/highres_768_30fps{,_a03,_a10}/` | ⭐ **최신 고화질** (768px/30fps, α=0.0/0.3/1.0) |
+| `outputs/viz/cinematic/mouse/cinematic_white/` | Batch script 기본 출력 |
+| `outputs/viz/cinematic/mouse/_archive/` | v1~v9 iterations (아카이브) |
 | `outputs/viz/comparison/mouse/6view_grid/` | GT vs GS-LRM 6-view 그리드 |
 | `outputs/analysis/mouse/filtering/novel_grid_filtered/` | Novel view orbit (face/torso/tail/all) |
 | `outputs/analysis/mouse/filtering/multiview_filter_video/` | Body-part mask filter 9종 |
@@ -211,12 +213,42 @@ segments:
 기존 3DGS feature 논문(Feature 3DGS, LangSplat 등)은 전부 학습 기반 pruning에 의존.
 Feed-forward GS-LRM의 opacity=0.5 문제는 미탐구 영역 → multi-view consensus가 novel contribution.
 
+## 8. Orientation-Aware Gaussian Filter
+
+Novel bottom view artifact 억제를 위한 post-filter. 상세: [[ORIENTATION_FILTER_GUIDE]]
+
+```bash
+# Quick test (before/after comparison)
+CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.scripts.eval.test_orientation_filter \
+    --m5-dir /home/joon/data/preprocessed/FaceLift_mouse/M5 --n-frames 5
+
+# Multi-view grid video comparison
+CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.scripts.eval.filter_grid_comparison \
+    --m5-dir /home/joon/data/preprocessed/FaceLift_mouse/M5 --frame-range 3240:3280
+```
+
+## 9. Opacity & Scaling Analysis
+
+Gaussian 분포 분석 도구. 상세: [[../hypotheses/H8_opacity_anisotropy_analysis]]
+
+```bash
+# Single checkpoint analysis (4 plots + JSON stats)
+CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.scripts.eval.opacity_analysis \
+    --m5-dir /home/joon/data/preprocessed/FaceLift_mouse/M5 --n-frames 20
+
+# Multi-checkpoint comparison (α=0.0 vs α=0.3)
+CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.scripts.eval.opacity_analysis \
+    --m5-dir /home/joon/data/preprocessed/FaceLift_mouse/M5 --n-frames 10 \
+    --checkpoints "6v_a0.0=/path/to/6view/best_psnr.pt" "6v_a0.3=/path/to/alpha03/best_psnr.pt"
+```
+
 ## Related
 
 - ↑ [[docs/INDEX]] — 문서 허브
-- ↔ [[outputs/reports/260321_behaviorsplatter_comprehensive]] — 종합 보고서 (N>=2 상세, 실험 계획)
-- ↔ [[outputs/reports/260320_gaussian_bodypart_analysis]] — Gaussian 분포 분석
+- ↓ [[ORIENTATION_FILTER_GUIDE]] — Orientation filter 상세 가이드
+- ↔ [[../hypotheses/H8_opacity_anisotropy_analysis]] — Opacity/anisotropy 분석 보고서
+- ↔ [[outputs/reports/260321_behaviorsplatter_comprehensive]] — 종합 보고서
 
 ---
 
-*BehaviorSplatter | Visualization Guide | 2026-03-24*
+*BehaviorSplatter | Visualization Guide | 2026-03-26 (updated: §8-9 추가)*

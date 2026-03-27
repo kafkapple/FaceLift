@@ -27,9 +27,7 @@ import yaml
 
 from mouse_extensions.behavior.camera_system import gt_camera_c2w_original as _gt_c2w
 from mouse_extensions.behavior.camera_system import gt_camera_fxfycxcy as _gt_fxfy
-from mouse_extensions.behavior.multiview_visibility_filter import (
-    compute_visibility_counts, render_filtered_gaussians,
-)
+from mouse_extensions.behavior.multiview_visibility_filter import compute_visibility_counts
 from mouse_extensions.inference.gslrm_pipeline import GSLRMInference, load_sample_data
 from mouse_extensions.visualization.camera_utils import get_turntable_cameras
 from mouse_extensions.visualization.video_io import save_video
@@ -81,25 +79,43 @@ def get_novel_camera(elevation: float, azimuth: float, radius: float = 2.7,
 
 
 def render_gaussian_at_view(gaussians, camera, resolution: int = 512,
-                            bg_color=(1.0, 1.0, 1.0), device="cuda"):
-    """Render 3D Gaussians at a specific camera viewpoint."""
+                            bg_color=(1.0, 1.0, 1.0), device="cuda",
+                            vis_mask: np.ndarray = None):
+    """Render 3D Gaussians at a specific camera viewpoint.
+
+    Args:
+        vis_mask: Optional boolean numpy array (N,). If provided, Gaussians
+                  where mask is False are temporarily set to invisible.
+    """
     from mouse_extensions.visualization import render_opencv_cam
 
     c2w, fxfycxcy = camera
     c2w_t = torch.tensor(c2w, dtype=torch.float32, device=device)
     fxfy_t = torch.tensor(fxfycxcy, dtype=torch.float32, device=device)
 
-    with torch.no_grad():
-        result = render_opencv_cam(
-            gaussians,
-            height=resolution,
-            width=resolution,
-            C2W=c2w_t,
-            fxfycxcy=fxfy_t,
-            bg_color=bg_color,
-        )
-    img = result["render"]  # (C, H, W)
-    img_np = img.permute(1, 2, 0).clamp(0, 1).cpu().numpy()
+    # Apply visibility mask by zeroing out opacity for excluded Gaussians
+    old_opacity = None
+    if vis_mask is not None:
+        mask_t = torch.from_numpy(vis_mask).to(device)
+        old_opacity = gaussians._opacity.data.clone()
+        gaussians._opacity.data[~mask_t] = -100.0
+
+    try:
+        with torch.no_grad():
+            result = render_opencv_cam(
+                gaussians,
+                height=resolution,
+                width=resolution,
+                C2W=c2w_t,
+                fxfycxcy=fxfy_t,
+                bg_color=bg_color,
+            )
+        img = result["render"]  # (C, H, W)
+        img_np = img.permute(1, 2, 0).clamp(0, 1).cpu().numpy()
+    finally:
+        if old_opacity is not None:
+            gaussians._opacity.data = old_opacity
+
     return (img_np * 255).astype(np.uint8)
 
 
@@ -215,7 +231,6 @@ def generate_comparison_video(
         xyz = gaussians.get_xyz.detach().cpu().numpy()
         vc = compute_visibility_counts(xyz, str(fd), n_views=6)
         vis_mask = vc >= n_filter
-        filtered = render_filtered_gaussians(gaussians, vis_mask)
 
         # Load GT image (view 0 as reference, shown as "GT Input")
         try:
@@ -231,10 +246,11 @@ def generate_comparison_video(
             cam = cameras[vname]
             label = vdef["label"]
 
-            # FL render at novel view
+            # FL render at novel view (vis_mask applied inside render function)
             try:
                 fl_img = render_gaussian_at_view(
-                    filtered, cam, resolution=resolution, device=device
+                    gaussians, cam, resolution=resolution, device=device,
+                    vis_mask=vis_mask,
                 )
             except Exception as e:
                 print(f"  [warn] render failed for {vname} frame {fi}: {e}")

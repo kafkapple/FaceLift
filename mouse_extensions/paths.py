@@ -88,7 +88,10 @@ VALID_VIZ_TYPES = {"turntable", "cinematic", "bodypart", "comparison"}
 VALID_FEATURE_TYPES = {"gaussian", "covariance", "temporal", "hlac"}
 
 # Valid analysis types
-VALID_ANALYSIS_TYPES = {"behavior_clustering", "bams", "neural_texture", "filtering"}
+VALID_ANALYSIS_TYPES = {
+    "behavior_clustering", "bams", "neural_texture", "filtering",
+    "opacity", "motion_analysis", "resolution_comparison",
+}
 
 
 # ============================================================================

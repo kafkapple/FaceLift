@@ -22,7 +22,7 @@ def imageseq2video(images: np.ndarray, filename: str, fps: int = 24) -> None:
 
     if images.dtype == np.uint8:
         images = images.astype(np.float32) / 255.0
-    videoio.videosave(filename, images, lossless=False, preset="veryfast", fps=fps)
+    videoio.videosave(filename, images, lossless=False, preset="medium", fps=fps)
 
 
 def save_video(frames: np.ndarray, path: str, fps: int = 30) -> bool:
@@ -44,7 +44,7 @@ def save_video(frames: np.ndarray, path: str, fps: int = 30) -> bool:
 
     try:
         h, w = frames.shape[1], frames.shape[2]
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # MPEG-4, reliable cross-platform fallback
         writer = cv2.VideoWriter(path, fourcc, fps, (w, h))
         if not writer.isOpened():
             print(f"Warning: Could not open video writer for {path}")
