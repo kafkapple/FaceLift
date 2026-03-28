@@ -37,7 +37,12 @@ import numpy as np
 import torch
 import yaml
 
-from mouse_extensions.constants import MAMMAL_KP_COLORS, SKELETON_BONES
+from mouse_extensions.constants import MAMMAL_KP_COLORS, MOUSE_KP_NAMES, SKELETON_BONES
+
+# Abbreviated keypoint names for overlay labels (22 keypoints)
+KP_ABBREVS = ['LE', 'RE', 'Ns', 'Nk', 'BM', 'TR', 'TM', 'TE',
+               'LP', 'LPe', 'LEb', 'LSh', 'RP', 'RPe', 'REb', 'RSh',
+               'LF', 'LKn', 'LHp', 'RF', 'RKn', 'RHp']
 from mouse_extensions.behavior.camera_system import (
     gt_camera_c2w_original as _cs_gt_camera_c2w,
     gt_camera_fxfycxcy as _cs_gt_camera_fxfycxcy,
@@ -217,30 +222,100 @@ def load_mask_overlay(fd_path, view, border_color=None, bg_color=(1.0, 1.0, 1.0)
 # Constants imported from mouse_extensions.constants (SSOT, 2026-03-23)
 
 
-def overlay_keypoints(img, kp_2d, kp_valid, bone_width=2, kp_radius=4):
-    """Fast cv2-based keypoint + skeleton overlay. img: float 0-1, returns float 0-1."""
+def overlay_keypoints(img, kp_2d, kp_valid, bone_width=2, kp_radius=5,
+                       kp_depth=None, show_labels=False, show_legend=False):
+    """Keypoint + skeleton overlay with optional depth-based opacity and labels.
+
+    Args:
+        kp_depth: (K,) z-depth per keypoint in camera space (larger = farther).
+                  Used for depth-based opacity: closer = brighter/larger.
+        show_labels: Draw abbreviated keypoint names next to each point.
+        show_legend: Draw legend panel on right side of image.
+    """
     u8 = (np.clip(img, 0, 1) * 255).astype(np.uint8).copy()
     H, W = u8.shape[:2]
-    # Skeleton bones (colored by midpoint of endpoint colors)
+
+    # Per-keypoint opacity multiplier from depth (0.35 = far, 1.0 = close)
+    depth_alpha = np.ones(len(kp_2d))
+    if kp_depth is not None:
+        valid_d = kp_depth[kp_valid]
+        if len(valid_d) > 1:
+            d_min, d_max = valid_d.min(), valid_d.max()
+            d_range = max(d_max - d_min, 1e-6)
+            depth_alpha = 1.0 - 0.65 * np.clip((kp_depth - d_min) / d_range, 0, 1)
+
+    # Skeleton bones
     for a, b in SKELETON_BONES:
         if kp_valid[a] and kp_valid[b]:
             p1 = (int(kp_2d[a, 0]), int(kp_2d[a, 1]))
             p2 = (int(kp_2d[b, 0]), int(kp_2d[b, 1]))
-            ca = MAMMAL_KP_COLORS.get(a, (255, 255, 255))
-            cb = MAMMAL_KP_COLORS.get(b, (255, 255, 255))
-            bc = tuple((ca[i] + cb[i]) // 2 for i in range(3))
-            cv2.line(u8, p1, p2, (0, 0, 0), bone_width + 1, cv2.LINE_AA)
+            ca = np.array(MAMMAL_KP_COLORS.get(a, (200, 200, 200)), dtype=np.float32)
+            cb = np.array(MAMMAL_KP_COLORS.get(b, (200, 200, 200)), dtype=np.float32)
+            ba = (depth_alpha[a] + depth_alpha[b]) / 2
+            bc = tuple(int(v * ba) for v in ((ca + cb) / 2).astype(np.uint8))
+            cv2.line(u8, p1, p2, (0, 0, 0), bone_width + 2, cv2.LINE_AA)
             cv2.line(u8, p1, p2, bc, bone_width, cv2.LINE_AA)
+
     # Keypoints
     for i in range(len(kp_2d)):
         if not kp_valid[i]:
             continue
         x, y = int(kp_2d[i, 0]), int(kp_2d[i, 1])
-        if 0 <= x < W and 0 <= y < H:
-            c = MAMMAL_KP_COLORS.get(i, (255, 255, 255))
-            cv2.circle(u8, (x, y), kp_radius + 1, (0, 0, 0), -1, cv2.LINE_AA)
-            cv2.circle(u8, (x, y), kp_radius, c, -1, cv2.LINE_AA)
+        if not (0 <= x < W and 0 <= y < H):
+            continue
+        c_full = np.array(MAMMAL_KP_COLORS.get(i, (200, 200, 200)), dtype=np.float32)
+        da = depth_alpha[i]
+        c = tuple(int(v * da) for v in c_full.astype(np.uint8))
+        r = max(2, int(kp_radius * (0.55 + 0.45 * da)))  # closer = larger dot
+        cv2.circle(u8, (x, y), r + 2, (0, 0, 0), -1, cv2.LINE_AA)
+        cv2.circle(u8, (x, y), r, c, -1, cv2.LINE_AA)
+        if show_labels:
+            abbrev = KP_ABBREVS[i] if i < len(KP_ABBREVS) else str(i)
+            tx, ty = x + r + 3, y + 4
+            if 0 <= tx < W - 20 and 0 <= ty < H - 2:
+                cv2.putText(u8, abbrev, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.30, (0, 0, 0), 2, cv2.LINE_AA)
+                cv2.putText(u8, abbrev, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.30, (220, 220, 220), 1, cv2.LINE_AA)
+
+    if show_legend:
+        u8 = _add_kp_legend(u8)
     return u8 / 255.0
+
+
+def _add_kp_legend(img_u8):
+    """Draw a semi-transparent keypoint legend panel on the right side."""
+    H, W = img_u8.shape[:2]
+    legend_w = 148
+    n_kp = len(KP_ABBREVS)
+    row_h = max(14, min(22, (H - 16) // n_kp))
+    font_s = max(0.26, row_h / 65.0)
+
+    panel = np.zeros((H, legend_w, 3), dtype=np.uint8)
+    panel[:] = (18, 18, 18)
+    # Header
+    cv2.putText(panel, "Keypoints", (6, 14), cv2.FONT_HERSHEY_SIMPLEX,
+                0.38, (180, 180, 180), 1, cv2.LINE_AA)
+    cv2.line(panel, (0, 18), (legend_w, 18), (60, 60, 60), 1)
+
+    for i in range(n_kp):
+        y = 24 + i * row_h + row_h // 2
+        if y >= H - 4:
+            break
+        c = MAMMAL_KP_COLORS.get(i, (180, 180, 180))
+        cv2.circle(panel, (9, y), 5, tuple(int(v) for v in c), -1)
+        name = MOUSE_KP_NAMES[i] if i < len(MOUSE_KP_NAMES) else f"KP{i}"
+        abbrev = KP_ABBREVS[i] if i < len(KP_ABBREVS) else str(i)
+        text = f"{abbrev} {name}"
+        cv2.putText(panel, text, (17, y + 4), cv2.FONT_HERSHEY_SIMPLEX,
+                    font_s, (160, 160, 160), 1, cv2.LINE_AA)
+
+    result = img_u8.copy()
+    x0 = max(0, W - legend_w)
+    roi = result[:, x0:].astype(np.float32)
+    blended = roi * 0.25 + panel[:, :W - x0].astype(np.float32) * 0.75
+    result[:, x0:] = blended.clip(0, 255).astype(np.uint8)
+    return result
 
 
 def project_kp_to_view(kp_3d, frame_dir, view_idx):
@@ -275,16 +350,24 @@ def project_kp_to_novel_cam(kp_3d, c2w, fxfy, w, h):
     return uv, in_img
 
 
-def add_label(img, text, fontscale=0.6, thickness=1):
-    """Add text label to top-left of image."""
-    h, w = img.shape[:2]
+def add_label(img, text, fontscale=0.65, thickness=1):
+    """Add text label with semi-transparent background panel (ASCII-safe)."""
     img_u8 = (np.clip(img, 0, 1) * 255).astype(np.uint8).copy()
-    # Shadow
-    cv2.putText(img_u8, text, (12, 32), cv2.FONT_HERSHEY_SIMPLEX,
-                fontscale, (0, 0, 0), thickness + 1, cv2.LINE_AA)
-    # White text
-    cv2.putText(img_u8, text, (12, 32), cv2.FONT_HERSHEY_SIMPLEX,
-                fontscale, (255, 255, 255), thickness, cv2.LINE_AA)
+    # Replace non-ASCII chars (e.g. em-dash, degree) with ASCII fallbacks
+    safe = text.encode('ascii', 'replace').decode('ascii')
+    font = cv2.FONT_HERSHEY_DUPLEX
+    (tw, th), base = cv2.getTextSize(safe, font, fontscale, thickness)
+    pad = 6
+    x0, y0 = 10, 8
+    x1, y1 = x0 + tw + pad * 2, y0 + th + base + pad * 2
+    # Semi-transparent dark background
+    overlay = img_u8.copy()
+    cv2.rectangle(overlay, (x0, y0), (x1, y1), (15, 15, 15), -1)
+    cv2.addWeighted(overlay, 0.55, img_u8, 0.45, 0, img_u8)
+    # Text with shadow
+    tx, ty = x0 + pad, y0 + th + pad
+    cv2.putText(img_u8, safe, (tx, ty), font, fontscale, (0, 0, 0), thickness + 1, cv2.LINE_AA)
+    cv2.putText(img_u8, safe, (tx, ty), font, fontscale, (240, 240, 240), thickness, cv2.LINE_AA)
     return img_u8 / 255.0
 
 
@@ -491,7 +574,7 @@ class CinematicPipeline:
         return imgs, prev_fd
 
     def _seg_flow_render(self, seg, n, prev_fd):
-        fis = self._next_frames(n)
+        fis = self._next_frames(n, step=seg.get("frame_step", 1))
         imgs = []
         fd = None
         for fi in fis:
@@ -514,10 +597,11 @@ class CinematicPipeline:
         elev = seg.get("elevation", 20)
         transition_frames = seg.get("transition_frames", 15)  # smooth GT->orbit
 
-        # Generate orbit cameras
+        # Generate orbit cameras — start from GT camera azimuth for seamless entry/exit
         orbit_n = max(1, n - transition_frames)
         c2ws, fxfy, w, h = get_orbit_cameras(
-            orbit_n, elev, self.radius, self.hfov, self.res)
+            orbit_n, elev, self.radius, self.hfov, self.res,
+            match_gt=True, gt_frame_dir=fd["frame_dir"], gt_view=self.gt_view)
 
         # Get GT camera c2w for smooth transition
         gt_c2w_mat = gt_camera_c2w(fd["frame_dir"], self.gt_view)
@@ -654,26 +738,51 @@ class CinematicPipeline:
             imgs.append(img)
         return imgs, fd
 
-    def _overlay_kp_novel(self, img, fi, c2w, fxfy, w, h):
-        """Overlay keypoints projected through a novel camera."""
+    def _overlay_kp_novel(self, img, fi, c2w, fxfy, w, h,
+                           show_labels=False, show_legend=False):
+        """Overlay keypoints projected through a novel camera with depth-based opacity."""
         kp_3d = load_keypoints_gslrm(self.kp, fi)
         uv, valid = project_kp_to_novel_cam(kp_3d, c2w, fxfy, w, h)
-        return overlay_keypoints(img, uv, valid)
+        # Depth in camera space (OpenCV: z positive forward)
+        w2c = np.linalg.inv(c2w)
+        kp_h = np.concatenate([kp_3d, np.ones((len(kp_3d), 1))], axis=1)
+        depth = (w2c @ kp_h.T).T[:, 2]
+        return overlay_keypoints(img, uv, valid, kp_depth=depth,
+                                  show_labels=show_labels, show_legend=show_legend)
 
     def _seg_flow_novel(self, seg, n, prev_fd):
-        """Temporal flow rendered from a fixed novel camera (elevation, azimuth)."""
+        """Temporal flow at fixed novel camera with smooth elevation-sweep entry.
+
+        transition_frames: number of frames to sweep elevation from prev_elevation
+        to the target elevation (camera stays at GT azimuth throughout).
+        """
         step = seg.get("frame_step", 1)
         fis = self._next_frames(n, step=step)
         elev = seg.get("elevation", -80)
-        # Generate a single camera pose (1 frame turntable = fixed view)
-        c2ws, fxfy, w, h = get_orbit_cameras(
-            1, elev, self.radius, self.hfov, self.res)
-        c2w_fixed = c2ws[0]
-        fxfy_fixed = fxfy[0]
+        prev_elev = seg.get("prev_elevation", 20.0)
+        trans_n = min(seg.get("transition_frames", 0), n)
         kp_on = seg.get("keypoint_overlay", False)
+
+        # GT azimuth for camera consistency across segments
+        gt_az = 270.0
+        if prev_fd and "frame_dir" in prev_fd:
+            _, _, gt_az = gt_camera_spherical(prev_fd["frame_dir"], self.gt_view)
+
+        # Fixed target camera
+        c2w_fixed, fxfy_fixed = self._cam_spherical(elev, gt_az)
+
+        # Transition cameras: smooth elevation sweep (eased)
+        trans_c2ws = []
+        if trans_n > 0:
+            ts = np.linspace(0, 1, trans_n + 1)[1:]  # exclude start
+            for t in ts:
+                t_ease = t * t * (3 - 2 * t)  # smoothstep
+                e = prev_elev + (elev - prev_elev) * t_ease
+                trans_c2ws.append(self._cam_spherical(e, gt_az)[0])
+
         imgs = []
         fd = prev_fd
-        for fi in fis:
+        for i, fi in enumerate(fis):
             if fd:
                 free_fd(fd)
             fd = infer_frame(self.model, fi, self.m5, self.kp,
@@ -681,10 +790,12 @@ class CinematicPipeline:
             if fd is None:
                 imgs.append(np.zeros((self.res, self.res, 3)))
                 continue
-            img = render_cam(fd["gaussians"], c2w_fixed, fxfy_fixed, w, h,
+            c2w = trans_c2ws[i] if i < trans_n else c2w_fixed
+            img = render_cam(fd["gaussians"], c2w, fxfy_fixed, self.res, self.res,
                              mask=fd["vis_mask"], bg=self.bg, device=self.device)
             if kp_on:
-                img = self._overlay_kp_novel(img, fi, c2w_fixed, fxfy_fixed, w, h)
+                img = self._overlay_kp_novel(img, fi, c2w, fxfy_fixed,
+                                              self.res, self.res)
             imgs.append(img)
         return imgs, fd
 
@@ -706,18 +817,42 @@ class CinematicPipeline:
         return imgs, fd
 
     def _seg_flow_head_kp(self, seg, n, prev_fd):
-        """Temporal flow, head-only Gaussians, orbit + keypoint overlay.
+        """Temporal flow, head-only Gaussians, orbit + enhanced keypoint overlay.
 
-        Last 20% of frames: gradually zoom out from head to prepare for
-        full body transition (zoom ramps from max_zoom to 1.0).
+        Starts with smooth elevation sweep from prev_elevation to target.
+        Keypoints include depth-based opacity, abbreviation labels, and a legend.
+        Last 20% of orbit frames: gradually zoom out from head to full body.
         """
         step = seg.get("frame_step", 1)
         fis = self._next_frames(n, step=step)
         elev = seg.get("elevation", 25)
         max_zoom = seg.get("zoom", 2.5)
-        c2ws, fxfy, w, h = get_orbit_cameras(
-            n, elev, self.radius, self.hfov, self.res)
-        ease_start = int(n * 0.8)  # start easing out at 80%
+        prev_elev = seg.get("prev_elevation", -80.0)
+        trans_n = min(seg.get("transition_frames", 0), n)
+
+        # GT azimuth for consistent orientation
+        gt_az = 270.0
+        if prev_fd and "frame_dir" in prev_fd:
+            _, _, gt_az = gt_camera_spherical(prev_fd["frame_dir"], self.gt_view)
+
+        # Orbit cameras for main section (start from GT azimuth)
+        orbit_n = max(1, n - trans_n)
+        c2ws, fxfy_orb, w, h = get_orbit_cameras(
+            orbit_n, elev, self.radius, self.hfov, self.res,
+            match_gt=True, gt_frame_dir=prev_fd["frame_dir"] if prev_fd else None,
+            gt_view=self.gt_view)
+        fxfy_orb0 = fxfy_orb[0]  # consistent intrinsics
+
+        # Transition cameras: elevation sweep from prev_elev to target
+        trans_c2ws = []
+        if trans_n > 0:
+            ts = np.linspace(0, 1, trans_n + 1)[1:]
+            for t in ts:
+                t_ease = t * t * (3 - 2 * t)
+                e = prev_elev + (elev - prev_elev) * t_ease
+                trans_c2ws.append(self._cam_spherical(e, gt_az)[0])
+
+        ease_start = int(orbit_n * 0.8)
         imgs = []
         fd = prev_fd
         for i, fi in enumerate(fis):
@@ -728,21 +863,31 @@ class CinematicPipeline:
             if fd is None:
                 imgs.append(np.zeros((self.res, self.res, 3)))
                 continue
-            # First 80%: head only. Last 20%: transition to full body
-            if i < ease_start:
+
+            # Camera: transition first, then orbit
+            if i < trans_n:
+                c2w_i, fxfy_i = trans_c2ws[i], fxfy_orb0
+            else:
+                oi = i - trans_n
+                c2w_i, fxfy_i = c2ws[oi % orbit_n], fxfy_orb[oi % orbit_n]
+
+            oi = max(0, i - trans_n)
+            if oi < ease_start:
                 face_mask = fd["vis_mask"] & fd["part_masks"].get("face", fd["vis_mask"])
             else:
-                # Gradual: face → full body
                 face_mask = fd["vis_mask"]
-            img = render_cam(fd["gaussians"], c2ws[i], fxfy[i], w, h,
+
+            img = render_cam(fd["gaussians"], c2w_i, fxfy_i, w, h,
                              mask=face_mask, bg=self.bg, device=self.device)
-            # Keypoint overlay (novel view projection)
-            img = self._overlay_kp_novel(img, fi, c2ws[i], fxfy[i], w, h)
-            # Zoom: hold for 80%, then ease out to 1.0
-            if i < ease_start:
+            # Enhanced KP overlay: depth opacity + labels + legend
+            img = self._overlay_kp_novel(img, fi, c2w_i, fxfy_i, w, h,
+                                          show_labels=True, show_legend=True)
+
+            # Zoom: hold during transition+head, ease out to full body
+            if oi < ease_start:
                 z = max_zoom
             else:
-                t = (i - ease_start) / max(n - ease_start - 1, 1)
+                t = (oi - ease_start) / max(orbit_n - ease_start - 1, 1)
                 z = max_zoom + (1.0 - max_zoom) * t
             if z > 1.05:
                 img = zoom_to_content(img, z)
@@ -770,6 +915,103 @@ class CinematicPipeline:
                              mask=fd["vis_mask"], bg=self.bg, device=self.device)
             imgs.append(img)
         return imgs, fd
+
+    def _seg_grid_multiview(self, seg, n, prev_fd):
+        """6-view grid: Phase 1 = GT views, Phase 2 = GS-LRM recon, Phase 3 = novel views.
+
+        Layout: 3 columns x 2 rows (256x256 cells at res=768), centered in canvas.
+        """
+        step = seg.get("frame_step", 2)
+        fis = self._next_frames(n, step=step)
+        n1 = n // 3       # GT grid
+        n2 = n // 3       # Recon grid
+        n3 = n - n1 - n2  # Novel grid
+
+        cell = self.res // 3  # 256 for 768
+        pad_top = (self.res - cell * 2) // 2  # 128 for 768
+
+        # 6 novel view cameras evenly spaced (2 elevations x 3 azimuths)
+        novel_elevs = [20, 20, 20, -40, -40, -40]
+        novel_azims = [0, 120, 240, 60, 180, 300]
+        novel_cams = [self._cam_spherical(e, a) for e, a in zip(novel_elevs, novel_azims)]
+
+        def make_grid(cells):
+            canvas = np.ones((self.res, self.res, 3), dtype=np.float32) * np.array(self.bg)
+            for idx, cell_img in enumerate(cells):
+                row, col = idx // 3, idx % 3
+                sm = cv2.resize(cell_img, (cell, cell), interpolation=cv2.INTER_AREA)
+                y0 = pad_top + row * cell
+                canvas[y0:y0 + cell, col * cell:(col + 1) * cell] = sm
+            return canvas
+
+        def add_phase_label(canvas, text):
+            return add_label(canvas, text, fontscale=0.55)
+
+        imgs = []
+        fd = prev_fd
+        for i, fi in enumerate(fis):
+            if fd:
+                free_fd(fd)
+            fd = infer_frame(self.model, fi, self.m5, self.kp,
+                             self.n_thresh, self.res, self.device)
+            if fd is None:
+                imgs.append(np.zeros((self.res, self.res, 3)))
+                continue
+
+            phase = 0 if i < n1 else (1 if i < n1 + n2 else 2)
+            cells = []
+
+            if phase == 0:  # GT views (no inference needed for image loading)
+                for v in range(6):
+                    gt_img = load_gt(fd["frame_dir"], v, self.bg, raw=True, res=self.res)
+                    cells.append(gt_img)
+            elif phase == 1:  # GS-LRM recon from GT camera positions
+                for v in range(6):
+                    c2w_v, fxfy_v = self._cam_from_gt_view(fd["frame_dir"], v)
+                    r = render_cam(fd["gaussians"], c2w_v, fxfy_v,
+                                   self.res, self.res, mask=fd["vis_mask"],
+                                   bg=self.bg, device=self.device)
+                    cells.append(r)
+            else:  # Novel views
+                for nc2w, nfxfy in novel_cams:
+                    r = render_cam(fd["gaussians"], nc2w, nfxfy,
+                                   self.res, self.res, mask=fd["vis_mask"],
+                                   bg=self.bg, device=self.device)
+                    cells.append(r)
+
+            grid = make_grid(cells)
+            phase_labels = ["GT Views (6 Cameras)", "GS-LRM Reconstruction",
+                            "Novel Views (6 Angles)"]
+            grid = add_phase_label(grid, phase_labels[phase])
+            imgs.append(grid)
+        return imgs, fd
+
+    def _cam_spherical(self, elev_deg: float, azim_deg: float):
+        """Return (c2w 4x4, fxfycxcy 4) for camera at given spherical coords."""
+        elev = np.deg2rad(elev_deg)
+        azim = np.deg2rad(azim_deg)
+        r = self.radius
+        z = r * np.sin(elev)
+        base = r * np.cos(elev)
+        pos = np.array([base * np.cos(azim), base * np.sin(azim), z])
+        fwd = -pos / np.linalg.norm(pos)
+        up_v = np.array([0.0, 0.0, 1.0])
+        right = np.cross(fwd, up_v)
+        right /= np.linalg.norm(right)
+        up = np.cross(right, fwd)
+        R = np.stack((right, -up, fwd), axis=1)
+        c2w = np.eye(4)
+        c2w[:3, :4] = np.concatenate((R, pos[:, None]), axis=1)
+        fx = self.res / (2 * np.tan(np.deg2rad(self.hfov) / 2.0))
+        fxfy = np.array([fx, fx, self.res / 2.0, self.res / 2.0])
+        return c2w, fxfy
+
+    def _cam_from_gt_view(self, frame_dir: str, view_idx: int):
+        """Return (c2w 4x4, fxfycxcy 4) for a GT camera scaled to self.res."""
+        c2w = gt_camera_c2w(frame_dir, view_idx)
+        raw_fxfy = gt_camera_fxfycxcy(frame_dir, view_idx)  # for 512-px images
+        scale = self.res / 512.0
+        return c2w, raw_fxfy * scale
 
     def _ensure_fd(self):
         fi = self._peek_frame()

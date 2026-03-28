@@ -1,5 +1,5 @@
-# Cinematic Demo v5.1 — Fixed temporal FPS + zoom + GT visibility
-# flow: GT → mask → recon → turntable → bottom temporal → head closeup → full body ending
+# Cinematic Demo v5.2 — Full fixes: GT bg, camera continuity, smooth transitions, grid ending
+# flow: GT (raw bg) → mask → recon → turntable (azimuth-matched) → bottom (sweep) → head+KP → 6-view grid
 # Checkpoint: alpha=0.3 (M5t2 trade-off best, IoU=0.913)
 
 global:
@@ -27,10 +27,10 @@ frame_range: "1500:1860"  # 360 frames from mid-dataset (more active behavior)
 
 segments:
   # === Phase 1: Introduction (GT camera, temporal flow) ===
-  # 1) RGB original image — raw=false: white-bg composited (clearly different from reconstruction)
+  # 1) RGB original image — raw=true: original background pixels preserved
   - type: flow_gt
     duration: 4.0
-    raw: false
+    raw: true
     frame_step: 2      # 15 fps behavioral rate (half speed)
     label: "GT RGB (Camera 0)"
 
@@ -40,45 +40,42 @@ segments:
     frame_step: 2
     label: "Foreground Segmentation (SAM2)"
 
-  # 3) GS-LRM 3D reconstruction
+  # 3) GS-LRM 3D reconstruction (at GT camera, half speed)
   - type: flow_render
-    duration: 4.0
+    duration: 8.0
     frame_step: 2
     label: "3D Gaussian Reconstruction (alpha=0.3)"
 
-  # === Phase 2: 360 Turntable (freeze time) ===
+  # === Phase 2: 360 Turntable (freeze time, azimuth-matched to GT cam) ===
   - type: freeze_orbit
     duration: 10.0
     elevation: 20
     transition_frames: 20
     label: "360-degree Turntable"
 
-  # === Phase 3: Bottom view novel view (temporal flow) ===
+  # === Phase 3: Bottom view novel view (smooth elevation sweep entry) ===
   - type: flow_novel
     duration: 6.0
     elevation: -80
-    frame_step: 2      # half speed — 15 fps behavioral rate
-    label: "Bottom View — Temporal Sequence"
+    prev_elevation: 20      # matches freeze_orbit elevation
+    transition_frames: 30   # 1s smoothstep sweep from elev=20 to elev=-80
+    frame_step: 2
+    label: "Bottom View - Temporal Sequence"
 
-  # === Phase 4: Head close-up ===
-  # 4a) Freeze frame + turntable orbit (head only, moderate zoom)
-  - type: freeze_head_orbit
-    duration: 4.0
-    elevation: 25
-    zoom: 1.5          # reduced from 2.5 — further away
-    label: "Head Close-up (Frozen Frame)"
-
-  # 4b) Keypoint overlay + temporal flow (head only)
+  # === Phase 4: Head close-up + Keypoints (smooth sweep from bottom) ===
+  # Direct from bottom view: smooth elevation sweep -80 -> 25, then orbit + KP overlay
   - type: flow_head_kp
-    duration: 7.0
+    duration: 9.0
     elevation: 25
-    zoom: 1.5          # reduced from 2.5 — further away
-    frame_step: 2      # half speed
+    zoom: 1.5
+    prev_elevation: -80     # matches flow_novel target elevation
+    transition_frames: 30   # 1s smoothstep sweep from elev=-80 to elev=25
+    frame_step: 2
     label: "Head + Keypoints (Temporal)"
 
-  # === Phase 5: Full body ending ===
-  - type: flow_render_fullbody
-    duration: 6.0
-    elevation: 25
-    frame_step: 2      # half speed
-    label: "Full Body — Temporal Flow"
+  # === Phase 5: 6-view grid ending ===
+  # GT views -> Reconstruction -> Novel views
+  - type: grid_multiview
+    duration: 12.0
+    frame_step: 2
+    label: ""   # phase-specific labels added internally
