@@ -175,8 +175,9 @@ def free_fd(fd):
 # Image helpers
 # ---------------------------------------------------------------------------
 
-def load_gt(fd_path, view, bg_color=(1.0, 1.0, 1.0), raw=False):
-    """Load GT RGB. raw=True keeps original background, False composites onto bg_color."""
+def load_gt(fd_path, view, bg_color=(1.0, 1.0, 1.0), raw=False, res=None):
+    """Load GT RGB. raw=True keeps original background, False composites onto bg_color.
+    If res is provided, output is resized to (res, res) so it matches VideoWriter dimensions."""
     from PIL import Image
     p = Path(fd_path) / "images" / f"cam_{view:03d}.png"
     img = np.array(Image.open(p))
@@ -185,11 +186,14 @@ def load_gt(fd_path, view, bg_color=(1.0, 1.0, 1.0), raw=False):
         alpha = img[:, :, 3:4] / 255.0
         bg = np.array(bg_color).reshape(1, 1, 3)
         rgb = rgb * alpha + bg * (1 - alpha)
+    if res is not None and (rgb.shape[0] != res or rgb.shape[1] != res):
+        rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_LINEAR)
     return rgb
 
 
-def load_mask_overlay(fd_path, view, border_color=None, bg_color=(1.0, 1.0, 1.0)):
-    """GT image with foreground highlight on bg_color background."""
+def load_mask_overlay(fd_path, view, border_color=None, bg_color=(1.0, 1.0, 1.0), res=None):
+    """GT image with foreground highlight on bg_color background.
+    If res is provided, output is resized to (res, res) so it matches VideoWriter dimensions."""
     from PIL import Image
     from scipy.ndimage import binary_dilation, binary_erosion
     img = np.array(Image.open(Path(fd_path) / "images" / f"cam_{view:03d}.png"))
@@ -205,6 +209,8 @@ def load_mask_overlay(fd_path, view, border_color=None, bg_color=(1.0, 1.0, 1.0)
     if border_color is not None:
         bd = binary_dilation(fg, iterations=2) & ~binary_erosion(fg, iterations=1)
         out[bd] = border_color
+    if res is not None and (out.shape[0] != res or out.shape[1] != res):
+        out = cv2.resize(out, (res, res), interpolation=cv2.INTER_LINEAR)
     return out
 
 
@@ -372,12 +378,29 @@ class CinematicPipeline:
         self.all_frames = list(range(start, end, step))
         self.fi = 0  # global frame index cursor
 
-    def _next_frames(self, n):
-        """Consume n frames from the global cursor, cycling if needed."""
-        out = []
-        for _ in range(n):
-            out.append(self.all_frames[self.fi % len(self.all_frames)])
+    def _next_frames(self, n, step=1):
+        """Consume frames from the global cursor, cycling if needed.
+
+        step > 1: each unique frame is repeated 'step' rendered frames
+        (slows down temporal playback by factor of step).
+        """
+        if step <= 1:
+            out = []
+            for _ in range(n):
+                out.append(self.all_frames[self.fi % len(self.all_frames)])
+                self.fi += 1
+            return out
+        # Slow-motion: advance cursor once every 'step' rendered frames
+        unique_n = max(1, (n + step - 1) // step)
+        unique = []
+        for _ in range(unique_n):
+            unique.append(self.all_frames[self.fi % len(self.all_frames)])
             self.fi += 1
+        # Repeat each frame 'step' times, trim to exactly n
+        out = [f for f in unique for _ in range(step)][:n]
+        # Pad if needed (edge case)
+        while len(out) < n:
+            out.append(out[-1])
         return out
 
     def _peek_frame(self):
@@ -450,17 +473,20 @@ class CinematicPipeline:
     # --- Segment handlers ---
 
     def _seg_flow_gt(self, seg, n, prev_fd):
-        fis = self._next_frames(n)
+        step = seg.get("frame_step", 1)
+        fis = self._next_frames(n, step=step)
         raw = seg.get("raw", False)
-        imgs = [self._apply_kp(load_gt(self._fd(fi), self.gt_view, self.bg, raw=raw), fi)
+        imgs = [self._apply_kp(
+            load_gt(self._fd(fi), self.gt_view, self.bg, raw=raw, res=self.res), fi)
                 for fi in fis]
         return imgs, prev_fd
 
     def _seg_flow_mask(self, seg, n, prev_fd):
-        fis = self._next_frames(n)
+        fis = self._next_frames(n, step=seg.get("frame_step", 1))
         imgs = [self._apply_kp(
             load_mask_overlay(self._fd(fi), self.gt_view,
-                              border_color=self.border_color, bg_color=self.bg), fi)
+                              border_color=self.border_color, bg_color=self.bg,
+                              res=self.res), fi)
                 for fi in fis]
         return imgs, prev_fd
 
@@ -636,7 +662,8 @@ class CinematicPipeline:
 
     def _seg_flow_novel(self, seg, n, prev_fd):
         """Temporal flow rendered from a fixed novel camera (elevation, azimuth)."""
-        fis = self._next_frames(n)
+        step = seg.get("frame_step", 1)
+        fis = self._next_frames(n, step=step)
         elev = seg.get("elevation", -80)
         # Generate a single camera pose (1 frame turntable = fixed view)
         c2ws, fxfy, w, h = get_orbit_cameras(
@@ -684,7 +711,8 @@ class CinematicPipeline:
         Last 20% of frames: gradually zoom out from head to prepare for
         full body transition (zoom ramps from max_zoom to 1.0).
         """
-        fis = self._next_frames(n)
+        step = seg.get("frame_step", 1)
+        fis = self._next_frames(n, step=step)
         elev = seg.get("elevation", 25)
         max_zoom = seg.get("zoom", 2.5)
         c2ws, fxfy, w, h = get_orbit_cameras(
@@ -723,7 +751,8 @@ class CinematicPipeline:
 
     def _seg_flow_render_fullbody(self, seg, n, prev_fd):
         """Temporal flow, full body, orbiting camera — final segment."""
-        fis = self._next_frames(n)
+        step = seg.get("frame_step", 1)
+        fis = self._next_frames(n, step=step)
         elev = seg.get("elevation", 25)
         c2ws, fxfy, w, h = get_orbit_cameras(
             n, elev, self.radius, self.hfov, self.res)

@@ -1,4 +1,4 @@
-# Cinematic Demo v5 — Redesigned sequence
+# Cinematic Demo v5.1 — Fixed temporal FPS + zoom + GT visibility
 # flow: GT → mask → recon → turntable → bottom temporal → head closeup → full body ending
 # Checkpoint: alpha=0.3 (M5t2 trade-off best, IoU=0.913)
 
@@ -23,24 +23,27 @@ camera:
   radius: 2.7
   hfov: 50
 
-frame_range: "100:460"  # 360 frames to avoid excessive looping
+frame_range: "1500:1860"  # 360 frames from mid-dataset (more active behavior)
 
 segments:
   # === Phase 1: Introduction (GT camera, temporal flow) ===
-  # 1) RGB original image
+  # 1) RGB original image — raw=false: white-bg composited (clearly different from reconstruction)
   - type: flow_gt
-    duration: 3.0
-    raw: true
+    duration: 4.0
+    raw: false
+    frame_step: 2      # 15 fps behavioral rate (half speed)
     label: "GT RGB (Camera 0)"
 
   # 2) Segmentation mask
   - type: flow_mask
-    duration: 2.0
+    duration: 2.5
+    frame_step: 2
     label: "Foreground Segmentation (SAM2)"
 
   # 3) GS-LRM 3D reconstruction
   - type: flow_render
-    duration: 3.0
+    duration: 4.0
+    frame_step: 2
     label: "3D Gaussian Reconstruction (alpha=0.3)"
 
   # === Phase 2: 360 Turntable (freeze time) ===
@@ -52,27 +55,30 @@ segments:
 
   # === Phase 3: Bottom view novel view (temporal flow) ===
   - type: flow_novel
-    duration: 5.0
+    duration: 6.0
     elevation: -80
+    frame_step: 2      # half speed — 15 fps behavioral rate
     label: "Bottom View — Temporal Sequence"
 
   # === Phase 4: Head close-up ===
-  # 4a) Freeze frame + turntable orbit (head only, zoom)
+  # 4a) Freeze frame + turntable orbit (head only, moderate zoom)
   - type: freeze_head_orbit
     duration: 4.0
     elevation: 25
-    zoom: 2.5
+    zoom: 1.5          # reduced from 2.5 — further away
     label: "Head Close-up (Frozen Frame)"
 
-  # 4b) Keypoint overlay + temporal flow (head only, orbit)
+  # 4b) Keypoint overlay + temporal flow (head only)
   - type: flow_head_kp
-    duration: 6.0
+    duration: 7.0
     elevation: 25
-    zoom: 2.5
+    zoom: 1.5          # reduced from 2.5 — further away
+    frame_step: 2      # half speed
     label: "Head + Keypoints (Temporal)"
 
   # === Phase 5: Full body ending ===
   - type: flow_render_fullbody
-    duration: 5.0
+    duration: 6.0
     elevation: 25
+    frame_step: 2      # half speed
     label: "Full Body — Temporal Flow"
