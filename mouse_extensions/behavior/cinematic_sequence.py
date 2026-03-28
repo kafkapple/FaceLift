@@ -2,14 +2,18 @@
 """Cinematic Sequence Visualization v4: config-driven, temporal-flow architecture.
 
 Segment types:
-  flow_gt        — GT RGB, temporal flow
-  flow_mask      — FG mask overlay, temporal flow
-  flow_render    — GS-LRM render (GT camera), temporal flow
-  freeze_orbit   — Freeze time, 360° turntable
-  freeze_elev    — Freeze time, elevation arc
-  flow_orbit     — Temporal flow + orbiting camera
-  flow_bodypart  — Temporal flow + body-part cycling
-  freeze_bodypart — Freeze time + body-part cycling + orbit
+  flow_gt              — GT RGB, temporal flow
+  flow_mask            — FG mask overlay, temporal flow
+  flow_render          — GS-LRM render (GT camera), temporal flow
+  freeze_orbit         — Freeze time, 360° turntable
+  freeze_elev          — Freeze time, elevation arc
+  flow_orbit           — Temporal flow + orbiting camera
+  flow_bodypart        — Temporal flow + body-part cycling
+  freeze_bodypart      — Freeze time + body-part cycling + orbit
+  flow_novel           — Temporal flow at fixed novel camera (elevation param)
+  freeze_head_orbit    — Freeze time, head-only Gaussians + orbit + zoom
+  flow_head_kp         — Temporal flow, head-only + keypoint overlay + orbit
+  flow_render_fullbody — Temporal flow, full body + orbiting camera (alias for flow_orbit)
 
 Usage:
     CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.cinematic_sequence \
@@ -207,16 +211,20 @@ def load_mask_overlay(fd_path, view, border_color=None, bg_color=(1.0, 1.0, 1.0)
 # Constants imported from mouse_extensions.constants (SSOT, 2026-03-23)
 
 
-def overlay_keypoints(img, kp_2d, kp_valid):
+def overlay_keypoints(img, kp_2d, kp_valid, bone_width=2, kp_radius=4):
     """Fast cv2-based keypoint + skeleton overlay. img: float 0-1, returns float 0-1."""
     u8 = (np.clip(img, 0, 1) * 255).astype(np.uint8).copy()
     H, W = u8.shape[:2]
-    # Skeleton bones
+    # Skeleton bones (colored by midpoint of endpoint colors)
     for a, b in SKELETON_BONES:
         if kp_valid[a] and kp_valid[b]:
             p1 = (int(kp_2d[a, 0]), int(kp_2d[a, 1]))
             p2 = (int(kp_2d[b, 0]), int(kp_2d[b, 1]))
-            cv2.line(u8, p1, p2, (255, 255, 255), 1, cv2.LINE_AA)
+            ca = MAMMAL_KP_COLORS.get(a, (255, 255, 255))
+            cb = MAMMAL_KP_COLORS.get(b, (255, 255, 255))
+            bc = tuple((ca[i] + cb[i]) // 2 for i in range(3))
+            cv2.line(u8, p1, p2, (0, 0, 0), bone_width + 1, cv2.LINE_AA)
+            cv2.line(u8, p1, p2, bc, bone_width, cv2.LINE_AA)
     # Keypoints
     for i in range(len(kp_2d)):
         if not kp_valid[i]:
@@ -224,8 +232,8 @@ def overlay_keypoints(img, kp_2d, kp_valid):
         x, y = int(kp_2d[i, 0]), int(kp_2d[i, 1])
         if 0 <= x < W and 0 <= y < H:
             c = MAMMAL_KP_COLORS.get(i, (255, 255, 255))
-            cv2.circle(u8, (x, y), 4, (0, 0, 0), -1, cv2.LINE_AA)  # outline
-            cv2.circle(u8, (x, y), 3, c, -1, cv2.LINE_AA)
+            cv2.circle(u8, (x, y), kp_radius + 1, (0, 0, 0), -1, cv2.LINE_AA)
+            cv2.circle(u8, (x, y), kp_radius, c, -1, cv2.LINE_AA)
     return u8 / 255.0
 
 
@@ -236,6 +244,28 @@ def project_kp_to_view(kp_3d, frame_dir, view_idx):
     uv, valid = project_points_to_2d(
         kp_3d, np.array(cam["w2c"]), cam["fx"], cam["fy"], cam["cx"], cam["cy"])
     in_img = valid & (uv[:, 0] >= 0) & (uv[:, 0] < cam["w"]) & (uv[:, 1] >= 0) & (uv[:, 1] < cam["h"])
+    return uv, in_img
+
+
+def project_kp_to_novel_cam(kp_3d, c2w, fxfy, w, h):
+    """Project 3D keypoints to 2D using a novel camera (c2w + intrinsics).
+
+    Args:
+        kp_3d: (K, 3) 3D keypoints in world coords
+        c2w: (4, 4) camera-to-world numpy array
+        fxfy: (4,) [fx, fy, cx, cy] or (2,) [fx, fy] intrinsics
+        w, h: image resolution
+    Returns:
+        uv: (K, 2) pixel coordinates
+        valid: (K,) boolean mask
+    """
+    from mouse_extensions.behavior.view_projected_filtering import project_points_to_2d
+    w2c = np.linalg.inv(c2w)
+    fx, fy = float(fxfy[0]), float(fxfy[1])
+    cx = float(fxfy[2]) if len(fxfy) > 2 else w / 2.0
+    cy = float(fxfy[3]) if len(fxfy) > 3 else h / 2.0
+    uv, valid = project_points_to_2d(kp_3d, w2c, fx, fy, cx, cy)
+    in_img = valid & (uv[:, 0] >= 0) & (uv[:, 0] < w) & (uv[:, 1] >= 0) & (uv[:, 1] < h)
     return uv, in_img
 
 
@@ -595,6 +625,120 @@ class CinematicPipeline:
                         z = max_zoom
                     img = zoom_to_content(img, z)
 
+            imgs.append(img)
+        return imgs, fd
+
+    def _overlay_kp_novel(self, img, fi, c2w, fxfy, w, h):
+        """Overlay keypoints projected through a novel camera."""
+        kp_3d = load_keypoints_gslrm(self.kp, fi)
+        uv, valid = project_kp_to_novel_cam(kp_3d, c2w, fxfy, w, h)
+        return overlay_keypoints(img, uv, valid)
+
+    def _seg_flow_novel(self, seg, n, prev_fd):
+        """Temporal flow rendered from a fixed novel camera (elevation, azimuth)."""
+        fis = self._next_frames(n)
+        elev = seg.get("elevation", -80)
+        # Generate a single camera pose (1 frame turntable = fixed view)
+        c2ws, fxfy, w, h = get_orbit_cameras(
+            1, elev, self.radius, self.hfov, self.res)
+        c2w_fixed = c2ws[0]
+        fxfy_fixed = fxfy[0]
+        kp_on = seg.get("keypoint_overlay", False)
+        imgs = []
+        fd = prev_fd
+        for fi in fis:
+            if fd:
+                free_fd(fd)
+            fd = infer_frame(self.model, fi, self.m5, self.kp,
+                             self.n_thresh, self.res, self.device)
+            if fd is None:
+                imgs.append(np.zeros((self.res, self.res, 3)))
+                continue
+            img = render_cam(fd["gaussians"], c2w_fixed, fxfy_fixed, w, h,
+                             mask=fd["vis_mask"], bg=self.bg, device=self.device)
+            if kp_on:
+                img = self._overlay_kp_novel(img, fi, c2w_fixed, fxfy_fixed, w, h)
+            imgs.append(img)
+        return imgs, fd
+
+    def _seg_freeze_head_orbit(self, seg, n, prev_fd):
+        """Freeze time, head-only Gaussians, slow orbit with zoom."""
+        fd = prev_fd or self._ensure_fd()
+        elev = seg.get("elevation", 25)
+        zoom = seg.get("zoom", 2.5)
+        c2ws, fxfy, w, h = get_orbit_cameras(
+            n, elev, self.radius, self.hfov, self.res)
+        face_mask = fd["vis_mask"] & fd["part_masks"].get("face", fd["vis_mask"])
+        imgs = []
+        for i in range(n):
+            img = render_cam(fd["gaussians"], c2ws[i], fxfy[i], w, h,
+                             mask=face_mask, bg=self.bg, device=self.device)
+            if zoom > 1.0:
+                img = zoom_to_content(img, zoom)
+            imgs.append(img)
+        return imgs, fd
+
+    def _seg_flow_head_kp(self, seg, n, prev_fd):
+        """Temporal flow, head-only Gaussians, orbit + keypoint overlay.
+
+        Last 20% of frames: gradually zoom out from head to prepare for
+        full body transition (zoom ramps from max_zoom to 1.0).
+        """
+        fis = self._next_frames(n)
+        elev = seg.get("elevation", 25)
+        max_zoom = seg.get("zoom", 2.5)
+        c2ws, fxfy, w, h = get_orbit_cameras(
+            n, elev, self.radius, self.hfov, self.res)
+        ease_start = int(n * 0.8)  # start easing out at 80%
+        imgs = []
+        fd = prev_fd
+        for i, fi in enumerate(fis):
+            if fd:
+                free_fd(fd)
+            fd = infer_frame(self.model, fi, self.m5, self.kp,
+                             self.n_thresh, self.res, self.device)
+            if fd is None:
+                imgs.append(np.zeros((self.res, self.res, 3)))
+                continue
+            # First 80%: head only. Last 20%: transition to full body
+            if i < ease_start:
+                face_mask = fd["vis_mask"] & fd["part_masks"].get("face", fd["vis_mask"])
+            else:
+                # Gradual: face → full body
+                face_mask = fd["vis_mask"]
+            img = render_cam(fd["gaussians"], c2ws[i], fxfy[i], w, h,
+                             mask=face_mask, bg=self.bg, device=self.device)
+            # Keypoint overlay (novel view projection)
+            img = self._overlay_kp_novel(img, fi, c2ws[i], fxfy[i], w, h)
+            # Zoom: hold for 80%, then ease out to 1.0
+            if i < ease_start:
+                z = max_zoom
+            else:
+                t = (i - ease_start) / max(n - ease_start - 1, 1)
+                z = max_zoom + (1.0 - max_zoom) * t
+            if z > 1.05:
+                img = zoom_to_content(img, z)
+            imgs.append(img)
+        return imgs, fd
+
+    def _seg_flow_render_fullbody(self, seg, n, prev_fd):
+        """Temporal flow, full body, orbiting camera — final segment."""
+        fis = self._next_frames(n)
+        elev = seg.get("elevation", 25)
+        c2ws, fxfy, w, h = get_orbit_cameras(
+            n, elev, self.radius, self.hfov, self.res)
+        imgs = []
+        fd = prev_fd
+        for i, fi in enumerate(fis):
+            if fd:
+                free_fd(fd)
+            fd = infer_frame(self.model, fi, self.m5, self.kp,
+                             self.n_thresh, self.res, self.device)
+            if fd is None:
+                imgs.append(np.zeros((self.res, self.res, 3)))
+                continue
+            img = render_cam(fd["gaussians"], c2ws[i], fxfy[i], w, h,
+                             mask=fd["vis_mask"], bg=self.bg, device=self.device)
             imgs.append(img)
         return imgs, fd
 

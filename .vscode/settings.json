@@ -1,20 +1,37 @@
 {
-"files.watcherExcludes": {
-    // 이 프로젝트의 대형 데이터/체크포인트
-    "**/datasets/**": true,
-    "**/data/**": true,
-    "**/checkpoints/**": true,
-    "**/logs/**": true,
-    "**/wandb/**": true,
-    "**/tensorboard/**": true
-},
-"search.exclude": {
-    "**/datasets/**": true,
-    "**/data/**": true,
-    "**/checkpoints/**": true,
-    "**/logs/**": true,
-    "**/wandb/**": true,
-    "**/tensorboard/**": true
+    "files.watcherExclude": {
+        "**/outputs/**": true,
+        "**/results/**": true,
+        "**/datasets/**": true,
+        "**/data/**": true,
+        "**/checkpoints/**": true,
+        "**/logs/**": true,
+        "**/wandb/**": true,
+        "**/tensorboard/**": true,
+        "**/.git/**": true
+    },
+    "search.exclude": {
+        "**/outputs/**": true,
+        "**/results/**": true,
+        "**/datasets/**": true,
+        "**/data/**": true,
+        "**/checkpoints/**": true,
+        "**/logs/**": true,
+        "**/wandb/**": true,
+        "**/tensorboard/**": true,
+        "**/.git/**": true
+    },
+    "python.analysis.exclude": [
+        "**/outputs",
+        "**/checkpoints",
+        "**/data",
+        "**/datasets",
+        "**/logs",
+        "**/wandb",
+        "**/tensorboard",
+        "**/.venv",
+        "**/venv"
+    ],
+    "git.autorefresh": false,
+    "search.followSymlinks": false
 }
-}
-  
