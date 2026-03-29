@@ -677,7 +677,7 @@ class CinematicPipeline:
             icon_events.append((base_idx, SEGMENT_ICON_MAP.get(stype, "PLAY")))
             for rel_idx, sub_icon in self._pending_subevents:
                 abs_idx = base_idx + rel_idx
-                if abs_idx < base_idx + len(frames):  # guard against out-of-range
+                if base_idx <= abs_idx < base_idx + len(frames):  # guard bounds
                     icon_events.append((abs_idx, sub_icon))
             self._pending_subevents.clear()
 
@@ -724,8 +724,9 @@ class CinematicPipeline:
         # Write main output (with controls if show_controls=true)
         write_video(output_path, with_controls=self._show_controls)
 
-        # Write dual output (no controls) if requested
-        if dual_output_dir:
+        # Write dual output (no controls) if requested — only meaningful when main has controls ON.
+        # When show_controls=False, main and dual would be identical; skip to avoid waste.
+        if dual_output_dir and self._show_controls:
             Path(dual_output_dir).mkdir(parents=True, exist_ok=True)
             dual_path = str(Path(dual_output_dir) / "cinematic_demo.mp4")
             write_video(dual_path, with_controls=False)
