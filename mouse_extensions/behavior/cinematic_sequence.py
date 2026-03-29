@@ -27,11 +27,9 @@ Usage:
 """
 
 import argparse
-import copy
-import json
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -50,7 +48,7 @@ from mouse_extensions.behavior.camera_system import (
     interpolate_cameras,
 )
 from mouse_extensions.behavior.view_projected_filtering import (
-    BODY_PARTS, BODY_PART_COLORS, load_camera, load_keypoints_gslrm,
+    load_camera, load_keypoints_gslrm,
 )
 from mouse_extensions.behavior.render_bodypart_gaussians import (
     assign_gaussians_to_bodyparts_3d,
@@ -347,47 +345,6 @@ def add_label(img, text, fontscale=0.65, thickness=1):
     cv2.putText(img_u8, safe, (tx, ty), font, fontscale, (240, 240, 240), thickness, cv2.LINE_AA)
     return img_u8 / 255.0
 
-
-def zoom_to_content(img, zoom: float = 2.0, bg_thresh: float = 0.05) -> np.ndarray:
-    """Crop and resize to zoom into non-background content.
-
-    Finds the bounding box of non-background pixels, adds padding,
-    crops, and resizes to original resolution.
-
-    Args:
-        img: (H, W, 3) float image 0-1
-        zoom: zoom factor (2.0 = 2x magnification)
-        bg_thresh: threshold to distinguish content from background
-    """
-    H, W = img.shape[:2]
-    # Detect content: pixels that differ from corners (background)
-    bg_sample = img[0, 0]  # top-left pixel as background reference
-    diff = np.abs(img - bg_sample).max(axis=-1)
-    content = diff > bg_thresh
-
-    if content.sum() < 10:
-        return img  # no content found, return as-is
-
-    ys, xs = np.where(content)
-    cy, cx = (ys.min() + ys.max()) // 2, (xs.min() + xs.max()) // 2
-
-    # Crop size = original / zoom
-    crop_h = int(H / zoom)
-    crop_w = int(W / zoom)
-
-    # Center crop around content center, clamped to image bounds
-    y1 = max(0, min(cy - crop_h // 2, H - crop_h))
-    x1 = max(0, min(cx - crop_w // 2, W - crop_w))
-    y2 = y1 + crop_h
-    x2 = x1 + crop_w
-
-    cropped = img[y1:y2, x1:x2]
-    # Resize back to original resolution
-    from PIL import Image as PILImage
-    resized = np.array(PILImage.fromarray(
-        (np.clip(cropped, 0, 1) * 255).astype(np.uint8)
-    ).resize((W, H), PILImage.LANCZOS)) / 255.0
-    return resized
 
 
 def crossfade(a, b, t):
@@ -1148,7 +1105,9 @@ class CinematicPipeline:
         if not include_extreme:
             cam_defs = [c for c in cam_defs if abs(c.get("elevation", 0)) < 70]
         if not cam_defs:
-            cam_defs = default_cams[:2]  # fallback
+            # Fallback must also respect include_extreme to avoid ±80° sneaking back in
+            moderate_fallbacks = [c for c in default_cams if abs(c.get("elevation", 0)) < 70]
+            cam_defs = moderate_fallbacks[:2] if moderate_fallbacks else default_cams[:2]
 
         n_cams = len(cam_defs)
         base_fpk = n // n_cams
@@ -1502,7 +1461,8 @@ def main():
         print(f"Config: {cfg_path}")
     else:
         print(f"Config not found: {cfg_path}, using defaults")
-        cfg = yaml.safe_load(Path(__file__).parent / "cinematic_default.yaml")
+        with open(Path(__file__).parent / "cinematic_default.yaml") as f:
+            cfg = yaml.safe_load(f)
 
     # CLI overrides
     if args.frame_range:
