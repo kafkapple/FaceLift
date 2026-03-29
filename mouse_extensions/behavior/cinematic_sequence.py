@@ -1,19 +1,20 @@
-# no-split: single cinematic pipeline with 8 tightly-coupled segment handlers sharing state
+# no-split: CinematicPipeline — 5 handlers share state (_last_orbit_c2w, _last_novel_c2w, _last_orbit_az, _pending_subevents, fi cursor). Package split deferred until Golden File test infrastructure is in place.
 """Cinematic Sequence Visualization v4: config-driven, temporal-flow architecture.
 
-Segment types:
+Segment types (active, v6+):
+  flow_gt_opener       — GT 6-cam mosaic → zoom to gt_view
   flow_gt              — GT RGB, temporal flow
   flow_mask            — FG mask overlay, temporal flow
   flow_render          — GS-LRM render (GT camera), temporal flow
   freeze_orbit         — Freeze time, 360° turntable
-  freeze_elev          — Freeze time, elevation arc
-  flow_orbit           — Temporal flow + orbiting camera
-  flow_bodypart        — Temporal flow + body-part cycling
-  freeze_bodypart      — Freeze time + body-part cycling + orbit
   flow_novel           — Temporal flow at fixed novel camera (elevation param)
-  freeze_head_orbit    — Freeze time, head-only Gaussians + orbit + zoom
   flow_head_kp         — Temporal flow, head-only + keypoint overlay + orbit
-  flow_render_fullbody — Temporal flow, full body + orbiting camera (alias for flow_orbit)
+  flow_novel_extra     — Temporal flow cycling through multiple novel cameras
+  flow_gt_zoom_out     — SLERP back to GT cam + zoom-out to 6-cam mosaic
+  grid_novel_6views    — 6 fixed novel views in 3×2 grid
+
+Legacy (v5 backward compat):
+  grid_multiview       — 6-view grid: GT / recon / novel phases
 
 Usage:
     CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.cinematic_sequence \
@@ -407,14 +408,14 @@ def crossfade(a, b, t):
 
 # Icon bar: maps segment type → icon name
 SEGMENT_ICON_MAP = {
+    # Active segment types (v6+)
     "flow_gt": "PLAY", "flow_gt_opener": "PLAY", "flow_mask": "PLAY",
-    "flow_render": "PLAY", "flow_render_fullbody": "PLAY",
-    "freeze_orbit": "ORBIT", "freeze_elev": "ORBIT",
-    "freeze_bodypart": "ORBIT", "freeze_head_orbit": "KP",
-    "flow_orbit": "PLAY", "flow_novel": "PLAY", "flow_novel_extra": "PLAY",
-    "flow_bodypart": "PLAY", "flow_head_kp": "KP",
+    "flow_render": "PLAY", "flow_novel": "PLAY", "flow_novel_extra": "PLAY",
+    "freeze_orbit": "ORBIT",
+    "flow_head_kp": "KP",
     "flow_gt_zoom_out": "PLAY", "grid_novel_6views": "GRID",
-    "grid_multiview": "GRID", "grid_panorama": "GRID",
+    # Legacy (v5 backward compat)
+    "grid_multiview": "GRID",
 }
 # BODY icon used for intra-segment toggle (full body reveal in flow_head_kp)
 ICON_DEFS = [("PLAY", "> PLAY"), ("ORBIT", "() ORBIT"), ("KP", "* KP"),
@@ -604,6 +605,12 @@ class CinematicPipeline:
         last_img = None
         last_fd = None
 
+        # Reset cross-segment state so repeated generate() calls don't leak
+        self._last_orbit_az = 270.0
+        self._last_orbit_c2w = None
+        self._last_novel_c2w = None
+        self._pending_subevents.clear()
+
         # --- Segment cache setup ---
         cache_dir = Path(output_path).parent / ".seg_cache"
         if use_cache:
@@ -704,6 +711,11 @@ class CinematicPipeline:
             all_imgs.extend(frames)
             if frames:
                 last_img = frames[-1]
+
+        # Release final fd tensors to avoid GPU memory leak
+        if last_fd:
+            free_fd(last_fd)
+            last_fd = None
 
         # --- Write video helper ---
         def write_video(path: str, with_controls: bool):
@@ -827,120 +839,6 @@ class CinematicPipeline:
 
         return imgs, fd
 
-    def _seg_freeze_elev(self, seg, n, prev_fd):
-        fd = prev_fd or self._ensure_fd()
-        se = seg.get("start_elevation", -30)
-        ee = seg.get("end_elevation", 80)
-        if abs(se - ee) < 1.0:
-            # Fixed elevation = turntable at that elevation (slow orbit)
-            c2ws, fxfy, w, h = get_orbit_cameras(
-                n, se, self.radius, self.hfov, self.res, mode="turntable")
-        else:
-            # Elevation sweep = arc mode
-            c2ws, fxfy, w, h = get_orbit_cameras(
-                n, se, self.radius, self.hfov, self.res,
-                mode="arc", elevation_end=ee)
-        imgs = []
-        for i in range(n):
-            img = render_cam(fd["gaussians"], c2ws[i], fxfy[i], w, h,
-                             mask=fd["vis_mask"], bg=self.bg, device=self.device)
-            imgs.append(img)
-        return imgs, fd
-
-    def _seg_flow_orbit(self, seg, n, prev_fd):
-        fis = self._next_frames(n)
-        elev = seg.get("elevation", 25)
-        c2ws, fxfy, w, h = get_orbit_cameras(
-            n, elev, self.radius, self.hfov, self.res)
-        imgs = []
-        fd = prev_fd
-        for i, fi in enumerate(fis):
-            if fd:
-                free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
-            if fd is None:
-                imgs.append(np.zeros((self.res, self.res, 3)))
-                continue
-            img = render_cam(fd["gaussians"], c2ws[i], fxfy[i], w, h,
-                             mask=fd["vis_mask"], bg=self.bg, device=self.device)
-            imgs.append(img)
-        return imgs, fd
-
-    def _seg_flow_bodypart(self, seg, n, prev_fd):
-        fis = self._next_frames(n)
-        parts = seg.get("parts", ["face", "torso", "tail"])
-        elev = seg.get("elevation", 30)
-        zoom = seg.get("zoom", 1.0)
-        c2ws, fxfy, w, h = get_orbit_cameras(
-            n, elev, self.radius, self.hfov, self.res)
-        imgs = []
-        fd = prev_fd
-        for i, fi in enumerate(fis):
-            if fd:
-                free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
-            if fd is None:
-                imgs.append(np.zeros((self.res, self.res, 3)))
-                continue
-            pi = (i * len(parts)) // n
-            pn = parts[min(pi, len(parts) - 1)]
-            if pn == "all":
-                mask = fd["vis_mask"]
-            else:
-                mask = fd["vis_mask"] & fd["part_masks"].get(pn, fd["vis_mask"])
-            img = render_cam(fd["gaussians"], c2ws[i], fxfy[i], w, h,
-                             mask=mask, bg=self.bg, device=self.device)
-            if zoom > 1.0 and pn != "all":
-                img = zoom_to_content(img, zoom)
-            imgs.append(img)
-        return imgs, fd
-
-    def _seg_freeze_bodypart(self, seg, n, prev_fd):
-        fd = prev_fd or self._ensure_fd()
-        parts = seg.get("parts", ["face", "torso", "tail", "all"])
-        elev = seg.get("elevation", 25)
-        max_zoom = seg.get("zoom", 1.0)
-
-        # Use GT camera with smooth transition to orbit
-        gt_c2w_mat = gt_camera_c2w(fd["frame_dir"], self.gt_view)
-        gt_fxfy = gt_camera_fxfycxcy(fd["frame_dir"], self.gt_view)
-        c2ws, fxfy, w, h = get_orbit_cameras(
-            n, elev, self.radius, self.hfov, self.res)
-
-        frames_per_part = n // len(parts)
-        imgs = []
-        for i in range(n):
-            pi = min((i * len(parts)) // n, len(parts) - 1)
-            pn = parts[pi]
-            if pn == "all":
-                mask = fd["vis_mask"]
-            else:
-                mask = fd["vis_mask"] & fd["part_masks"].get(pn, fd["vis_mask"])
-
-            # Use orbit camera (slow orbit during body part display)
-            img = render_cam(fd["gaussians"], c2ws[i], fxfy[i], w, h,
-                             mask=mask, bg=self.bg, device=self.device)
-
-            # Gradual zoom: ramp up then down within each part
-            if max_zoom > 1.0 and pn != "all":
-                local_i = i - pi * frames_per_part
-                local_n = frames_per_part
-                # Ease in (first 30%) → hold → ease out (last 20%)
-                if local_n > 0:
-                    t = local_i / max(local_n - 1, 1)
-                    if t < 0.3:
-                        z = 1.0 + (max_zoom - 1.0) * (t / 0.3)
-                    elif t > 0.8:
-                        z = 1.0 + (max_zoom - 1.0) * ((1.0 - t) / 0.2)
-                    else:
-                        z = max_zoom
-                    img = zoom_to_content(img, z)
-
-            imgs.append(img)
-        return imgs, fd
-
     def _overlay_kp_novel(self, img, fi, c2w, fxfy, w, h,
                            show_labels=False, show_legend=False):
         """Overlay keypoints projected through a novel camera with depth-based opacity."""
@@ -1026,40 +924,20 @@ class CinematicPipeline:
                     e = prev_elev + (elev - prev_elev) * t_ease
                     trans_c2ws.append(self._cam_spherical(e, gt_az)[0])
 
-        imgs = []
-        fd = prev_fd
-        for i, fi in enumerate(fis):
-            if fd:
-                free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
-            if fd is None:
-                imgs.append(np.zeros((self.res, self.res, 3)))
-                continue
+        def c2w_fn(i, fi):
             c2w = trans_c2ws[i] if i < trans_n else c2w_fixed
-            img = render_cam(fd["gaussians"], c2w, fxfy_fixed, self.res, self.res,
-                             mask=fd["vis_mask"], bg=self.bg, device=self.device)
-            if kp_on:
-                img = self._overlay_kp_novel(img, fi, c2w, fxfy_fixed,
-                                              self.res, self.res)
-            imgs.append(img)
-        return imgs, fd
+            return c2w, fxfy_fixed
 
-    def _seg_freeze_head_orbit(self, seg, n, prev_fd):
-        """Freeze time, head-only Gaussians, slow orbit with zoom."""
-        fd = prev_fd or self._ensure_fd()
-        elev = seg.get("elevation", 25)
-        zoom = seg.get("zoom", 2.5)
-        c2ws, fxfy, w, h = get_orbit_cameras(
-            n, elev, self.radius, self.hfov, self.res)
-        face_mask = fd["vis_mask"] & fd["part_masks"].get("face", fd["vis_mask"])
-        imgs = []
-        for i in range(n):
-            img = render_cam(fd["gaussians"], c2ws[i], fxfy[i], w, h,
-                             mask=face_mask, bg=self.bg, device=self.device)
-            if zoom > 1.0:
-                img = zoom_to_content(img, zoom)
-            imgs.append(img)
+        imgs, fd = self._render_temporal_flow(fis, c2w_fn, prev_fd)
+
+        if kp_on:
+            imgs = [
+                self._overlay_kp_novel(
+                    img, fi,
+                    trans_c2ws[i] if i < trans_n else c2w_fixed,
+                    fxfy_fixed, self.res, self.res)
+                for i, (img, fi) in enumerate(zip(imgs, fis))
+            ]
         return imgs, fd
 
     def _seg_flow_head_kp(self, seg, n, prev_fd):
@@ -1445,121 +1323,6 @@ class CinematicPipeline:
             imgs.append(grid)
         return imgs, fd
 
-    def _seg_grid_panorama(self, seg, n, prev_fd):
-        """Panoramic grid: evenly distributed views rendered at cell size for efficiency.
-
-        Config:
-            num_views: 24 (4x6) or 36 (6x6), default 24
-            include_extreme: bool, include ±60°+ elevation rows (default True)
-        Phase 1 (n//2): GS-LRM recon at all angles (temporal flow)
-        Phase 2 (n - n//2): Continued temporal flow with different label
-        """
-        step = seg.get("frame_step", 2)
-        num_views = seg.get("num_views", 24)
-        include_extreme = seg.get("include_extreme", True)
-        fis = self._next_frames(n, step=step)
-
-        # Layout: n_rows x 6 columns
-        if num_views <= 24:
-            n_cols = 6
-            elevs_all = [-60, -20, 20, 60]
-        else:
-            n_cols = 6
-            elevs_all = [-60, -30, 0, 30, 60, 85]
-
-        if not include_extreme:
-            elevs_all = [e for e in elevs_all if abs(e) < 60]
-        if not elevs_all:
-            elevs_all = [-30, 0, 30]
-
-        n_rows = len(elevs_all)
-        azims_all = [i * (360 // n_cols) for i in range(n_cols)]
-        cam_grid = [(e, a) for e in elevs_all for a in azims_all]
-        n_cams = len(cam_grid)
-
-        cell = self.res // n_cols  # 128 at 768 with 6 cols
-        cell_h = self.res // n_rows if n_rows > 0 else cell
-        # Scale intrinsics for cell-size render (faster)
-        cell_scale = cell / self.res
-        fx_cell = self.res / (2 * np.tan(np.deg2rad(self.hfov) / 2.0)) * cell_scale
-        fxfy_cell_base = np.array([fx_cell, fx_cell, cell / 2.0, cell_h / 2.0])
-
-        # Pre-compute all camera poses
-        cams_c2w = [self._cam_spherical(e, a)[0] for e, a in cam_grid]
-
-        def make_panorama_grid(fd_use, phase_label):
-            canvas = np.ones((self.res, self.res, 3), dtype=np.float32) * np.array(self.bg)
-            for idx, (e, a) in enumerate(cam_grid):
-                row_i = idx // n_cols
-                col_i = idx % n_cols
-                c2w_cam = cams_c2w[idx]
-                cell_img = render_cam(fd_use["gaussians"], c2w_cam, fxfy_cell_base,
-                                       cell, cell_h,
-                                       mask=fd_use["vis_mask"], bg=self.bg,
-                                       device=self.device)
-                if cell_img.shape[:2] != (cell_h, cell):
-                    cell_img = cv2.resize(cell_img, (cell, cell_h),
-                                          interpolation=cv2.INTER_AREA)
-                y0 = row_i * cell_h
-                x0 = col_i * cell
-                canvas[y0:y0 + cell_h, x0:x0 + cell] = cell_img
-            # Draw per-cell elevation labels (must work on uint8)
-            canvas_u8 = (np.clip(canvas, 0, 1) * 255).astype(np.uint8)
-            for idx, (e, a) in enumerate(cam_grid):
-                row_i = idx // n_cols
-                col_i = idx % n_cols
-                y0 = row_i * cell_h
-                x0 = col_i * cell
-                label_txt = f"{e:+d}"
-                cv2.putText(canvas_u8, label_txt, (x0 + 2, y0 + 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.22, (100, 100, 100), 1)
-            canvas = canvas_u8 / 255.0
-            return add_label(canvas, phase_label, fontscale=0.50)
-
-        n1 = n // 2
-        n2 = n - n1
-        phase_labels = [
-            f"Panoramic Views ({n_cams} angles) — GS-LRM Reconstruction",
-            f"Panoramic Views ({n_cams} angles) — Temporal Sequence",
-        ]
-
-        imgs = []
-        fd = prev_fd
-        for i, fi in enumerate(fis):
-            if fd:
-                free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
-            if fd is None:
-                imgs.append(np.zeros((self.res, self.res, 3)))
-                continue
-            phase = 0 if i < n1 else 1
-            grid = make_panorama_grid(fd, phase_labels[phase])
-            imgs.append(grid)
-        return imgs, fd
-
-    def _seg_flow_render_fullbody(self, seg, n, prev_fd):
-        """Temporal flow, full body, orbiting camera — final segment."""
-        step = seg.get("frame_step", 1)
-        fis = self._next_frames(n, step=step)
-        elev = seg.get("elevation", 25)
-        c2ws, fxfy, w, h = get_orbit_cameras(
-            n, elev, self.radius, self.hfov, self.res)
-        imgs = []
-        fd = prev_fd
-        for i, fi in enumerate(fis):
-            if fd:
-                free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
-            if fd is None:
-                imgs.append(np.zeros((self.res, self.res, 3)))
-                continue
-            img = render_cam(fd["gaussians"], c2ws[i], fxfy[i], w, h,
-                             mask=fd["vis_mask"], bg=self.bg, device=self.device)
-            imgs.append(img)
-        return imgs, fd
-
     def _seg_grid_multiview(self, seg, n, prev_fd):
         """6-view grid: Phase 1 = GT views, Phase 2 = GS-LRM recon, Phase 3 = novel views.
 
@@ -1661,6 +1424,39 @@ class CinematicPipeline:
         fi = self._peek_frame()
         return infer_frame(self.model, fi, self.m5, self.kp,
                            self.n_thresh, self.res, self.device)
+
+    def _render_temporal_flow(self, fis, c2w_fn, prev_fd):
+        """Common render loop for temporal-flow handlers using render_cam + vis_mask.
+
+        Eliminates the duplicated pattern:
+            for fi in fis: free_fd → infer_frame → render_cam(vis_mask) → append
+
+        Handlers with variable masks (flow_head_kp) or custom renders (grid_novel_6views)
+        retain their own loops. Post-render overlays (KP, labels) are applied by callers.
+
+        Args:
+            fis:     List of frame indices to render.
+            c2w_fn:  Callable(i, fi) → (c2w 4x4, fxfycxcy 4) — returns camera for frame i.
+            prev_fd: Previous frame data dict (will be freed per frame).
+
+        Returns:
+            (imgs: List[np.ndarray float32], last_fd: dict | None)
+        """
+        imgs = []
+        fd = prev_fd
+        for i, fi in enumerate(fis):
+            if fd:
+                free_fd(fd)
+            fd = infer_frame(self.model, fi, self.m5, self.kp,
+                             self.n_thresh, self.res, self.device)
+            if fd is None:
+                imgs.append(np.zeros((self.res, self.res, 3), dtype=np.float32))
+                continue
+            c2w, fxfy = c2w_fn(i, fi)
+            img = render_cam(fd["gaussians"], c2w, fxfy, self.res, self.res,
+                             mask=fd["vis_mask"], bg=self.bg, device=self.device)
+            imgs.append(img)
+        return imgs, fd
 
 
 # ---------------------------------------------------------------------------
