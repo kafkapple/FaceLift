@@ -1,0 +1,103 @@
+# Cinematic Demo v6_A — Full version: controls=ON, extreme views=ON
+# flow_gt_opener → flow_gt → flow_mask → flow_render → freeze_orbit →
+#   flow_novel → flow_head_kp → flow_novel_extra → grid_panorama
+# Checkpoint: alpha=0.3 (M5t2 trade-off best, IoU=0.913)
+# ~70s total
+
+global:
+  fps: 30
+  resolution: 768
+  bg_color: [1.0, 1.0, 1.0]
+  n_filter: 2
+  gt_view: 0
+  crossfade: 0.3
+  mask_border_color: null
+  keypoint_overlay: false  # per-segment control
+  show_controls: true       # icon bar overlay enabled
+
+model:
+  config: configs/base/gslrm_mouse.yaml
+  num_input_views: 6
+  checkpoint: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+  m5_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5
+  kp_path: ~/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz
+
+camera:
+  radius: 2.7
+  hfov: 50
+
+frame_range: "1500:1860"  # 360 frames from mid-dataset (more active behavior)
+
+segments:
+  # === Phase 0: GT 6-cam opener → zoom to cam 0 ===
+  - type: flow_gt_opener
+    duration: 3.0
+    frame_step: 2
+    label: ""   # internal phase labels applied
+
+  # === Phase 1: Introduction (GT camera, temporal flow) ===
+  - type: flow_gt
+    duration: 3.0
+    raw: true
+    frame_step: 2
+    label: "GT RGB (Camera 0)"
+
+  - type: flow_mask
+    duration: 2.5
+    frame_step: 2
+    label: "Foreground Segmentation (SAM2)"
+
+  - type: flow_render
+    duration: 8.0
+    frame_step: 2
+    label: "GS-LRM 6v | alpha=0.3 checkpoint"
+
+  # === Phase 2: 360 Turntable (no match_gt, no crossfade for clean SLERP entry) ===
+  - type: freeze_orbit
+    duration: 10.0
+    elevation: 20
+    match_gt: false
+    transition_frames: 20
+    no_crossfade: true
+    label: "360-degree Turntable"
+
+  # === Phase 3: Bottom view (uses orbit ending azimuth for continuity) ===
+  - type: flow_novel
+    duration: 6.0
+    elevation: -80
+    use_prev_azimuth: true     # continues from freeze_orbit ending azimuth
+    prev_elevation: 20
+    transition_frames: 30
+    frame_step: 2
+    label: "Bottom View - Temporal Sequence"
+
+  # === Phase 4: Head close-up + Keypoints (zoom-out 1.0→0.75→1.0) ===
+  - type: flow_head_kp
+    duration: 9.0
+    elevation: 25
+    zoom: 1.0                  # zoom-out trajectory handled in code (1.0→0.75→1.0)
+    prev_elevation: -80
+    transition_frames: 30
+    frame_step: 2
+    label: "Head + Keypoints (Temporal)"
+
+  # === Phase 5: Extrapolated novel views (bottom/top/side, extreme included) ===
+  - type: flow_novel_extra
+    duration: 8.0
+    frame_step: 2
+    include_extreme: true
+    transition_frames: 20
+    cam_defs:
+      - {elevation: -80, azimuth: 0,   label: "Bottom View"}
+      - {elevation:  80, azimuth: 0,   label: "Top View"}
+      - {elevation:   0, azimuth: 90,  label: "Side View (Right)"}
+      - {elevation: -40, azimuth: 180, label: "Rear-Bottom View"}
+    label: ""   # per-camera labels applied internally
+
+  # === Phase 6: Panoramic grid ending (24 evenly-distributed views) ===
+  - type: grid_panorama
+    duration: 12.0
+    frame_step: 2
+    num_views: 24
+    include_extreme: true
+    label: ""   # phase-specific labels added internally
