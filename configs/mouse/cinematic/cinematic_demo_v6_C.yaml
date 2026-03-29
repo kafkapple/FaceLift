@@ -93,10 +93,14 @@ segments:
       - {elevation: -20, azimuth: 180, label: "Rear View"}
     label: ""
 
-  # === Phase 6: Panoramic grid ending (24 views, no extreme rows) ===
-  - type: grid_panorama
-    duration: 12.0
+  # === Phase 6a: SLERP from last novel cam → GT cam, zoom-out to reveal 6-cam mosaic ===
+  - type: flow_gt_zoom_out
+    duration: 5.0
+    frame_step: 1
+    label: "GT Views (6 Cameras)"
+
+  # === Phase 6b: 6 fixed novel views grid (top/bot/front/right/rear/left) ===
+  - type: grid_novel_6views
+    duration: 8.0
     frame_step: 2
-    num_views: 24
-    include_extreme: false
-    label: ""
+    label: "Novel Views (6 Angles)"

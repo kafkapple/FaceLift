@@ -413,13 +413,18 @@ SEGMENT_ICON_MAP = {
     "freeze_bodypart": "ORBIT", "freeze_head_orbit": "KP",
     "flow_orbit": "PLAY", "flow_novel": "PLAY", "flow_novel_extra": "PLAY",
     "flow_bodypart": "PLAY", "flow_head_kp": "KP",
+    "flow_gt_zoom_out": "PLAY", "grid_novel_6views": "GRID",
     "grid_multiview": "GRID", "grid_panorama": "GRID",
 }
-ICON_DEFS = [("PLAY", "> PLAY"), ("ORBIT", "() ORBIT"), ("KP", "* KP"), ("GRID", "## GRID")]
+# BODY icon used for intra-segment toggle (full body reveal in flow_head_kp)
+ICON_DEFS = [("PLAY", "> PLAY"), ("ORBIT", "() ORBIT"), ("KP", "* KP"),
+             ("BODY", ">> BODY"), ("GRID", "## GRID")]
 
 
 def draw_icon_bar(img: np.ndarray, active_icon: str, flash_t: float = 0.0) -> np.ndarray:
-    """Draw a semi-transparent control icon bar at the top of the frame.
+    """Draw a semi-transparent control icon bar at the BOTTOM of the frame.
+
+    Positioned below segment label to avoid overlapping top-area content.
 
     Args:
         img: (H, W, 3) float32 image 0-1
@@ -429,10 +434,11 @@ def draw_icon_bar(img: np.ndarray, active_icon: str, flash_t: float = 0.0) -> np
     u8 = (np.clip(img, 0, 1) * 255).astype(np.uint8).copy()
     H, W = u8.shape[:2]
     bar_h = max(28, int(H * 0.06))  # ~46px at 768
+    y_start = H - bar_h
 
-    # Draw semi-transparent dark bar
+    # Draw semi-transparent dark bar at bottom
     overlay = u8.copy()
-    cv2.rectangle(overlay, (0, 0), (W, bar_h), (15, 15, 15), -1)
+    cv2.rectangle(overlay, (0, y_start), (W, H), (15, 15, 15), -1)
     cv2.addWeighted(overlay, 0.65, u8, 0.35, 0, u8)
 
     # Draw each icon
@@ -456,7 +462,7 @@ def draw_icon_bar(img: np.ndarray, active_icon: str, flash_t: float = 0.0) -> np
 
         (tw, _), _ = cv2.getTextSize(label, font, font_s, th)
         tx = cx - tw // 2
-        ty = bar_h // 2 + int(bar_h * 0.18)
+        ty = y_start + bar_h // 2 + int(bar_h * 0.18)
         cv2.putText(u8, label, (tx, ty), font, font_s, (0, 0, 0), th + 1, cv2.LINE_AA)
         cv2.putText(u8, label, (tx, ty), font, font_s, color, th, cv2.LINE_AA)
 
@@ -464,7 +470,7 @@ def draw_icon_bar(img: np.ndarray, active_icon: str, flash_t: float = 0.0) -> np
             # Underline bar for active icon
             ux0 = cx - tw // 2 - 2
             ux1 = cx + tw // 2 + 2
-            uy = bar_h - 4
+            uy = H - 4
             cv2.line(u8, (ux0, uy), (ux1, uy), color, max(1, th), cv2.LINE_AA)
 
     return u8 / 255.0
@@ -517,7 +523,10 @@ class CinematicPipeline:
         self._show_controls = self.g.get("show_controls", False)
 
         # State shared across segments
-        self._last_orbit_az: float = 270.0  # updated by freeze_orbit handler
+        self._last_orbit_az: float = 270.0          # updated by freeze_orbit handler
+        self._last_orbit_c2w: Optional[np.ndarray] = None   # for SLERP into flow_novel
+        self._last_novel_c2w: Optional[np.ndarray] = None   # for SLERP into flow_gt_zoom_out
+        self._pending_subevents: List[tuple] = []           # (rel_frame_idx, icon) from handlers
 
         # Pre-load keypoints array if overlay enabled
         self._kp_data = None
@@ -578,7 +587,7 @@ class CinematicPipeline:
 
     def generate(self, output_path: str, side_by_side: bool = False,
                  use_cache: bool = False, clear_cache: bool = False,
-                 dual_output_dir: str = None):
+                 dual_output_dir: str = None, save_segments: bool = False):
         """Render all segments and write final MP4.
 
         Args:
@@ -670,8 +679,27 @@ class CinematicPipeline:
                     t = (i + 1) / cf
                     frames[i] = crossfade(last_img, frames[i], t)
 
-            # Track icon events for control overlay rendering
-            icon_events.append((len(all_imgs), SEGMENT_ICON_MAP.get(stype, "PLAY")))
+            # Per-segment individual video saving (--save-segments)
+            if save_segments and frames:
+                seg_dir = Path(output_path).parent / "segments"
+                seg_dir.mkdir(parents=True, exist_ok=True)
+                seg_path = str(seg_dir / f"seg_{si:02d}_{stype}.mp4")
+                fourcc_s = cv2.VideoWriter_fourcc(*"mp4v")
+                svw = cv2.VideoWriter(seg_path, fourcc_s, self.fps, (self.res, self.res))
+                for sf in frames:
+                    su8 = (np.clip(sf, 0, 1) * 255).astype(np.uint8)
+                    svw.write(cv2.cvtColor(su8, cv2.COLOR_RGB2BGR))
+                svw.release()
+                print(f"    [SEG] Saved: {seg_path}")
+
+            # Track icon events: segment-level + intra-segment subevents from handlers
+            base_idx = len(all_imgs)
+            icon_events.append((base_idx, SEGMENT_ICON_MAP.get(stype, "PLAY")))
+            for rel_idx, sub_icon in self._pending_subevents:
+                abs_idx = base_idx + rel_idx
+                if abs_idx < base_idx + len(frames):  # guard against out-of-range
+                    icon_events.append((abs_idx, sub_icon))
+            self._pending_subevents.clear()
 
             all_imgs.extend(frames)
             if frames:
@@ -790,10 +818,12 @@ class CinematicPipeline:
                              mask=fd["vis_mask"], bg=self.bg, device=self.device)
             imgs.append(img)
 
-        # Store ending azimuth for downstream segments (e.g. flow_novel with use_prev_azimuth)
+        # Store ending camera state for downstream SLERP continuity
         last_c2w = c2ws[-1]
         x, y = last_c2w[0, 3], last_c2w[1, 3]
-        self._last_orbit_az = (np.degrees(-np.arctan2(-x, y)) + 360) % 360
+        # CCW from +X convention (consistent with _cam_spherical and get_turntable_cameras)
+        self._last_orbit_az = (np.degrees(np.arctan2(y, x)) + 360) % 360
+        self._last_orbit_c2w = last_c2w.copy()
 
         return imgs, fd
 
@@ -982,14 +1012,19 @@ class CinematicPipeline:
         # Fixed target camera
         c2w_fixed, fxfy_fixed = self._cam_spherical(elev, gt_az)
 
-        # Transition cameras: smooth elevation sweep (eased)
+        # Transition cameras: SLERP from actual last orbit cam if available, else elevation sweep
         trans_c2ws = []
         if trans_n > 0:
-            ts = np.linspace(0, 1, trans_n + 1)[1:]  # exclude start
-            for t in ts:
-                t_ease = t * t * (3 - 2 * t)  # smoothstep
-                e = prev_elev + (elev - prev_elev) * t_ease
-                trans_c2ws.append(self._cam_spherical(e, gt_az)[0])
+            if use_prev_az and self._last_orbit_c2w is not None:
+                # True SLERP — smoothly interpolates both rotation and translation
+                trans_c2ws = list(interpolate_cameras(
+                    self._last_orbit_c2w, c2w_fixed, trans_n))
+            else:
+                ts = np.linspace(0, 1, trans_n + 1)[1:]  # exclude start
+                for t in ts:
+                    t_ease = t * t * (3 - 2 * t)  # smoothstep
+                    e = prev_elev + (elev - prev_elev) * t_ease
+                    trans_c2ws.append(self._cam_spherical(e, gt_az)[0])
 
         imgs = []
         fd = prev_fd
@@ -1064,6 +1099,11 @@ class CinematicPipeline:
                 trans_c2ws.append(self._cam_spherical(e, gt_az)[0])
 
         ease_start = int(orbit_n * 0.8)
+
+        # Emit icon subevent: switch from KP → BODY when full-body rendering begins
+        body_rel_frame = trans_n + ease_start  # absolute within this segment
+        self._pending_subevents.append((body_rel_frame, "BODY"))
+
         imgs = []
         fd = prev_fd
         for i, fi in enumerate(fis):
@@ -1121,7 +1161,7 @@ class CinematicPipeline:
         fi_rep = self.all_frames[len(self.all_frames) // 2]
         fd_rep = self._fd(fi_rep)
 
-        def make_mosaic(fi_use):
+        def make_mosaic(fi_use, show_labels=False):
             fd_path = self._fd(fi_use)
             canvas = np.ones((self.res, self.res, 3), dtype=np.float32) * np.array(self.bg)
             for v in range(6):
@@ -1130,6 +1170,18 @@ class CinematicPipeline:
                 sm = cv2.resize(gt_img, (cell, cell), interpolation=cv2.INTER_AREA)
                 y0 = pad_top + row * cell
                 canvas[y0:y0 + cell, col * cell:(col + 1) * cell] = sm
+            if show_labels:
+                # Camera index labels per cell (must draw on uint8)
+                canvas_u8 = (np.clip(canvas, 0, 1) * 255).astype(np.uint8)
+                for v in range(6):
+                    row, col = v // 3, v % 3
+                    x0_cell = col * cell
+                    y0_cell = pad_top + row * cell
+                    cv2.putText(canvas_u8, f"Cam {v}", (x0_cell + 4, y0_cell + 16),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.38, (40, 40, 40), 2, cv2.LINE_AA)
+                    cv2.putText(canvas_u8, f"Cam {v}", (x0_cell + 4, y0_cell + 16),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.38, (210, 210, 210), 1, cv2.LINE_AA)
+                canvas = canvas_u8 / 255.0
             return canvas
 
         # GT view cell bounds in mosaic
@@ -1139,34 +1191,36 @@ class CinematicPipeline:
         cell_y0 = pad_top + cell_row * cell
 
         fis = self._next_frames(n2, step=seg.get("frame_step", 2))
+        # Full-res target GT image for quality blend at end of zoom-in
         full_gt_last = load_gt(self._fd(fis[-1]), gt_v, self.bg, raw=True, res=self.res)
 
         imgs = []
-        # Phase 1: static mosaic
-        mosaic = make_mosaic(fi_rep)
+        # Phase 1: static mosaic with camera labels
+        mosaic = make_mosaic(fi_rep, show_labels=True)
         mosaic_labeled = add_label(mosaic, "GT Views (6 Cameras)", fontscale=0.55)
         imgs.extend([mosaic_labeled] * n1)
 
-        # Phase 2: crop-zoom animation (cell rect → full frame)
+        # Phase 2: crop-zoom IN animation (full mosaic → cell view)
+        # Start: show full mosaic (cs=res), End: zoomed into gt_view cell (cs=cell)
         for j, fi in enumerate(fis):
             t = j / max(n2 - 1, 1)
             t_ease = t * t * (3 - 2 * t)  # smoothstep
 
-            # Interpolate crop rect from cell bounds → full frame
-            cx0 = int(cell_x0 * (1 - t_ease))
-            cy0 = int(cell_y0 * (1 - t_ease))
-            cs = int(cell + (self.res - cell) * t_ease)
-            cs = max(cs, 1)
+            # Zoom IN: crop window shrinks from full frame → cell bounds
+            cx0 = int(cell_x0 * t_ease)                        # 0 → cell_x0
+            cy0 = int(cell_y0 * t_ease)                        # 0 → cell_y0
+            cs = int(self.res - (self.res - cell) * t_ease)    # res → cell
+            cs = max(cs, cell)
 
-            mosaic_f = make_mosaic(fi)
-            # Crop + resize to full resolution
+            mosaic_f = make_mosaic(fi, show_labels=True)
+            # Crop the progressively narrowing window and upscale to full res
             crop = mosaic_f[cy0:cy0 + cs, cx0:cx0 + cs]
             if crop.size == 0:
                 crop = mosaic_f
             frame = cv2.resize(crop.astype(np.float32), (self.res, self.res),
                                interpolation=cv2.INTER_LINEAR)
 
-            # Blend with full GT in last 20% for quality
+            # Blend with full-res GT in final 20% for quality (zoomed to gt_view)
             blend_t = max(0.0, (t - 0.8) / 0.2) if t > 0.8 else 0.0
             if blend_t > 0:
                 frame = crossfade(frame, full_gt_last, blend_t)
@@ -1251,6 +1305,144 @@ class CinematicPipeline:
                 img = add_label(img, cam_label)
                 imgs.append(img)
 
+        # Save last camera pose for SLERP continuity in flow_gt_zoom_out
+        if cam_defs:
+            last_cam = cam_defs[-1]
+            self._last_novel_c2w, _ = self._cam_spherical(
+                last_cam.get("elevation", 0), last_cam.get("azimuth", 0))
+
+        return imgs, fd
+
+    def _seg_flow_gt_zoom_out(self, seg, n, prev_fd):
+        """SLERP from last novel cam → GT cam, then zoom-out to reveal 6-cam GT mosaic.
+
+        Phase 1 (n//2): SLERP from _last_novel_c2w to GT view camera (temporal flow render)
+        Phase 2 (n - n//2): Zoom-out + crossfade from GT render to GT 6-cam mosaic
+        """
+        step = seg.get("frame_step", 1)
+        fis = self._next_frames(n, step=step)
+        n1 = n // 2
+        n2 = n - n1
+
+        # GT camera intrinsics (scaled to self.res)
+        fi_ref = fis[min(n1, len(fis) - 1)]
+        gt_c2w = gt_camera_c2w(self._fd(fi_ref), self.gt_view)
+        gt_fxfy_raw = gt_camera_fxfycxcy(self._fd(fi_ref), self.gt_view)
+        gt_fxfy = gt_fxfy_raw * (self.res / 512.0)
+
+        # Start camera: last novel cam or fallback
+        start_c2w = self._last_novel_c2w
+        if start_c2w is None:
+            start_c2w, _ = self._cam_spherical(0, 270)
+
+        # SLERP cameras for phase 1
+        slerp_c2ws = list(interpolate_cameras(start_c2w, gt_c2w, n1)) if n1 > 0 else []
+
+        # Mosaic layout constants
+        cell = self.res // 3
+        pad_top = (self.res - cell * 2) // 2
+
+        def make_mosaic_simple(fi_use):
+            fd_path = self._fd(fi_use)
+            canvas = np.ones((self.res, self.res, 3), dtype=np.float32) * np.array(self.bg)
+            for v in range(6):
+                gt_img = load_gt(fd_path, v, self.bg, raw=True, res=self.res)
+                row, col = v // 3, v % 3
+                sm = cv2.resize(gt_img, (cell, cell), interpolation=cv2.INTER_AREA)
+                y0 = pad_top + row * cell
+                canvas[y0:y0 + cell, col * cell:(col + 1) * cell] = sm
+            return canvas
+
+        imgs = []
+        fd = prev_fd
+        for i, fi in enumerate(fis):
+            if fd:
+                free_fd(fd)
+            fd = infer_frame(self.model, fi, self.m5, self.kp,
+                             self.n_thresh, self.res, self.device)
+            if fd is None:
+                imgs.append(np.zeros((self.res, self.res, 3)))
+                continue
+
+            if i < n1:
+                # Phase 1: SLERP camera approaching GT camera
+                c2w_i = slerp_c2ws[i] if i < len(slerp_c2ws) else gt_c2w
+                img = render_cam(fd["gaussians"], c2w_i, gt_fxfy,
+                                 self.res, self.res, mask=fd["vis_mask"],
+                                 bg=self.bg, device=self.device)
+            else:
+                # Phase 2: zoom-out + crossfade to GT mosaic
+                j = i - n1
+                t = j / max(n2 - 1, 1)
+                t_ease = t * t * (3 - 2 * t)  # smoothstep
+
+                gt_img = render_cam(fd["gaussians"], gt_c2w, gt_fxfy,
+                                    self.res, self.res, mask=fd["vis_mask"],
+                                    bg=self.bg, device=self.device)
+                mosaic = make_mosaic_simple(fi)
+
+                if t_ease < 0.05:
+                    img = gt_img
+                else:
+                    zoom_val = max(1.0 - 0.7 * t_ease, 0.3)  # 1.0 → 0.3
+                    gt_zoomed = zoom_out_canvas(gt_img, zoom_val, self.bg)
+                    img = crossfade(gt_zoomed, mosaic, min(t_ease * 1.5, 1.0))
+
+            imgs.append(img)
+        return imgs, fd
+
+    def _seg_grid_novel_6views(self, seg, n, prev_fd):
+        """6 fixed novel views in 3×2 grid (top/bottom/front/right/rear/left), temporal flow.
+
+        Layout: 3 cols × 2 rows, same cell layout as grid_multiview.
+        """
+        step = seg.get("frame_step", 2)
+        fis = self._next_frames(n, step=step)
+
+        # 6 canonical novel views
+        novel_elevs  = [80,   -80,  20,  20,   20,   20]
+        novel_azims  = [0,      0,   0,  90,  180,  270]
+        novel_labels = ["Top", "Bot", "Frt", "Rgt", "Rear", "Lft"]
+        novel_cams = [self._cam_spherical(e, a) for e, a in zip(novel_elevs, novel_azims)]
+
+        cell = self.res // 3
+        pad_top = (self.res - cell * 2) // 2
+
+        def make_novel_grid(fd_use):
+            canvas = np.ones((self.res, self.res, 3), dtype=np.float32) * np.array(self.bg)
+            for idx, (nc2w, nfxfy) in enumerate(novel_cams):
+                cell_img = render_cam(fd_use["gaussians"], nc2w, nfxfy,
+                                      self.res, self.res, mask=fd_use["vis_mask"],
+                                      bg=self.bg, device=self.device)
+                sm = cv2.resize(cell_img.astype(np.float32), (cell, cell),
+                                interpolation=cv2.INTER_AREA)
+                row, col = idx // 3, idx % 3
+                y0 = pad_top + row * cell
+                canvas[y0:y0 + cell, col * cell:(col + 1) * cell] = sm
+            # Draw labels (uint8)
+            canvas_u8 = (np.clip(canvas, 0, 1) * 255).astype(np.uint8)
+            for idx, lbl in enumerate(novel_labels):
+                row, col = idx // 3, idx % 3
+                x0_cell = col * cell
+                y0_cell = pad_top + row * cell
+                cv2.putText(canvas_u8, lbl, (x0_cell + 4, y0_cell + 16),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.38, (40, 40, 40), 2, cv2.LINE_AA)
+                cv2.putText(canvas_u8, lbl, (x0_cell + 4, y0_cell + 16),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.38, (200, 200, 200), 1, cv2.LINE_AA)
+            return canvas_u8 / 255.0
+
+        imgs = []
+        fd = prev_fd
+        for i, fi in enumerate(fis):
+            if fd:
+                free_fd(fd)
+            fd = infer_frame(self.model, fi, self.m5, self.kp,
+                             self.n_thresh, self.res, self.device)
+            if fd is None:
+                imgs.append(np.zeros((self.res, self.res, 3)))
+                continue
+            grid = make_novel_grid(fd)
+            imgs.append(grid)
         return imgs, fd
 
     def _seg_grid_panorama(self, seg, n, prev_fd):
@@ -1487,6 +1679,8 @@ def main():
                         help="Wipe .seg_cache/ before running (implies --use-cache)")
     parser.add_argument("--dual-output-dir", default=None,
                         help="Also write a version without control overlays to this dir")
+    parser.add_argument("--save-segments", action="store_true",
+                        help="Write individual segment MP4s to output-dir/segments/")
     args = parser.parse_args()
 
     # Load config
@@ -1529,6 +1723,7 @@ def main():
         use_cache=args.use_cache or args.clear_cache,
         clear_cache=args.clear_cache,
         dual_output_dir=args.dual_output_dir,
+        save_segments=args.save_segments,
     )
     print(f"\nDone: {out}")
 
