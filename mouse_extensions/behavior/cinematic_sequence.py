@@ -94,13 +94,8 @@ def gt_camera_spherical(frame_dir: str, view_idx: int) -> Tuple[float, float, fl
 
 def get_orbit_cameras(n_frames: int, elevation: float, radius: float = 2.7,
                       hfov: float = 50, resolution: int = 512,
-                      mode: str = "turntable", elevation_end: float = None,
-                      match_gt: bool = False, gt_frame_dir: str = None,
-                      gt_view: int = 0):
-    """Generate camera poses via get_turntable_cameras.
-
-    match_gt is deprecated (always False). All configs use fixed spherical params.
-    """
+                      mode: str = "turntable", elevation_end: float = None):
+    """Generate camera poses via get_turntable_cameras."""
     from mouse_extensions.visualization.camera_utils import get_turntable_cameras
 
     kw = dict(hfov=hfov, num_views=n_frames, w=resolution, h=resolution,
@@ -586,9 +581,9 @@ class CinematicPipeline:
         uv, valid = project_kp_to_view(kp_3d, self._fd(fi), view)
         return overlay_keypoints(img, uv, valid)
 
-    def generate(self, output_path: str, side_by_side: bool = False,
-                 use_cache: bool = False, clear_cache: bool = False,
-                 dual_output_dir: str = None, save_segments: bool = False):
+    def generate(self, output_path: str, use_cache: bool = False,
+                 clear_cache: bool = False, dual_output_dir: str = None,
+                 save_segments: bool = False):
         """Render all segments and write final MP4.
 
         Args:
@@ -605,7 +600,8 @@ class CinematicPipeline:
         last_img = None
         last_fd = None
 
-        # Reset cross-segment state so repeated generate() calls don't leak
+        # Reset all per-run state so repeated generate() calls don't leak
+        self.fi = 0
         self._last_orbit_az = 270.0
         self._last_orbit_c2w = None
         self._last_novel_c2w = None
@@ -639,10 +635,18 @@ class CinematicPipeline:
             cache_file = cache_dir / f"seg_{si:02d}_{stype}.npz" if use_cache else None
 
             if cache_file and cache_file.exists():
-                # --- Cache HIT: load frames, restore fi cursor and prev_fd ---
+                # --- Cache HIT: load frames, restore fi cursor, prev_fd, and state ---
                 d = np.load(cache_file)
                 frames = list(d["frames"].astype(np.float32) / 255.0)
                 self.fi = int(d["fi_after"][0])
+
+                # Restore cross-segment camera state (critical for SLERP continuity)
+                if "last_orbit_az" in d:
+                    self._last_orbit_az = float(d["last_orbit_az"][0])
+                if "has_orbit_c2w" in d and bool(d["has_orbit_c2w"][0]):
+                    self._last_orbit_c2w = d["last_orbit_c2w"].copy()
+                if "has_novel_c2w" in d and bool(d["has_novel_c2w"][0]):
+                    self._last_novel_c2w = d["last_novel_c2w"].copy()
 
                 # Restore prev_fd for downstream segments that need Gaussians
                 if stype not in _NO_INFER_SEGS and "last_fi" in d:
@@ -667,11 +671,23 @@ class CinematicPipeline:
                     frames_u8 = np.array(
                         [(np.clip(f, 0, 1) * 255).astype(np.uint8) for f in frames],
                         dtype=np.uint8)
+                    # Save cross-segment state so cache HIT can restore it correctly
+                    _orbit_c2w = (self._last_orbit_c2w
+                                  if self._last_orbit_c2w is not None
+                                  else np.zeros((4, 4), dtype=np.float64))
+                    _novel_c2w = (self._last_novel_c2w
+                                  if self._last_novel_c2w is not None
+                                  else np.zeros((4, 4), dtype=np.float64))
                     np.savez_compressed(
                         cache_file,
                         frames=frames_u8,
                         fi_after=np.array([fi_after], dtype=np.int32),
-                        last_fi=np.array([last_fi_val], dtype=np.int32))
+                        last_fi=np.array([last_fi_val], dtype=np.int32),
+                        last_orbit_az=np.array([self._last_orbit_az]),
+                        last_orbit_c2w=_orbit_c2w,
+                        has_orbit_c2w=np.array([self._last_orbit_c2w is not None]),
+                        last_novel_c2w=_novel_c2w,
+                        has_novel_c2w=np.array([self._last_novel_c2w is not None]))
                     print(f"    [CACHE SAVED] {cache_file.name} "
                           f"({frames_u8.nbytes // 1024 // 1024}MB raw)")
 
@@ -752,7 +768,7 @@ class CinematicPipeline:
         write_video(output_path, with_controls=self._show_controls)
 
         # Write dual output (no controls) if requested
-        if dual_output_dir and self._show_controls:
+        if dual_output_dir:
             Path(dual_output_dir).mkdir(parents=True, exist_ok=True)
             dual_path = str(Path(dual_output_dir) / "cinematic_demo.mp4")
             write_video(dual_path, with_controls=False)
@@ -802,13 +818,11 @@ class CinematicPipeline:
         fd = prev_fd or self._ensure_fd()
         elev = seg.get("elevation", 20)
         transition_frames = seg.get("transition_frames", 15)  # smooth GT->orbit
-        match_gt = seg.get("match_gt", False)
 
         # Generate orbit cameras
         orbit_n = max(1, n - transition_frames)
         c2ws, fxfy, w, h = get_orbit_cameras(
-            orbit_n, elev, self.radius, self.hfov, self.res,
-            match_gt=match_gt, gt_frame_dir=fd["frame_dir"], gt_view=self.gt_view)
+            orbit_n, elev, self.radius, self.hfov, self.res)
 
         # Get GT camera c2w for smooth transition
         gt_c2w_mat = gt_camera_c2w(fd["frame_dir"], self.gt_view)
@@ -931,11 +945,14 @@ class CinematicPipeline:
         imgs, fd = self._render_temporal_flow(fis, c2w_fn, prev_fd)
 
         if kp_on:
+            # Skip KP overlay on frames where inference failed (zero frame)
+            valid_mask = [img.any() for img in imgs]
             imgs = [
                 self._overlay_kp_novel(
                     img, fi,
                     trans_c2ws[i] if i < trans_n else c2w_fixed,
                     fxfy_fixed, self.res, self.res)
+                if valid_mask[i] else img
                 for i, (img, fi) in enumerate(zip(imgs, fis))
             ]
         return imgs, fd
@@ -962,9 +979,7 @@ class CinematicPipeline:
         # Orbit cameras for main section
         orbit_n = max(1, n - trans_n)
         c2ws, fxfy_orb, w, h = get_orbit_cameras(
-            orbit_n, elev, self.radius, self.hfov, self.res,
-            match_gt=False, gt_frame_dir=prev_fd["frame_dir"] if prev_fd else None,
-            gt_view=self.gt_view)
+            orbit_n, elev, self.radius, self.hfov, self.res)
         fxfy_orb0 = fxfy_orb[0]  # consistent intrinsics
 
         # Transition cameras: elevation sweep from prev_elev to target
