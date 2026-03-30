@@ -1,3 +1,4 @@
+# no-split: upstream GS-LRM training orchestrator — splitting breaks upstream merge compatibility
 # Copyright 2025 Adobe Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -537,22 +538,47 @@ class GSLRMTrainer:
         
     def load_checkpoint(self):
         """Load model checkpoint if available."""
+        resume_ckpt_path = self.config.training.checkpointing.get("resume_ckpt", "")
+
         # Try loading from different sources in order of priority
         for try_load_path in [
             self.config.training.checkpointing.checkpoint_dir,
             self.args.load,
-            self.config.training.checkpointing.get("resume_ckpt", ""),
+            resume_ckpt_path,
         ]:
             print(f"try_load_path: {try_load_path}")
             if self.config.training.checkpointing.get("force_resume_ckpt", False):
-                try_load_path = self.config.training.checkpointing.resume_ckpt
-                
-            reset_training_state = (
-                self.config.training.optimizer.get("reset_training_state", False) and
-                try_load_path == self.config.training.checkpointing.get("resume_ckpt", "")
+                try_load_path = resume_ckpt_path
+
+            # Reset flags only apply when loading a pretrained model for
+            # fine-tuning (resume_ckpt), not when resuming our own training
+            # checkpoints from checkpoint_dir.
+            is_loading_pretrained = (
+                bool(resume_ckpt_path)
+                and os.path.abspath(try_load_path) == os.path.abspath(resume_ckpt_path)
             )
-            
-            (self.optimizer, self.lr_scheduler, 
+
+            reset_training_state = (
+                self.config.training.optimizer.get("reset_training_state", False)
+                and is_loading_pretrained
+            )
+            effective_reset_lr = (
+                self.config.training.optimizer.reset_lr and is_loading_pretrained
+            )
+            effective_reset_wd = (
+                self.config.training.optimizer.reset_weight_decay and is_loading_pretrained
+            )
+
+            if is_loading_pretrained:
+                print_rank0(
+                    f"[Resume] Loading pretrained model — "
+                    f"reset_lr={effective_reset_lr}, reset_wd={effective_reset_wd}, "
+                    f"reset_state={reset_training_state}"
+                )
+            else:
+                print_rank0(f"[Resume] Resuming own training from {try_load_path}")
+
+            (self.optimizer, self.lr_scheduler,
              self.fwdbwd_pass_step, self.param_update_step) = resume_job(
                 try_load_path,
                 self.model,
@@ -560,11 +586,11 @@ class GSLRMTrainer:
                 self.lr_scheduler,
                 self.job_overview,
                 self.config.training.schedule.warmup,
-                self.config.training.optimizer.reset_lr,
-                self.config.training.optimizer.reset_weight_decay,
+                effective_reset_lr,
+                effective_reset_wd,
                 reset_training_state,
             )
-            
+
             if self.fwdbwd_pass_step > 0:
                 break
                 
@@ -1808,6 +1834,36 @@ def load_and_process_config(config_path: str, overrides: Optional[list] = None) 
     return edict(config)
 
 
+def _check_data_storage_tier(config):
+    """Warn if training data paths resolve to NFS instead of local NVMe.
+
+    cgroup v2 charges NFS page cache against user quota, risking oomd kill.
+    Training data should be on /node_data/ (local NVMe).
+    """
+    paths_to_check = []
+    train_dp = config.get("training", {}).get("dataset", {}).get("data_path", "")
+    if train_dp:
+        paths_to_check.append(("training.dataset.data_path", train_dp))
+    val_dp = config.get("validation", {}).get("data_path", "")
+    if val_dp:
+        paths_to_check.append(("validation.data_path", val_dp))
+
+    for label, p in paths_to_check:
+        resolved = os.path.realpath(os.path.expanduser(p))
+        if not resolved.startswith("/node_data"):
+            fs_info = ""
+            try:
+                result = os.popen(f"df -h '{resolved}' 2>/dev/null | tail -1").read().strip()
+                if "nfs" in result.lower() or "10.2.11" in result:
+                    fs_info = " [NFS detected!]"
+            except Exception:
+                pass
+            print(f"⚠️  STORAGE WARNING: {label} = {p}")
+            print(f"   Resolved: {resolved}{fs_info}")
+            print(f"   Recommend: use /node_data/ for training data (cgroup page cache risk)")
+            print(f"   See: docs/specs/RAT_PREPROCESSING_STRATEGY.md §Q3")
+
+
 def main():
     """Main training function."""
     # Parse arguments
@@ -1849,8 +1905,12 @@ def main():
             key_parts = key_value[0].split(".")
             _set_nested_key(config, key_parts, key_value[1])
     
+    # Pre-flight: warn if training data is on NFS (cgroup page cache risk)
+    # See docs/specs/RAT_PREPROCESSING_STRATEGY.md §Q3
+    _check_data_storage_tier(config)
+
     print_rank0(config)
-    
+
     # Create trainer
     trainer = GSLRMTrainer(config, args)
     

@@ -49,6 +49,9 @@ CUDA_VISIBLE_DEVICES=5 bash mouse_extensions/behavior/run_all_visualizations.sh
 | `flow_orbit` | ✅ advancing | turntable | 움직이면서 회전 |
 | `flow_bodypart` | ✅ advancing | turntable | 움직이면서 부위 전환 |
 | `freeze_bodypart` | ❄️ frozen | turntable | 정지 + 부위 전환 + orbit |
+| `flow_novel` | ✅ advancing | fixed novel | 고정 novel camera에서 temporal flow. `elevation`, `prev_elevation`+`transition_frames`으로 smoothstep sweep 진입 가능 |
+| `flow_head_kp` | ✅ advancing | orbit+zoom | 머리 부위 확대 + MAMMAL 22-keypoint overlay (depth-based opacity, 약어 라벨, 우측 legend) |
+| `grid_multiview` | ✅ advancing | 3×2 grid | 6-view grid 3단계: GT raw → GS-LRM recon → Novel views (2 elevations × 3 azimuths) |
 
 ### Config 옵션 (YAML)
 
@@ -60,8 +63,9 @@ global:
   n_filter: 2                  # Multi-view visibility threshold (N>=2 권장)
   gt_view: 0                   # GT 카메라 뷰 인덱스 (0-5)
   crossfade: 0.3               # 세그먼트 간 crossfade (초)
-  keypoint_overlay: false      # MAMMAL 22-keypoint overlay on/off
+  keypoint_overlay: false      # MAMMAL 22-keypoint overlay on/off (per-segment으로 제어 권장)
   mask_border_color: null      # null=투명, [1,1,1]=흰색, [1,0,0]=빨강
+  cache_segments: false        # true이면 .seg_cache/에 세그먼트별 프레임 캐시 (재실행 가속)
 
 camera:
   radius: 2.7                  # 카메라 궤도 반경
@@ -96,14 +100,130 @@ python -m mouse_extensions.behavior.cinematic_sequence \
     --frame-range 195:255 \
     --fps 10 \
     --output-dir outputs/my_demo
+
+# 세그먼트 캐시 사용 (두 번째 실행부터 크게 빠름)
+python -m ... --use-cache
+
+# 캐시 초기화 후 전체 재실행
+python -m ... --use-cache --clear-cache
 ```
+
+### 완료 확인 (원격 실행 시)
+
+```bash
+# ✅ 올바른 방법: CINEMATIC_DONE 라인 확인
+ssh gpu03 "grep 'CINEMATIC_DONE' ~/dev/FaceLift/outputs/experiments/mouse/cinematic_v5.log"
+
+# ❌ 틀린 방법: [7/7] 라인 = 마지막 세그먼트 '시작'이지 완료가 아님
+# ❌ 틀린 방법: ls로 MP4 존재 확인 = 이전 실행 파일일 수 있음
+```
+
+> **교훈**: `all_imgs` 수집이 전부 끝난 후 VideoWriter가 실행되므로, 마지막 세그먼트 로그가
+> 찍혀도 영상 쓰기(수백 프레임)가 남아있다. 신규 실행 전 이전 MP4를 삭제하면 오인 방지.
 
 ### Turntable 시작 방향
 
 Turntable orbit는 **GT 카메라와 동일한 방향에서 시작**합니다.
 GT camera의 c2w에서 azimuth를 추출하여 `get_turntable_cameras` 출력을 회전시킵니다.
 
-## 4. Multi-View Visibility Filter (multiview_visibility_filter.py)
+## 4. Cinematic Demo v6 (configs/mouse/cinematic/)
+
+논문용 데모 영상. 3 variants, 30fps, 768px, ~68s.
+
+### v6 Variants
+
+| Variant | Config | Controls | Extreme Views | 비고 |
+|---------|--------|----------|---------------|------|
+| **v6_A** | `cinematic_demo_v6_A.yaml` | ON | ON | Full version (icon bar 포함) |
+| **v6_B** | (v6_A `--dual-output-dir`) | OFF | ON | v6_A dual output (추가 추론 없음) |
+| **v6_C** | `cinematic_demo_v6_C.yaml` | OFF | OFF | Clean standard (moderate views only) |
+
+### 세그먼트 구성 (v6_A, 10 segments)
+
+| # | Type | Duration | 설명 |
+|---|------|----------|------|
+| 1 | `flow_gt_opener` | 3.0s | GT 6-cam mosaic → zoom to cam 0 |
+| 2 | `flow_gt` | 3.0s | GT RGB (raw background) |
+| 3 | `flow_mask` | 2.5s | SAM2 foreground segmentation |
+| 4 | `flow_render` | 8.0s | GS-LRM 재구성 (α=0.3) |
+| 5 | `freeze_orbit` | 10.0s | 360° turntable (SLERP 진입, no_crossfade) |
+| 6 | `flow_novel` | 6.0s | Bottom view (-80°, use_prev_azimuth) |
+| 7 | `flow_head_kp` | 9.0s | Head close-up + KP (zoom 1.0→0.75→1.0) |
+| 8 | `flow_novel_extra` | 8.0s | Extrapolated novel views cycling |
+| 9 | `flow_gt_zoom_out` | 5.0s | SLERP → GT cam + zoom-out to mosaic |
+| 10 | `grid_novel_6views` | 8.0s | 6 novel views grid (Top/Bot/Frt/Rgt/Rear/Lft) |
+
+### 실행 명령
+
+```bash
+# 전체 3 variants 동시 실행 (GPU4 + GPU5)
+bash mouse_extensions/scripts/run_cinematic_v6_all.sh
+
+# 또는 개별 실행
+CUDA_VISIBLE_DEVICES=5 /home/joon/anaconda3/envs/facelift/bin/python \
+    -m mouse_extensions.behavior.cinematic_sequence \
+    --config configs/mouse/cinematic/cinematic_demo_v6_A.yaml \
+    --output-dir outputs/viz/cinematic/mouse/demo_v6_A \
+    --use-cache --save-segments \
+    --dual-output-dir outputs/viz/cinematic/mouse/demo_v6_B
+
+# 완료 확인
+grep 'CINEMATIC_DONE' outputs/viz/cinematic/mouse/demo_v6_A/run.log
+
+# 다운로드
+scp gpu03:~/dev/FaceLift/outputs/viz/cinematic/mouse/demo_v6_{A,B,C}/cinematic_demo.mp4 ~/Downloads/
+```
+
+### 소요 시간
+
+- 총 unique inference: ~526 (frame_step=2 적용 후)
+- GPU당 inference 속도: ~17s/frame (GPU5 기준, 260329 측정)
+- 예상 완료 시간: **약 2.5시간**
+
+### 왜 MP4 크기가 작나? (~7MB)
+
+| 단계 | 크기 | 이유 |
+|------|------|------|
+| Float32 프레임 | ~10GB | 768²×3×4B×1545f |
+| uint8 변환 | ~2.7GB | 4x 절약 |
+| **mp4v 압축 후** | **~7MB** | ~385:1 — 흰 배경 + 느린 움직임으로 temporal redundancy 극대화 |
+
+## 5. 세그먼트 캐시 시스템
+
+세그먼트별 렌더링 결과를 `.seg_cache/`에 저장하여 부분 재실행 가속.
+
+### 동작 원리
+
+```
+generate()
+├── 캐시 없음: handler() 실행 → 프레임 렌더 → .npz 저장
+└── 캐시 있음: .npz 로드 → self.fi 커서 복원 → last_fi로 prev_fd 재추론(1회)
+```
+
+각 `.npz` 파일에 저장되는 정보:
+- `frames`: uint8 압축 프레임 배열 (768×768×3×N)
+- `fi_after`: 이 세그먼트 후 프레임 커서 위치
+- `last_fi`: 마지막 inference 프레임 인덱스 (다음 세그먼트의 `prev_fd` 복원용)
+
+### 세그먼트 선택적 재실행
+
+```bash
+# seg_05_flow_head_kp만 수정 후 재실행
+rm outputs/viz/cinematic/mouse/demo_v5/.seg_cache/seg_05_flow_head_kp.npz
+python3 -m ... --use-cache
+# → seg 0-4 캐시 로드, seg 5-6만 재추론
+```
+
+> **주의**: `freeze_orbit`처럼 이전 세그먼트 Gaussians에 의존하는 세그먼트는,
+> 앞 세그먼트 캐시 히트 시 마지막 프레임 1회 재추론으로 `prev_fd` 복원.
+
+### 캐시 용량
+
+- Uncompressed uint8: ~2.7GB
+- npz 압축 후 (흰 배경 + 느린 움직임): 예상 **500MB~1GB**
+- 사용 후 삭제 권장: `rm -rf .seg_cache/`
+
+## 7. Multi-View Visibility Filter (multiview_visibility_filter.py)
 
 ### Sweep Mode (정적 비교)
 
@@ -130,7 +250,7 @@ CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.multiview_visibility_
 
 출력: 6-view grid MP4 × (all + 각 body part) × (white + black BG)
 
-## 5. 배치 실행
+## 8. 배치 실행
 
 ```bash
 # 전체 시각화 일괄 생성
@@ -161,7 +281,7 @@ CUDA_VISIBLE_DEVICES=5 bash mouse_extensions/behavior/run_all_visualizations.sh
 | `outputs/analysis/mouse/filtering/multiview_filter_video/` | Body-part mask filter 9종 |
 | `outputs/viz/bodypart/mouse/bodypart_renders_active/` | Body-part 렌더 PNG (최신) |
 
-## 6. 커스텀 설정 예시
+## 9. 커스텀 설정 예시
 
 ### 검정 BG + keypoint + 느린 FPS
 
@@ -199,7 +319,7 @@ segments:
     label: "Quick Test"
 ```
 
-## 7. 주요 발견 사항
+## 10. 주요 발견 사항
 
 ### Multi-View Visibility Filtering
 
@@ -213,7 +333,7 @@ segments:
 기존 3DGS feature 논문(Feature 3DGS, LangSplat 등)은 전부 학습 기반 pruning에 의존.
 Feed-forward GS-LRM의 opacity=0.5 문제는 미탐구 영역 → multi-view consensus가 novel contribution.
 
-## 8. Orientation-Aware Gaussian Filter
+## 11. Orientation-Aware Gaussian Filter
 
 Novel bottom view artifact 억제를 위한 post-filter. 상세: [[ORIENTATION_FILTER_GUIDE]]
 
@@ -227,7 +347,7 @@ CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.scripts.eval.filter_grid_compa
     --m5-dir /home/joon/data/preprocessed/FaceLift_mouse/M5 --frame-range 3240:3280
 ```
 
-## 9. Opacity & Scaling Analysis
+## 12. Opacity & Scaling Analysis
 
 Gaussian 분포 분석 도구. 상세: [[../hypotheses/H8_opacity_anisotropy_analysis]]
 

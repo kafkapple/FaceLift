@@ -1,7 +1,10 @@
-# Cinematic Demo v6_C — Clean standard: controls=OFF, extreme views=OFF
-# Same segments as v6_A but without icon bar and without ±80° extreme views
-# Checkpoint: alpha=0.3 (M5t2 trade-off best, IoU=0.913)
-# ~68s total
+# Cinematic Demo v8 Test — Camera transition fixes
+# Changes from v6_C:
+#   1. GT 6view opener: temporal (not static) + longer
+#   2. Turntable: longer transition (40f), spherical sweep from GT position
+#   3. ALL crossfade disabled (no_crossfade: true everywhere)
+#   4. flow_novel_extra REMOVED
+#   5. flow_gt_zoom_out: foreground-only (raw: false → composited on white bg)
 
 global:
   fps: 30
@@ -9,10 +12,10 @@ global:
   bg_color: [1.0, 1.0, 1.0]
   n_filter: 2
   gt_view: 0
-  crossfade: 0.3
+  crossfade: 0.0         # Global crossfade disabled
   mask_border_color: null
-  keypoint_overlay: false  # per-segment control
-  show_controls: false      # no icon bar overlay
+  keypoint_overlay: false
+  show_controls: false
 
 model:
   config: configs/base/gslrm_mouse.yaml
@@ -25,42 +28,46 @@ camera:
   radius: 2.7
   hfov: 50
 
-frame_range: "1500:1860"  # 360 frames from mid-dataset (more active behavior)
+frame_range: "1500:1860"
 
 segments:
-  # === Phase 0: GT 6-cam opener → zoom to cam 0 ===
+  # === Phase 0: GT 6-cam opener (temporal, not static) → zoom to cam 0 ===
   - type: flow_gt_opener
-    duration: 3.0
+    duration: 5.0          # Longer (was 3.0) — more time for temporal GT mosaic
     frame_step: 2
+    no_crossfade: true
     label: ""
 
-  # === Phase 1: Introduction (GT camera, temporal flow) ===
+  # === Phase 1: GT single view ===
   - type: flow_gt
     duration: 3.0
     raw: true
     frame_step: 2
+    no_crossfade: true
     label: "GT RGB (Camera 0)"
 
   - type: flow_mask
     duration: 2.5
     frame_step: 2
+    no_crossfade: true
     label: "Foreground Segmentation (SAM2)"
 
   - type: flow_render
     duration: 8.0
     frame_step: 2
+    no_crossfade: true
     label: "GS-LRM 6v | alpha=0.3 checkpoint"
 
-  # === Phase 2: 360 Turntable ===
+  # === Phase 2: 360 Turntable (longer transition for smooth GT→orbit) ===
   - type: freeze_orbit
-    duration: 10.0
+    duration: 12.0          # Longer (was 10) to accommodate longer transition
     elevation: 20
     match_gt: false
-    transition_frames: 20
+    transition_frames: 40   # Longer (was 20) — more gradual elevation/radius sweep
     no_crossfade: true
     label: "360-degree Turntable"
 
-  # === Phase 3: Bottom view (SLERP handles transition, no pixel crossfade) ===
+  # === Phase 3: Bottom view ===
   - type: flow_novel
     duration: 6.0
     elevation: -80
@@ -82,28 +89,19 @@ segments:
     frame_step: 2
     label: "Head + Keypoints (Temporal)"
 
-  # === Phase 5: Extrapolated novel views (moderate elevations only) ===
-  - type: flow_novel_extra
-    duration: 8.0
-    frame_step: 2
-    include_extreme: false
-    no_crossfade: true
-    transition_frames: 20
-    cam_defs:
-      - {elevation: -40, azimuth: 0,   label: "Lower Front View"}
-      - {elevation:  40, azimuth: 0,   label: "Upper Front View"}
-      - {elevation:   0, azimuth: 90,  label: "Side View (Right)"}
-      - {elevation: -20, azimuth: 180, label: "Rear View"}
-    label: ""
+  # === Phase 5: flow_novel_extra REMOVED (per user request) ===
 
-  # === Phase 6a: SLERP from last novel cam → GT cam, zoom-out to reveal 6-cam mosaic ===
+  # === Phase 6: GT 6-view zoom-out (FG-only, white background) ===
   - type: flow_gt_zoom_out
     duration: 5.0
     frame_step: 1
-    label: "GT Views (6 Cameras)"
+    no_crossfade: true
+    fg_only: true           # NEW: foreground-only rendering on white bg
+    label: "GT Views (6 Cameras) — Foreground"
 
-  # === Phase 6b: 6 fixed novel views grid (top/bot/front/right/rear/left) ===
+  # === Phase 7: 6 fixed novel views grid ===
   - type: grid_novel_6views
     duration: 8.0
     frame_step: 2
+    no_crossfade: true
     label: "Novel Views (6 Angles)"

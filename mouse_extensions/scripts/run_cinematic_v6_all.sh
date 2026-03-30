@@ -28,6 +28,7 @@ CUDA_VISIBLE_DEVICES=$GPU python -m mouse_extensions.behavior.cinematic_sequence
     --config "$CFG_DIR/cinematic_demo_v6_A.yaml" \
     --output-dir "$BASE_DIR/demo_v6_A" \
     --use-cache \
+    --save-segments \
     --dual-output-dir "$BASE_DIR/demo_v6_B"
 
 echo ""
@@ -39,7 +40,8 @@ echo "[2/2] Generating v6_C (controls OFF, extreme OFF)"
 CUDA_VISIBLE_DEVICES=$GPU python -m mouse_extensions.behavior.cinematic_sequence \
     --config "$CFG_DIR/cinematic_demo_v6_C.yaml" \
     --output-dir "$BASE_DIR/demo_v6_C" \
-    --use-cache
+    --use-cache \
+    --save-segments
 
 echo ""
 echo "[2/2] DONE: demo_v6_C"

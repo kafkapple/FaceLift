@@ -132,7 +132,23 @@ docs/
 
 **⚠️ 카메라 파라미터 변경 시**: Ray Error 검증 필수 — `θ = arctan(√((Δcx/fx)² + (Δcy/fy)²))`
 
-### 2.4 Rotation Direction Convention
+### 2.4 Storage Tier Rule (⚠️ cgroup v2 safety)
+
+> **상세**: `docs/specs/RAT_PREPROCESSING_STRATEGY.md` §Q3, `docs/datasets/PREPROCESSING_REGISTRY.md` §10
+
+**학습 데이터는 반드시 `/node_data/` (local NVMe)에 저장. NFS (`/home/joon/dev/`) 금지.**
+- `/home/joon/data → /node_data/joon/data` (symlink) ✅
+- `train_gslrm.py`에 pre-flight 경고 내장 (`_check_data_storage_tier`)
+- NFS page cache = cgroup 과금 → oomd kill 위험
+
+| 용도 | 위치 | Storage |
+|------|------|:-------:|
+| 학습/전처리 데이터 | `/node_data/joon/data/preprocessed/` | Local NVMe ✅ |
+| 체크포인트 | `/node_data/joon/checkpoints/` | Local NVMe ✅ |
+| 코드/config | `/home/joon/dev/FaceLift/` | NFS (OK, 소량) |
+| outputs/ (viz, reports) | `/home/joon/dev/FaceLift/outputs/` | NFS (OK, 비학습) |
+
+### 2.5 Rotation Direction Convention
 
 > **상세**: Obsidian `COORDINATE_SYSTEMS.md` → "Turntable vs Camera Order" 참조
 

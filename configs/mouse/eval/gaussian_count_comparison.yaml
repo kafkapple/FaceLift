@@ -1,0 +1,31 @@
+# Gaussian Count Fair Comparison: FL at different thresholds vs PS
+# Usage: CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.scripts.eval.gaussian_count_comparison \
+#            --config configs/mouse/eval/gaussian_count_comparison.yaml
+
+facelift:
+  config: configs/base/gslrm_mouse.yaml
+  checkpoint: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+  num_input_views: 6
+  m5_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5
+  n_filter: 2
+  conditions:
+    - name: "FL-all (17K)"
+      # No filtering beyond vis_mask — apply_all_filters equivalent
+    - name: "FL-12K"
+      opacity_thresh: 0.1
+    - name: "FL-8.5K (PS match)"
+      max_gaussians: 8500
+    - name: "FL-5K"
+      opacity_thresh: 0.3
+
+posesplatter:
+  # PS epoch-sample renders (not full test set — training vis only)
+  renders_dir: null  # Set to path when full test renders available
+  # PS checkpoint: /home/joon/dev/pose-splatter/output/m5_6view_no_holdout/latest/checkpoint.pt
+  # TODO: Run PS test inference to generate per-frame/per-view renders
+
+eval:
+  frames: [1500, 1550, 1600, 1700, 1800]
+  views: [0, 2, 4]
+  resolution: 512
+  bg_color: [1.0, 1.0, 1.0]

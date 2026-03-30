@@ -53,12 +53,15 @@
 |------|------|:----:|------|
 | **[[experiments/PHASE2_NOVEL_VIEW_ROADMAP]]** | **Phase 2 로드맵**: Novel View + Multi-Species + NeurIPS Dataset Track | **✅ v2.0** | → mesh_gs_pair, KEYPOINT_3D |
 | ~~[[experiments/DIFIX_TRAINING_STRATEGY]]~~ | ~~DiFix 3D+ 학습 전략~~: **[DEPRECATED — PoC 실패 260322 S25, mode collapse]** | ~~v1.0~~ | — |
+| **[[experiments/DIFIX_TYPE2_MAMMAL_PLAN]]** | DiFix Type 2 재시도: MAMMAL mesh bottom view pair + 학습 (MoA audit 승인) | **v1.0** | → DIFIX_TRAINING_STRATEGY |
+| **[[experiments/DEFORMATION_4DGS_EXPERIMENT_PLAN]]** | 4D-GS Deformation 실험 계획: Phase 0-3, 논문 기준 학습 | **v1.0** | → TEMPORAL_CONSISTENCY_STUDY |
 | **[[experiments/TEMPORAL_CONSISTENCY_STUDY]]** | Temporal flickering 분석 + smoothing 방법 비교 (EMA/OptFlow/DeformV2) | **✅ v1.0** | → TEMPORAL_EVAL_STANDARD |
 | **[[experiments/TEMPORAL_EVAL_STANDARD]]** | Temporal 평가 기준 SSOT (프레임/뷰/메트릭) | **✅ v1.0** | → TEMPORAL_CONSISTENCY_STUDY |
 | **[[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss novel view artifact 억제 효과 분석 | **✅ v1.0** | → [[hypotheses/H6_ALPHA_MASK]], PHASE2 |
 | **[[experiments/ALPHA_COMPREHENSIVE_EVAL_260326]]** | ⭐ **6v Alpha 종합 평가**: PSNR_gt/int, IoU, Sil.Prec, per-cam, Gaussian stats | **✅ 완료** | → METRICS_PROTOCOL §7 |
 | **[[experiments/CHECKPOINT_INVENTORY_260326]]** | 체크포인트 현황 + P0-P3 실행 계획 (17 ckpts) | **✅ P0 완료** | → H8, Pruning Design |
-| **[[experiments/fl_vs_ps_comparison]]** | FL vs PS 통합 비교 (9-exp) | **✅ v11** | → eval_protocol |
+| **[[experiments/fl_vs_ps_comparison]]** | FL vs PS 통합 비교 (9-exp) | **✅ v12** | → eval_protocol, GAUSSIAN_COUNT |
+| **[[experiments/GAUSSIAN_COUNT_FAIR_COMPARISON]]** | Gaussian 수 매칭 공정 비교 실험 설계 | 📋 Design | → fl_vs_ps, METRICS_PROTOCOL |
 | **[[experiments/hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v3.0 | → H4-H7 |
 | **[[experiments/UNIFIED_ABLATION_REPORT]]** | **통합 Ablation 보고서**: View/Alpha/E2E/Resolution 일관 비교 | **✅ v1.0** | → 모든 ablation |
 | **[[experiments/comprehensive_analysis_report]]** | 종합 실험 보고서 (H1-H8) | **✅ v1.0** | → 모든 실험 |
@@ -101,6 +104,7 @@
 | [[datasets/RAW_DATA]] | Raw 데이터 출처 (DANNCE→MAMMAL→M5t2 버전별 상세 명세) | ✅ v2.0 |
 | **[[datasets/MULTI_ANIMAL_PREPROCESSING]]** | 다중 동물 (s-DANNCE) 전처리 스펙: 마스크 전략, Plucker ray, 파이프라인 | **🆕 v1.0** |
 | **[[datasets/SDANNCE_VIDEO_AVAILABILITY]]** | **s-DANNCE 데이터셋 종합 가이드 (SSOT)**: Harvard Dataverse 17개 전수조사, SCN2A_WK1 lone rat, 카메라 특성, 다운로드 명령어 | **✅ v2.0** |
+| **[[datasets/PREPROCESSING_COMPARISON]]** | M5t2 vs RAT2 전처리 정량 비교 (FG coverage, intrinsics, split) | **✅ v1.0** |
 | _(미생성)_ `datasets/SDANNCE_PREPROCESSING.md` | s-DANNCE→GS-LRM 전처리 통합 스펙 — **계획됨**, 미작성 | ⏳ 작성 필요 |
 | **RAT2 Dataset Config** | `configs/datasets/RAT2.yaml` — 2-phase HLAC stratified split (2371 train / 297 val / 299 test), commit `8f36c88` | **✅ 260324** |
 
@@ -114,6 +118,8 @@
 | **[[guides/PIPELINE_DEEP_DIVE]]** | mouse_extensions 코드 워크스루 Hub (MoC + Issues + QuickRef) | **✅ v3.0** |
 | **[[guides/VISUALIZATION_GUIDE]]** | 시각화 모듈 가이드 (cinematic, 6-view grid, N-filter, 배치) | **✅ v1.0** |
 | [[guides/RAT_FT_DATA_GUIDE]] | Rat FT 데이터 준비 가이드 | ✅ |
+| **[[guides/RAT_SAM2_MASK_STRATEGY]]** | Rat SAM2 마스크 전략 (SCN2A_WK1 + M3_M4, 자동/수동 하이브리드) | **✅ v1.0** |
+| **[[guides/RAT_SAM2_QUICKSTART]]** | Rat SAM2 뷰어 실행 Quick Start (annotator + propagation 명령어) | **✅ v1.0** |
 | [[guides/MAMMAL_REFIT_HANDOFF]] | MAMMAL 23 bad frames 재피팅 핸드오프 (환경, 프레임 매핑, 검증) | **✅ v1.0** |
 
 #### guides/chapters/ (EXPERIMENT_MASTER_GUIDE 하위)
@@ -162,6 +168,7 @@
 | **[[specs/FRAME_SELECTION_LITERATURE_REVIEW]]** | Pose-diversity frame selection 문헌 조사: FPS, k-means, FisherRF, coreset, 3-stage hybrid 제안 | **🆕 v1.0** |
 | **[[specs/KEYPOINT_ABLATION_FRAMEWORK]]** | 5-tier keypoint ablation 프레임워크: tier별 문헌 근거 + task matrix + YAML SSOT | **🆕 v1.0** |
 | **[[specs/PATHS_SSOT_DESIGN]]** | outputs/ v2 경로 설계 + paths.py factory | ✅ |
+| **[[specs/RAT_PREPROCESSING_STRATEGY]]** | RAT zero-pad vs crop vs hybrid 전처리 비교 + 3-model audit + 실험 계획 | **🆕 v1.0** |
 
 > **이론 문서 → Obsidian으로 이동** (2026-03-17):
 > MULTIVIEW_DIFFUSION_THEORY → `Obsidian/docs/theory/`, MV_ADAPTER_TECHNICAL → `Obsidian/docs/research/`, SLIDES → `Obsidian/Presentation/`

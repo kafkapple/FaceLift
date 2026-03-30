@@ -20,7 +20,7 @@
 | Input resolution | 512×512 |
 | Patch size | 8 |
 | n_gaussians | 2 per ray |
-| Total Gaussians (raw) | (512/8)² × 6 × 2 = 49,152 |
+| Total Gaussians (raw, measured) | **1,572,866** per frame (formula (512/8)²×6×2=49,152 is wrong — model has internal expansion) |
 | Evaluation set | M5t2 test split (360 frames, indices 3240-3599) |
 | Evaluation views | All 6 cameras per frame (360 × 6 = 2,160 evaluations) |
 | Filter params | opacity=0.04, scaling=0.1, floater=0.6, bbox=±0.91 |

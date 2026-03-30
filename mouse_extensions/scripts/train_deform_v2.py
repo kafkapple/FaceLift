@@ -146,46 +146,38 @@ def train_epoch(
     device: str,
 ) -> dict:
     """Train for one epoch."""
-    trainer.network.train()
+    trainer.deform_net.train()
     
-    total_losses = {'param': 0, 'arap': 0, 'velocity': 0, 'total': 0}
+    total_losses = {'param_loss': 0, 'arap_loss': 0, 'velocity_loss': 0, 'total_loss': 0}
     num_batches = 0
-    
+
     pbar = tqdm(dataloader, desc=f"Epoch {epoch}")
     prev_g_t = None
-    
+
     for batch in pbar:
+        # batch = List[Tuple[GaussianParams, GaussianParams, int]]
         for g_t, g_t1, time_idx in batch:
-            # Move to device
-            g_t = g_t.to(device)
-            g_t1 = g_t1.to(device)
-            
-            # Train step
-            optimizer.zero_grad()
-            
+            # train_step handles forward + backward + optimizer.step internally
             losses = trainer.train_step(
                 G_t=g_t,
                 G_t1_target=g_t1,
                 time_index=time_idx,
                 G_t_prev=prev_g_t,
             )
-            
-            losses['total'].backward()
-            optimizer.step()
-            
-            # Accumulate
+
             for k, v in losses.items():
                 if k in total_losses:
                     total_losses[k] += v.item()
             num_batches += 1
+            prev_g_t = g_t
             
             # Update prev for velocity loss
-            prev_g_t = g_t.clone()
-            
+            prev_g_t = g_t
+
             # Update progress bar
             pbar.set_postfix({
-                'loss': f"{losses['total'].item():.4f}",
-                'arap': f"{losses['arap'].item():.6f}",
+                'loss': f"{losses['total_loss'].item():.4f}",
+                'arap': f"{losses['arap_loss'].item():.6f}",
             })
     
     # Average
@@ -206,8 +198,8 @@ def save_checkpoint(
     
     ckpt = {
         'epoch': epoch,
-        'network_state_dict': trainer.network.state_dict(),
-        'network_config': trainer.network.config,
+        'network_state_dict': trainer.deform_net.state_dict(),
+        'network_config': trainer.deform_net.config,
         'optimizer_state_dict': optimizer.state_dict(),
     }
     
@@ -228,6 +220,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--resume", action="store_true", help="Resume from latest checkpoint")
     args = parser.parse_args()
     
     # Load config
@@ -271,51 +264,79 @@ def main():
         collate_fn=collate_gaussians,
     )
     
-    # Create network
+    # Create trainer config (includes deform network config)
     net_config = DeformationConfigV2(
         num_layers=config.num_layers,
         hidden_dim=config.hidden_dim,
         use_positional_encoding=config.use_positional_encoding,
         use_time_embedding=config.use_time_embedding,
     )
-    
-    # Create trainer
     trainer_config = TrainerConfigV2(
-        param_loss_weight=config.param_weight,
-        arap_loss_weight=config.arap_weight,
-        velocity_loss_weight=config.velocity_weight,
+        deform_config=net_config,
+        photo_weight=config.param_weight,
+        arap_weight=config.arap_weight,
+        velocity_weight=config.velocity_weight,
+        output_dir=config.output_dir,
+        device=config.device,
     )
-    trainer = DeformationTrainerV2(net_config, trainer_config)
-    trainer.network.to(config.device)
+    trainer = DeformationTrainerV2(trainer_config)
     
-    logger.info(f"Network: {trainer.network}")
-    logger.info(f"Parameters: {trainer.network.get_num_params():,}")
-    
-    # Optimizer
-    optimizer = torch.optim.AdamW(
-        trainer.network.parameters(),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay,
-    )
-    
-    # Training loop
+    logger.info(f"Network: {trainer.deform_net}")
+    n_params = sum(p.numel() for p in trainer.deform_net.parameters())
+    logger.info(f"Parameters: {n_params:,}")
+
+    # Use trainer's internal optimizer
+    optimizer = trainer.optimizer
+
+    # Resume from checkpoint if requested
+    start_epoch = 1
     output_dir = Path(config.output_dir)
-    
-    for epoch in range(1, config.num_epochs + 1):
+    if args.resume:
+        latest_ckpt = output_dir / "deform_v2_latest.pt"
+        if latest_ckpt.exists():
+            ckpt = torch.load(str(latest_ckpt), map_location=config.device, weights_only=False)
+            trainer.deform_net.load_state_dict(ckpt["network_state_dict"])
+            optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+            start_epoch = ckpt["epoch"] + 1
+            logger.info(f"Resumed from epoch {ckpt['epoch']}, starting at epoch {start_epoch}")
+        else:
+            logger.warning(f"No checkpoint found at {latest_ckpt}, starting from scratch")
+
+    # Training loop
+    for epoch in range(start_epoch, config.num_epochs + 1):
         losses = train_epoch(trainer, dataloader, optimizer, epoch, config.device)
         
         logger.info(
             f"Epoch {epoch}: "
-            f"total={losses['total']:.4f}, "
-            f"param={losses['param']:.4f}, "
-            f"arap={losses['arap']:.6f}, "
-            f"velocity={losses['velocity']:.6f}"
+            f"total={losses['total_loss']:.4f}, "
+            f"param={losses['param_loss']:.4f}, "
+            f"arap={losses['arap_loss']:.6f}, "
+            f"velocity={losses['velocity_loss']:.6f}"
         )
         
-        # Save checkpoint
+        # Save checkpoint + visualization
         if epoch % config.save_every == 0 or epoch == config.num_epochs:
             save_checkpoint(trainer, optimizer, epoch, output_dir)
-    
+            # Auto-visualize at checkpoint
+            viz_dir = output_dir / f"viz_epoch_{epoch:04d}"
+            deform_ckpt = output_dir / f"deform_v2_epoch_{epoch:04d}.pt"
+            try:
+                import subprocess
+                cmd = [
+                    sys.executable, "-m", "mouse_extensions.scripts.viz_deformation",
+                    "--cache_dir", config.gaussians_dir,
+                    "--deform_ckpt", str(deform_ckpt),
+                    "--output_dir", str(viz_dir),
+                    "--frame_range", "1500:1510",  # Quick 10-frame sample
+                    "--resolution", "512",
+                    "--device", config.device,
+                ]
+                logger.info(f"Generating visualization at {viz_dir}...")
+                subprocess.run(cmd, timeout=600)
+                logger.info(f"Visualization saved to {viz_dir}")
+            except Exception as e:
+                logger.warning(f"Visualization failed: {e}")
+
     logger.info("Training complete!")
 
 

@@ -1,3 +1,4 @@
+# no-split: single data-conversion pipeline (load → crop → normalize → save), all functions tightly coupled
 #!/usr/bin/env python3
 """
 DANNCE → GS-LRM format converter for s-DANNCE multi-view data.
@@ -605,8 +606,26 @@ if __name__ == "__main__":
         "--frame_indices",
         type=int,
         nargs="+",
-        default=[0, 1000, 5000, 10000, 20000],
-        help="Frame indices to process",
+        default=None,
+        help="Frame indices to process (space-separated). Mutually exclusive with --start/--end/--step.",
+    )
+    parser.add_argument(
+        "--start",
+        type=int,
+        default=None,
+        help="Start frame index (inclusive). Use with --end and --step.",
+    )
+    parser.add_argument(
+        "--end",
+        type=int,
+        default=None,
+        help="End frame index (exclusive). Use with --start and --step.",
+    )
+    parser.add_argument(
+        "--step",
+        type=int,
+        default=30,
+        help="Frame step size (default: 30). Use with --start and --end.",
     )
     parser.add_argument(
         "--num_cams",
@@ -640,11 +659,23 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    # Resolve frame indices: --start/--end/--step OR --frame_indices
+    if args.start is not None and args.end is not None:
+        if args.frame_indices is not None:
+            parser.error("Cannot use both --frame_indices and --start/--end/--step")
+        frame_indices = list(range(args.start, args.end, args.step))
+        print(f"Frame range: {args.start}:{args.end}:{args.step} → {len(frame_indices)} frames")
+    elif args.frame_indices is not None:
+        frame_indices = args.frame_indices
+    else:
+        frame_indices = [0, 1000, 5000, 10000, 20000]  # default smoke test
+
     process_session(
         session_dir=args.session_dir,
         output_dir=args.output_dir,
         animal_id=args.animal_id,
-        frame_indices=args.frame_indices,
+        frame_indices=frame_indices,
         num_cams=args.num_cams,
         sam2_ann_dir=args.sam2_ann_dir,
         sam2_prop_dir=args.sam2_prop_dir,

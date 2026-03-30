@@ -1,3 +1,4 @@
+# no-split: single dataset pipeline — 5 modes share camera defs, paths, frame indexing. Splitting fragments shared state.
 #!/usr/bin/env python3
 """Novel View Dataset Collection Pipeline v2.0
 
@@ -84,16 +85,17 @@ TURNTABLE_RADIUS = 2.7
 M5_DATA_DIR = "/home/joon/data/preprocessed/FaceLift_mouse/M5"
 MAMMAL_OBJ_DIR = (
     "/home/joon/dev/MAMMAL_mouse/results/fitting/"
-    "markerless_mouse_1_nerf_v012345_kp22_20260126_025249/obj"
+    "production_3600_slerp/obj_textured"
 )
 MAMMAL_TEXTURED_OBJ = "/home/joon/dev/MAMMAL_mouse/exports/mouse_frame0_textured.obj"
 MAMMAL_TEXTURE_PNG = "/home/joon/dev/MAMMAL_mouse/exports/texture_final.png"
 GSLRM_CHECKPOINT = (
-    "/home/joon/dev/FaceLift/checkpoints/gslrm/"
-    "base_uniform_v2_6view_v2/best_psnr.pt"
+    "/node_data/joon/checkpoints/FaceLift/gslrm/"
+    "M5t2_6view_alpha03_v3/best_psnr.pt"
 )
 GSLRM_CONFIG = (
-    "/home/joon/dev/FaceLift/configs/mouse/uniform/base_uniform_v2.yaml"
+    "/node_data/joon/checkpoints/FaceLift/gslrm/"
+    "M5t2_6view_alpha03_v3/config.yaml"
 )
 
 OUTPUT_BASE = "/home/joon/dev/FaceLift/outputs/datasets/novel_view"

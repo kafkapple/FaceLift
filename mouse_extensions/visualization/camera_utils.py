@@ -130,6 +130,7 @@ def get_turntable_cameras(
     up_vector: np.ndarray = np.array([0, 0, 1]),
     center: Optional[np.ndarray] = None,
     clockwise: bool = True,
+    start_azimuth: float = 270.0,
 ):
     """Generate camera poses for visualization.
 
@@ -142,6 +143,8 @@ def get_turntable_cameras(
         elevation_end: End elevation for spiral/arc modes.
         center: 3D point for camera orbit center. If None, uses origin.
         clockwise: CW in math coords = physical CCW from above (default).
+        start_azimuth: Starting azimuth in degrees. Default 270. Set to GT
+            camera azimuth for seamless SLERP transition from GT view.
 
     Returns:
         (w, h, num_views, fxfycxcy, c2ws) where
@@ -159,12 +162,15 @@ def get_turntable_cameras(
         np.array([fx, fy, cx, cy]).reshape(1, 4).repeat(num_views, axis=0)
     )
 
+    # Normalize start azimuth to [0, 360)
+    sa = start_azimuth % 360
+
     # Generate azimuth and elevation based on trajectory mode
     if trajectory_mode == "turntable":
         if clockwise:
-            azimuths = np.linspace(270, 270 - 360, num_views, endpoint=False)
+            azimuths = np.linspace(sa, sa - 360, num_views, endpoint=False)
         else:
-            azimuths = np.linspace(270, 270 + 360, num_views, endpoint=False)
+            azimuths = np.linspace(sa, sa + 360, num_views, endpoint=False)
         elevations = np.ones(num_views) * elevation
 
     elif trajectory_mode == "spiral":

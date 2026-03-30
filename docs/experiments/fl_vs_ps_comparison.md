@@ -49,6 +49,18 @@ Comparing their outputs directly conflates **model capability** with **input inf
 > 따라서 PS 논문의 수치(PSNR 33.5 등)와 본 비교의 수치(PSNR_fg 13.78 등)는 **직접 비교 불가**합니다
 > (다른 데이터 + 다른 metric protocol: full-image vs foreground-masked).
 
+### 2.1b Gaussian Count Comparison (2026-03-30 코드 직접 측정)
+
+| Stage | FaceLift (GS-LRM, α=0.3) | PoseSplatter | 비고 |
+|-------|:---:|:---:|------|
+| Raw model output | **1,572,866** | ~8,500 | FL: feed-forward, PS: per-scene opt |
+| After opacity > 0.05 | 15,757 | — | 배경 노이즈 98.5% 제거 |
+| After opacity > 0.1 | **11,920** | **~8,500** | **Comparable range** |
+| After apply_all_filters | 17,274 | ~8,500 | FL: opacity=0.04 threshold |
+
+> ⚠️ 이전 문서의 "49,152 raw Gaussians" (formula 기반 추정)은 **잘못된 수치**. 실제 모델 output은 1,572,866.
+> Fair comparison은 `GAUSSIAN_COUNT_FAIR_COMPARISON.md` 참조.
+
 ### 2.2 Evaluation Asymmetries (5 Caveats — All Resolved)
 
 | # | Issue | FaceLift | Pose-Splatter | Impact | Status |
@@ -112,7 +124,8 @@ Our PSNR_whole = 29.00 (same protocol as PS paper, different data).
 |------|:---:|:---:|
 | **Dataset 출처** | 자체 녹화 (Duke University) | DANNCE → MAMMAL 경유 |
 | **DOI** | 10.7924/r4z323k2c | — (DANNCE/MAMMAL 공개 데이터) |
-| **Resolution** | 1536×2048 (downsampled to 768×1024) | 512×512 |
+| **Resolution (native)** | 1536×2048 → 384×512 (4x ds) | 512×512 |
+| **Resolution (M5 eval)** | 576×512 → 512×512 (center crop) | 512×512 (native) |
 | **FPS** | 30 | 20 (100fps ÷ 5 temporal downsample) |
 | **Total frames** | 324,000 | 3,600 |
 | **Training frames** | ~108,000 (1/3 of total) | 2,880 (80%) |

@@ -273,4 +273,12 @@ preprocess.py: process_sample()
 
 ---
 
-*FaceLift Mouse Project | M5 Series Spec v1.0 | 2026-01-29*
+## Related Documents
+
+- ↑ [[PREPROCESSING_REGISTRY]] — Preset 중앙 관리
+- ↔ [[RAW_DATA]] — M5t2 데이터 명세 + 원본 출처
+- ↔ Obsidian [[CAMERA_NORMALIZATION]] — Batch Uniform 설계 근거 + MVG 이론 (Why)
+
+---
+
+*FaceLift Mouse Project | M5 Series Spec v1.1 | 2026-03-30*

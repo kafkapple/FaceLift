@@ -142,19 +142,7 @@ M5t2 데이터 (3,600 samples × 6 views × 512×512 RGBA)
 
 ---
 
-## 4. v13 vs markerless_mouse_1_nerf
-
-| 항목 | v13 | markerless_mouse_1_nerf |
-|------|-----|-------------------------|
-| **형태** | 사전 전처리된 샘플 | Raw 비디오 |
-| **프레임 수** | ~1,800 샘플 | 18,000 프레임 |
-| **마스크** | PNG 이미지 | MP4 비디오 |
-| **PP 버그** | ⚠️ cx=cy=256 고정 | ✅ 실측값 사용 |
-| **권장** | ⛔ Legacy | ✅ 권장 |
-
----
-
-## 5. PoseSplatter 데이터와의 관계
+## 4. PoseSplatter 데이터와의 관계
 
 > ⚠️ PoseSplatter (Goffinet et al. 2025)는 DANNCE/MAMMAL 데이터를 사용하지 **않으며**, **자체 녹화한 별도 데이터**를 사용합니다
 > (Duke, 324K frames, 1536×2048, 30fps, 28cm 플라스틱 실린더, DOI: 10.7924/r4z323k2c).
@@ -162,7 +150,7 @@ M5t2 데이터 (3,600 samples × 6 views × 512×512 RGBA)
 
 ---
 
-## 6. 전처리 명령어
+## 5. 전처리 명령어
 
 ```bash
 # M5t2 생성 (M5 기반 temporal split)
@@ -179,7 +167,7 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
 
 ---
 
-## 7. FPS 혼동 주의
+## 6. FPS 혼동 주의
 
 > ⚠️ **DANNCE/MAMMAL mouse 데이터는 항상 100fps**. 아래 "30fps" 출처는 전부 **다른 맥락**:
 > - PoseSplatter의 자체 rat 데이터 (30fps) — 다른 데이터셋
@@ -190,7 +178,7 @@ python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
 
 ---
 
-## 8. Frame Discontinuity
+## 7. Frame Discontinuity
 
 ```python
 DISCONTINUITY_FRAMES = {5900, 11800, 17700}
@@ -204,9 +192,10 @@ DISCONTINUITY_FRAMES = {5900, 11800, 17700}
 
 - [[PREPROCESSING_REGISTRY]] — 전처리 preset 정의 (M5, M5_4, M5_5 등)
 - [[M5_SERIES_SPEC]] — 카메라 정규화 방식 상세 비교
+- Obsidian [[CAMERA_NORMALIZATION]] — Batch Uniform 설계 근거 + MVG 이론
 - [[MULTI_ANIMAL_PREPROCESSING]] — Plucker ray, 다중 동물 전처리
 - [[SDANNCE_VIDEO_AVAILABILITY]] — Rat (s-DANNCE) 데이터셋 목록
 
 ---
 
-*Raw Data Sources v2.0 | Updated: 2026-03-25 | DANNCE/MAMMAL/M5t2 버전별 상세 명세 추가, 검증 완료*
+*Raw Data Sources v2.1 | Updated: 2026-03-30 | v13 섹션 삭제, CAMERA_NORMALIZATION 역링크 추가*

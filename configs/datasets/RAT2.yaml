@@ -64,19 +64,21 @@ _split:
   # Within each HLAC class: first 80% of frames → train, next 10% → val, last 10% → test
   # Maintains temporal ordering within each class to prevent leakage
 
-# ========== Output Paths (v2 structure) ==========
+# ========== Output Paths (v2 structure, /node_data/ for training I/O) ==========
+# ⚠️ Training data MUST be on local NVMe (/node_data/), NOT NFS (/home/)
+# NFS page cache is charged to cgroup → oomd risk (see RAT_PREPROCESSING_STRATEGY.md §Q3)
 training:
   dataset:
-    data_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2
-    dataset_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2/data_rat2_train.txt
+    data_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2
+    dataset_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2/data_rat2_train.txt
 
 validation:
-  data_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2
-  dataset_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2/data_rat2_val.txt
+  data_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2
+  dataset_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2/data_rat2_val.txt
 
 test:
-  data_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2
-  dataset_path: outputs/datasets/fine_tune/rat/gslrm_format_rat2/data_rat2_test.txt
+  data_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2
+  dataset_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2/data_rat2_test.txt
 
 # ========== Expected Stats (estimated) ==========
 _stats:

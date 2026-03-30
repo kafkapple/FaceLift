@@ -1,6 +1,6 @@
 # Cinematic Demo v6_A — Full version: controls=ON, extreme views=ON
 # flow_gt_opener → flow_gt → flow_mask → flow_render → freeze_orbit →
-#   flow_novel → flow_head_kp → flow_novel_extra → grid_panorama
+#   flow_novel → flow_head_kp → flow_novel_extra → flow_gt_zoom_out → grid_novel_6views
 # Checkpoint: alpha=0.3 (M5t2 trade-off best, IoU=0.913)
 # ~70s total
 

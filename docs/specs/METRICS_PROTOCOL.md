@@ -30,12 +30,13 @@ FaceLift E2E 평가에서 **메트릭 프로토콜 차이**로 동일 렌더링�
 |------|-------------|----------|
 | **논문** | Goffinet et al. (2025), Duke | - |
 | **Task** | Multi-view video → 3DGS | Single image → MVDiff → GS-LRM → 3DGS |
-| **입력 (추론)** | 4-6 calibrated cameras (실제 뷰) | **1장 이미지** (합성 뷰 생성) |
+| **입력 (추론)** | 4-6 calibrated cameras (실제 뷰) | E2E: 1장 → MVDiff, GS-LRM standalone: 1-6 GT views |
 | **대상** | 마우스, 핀치, 쥐 | 마우스 |
 | **3D 표현** | 3D Gaussian Splatting | 3D Gaussian Splatting |
 | **추론 속도** | ~30ms (feed-forward) | ~수초 (diffusion + reconstruction) |
-| **해상도** | 384x512 (4x downsampled) | 512x512 |
-| **Gaussian 수** | ~8.5K (mouse) | - |
+| **해상도 (논문)** | 384x512 (Duke 4x ds) | 512x512 |
+| **해상도 (M5 Fair)** | 512x512 (576→crop) | 512x512 |
+| **Gaussian 수** | ~8.5K (mouse) | 1,572,866 raw → ~12K effective (opacity>0.1) |
 | **뷰 생성** | 불필요 (실제 캡처) | MVDiffusion으로 6뷰 생성 |
 | **카메라** | 사전 캘리브레이션 | 고정 가상 카메라 |
 | **Supervision** | IoU + Masked L1 | L2 + SSIM + LPIPS |
@@ -106,7 +107,7 @@ PSNR에서 BG boost를 제거하여 **순수 FG 재구성 품질**만 비교:
 | **FG fraction 차이** | PSNR +8dB 차이 | 2.3% vs ~15% → 직접 비교 불가 |
 | **Task 난이도** | FaceLift가 훨씬 어려움 | single image vs 6 calibrated views |
 | **데이터셋** | 다른 마우스, 다른 환경 | 동일 종이지만 다른 설정 |
-| **해상도** | 비슷 | 384x512 vs 512x512 |
+| **해상도** | M5 Fair Eval에서 양쪽 512x512 통일 | PS 논문은 384x512 (Duke data) |
 | **평가 프레임** | 다름 | PoseSplatter: 비디오 기반, FaceLift: 독립 프레임 |
 
 ---

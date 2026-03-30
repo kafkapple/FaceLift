@@ -1,0 +1,147 @@
+# Cinematic v10 Quick Test (512px, 15fps)
+# v10: removed gaussian scatter, 1.5x slower rotation, 6-view GT near end
+
+global:
+  fps: 15
+  resolution: 512
+  bg_color: [1.0, 1.0, 1.0]
+  n_filter: 2
+  gt_view: 0
+  crossfade: 0.3
+  mask_border_color: null
+  keypoint_overlay: false
+  show_controls: false
+
+model:
+  config: configs/base/gslrm_mouse.yaml
+  num_input_views: 6
+  checkpoint: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+  m5_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5
+  kp_path: ~/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz
+
+camera:
+  radius: 2.7
+  hfov: 50
+
+frame_range: "1500:1860"
+
+segments:
+  # Phase 0: GT 6-cam temporal opener (smooth frame_step=2)
+  - type: flow_gt_opener
+    duration: 3.0
+    frame_step: 2
+    mosaic_ratio: 0.3
+    no_crossfade: true
+    label: ""
+
+  # Phase 1: GT single view
+  - type: flow_gt
+    duration: 2.0
+    raw: true
+    frame_step: 3
+    no_crossfade: true
+    label: "GT RGB (Camera 0)"
+
+  # Phase 1b: FG segmentation
+  - type: flow_mask
+    duration: 1.5
+    frame_step: 3
+    no_crossfade: true
+    label: "FG Segmentation (SAM2)"
+
+  # Phase 2: GS-LRM splatting render
+  - type: flow_render
+    duration: 4.0
+    frame_step: 3
+    no_crossfade: true
+    label: "GS-LRM 6v Reconstruction"
+
+  # Phase 3: 360-deg frozen-time orbit (1.5x slower: 6→9s)
+  - type: freeze_orbit
+    duration: 9.0
+    elevation: 20
+    match_gt: false
+    transition_frames: 45
+    no_crossfade: true
+    label: "360-deg Orbit (Frozen Time)"
+
+  # Phase 4a: Bottom view — render only (no KP)
+  - type: flow_novel
+    duration: 3.0
+    elevation: -80
+    use_prev_azimuth: true
+    prev_elevation: 20
+    transition_frames: 15
+    no_crossfade: true
+    frame_step: 3
+    keypoint_overlay: false
+    label: "Bottom View"
+
+  # Phase 4b: Bottom view — 4 paw keypoints only
+  - type: flow_novel
+    duration: 3.0
+    elevation: -80
+    use_prev_azimuth: true
+    prev_elevation: -80
+    transition_frames: 0
+    no_crossfade: true
+    frame_step: 3
+    keypoint_overlay: true
+    kp_filter: [8, 12, 16, 19]
+    label: "Bottom View + Paw Keypoints"
+
+  # Phase 5: Progressive body part reveal + all 22 KP (1.5x slower: 5→7.5s)
+  - type: flow_head_kp
+    duration: 7.5
+    elevation: 25
+    zoom: 1.0
+    prev_elevation: -80
+    transition_frames: 15
+    no_crossfade: true
+    frame_step: 3
+    label: "Body Parts + All Keypoints"
+
+  # Phase 6: Temporal orbit (1.5x slower: 5→7.5s)
+  - type: freeze_orbit
+    duration: 7.5
+    elevation: 20
+    temporal: true
+    frame_step: 3
+    transition_frames: 10
+    no_crossfade: true
+    label: "Temporal Orbit (Time+Rotation)"
+
+  # Phase 7a: GT RGB 6-cam mosaic (like opener, no zoom-in)
+  - type: flow_gt_opener
+    duration: 2.5
+    frame_step: 3
+    mosaic_ratio: 1.0
+    no_crossfade: true
+    label: "GT RGB (6 Cameras)"
+
+  # Phase 7b: GT FG-only 6-cam mosaic (zoom-out from render)
+  - type: flow_gt_zoom_out
+    duration: 3.0
+    frame_step: 2
+    no_crossfade: true
+    fg_only: true
+    label: "GT FG-only (6 Cameras)"
+
+  # Phase 8: 6-view novel grid (consistent scale)
+  - type: grid_novel_6views
+    duration: 3.0
+    frame_step: 3
+    no_crossfade: true
+    label: "Novel Views (6 Angles)"
+
+  # Phase 9: Dense 6x6 turntable grid (NO zoom-out, ends as-is)
+  - type: grid_novel_dense
+    duration: 4.0
+    rows: 6
+    cols: 6
+    elevations: [80, 40, 20, -20, -60, -85]
+    start_azimuth: 0
+    zoom_out: false
+    frame_step: 3
+    no_crossfade: false
+    label: "Turntable Grid (36 Views)"
