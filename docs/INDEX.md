@@ -54,6 +54,7 @@
 | **[[experiments/PHASE2_NOVEL_VIEW_ROADMAP]]** | **Phase 2 로드맵**: Novel View + Multi-Species + NeurIPS Dataset Track | **✅ v2.0** | → mesh_gs_pair, KEYPOINT_3D |
 | ~~[[experiments/DIFIX_TRAINING_STRATEGY]]~~ | ~~DiFix 3D+ 학습 전략~~: **[DEPRECATED — PoC 실패 260322 S25, mode collapse]** | ~~v1.0~~ | — |
 | **[[experiments/DIFIX_TYPE2_MAMMAL_PLAN]]** | DiFix Type 2 재시도: MAMMAL mesh bottom view pair + 학습 (MoA audit 승인) | **v1.0** | → DIFIX_TRAINING_STRATEGY |
+| **[[experiments/DEFORM_V3_FG_AWARE_PLAN]]** | ⭐ **Deform V3**: FG-aware rendering loss, V2 중단 후 전환 (4× MoA Audit) | **v1.0** | → DEFORMATION_4DGS, TEMPORAL |
 | **[[experiments/DEFORMATION_4DGS_EXPERIMENT_PLAN]]** | 4D-GS Deformation 실험 계획: Phase 0-3, 논문 기준 학습 | **v1.0** | → TEMPORAL_CONSISTENCY_STUDY |
 | **[[experiments/TEMPORAL_CONSISTENCY_STUDY]]** | Temporal flickering 분석 + smoothing 방법 비교 (EMA/OptFlow/DeformV2) | **✅ v1.0** | → TEMPORAL_EVAL_STANDARD |
 | **[[experiments/TEMPORAL_EVAL_STANDARD]]** | Temporal 평가 기준 SSOT (프레임/뷰/메트릭) | **✅ v1.0** | → TEMPORAL_CONSISTENCY_STUDY |
