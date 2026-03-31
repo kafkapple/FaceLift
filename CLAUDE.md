@@ -362,6 +362,21 @@ python -m mouse_extensions.preprocessing.preprocess \
 | Train/Val 로그 구분 불가 | ✅ 해결됨 | `[Train]`/`[Val]` prefix 통일 (260323) |
 | metrics.txt 1-UID only | ✅ 해결됨 | `_save_visualizations` 내부 → run() 루프로 분리 (260323) |
 | outputs/ 구조 비일관 | ✅ 해결됨 | v2 구조 마이그레이션 완료 — `paths.py` SSOT + symlink backward compat (260323) |
+| Deform V2 (param MSE) | ✅ **중단 (260331)** | param MSE ≠ rendering quality (3/3 audit). 237G cache 삭제. → V3 전환 |
+| Deform V2 BG 낭비 | ✅ **V3에서 해결** | 97.5% BG Gaussians 학습 → FG-only cache (3MB/frame vs 85MB) |
+| OMP_NUM_THREADS 미설정 | ✅ 해결됨 | dl_base.sh → .bashrc interactive guard 위 이동. OMP=1 (260331) |
+| 5view ablation 수렴 | ✅ **중단 (260331)** | plateau 23.0-23.1 dB (step 12200). 결과 기록 완료 |
+
+### Deformation V3 (진행 중, 260331~)
+
+| 항목 | 상세 |
+|------|------|
+| **전략** | Rendering loss PRIMARY + FG-only + ARAP + L_zero (4× MoA Audit) |
+| **FG Cache** | `cache_fg_gaussians.py` → FG-only, ~3MB/frame, float16 (V2: 85MB) |
+| **학습** | `train_deform.py` (unified, config-driven) + `deform_v3.yaml` |
+| **다음** | FG cache 완료 → smoke test → rendering loss 검증 |
+| **이론** | Obsidian `theory/DEFORMATION_STRATEGY.md`, `BOTTOM_VIEW_ENHANCEMENT_STRATEGY.md` |
+| **계획** | `docs/experiments/DEFORM_V3_FG_AWARE_PLAN.md` |
 
 ---
 
@@ -402,14 +417,16 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 
 ### View Ablation (Fair Eval, M5t2 test set 3240-3599, 360f × 5 views)
 
-| Views | PSNR_gt | IoU | PSNR_int |
-|:-----:|:-------:|:---:|:--------:|
-| 1 | 10.47 | 0.028 | 10.47 |
-| 2 | 15.95 | 0.858 | 17.91 |
-| 3 | 18.56 | 0.899 | 19.54 |
-| 4 | 20.66 | 0.926 | 21.29 |
-| 5 | 22.16 | 0.942 | 22.56 |
-| 6 | **23.84** | **0.954** | **24.02** |
+| Views | PSNR_gt | IoU | PSNR_int | 학습 상태 |
+|:-----:|:-------:|:---:|:--------:|:---------:|
+| 1 | 10.47 | 0.028 | 10.47 | ✅ |
+| 2 | 15.95 | 0.858 | 17.91 | 🔄 P1 resume 중단 |
+| 3 | 18.56 | 0.899 | 19.54 | ✅ |
+| 4 | 20.66 | 0.926 | 21.29 | ✅ |
+| 5 | — | — | — | ✅ **중단 (260331, plateau 23.0-23.1, step 12200)** |
+| 6 | **23.84** | **0.954** | **24.02** | ✅ |
+
+> 5view: val PSNR 23.0-23.1에서 plateau (step 11800-12200). Fair eval 미실행. 수렴 판정으로 중단.
 
 ### Best Checkpoints — 3-Best Rule (260326 Comprehensive Eval)
 

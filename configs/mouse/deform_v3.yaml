@@ -1,0 +1,66 @@
+# Deformation V3: FG-Aware with Rendering Loss
+# Unified config — supports V3 (rendering), V2 (param MSE), and variants via loss_mode
+
+# ========== Data ==========
+cache_dir: /node_data/joon/checkpoints/FaceLift/deformation/v3/fg_cache
+num_frames: 0  # 0 = auto-detect
+
+# ========== Network (same MLP, extended output) ==========
+num_layers: 8
+hidden_dim: 256
+use_positional_encoding: true
+use_time_embedding: true
+predict_rotation: true   # V3 adds rotation delta (V2 was false)
+anisotropic_scale: true  # V3 adds per-axis scale
+
+# ========== Training ==========
+num_epochs: 100
+batch_size: 0            # 0 = entire frame (FG-only, ~8K Gaussians)
+learning_rate: 1.0e-4
+weight_decay: 1.0e-5
+warmup_steps: 100
+
+# ========== Loss Configuration ==========
+# loss_mode: v3_rendering | v2_param_mse
+loss_mode: v3_rendering
+
+# V3 losses (rendering PRIMARY)
+losses:
+  # Rendering loss — differentiable GS rendering → image space
+  render_weight: 1.0       # L1 + SSIM on rendered images
+  render_ssim_weight: 0.2  # SSIM portion within render loss
+  render_views: 3          # stochastic view sampling per step (max 6)
+
+  # ARAP — k-NN edge length preservation (FG-only graph)
+  arap_weight: 0.1
+  arap_k: 8                # k-NN neighbors
+
+  # Velocity — temporal smoothness (penalize acceleration)
+  velocity_weight: 0.05
+
+  # L_zero — regularize MLP output toward zero for non-FG positions
+  zero_weight: 0.01
+  zero_samples: 1000       # random positions per step
+
+  # Param MSE (auxiliary, low weight — V2 primary becomes V3 auxiliary)
+  param_weight: 0.0        # disabled by default in V3
+  # Set param_weight: 1.0 and render_weight: 0.0 for V2 mode
+
+# ========== GS-LRM (for rendering loss) ==========
+gslrm:
+  checkpoint: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+  config: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/config.yaml
+
+# ========== Checkpointing ==========
+output_dir: /node_data/joon/checkpoints/FaceLift/deform_v3
+save_every: 10
+viz_every: 20             # auto-visualization interval
+
+# ========== Logging ==========
+wandb:
+  enabled: true
+  project: FaceLift-Mouse
+  name: deform_v3_rendering
+  tags: [deform, v3, rendering_loss, fg_only]
+
+device: cuda
