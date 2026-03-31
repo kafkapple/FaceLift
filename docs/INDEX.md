@@ -1,8 +1,8 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-03-24 | **Version**: v16.3
-> **Active**: 52개 | **Archive**: 19개 (docs/_archive/, git history에 보존)
+> **Updated**: 2026-03-31 | **Version**: v17.0
+> **Active**: 77개 | **Archive**: 27개 (docs/_archive/, git history에 보존)
 >
 > **Phase Structure**: Phase 1 (MVDiff bottleneck) = 유지보수 | **Phase 2 (Novel View + Multi-Species) = 현재 포커스**
 >
@@ -121,6 +121,7 @@
 | [[guides/RAT_FT_DATA_GUIDE]] | Rat FT 데이터 준비 가이드 | ✅ |
 | **[[guides/RAT_SAM2_MASK_STRATEGY]]** | Rat SAM2 마스크 전략 (SCN2A_WK1 + M3_M4, 자동/수동 하이브리드) | **✅ v1.0** |
 | **[[guides/RAT_SAM2_QUICKSTART]]** | Rat SAM2 뷰어 실행 Quick Start (annotator + propagation 명령어) | **✅ v1.0** |
+| [[guides/ORIENTATION_FILTER_GUIDE]] | Z-aligned flat Gaussian 억제 (bottom-view artifact 제거) | **✅ v1.0** |
 | [[guides/MAMMAL_REFIT_HANDOFF]] | MAMMAL 23 bad frames 재피팅 핸드오프 (환경, 프레임 매핑, 검증) | **✅ v1.0** |
 
 #### guides/chapters/ (EXPERIMENT_MASTER_GUIDE 하위)
@@ -170,6 +171,7 @@
 | **[[specs/KEYPOINT_ABLATION_FRAMEWORK]]** | 5-tier keypoint ablation 프레임워크: tier별 문헌 근거 + task matrix + YAML SSOT | **🆕 v1.0** |
 | **[[specs/PATHS_SSOT_DESIGN]]** | outputs/ v2 경로 설계 + paths.py factory | ✅ |
 | **[[specs/RAT_PREPROCESSING_STRATEGY]]** | RAT zero-pad vs crop vs hybrid 전처리 비교 + 3-model audit + 실험 계획 | **🆕 v1.0** |
+| **[[specs/CINEMATIC_V11_SPEC]]** | NeurIPS 2026 데모 영상 파이프라인 (768px, 13 segments, 20fps) | **✅ v11c** |
 
 > **이론 문서 → Obsidian으로 이동** (2026-03-17):
 > MULTIVIEW_DIFFUSION_THEORY → `Obsidian/docs/theory/`, MV_ADAPTER_TECHNICAL → `Obsidian/docs/research/`, SLIDES → `Obsidian/Presentation/`
@@ -297,4 +299,4 @@ experiments/comparison/
 
 ---
 
-*MoC v16.3 | Updated: 2026-03-24 | S43+: RAT2 config, HLAC frame selection, H6 완료, DiFix deprecated*
+*MoC v17.0 | Updated: 2026-03-31 | Audit: wikilink fix, case normalize, ORIENTATION_FILTER + CINEMATIC_V11 등록, SESSION_HANDOFF 아카이브, comprehensive superseded 마커*
