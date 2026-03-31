@@ -1,12 +1,17 @@
-# DiFix 3D+ Training Strategy for GS-LRM Artifact Removal
+# DiFix Artifact Removal Strategy
 
-> **Navigation**: [<- INDEX](../INDEX.md) | [PHASE2_NOVEL_VIEW_ROADMAP](PHASE2_NOVEL_VIEW_ROADMAP.md) | [mesh_gs_pair_collection](mesh_gs_pair_collection.md)
-> **Version**: v1.0 | **Created**: 2026-03-12 | **Status**: PLANNING
-> **Source**: 3-model deliberation (Claude/Gemini/GPT-4o) consensus
+> [← INDEX](../INDEX.md) | [PHASE2](PHASE2_NOVEL_VIEW_ROADMAP.md)
+> **Version**: v2.0 | Consolidated: 2026-03-31
+> **Status**: PoC failed (mode collapse on Type 3 + Gram loss explosion). Type 2 MAMMAL re-attempt MoA approved (3/3 consensus: "Do NOT retry" was over-generalization).
 
 ---
 
-## 1. Overview
+## §1. Original Strategy [DEPRECATED]
+
+> Source: `DIFIX_TRAINING_STRATEGY.md` (v1.0, 2026-03-12)
+> 3-model deliberation (Claude/Gemini/GPT-4o) consensus
+
+### 1.1 Overview
 
 GS-LRM novel view renders suffer from Gaussian artifacts (floaters, spikes, white splats).
 **DiFix 3D+** (CVPR 2025) is a diffusion-based 3D-aware image restoration model that can
@@ -24,7 +29,7 @@ remove such artifacts when trained on (degraded, clean) image pairs.
 - **Type 2**: Novel view pairs, but MAMMAL pseudo-GT has template fitting limitations
 - **Type 3**: Self-supervised within GS-LRM; degradation = fewer input views
 
-## 2. Training Strategy: 2.5-Stage Curriculum
+### 1.2 Training Strategy: 2.5-Stage Curriculum
 
 ```
 Stage 0: Zero-Shot Baseline
@@ -53,7 +58,7 @@ Stage 2: GT Fine-Tune (+Type 1)
   └── Expected: Best quality at GT cameras, improved novel views
 ```
 
-### Why This Order?
+#### Why This Order?
 
 1. **Stage 1 first**: Type 3 has zero domain gap (same renderer). Model learns
    what GS-LRM artifacts look like without confounding factors.
@@ -62,9 +67,9 @@ Stage 2: GT Fine-Tune (+Type 1)
 3. **Stage 2 last**: Type 1 provides real GT but only at GT cameras. Fine-tuning
    on this prevents quality regression while keeping novel view generalization.
 
-## 3. Data Pair Specification
+### 1.3 Data Pair Specification
 
-### Type 1: GT View Pairs (N-view render <-> GT RGB)
+#### Type 1: GT View Pairs (N-view render <-> GT RGB)
 
 ```
 Input:  outputs/datasets/novel_view/mouse_m5t2/ablation_{N}view/cam_NNN/NNNNN.png
@@ -79,7 +84,7 @@ frame = 00000 ... 03599 (3600 frames)
 - **Resolution**: 384x384
 - **Pairs**: 3600 x 6 x 5 = 108,000
 
-### Type 2: Novel View Pairs (6-view novel render <-> MAMMAL pseudo-GT)
+#### Type 2: Novel View Pairs (6-view novel render <-> MAMMAL pseudo-GT)
 
 ```
 Input:  outputs/datasets/novel_view/mouse_m5t2/tier0_raw/{view}/NNNNN.png
@@ -93,7 +98,7 @@ frame = 00000 ... 03599
 - **MAMMAL limitations**: Template fitting error, limited surface detail, texture quality
 - **Pairs**: 3600 x 4 = 14,400
 
-### Type 3: View Ablation Pairs (N-view render <-> 6-view render)
+#### Type 3: View Ablation Pairs (N-view render <-> 6-view render)
 
 ```
 Input:  outputs/datasets/novel_view/mouse_m5t2/ablation_{N}view/cam_NNN/NNNNN.png
@@ -108,7 +113,7 @@ frame = 00000 ... 03599
 - **Degradation level known**: N-view count directly controls artifact severity
 - **Pairs**: 3600 x 6 x 5 = 108,000
 
-### Domain Gap Analysis
+#### Domain Gap Analysis
 
 | Pair Type | Spatial Gap | Appearance Gap | Scale | Training Signal Quality |
 |:---------:|:----------:|:--------------:|:-----:|:----------------------:|
@@ -116,9 +121,9 @@ frame = 00000 ... 03599
 | Type 2 | Novel viewpoint | High (GS vs mesh) | 14.4K | Medium (pseudo-GT) |
 | Type 3 | None (same camera) | Zero (same renderer) | 108K | Good (self-supervised) |
 
-## 4. Inference Pipeline
+### 1.4 Inference Pipeline
 
-### Per-View DiFix Application
+#### Per-View DiFix Application
 
 ```
 For each novel view camera C:
@@ -133,7 +138,7 @@ Multi-view consistency (post-processing):
   - Mitigation 3: 3DGS re-fitting from cleaned multi-view → consistent novel views
 ```
 
-### Integration with Existing Pipeline
+#### Integration with Existing Pipeline
 
 ```
 [6-view GT input]
@@ -144,9 +149,9 @@ Multi-view consistency (post-processing):
     → Evaluate: raw vs cleaned vs MAMMAL pseudo-GT
 ```
 
-## 5. Folder Structure
+### 1.5 Folder Structure
 
-### Source Data (outputs/datasets/novel_view/)
+#### Source Data (outputs/datasets/novel_view/)
 
 ```
 outputs/datasets/novel_view/
@@ -160,7 +165,7 @@ outputs/datasets/novel_view/
     └── metadata/
 ```
 
-### DiFix Training Pairs (outputs/datasets/difix_pairs/)
+#### DiFix Training Pairs (outputs/datasets/difix_pairs/)
 
 ```
 outputs/datasets/difix_pairs/
@@ -182,9 +187,9 @@ outputs/datasets/difix_pairs/
     └── ...
 ```
 
-## 6. Compute & Storage Estimates
+### 1.6 Compute & Storage Estimates
 
-### Rendering
+#### Rendering
 
 | Phase | GPU | Wall Time | Output |
 |-------|:---:|:---------:|:------:|
@@ -193,14 +198,14 @@ outputs/datasets/difix_pairs/
 | View ablation (5 x 3600 frames) | 3x A6000 | ~50 min | ablation_{1-5}view (15.6 GB) |
 | **Total rendering** | | **~1.5 hr** | **~26 GB** |
 
-### DiFix Pair Building
+#### DiFix Pair Building
 
 | Phase | Resource | Time | Output |
 |-------|:--------:|:----:|:------:|
 | Symlink-based pair build | CPU | ~10 min | ~230K symlinks (~negligible disk) |
 | Manifest generation | CPU | ~2 min | manifest.json |
 
-### DiFix Training (Estimated)
+#### DiFix Training (Estimated)
 
 | Stage | Pairs | Epochs | Est. Time (1x A6000) |
 |-------|:-----:|:------:|:--------------------:|
@@ -209,7 +214,7 @@ outputs/datasets/difix_pairs/
 | Stage 2 (+Type 1) | 230K | 5 | ~4 hr |
 | **Total training** | | | **~17 hr** |
 
-### Storage Summary
+#### Storage Summary
 
 | Component | Size |
 |-----------|:----:|
@@ -218,14 +223,173 @@ outputs/datasets/difix_pairs/
 | DiFix model checkpoints | ~2 GB |
 | **Total** | **~28 GB** |
 
-## 7. Related Documents
+---
 
-- <- [[../INDEX]] -- Document hub
-- <-> [[PHASE2_NOVEL_VIEW_ROADMAP]] -- Phase 2 roadmap (novel view enhancement pipeline)
-- <-> [[mesh_gs_pair_collection]] -- Tier-based dataset pipeline
-- <-> [[../../mouse_extensions/docs/COORDINATE_SYSTEMS]] -- Coordinate transforms
-- <-> [[STAGE1_REPLACEMENT_CANDIDATES]] -- Stage 1 alternatives (DiFix 3D+ is a candidate)
+## §2. Type 2 Re-attempt (260329)
+
+> Source: `DIFIX_TYPE2_MAMMAL_PLAN.md` (2026-03-29)
+> MoA Audit: "Do NOT retry" conclusion was over-generalization (3/3 consensus)
+
+### 2.1 Previous Failure Analysis
+
+| Item | Previous PoC (Failed) | This Plan |
+|------|----------------|----------|
+| Data | Type 3 only (zero gap) | **Type 2** (MAMMAL mesh pseudo-GT) |
+| Loss | LPIPS + L2 + **Gram** (unstable) | LPIPS + L2 (Gram removed) |
+| Steps | 2000 intended → 9500 bug | 2000 strict (early stop) |
+| Target | GS-LRM 6v (same model) | **MAMMAL mesh render** (3D geometry) |
+| Evaluation | 2D image quality only | **3D-aware** (novel view re-render) |
+
+### Why Retry?
+
+1. Previous failure was Type 3 (zero domain gap) → MLP learned identity function
+2. Gram loss explosion → loss design problem (not fundamental limitation)
+3. Training bug (9500 steps) → uncontrolled experiment
+4. **Type 2 (MAMMAL pseudo-GT) untested** — real 3D geometry supervision signal
+
+### 2.2 Data Pair Generation
+
+#### Bottom View Camera
+
+```python
+# collect_dataset.py
+NOVEL_VIEWS = {
+    "bottom": {"elevation": -70.0, "azimuth": 0.0},
+}
+# radius=2.7, fx=fy=411.75 @ 512x512
+```
+
+#### Step 1: GS-LRM Novel View Renders (Input)
+
+```bash
+ssh gpu03
+cd /home/joon/dev/FaceLift
+conda activate facelift
+
+# Check if already exists
+ls outputs/datasets/novel_view/mouse_m5t2/tier0_raw/bottom/ 2>/dev/null | wc -l
+
+# If < 3600, generate:
+CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.novel_view.collect_dataset \
+    --mode generate --phase gslrm \
+    --frame_range 0 3600 \
+    --views bottom
+# Expected: ~30min (6v checkpoint inference)
+```
+
+#### Step 2: MAMMAL Mesh Renders (Target)
+
+```bash
+# Requires mammal_stable env for pyrender
+conda activate mammal_stable
+PYOPENGL_PLATFORM=egl python -m mouse_extensions.scripts.novel_view.collect_dataset \
+    --mode generate --phase mammal \
+    --frame_range 0 3600 \
+    --views bottom
+# Expected: ~18min
+```
+
+#### Step 3: Build DiFix Pairs
+
+```bash
+conda activate facelift
+python -m mouse_extensions.scripts.eval.build_difix_dataset \
+    --types 2 \
+    --views bottom \
+    --use-symlinks
+# Output: difix_pairs/type2_novel_view/{frame}_{view}/input.png + target.png
+# Expected pairs: 3,600 (bottom only)
+```
+
+### 2.3 Training Plan
+
+#### Stage 0: Zero-Shot Baseline
+
+```bash
+python -m mouse_extensions.scripts.eval.difix_zero_shot \
+    --input_dir outputs/datasets/novel_view/mouse_m5t2/tier0_raw/bottom \
+    --output_dir outputs/difix_zero_shot/type2_bottom \
+    --n_samples 20
+# 1-2 hours, pretrained DiFix weights
+```
+
+#### Stage 1: Type 2 Fine-Tuning
+
+```bash
+python -m mouse_extensions.scripts.eval.train_difix \
+    --pairs_dir difix_pairs/type2_novel_view \
+    --loss lpips+l2 \
+    --max_steps 2000 \
+    --eval_every 200 \
+    --output_dir outputs/difix_training/type2_bottom_v1
+# Gram loss removed (previous explosion cause)
+```
+
+#### Stage 2: Mixed Training (Optional)
+
+Type 3 80% + Type 2 20% mix (curriculum Stage 1.5):
+```bash
+python -m mouse_extensions.scripts.eval.train_difix \
+    --pairs_dir difix_pairs/type2_novel_view:difix_pairs/type3_view_ablation \
+    --mix_ratio 0.2:0.8 \
+    --loss lpips+l2 \
+    --max_steps 5000
+```
+
+### 2.4 Evaluation Protocol
+
+#### Style Transfer Risk Prevention (Gemini audit warning)
+
+Type 2 risks learning GS-LRM look → MAMMAL look style transfer only.
+
+**Evaluation approach**:
+1. ❌ 2D image direct comparison (PSNR vs MAMMAL render) — rewards style transfer
+2. ✅ **3D-aware evaluation**:
+   - DiFix refined image → novel view consistency check
+   - Multi-angle DiFix application → multi-view consistency measurement
+   - FG-PSNR (foreground masked, GT view) — vs actual GT
+
+#### Metrics
+
+| Metric | Description | Target |
+|--------|------|--------|
+| FG-PSNR (GT view) | Foreground PSNR vs real GT | > 20.01 dB (α=0.3 baseline) |
+| LPIPS (GT view) | Perceptual quality | < baseline |
+| Spike count | Needle artifact quantification | Decrease |
+| Visual | Side-by-side comparison | Improvement confirmed |
+
+### 2.5 Resource Requirements
+
+| Item | GPU | Time | Notes |
+|------|:---:|:----:|------|
+| GS-LRM novel renders | 1 | ~30min | One-time |
+| MAMMAL mesh renders | 0 (CPU/EGL) | ~18min | One-time |
+| DiFix zero-shot | 1 | ~2h | 20 samples |
+| DiFix Type 2 training | 1 | ~4-6h | 2000 steps |
+| Evaluation | 1 | ~1h | FG-PSNR + visual |
+
+**Total: ~1 day (1 GPU)**
+
+### 2.6 Risk Assessment
+
+| Risk | Severity | Mitigation |
+|------|:--------:|------------|
+| Style transfer (MAMMAL look) | High | 3D-aware evaluation, GT view cross-validation |
+| Mode collapse (recurrence) | Medium | Gram loss removed, 2000 step strict |
+| Resolution mismatch (384 vs 512) | Low | Verify 512 before generation |
+| MAMMAL fitting quality | Medium | Keyframes only (900 frames) |
 
 ---
 
-*FaceLift | DiFix 3D+ Training Strategy | 2026-03-12*
+## Related Documents
+
+- ← [[../INDEX]] — Document hub
+- ↔ [[PHASE2_NOVEL_VIEW_ROADMAP]] — Phase 2 roadmap (novel view enhancement pipeline)
+- ↔ [[mesh_gs_pair_collection]] — Tier-based dataset pipeline
+- ↔ [[../../mouse_extensions/docs/COORDINATE_SYSTEMS]] — Coordinate transforms
+- ↔ [[STAGE1_REPLACEMENT_CANDIDATES]] — Stage 1 alternatives (DiFix 3D+ is a candidate)
+
+---
+
+*FaceLift | DiFix Strategy (Consolidated) | v2.0 | 2026-03-31*
+*Merged from: DIFIX_TRAINING_STRATEGY.md (2026-03-12) + DIFIX_TYPE2_MAMMAL_PLAN.md (2026-03-29)*

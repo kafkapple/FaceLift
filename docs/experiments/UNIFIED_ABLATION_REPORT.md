@@ -1,7 +1,7 @@
 # Unified Ablation Study Report
 
 > **Version**: v1.0 | **Created**: 2026-03-23 | **Status**: ACTIVE
-> **Navigation**: [← INDEX](../INDEX.md) | [EXPERIMENT_REGISTRY](EXPERIMENT_REGISTRY.md) | [comprehensive_analysis_report](comprehensive_analysis_report.md)
+> **Navigation**: [← INDEX](../INDEX.md) | [EXPERIMENT_REGISTRY](EXPERIMENT_REGISTRY.md) | [MASTER_RESULTS_TABLE](MASTER_RESULTS_TABLE.md)
 > **Audit**: 3-model audit (Claude Sonnet + Gemini 2.5 Pro + GPT-4o) conducted 2026-03-23
 
 ---
@@ -409,9 +409,9 @@ To resolve the 4v baseline ambiguity identified in the audit:
 |:---|:---|
 | ↑ [[../INDEX]] | Document hub |
 | ↔ [[EXPERIMENT_REGISTRY]] | Individual experiment configs |
-| ↔ [[comprehensive_analysis_report]] | H1-H8 hypothesis testing |
+| ↔ [[MASTER_RESULTS_TABLE]] | H1-H8 hypothesis testing (was comprehensive_analysis_report, now archived) |
 | ↔ [[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] | Alpha loss deep-dive + artifact analysis |
-| ↔ [[TEMPORAL_CONSISTENCY_STUDY]] | Temporal metrics (separate) |
+| ↔ [[TEMPORAL_ANALYSIS]] | Temporal metrics |
 | ↔ [[fl_vs_ps_comparison]] | FaceLift vs Pose-Splatter |
 
 ---

@@ -288,8 +288,8 @@ Phase 0 Diagnostic (1-2 days)
 
 ## Backlinks
 
-- ↑ [INDEX](../INDEX.md) | [NOVEL_VIEW_QUALITY_STRATEGY](../experiments/NOVEL_VIEW_QUALITY_STRATEGY.md)
-- ↔ [MAMMAL_MESH_RENDERING_PIPELINE](MAMMAL_MESH_RENDERING_PIPELINE.md) | [DIFIX_TRAINING_STRATEGY](../experiments/DIFIX_TRAINING_STRATEGY.md)
+- ↑ [INDEX](../INDEX.md) | [PHASE2_NOVEL_VIEW_ROADMAP](../experiments/PHASE2_NOVEL_VIEW_ROADMAP.md)
+- ↔ [MAMMAL_MESH_RENDERING_PIPELINE](MAMMAL_MESH_RENDERING_PIPELINE.md) | [DIFIX_STRATEGY](../experiments/DIFIX_STRATEGY.md)
 - ↓ Implementation: `mouse_extensions/model/neural_texture.py` (to be created)
 
 ---

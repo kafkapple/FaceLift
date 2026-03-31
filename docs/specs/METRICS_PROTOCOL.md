@@ -327,7 +327,7 @@ X축: log(N_final) — 효율성
 - ↔ Obsidian `analysis/PRUNING_ABLATION_DESIGN.md` — Pruning 실험 설계 근거
 - ↔ [[../hypotheses/H8_opacity_anisotropy_analysis]] — Opacity/Anisotropy 분석
 - ↔ [[../guides/ORIENTATION_FILTER_GUIDE]] — Orientation filter 상세
-- ↔ [[../experiments/CHECKPOINT_INVENTORY_260326]] — 체크포인트 현황
+- ↔ CHECKPOINT_INVENTORY_260326 _(archived)_ — 체크포인트 현황
 
 ---
 

@@ -146,7 +146,7 @@ M5t2 데이터 (3,600 samples × 6 views × 512×512 RGBA)
 
 > ⚠️ PoseSplatter (Goffinet et al. 2025)는 DANNCE/MAMMAL 데이터를 사용하지 **않으며**, **자체 녹화한 별도 데이터**를 사용합니다
 > (Duke, 324K frames, 1536×2048, 30fps, 28cm 플라스틱 실린더, DOI: 10.7924/r4z323k2c).
-> 본 프로젝트에서 PS 코드를 M5 데이터에 적용한 것. 자세한 비교: [[experiments/FL_vs_PS_comparison]] §2
+> 본 프로젝트에서 PS 코드를 M5 데이터에 적용한 것. 자세한 비교: [[experiments/fl_vs_ps_comparison]] §2
 
 ---
 
@@ -192,7 +192,7 @@ DISCONTINUITY_FRAMES = {5900, 11800, 17700}
 
 - [[PREPROCESSING_REGISTRY]] — 전처리 preset 정의 (M5, M5_4, M5_5 등)
 - [[M5_SERIES_SPEC]] — 카메라 정규화 방식 상세 비교
-- Obsidian [[CAMERA_NORMALIZATION]] — Batch Uniform 설계 근거 + MVG 이론
+- Obsidian `theory/CAMERA_NORMALIZATION.md` — Batch Uniform 설계 근거 + MVG 이론
 - [[MULTI_ANIMAL_PREPROCESSING]] — Plucker ray, 다중 동물 전처리
 - [[SDANNCE_VIDEO_AVAILABILITY]] — Rat (s-DANNCE) 데이터셋 목록
 

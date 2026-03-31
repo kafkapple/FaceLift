@@ -807,9 +807,9 @@ Baseline (E0: 22.34 dB, 4-view GT)
 
 5. **Scalability** --- 3,600 frame 소규모 데이터셋에서의 결과가 larger dataset에서도 유지되는가?
 
-6. **H_Split: Split ratio bias?** --- 8:1:1이 FL에 유리한 bias를 만드는가? 1:1:1 split에서 FL-PS gap 변화 확인. (FL_vs_PS_comparison.md §2.5 참조)
+6. **H_Split: Split ratio bias?** --- 8:1:1이 FL에 유리한 bias를 만드는가? 1:1:1 split에서 FL-PS gap 변화 확인. (fl_vs_ps_comparison.md §2.5 참조)
 
-7. **Cross-species generalization** --- Mouse로 학습한 FL이 Rat7M 데이터에서 얼마나 transfer되는가? PS cross-species (Mouse→Rat -1.8 dB)와 비교. (FL_vs_PS_comparison.md §2.6 참조)
+7. **Cross-species generalization** --- Mouse로 학습한 FL이 Rat7M 데이터에서 얼마나 transfer되는가? PS cross-species (Mouse→Rat -1.8 dB)와 비교. (fl_vs_ps_comparison.md §2.6 참조)
 
 ---
 

@@ -103,7 +103,7 @@ CCA confirms that Gaussian features largely encode the same behavioral informati
 ## Related
 
 - Previous HLAC: `outputs/m5t2_hlac_analysis/` (initial), `outputs/m5t2_hlac_analysis_n2/` (N>=2), `outputs/m5t2_hlac_fg_n2/` (foreground)
-- Bias correction: `docs/experiments/PAST_SESSION_AUDIT_260322.md`
+- Bias correction: `docs/experiments/PAST_SESSION_AUDIT_260322.md` _(archived)_
 - Memory: `feedback_confirmation_bias.md`
 
 ---

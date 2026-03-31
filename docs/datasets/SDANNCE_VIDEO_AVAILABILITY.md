@@ -458,8 +458,8 @@ curl -s "https://dataverse.harvard.edu/api/datasets/export?exporter=dataverse_js
 *BehaviorSplatter | s-DANNCE Dataset Guide SSOT | v2.0 | 2026-03-22*
 
 Related:
-- ↑ [[INDEX|FaceLift Documentation Hub]]
-- ↔ [[MULTI_ANIMAL_PREPROCESSING|Multi-Animal Preprocessing Spec]]
-- ↔ [[RAW_DATA|Raw Data Sources]]
+- ↑ [FaceLift Documentation Hub](../INDEX.md)
+- ↔ [Multi-Animal Preprocessing Spec](MULTI_ANIMAL_PREPROCESSING.md)
+- ↔ [Raw Data Sources](RAW_DATA.md)
 - ↔ [sdannce-poc dataset_catalog](~/dev/sdannce-poc/docs/data/dataset_catalog.md)
 - ↔ [CLAUDE.md s-DANNCE data convention](../../CLAUDE.md#sdannce-data-convention)

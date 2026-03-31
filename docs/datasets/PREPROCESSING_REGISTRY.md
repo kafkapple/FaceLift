@@ -116,7 +116,7 @@
 1. 6개 카메라 centroid → origin 이동
 2. 단일 scale factor로 avg dist = 2.7m (개별 거리 비율 보존)
 
-> **상세 코드/의사코드**: [[M5_SERIES_SPEC]] §3.1, Obsidian [[CAMERA_NORMALIZATION]] §3.1
+> **상세 코드/의사코드**: [[M5_SERIES_SPEC]] §3.1, Obsidian `theory/CAMERA_NORMALIZATION.md` §3.1
 
 ### 3.3 프리셋별 정규화
 
@@ -427,7 +427,7 @@ python -m mouse_extensions.preprocessing.split_generator \
 - ↑ [[../INDEX]] — Document hub
 - ↔ [[M5_SERIES_SPEC]] — M5 카메라 정규화 상세 (수치 + 코드)
 - ↔ [[RAW_DATA]] — Raw 데이터 출처 (DANNCE → MAMMAL → M5t2)
-- ↔ Obsidian [[CAMERA_NORMALIZATION]] — Batch Uniform 설계 근거 + MVG 이론
+- ↔ Obsidian `theory/CAMERA_NORMALIZATION.md` — Batch Uniform 설계 근거 + MVG 이론
 - ↔ [[MULTI_ANIMAL_PREPROCESSING]] — 다중 동물 전처리 스펙
 - ↔ [[../experiments/EXPERIMENT_CONFIG_GUIDE]] — Config 시스템
 - ↔ [[../experiments/COMMANDS]] — 전처리 명령어

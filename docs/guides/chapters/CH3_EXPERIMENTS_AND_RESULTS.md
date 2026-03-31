@@ -2,7 +2,7 @@
 
 > 모든 실험의 가설, 근거, 설정, 명령어, 코드 흐름, 결과, 후속 실험 도출까지 시간순으로 상세히 설명합니다.
 > **"How" 관점** — 코드 재현에 초점. "Why" 관점은 [[RESEARCH_EXPERIMENT_NOTES]] 참조.
-> **정량 결과 SSOT**: [[experiments/comprehensive_analysis_report]] | **가설 SSOT**: [[experiments/hypothesis_roadmap]]
+> **정량 결과 SSOT**: [[experiments/MASTER_RESULTS_TABLE]] | **가설 SSOT**: [[experiments/hypothesis_roadmap]]
 >
 > ← [[CH2_GSLRM_CODE_FLOW]] | [[EXPERIMENT_MASTER_GUIDE]] | → 개별 실험 문서 참조
 
@@ -900,7 +900,7 @@ PS는 per-scene optimization이므로 별도 렌더링 → eval 필요.
 - **F9**: PS coverage 89.3%가 낮은 PSNR_fg 주 원인. PSNR_intersection으로 순수 색상 비교 필요.
 - E2E의 8.20 dB는 Stage 1 bottleneck (14% transfer) 때문
 
-→ 상세: [[FL_vs_PS_comparison]], [[evaluation_protocol_v1]]
+→ 상세: [[fl_vs_ps_comparison]], [[evaluation_protocol_v1]]
 
 ---
 
@@ -969,7 +969,7 @@ E0_1 (baseline, val PSNR 22.34, 논문 원본 config)
 | H7 SSIM Weight | [[H7_SSIM_WEIGHT]] |
 | MVDiff Bottleneck | [[mvdiffusion_bottleneck_analysis]] |
 | DA1 | [[domain_adaptation_DA1]] |
-| FL vs PS | [[FL_vs_PS_comparison]] |
+| FL vs PS | [[fl_vs_ps_comparison]] |
 | Eval Protocol | [[evaluation_protocol_v1]] |
 | Hypothesis Roadmap | [[hypothesis_roadmap]] |
 

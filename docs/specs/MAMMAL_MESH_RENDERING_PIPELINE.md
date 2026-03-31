@@ -265,7 +265,7 @@ def _render_pyrender(mesh, cam_params, renderer, use_texture):
 - ↔ [[../../mouse_extensions/docs/UV_TEXTURE_RENDERING_BUG]] — UV texture bug fix
 - ↔ [[../../mouse_extensions/docs/COORDINATE_SYSTEMS]] — Coordinate transforms
 - ↔ [[../../mouse_extensions/docs/DATASET_FRAME_INDEXING]] — Frame indexing
-- ↔ [[../experiments/DIFIX_TRAINING_STRATEGY]] — DiFix 3D+ training (uses pseudo-GT)
+- ↔ [[../experiments/DIFIX_STRATEGY]] — DiFix 3D+ training (uses pseudo-GT)
 
 ---
 

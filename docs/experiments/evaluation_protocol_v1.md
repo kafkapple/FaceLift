@@ -312,7 +312,7 @@ SSIM03 best=21.10, current=19.69, declining but not collapsed. Baseline=21.71.
 | Link | Document |
 |------|----------|
 | Hub | [[INDEX]] |
-| FL vs PS | [[FL_vs_PS_comparison]] |
+| FL vs PS | [[fl_vs_ps_comparison]] |
 | Bottleneck analysis | [[mvdiffusion_bottleneck_analysis]] |
 | DA1 experiment | [[domain_adaptation_DA1]] |
 | Metrics protocol | [[theory/METRICS_PROTOCOL]] |

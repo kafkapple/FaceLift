@@ -154,7 +154,7 @@ Single Image ──→ [Multi-view Diffusion] ──→ 6-view Images ──→ 
 
 | 주제 | 상세 문서 |
 |------|-----------|
-| FL vs PS 비교 | [[FL_vs_PS_comparison]] |
+| FL vs PS 비교 | [[fl_vs_ps_comparison]] |
 | MVDiff 병목 분석 | [[mvdiffusion_bottleneck_analysis]] |
 | Domain Adaptation | [[domain_adaptation_DA1]] |
 | 평가 프로토콜 | [[evaluation_protocol_v1]] |

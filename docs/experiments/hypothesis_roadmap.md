@@ -350,4 +350,152 @@ attention = softmax(Q @ K^T / sqrt(d) + pose_bias)
 
 ---
 
-*FaceLift Hypothesis Roadmap v3.0 | 2026-03-12 | 6v>5v 수정, 조기 가설 통합, SSOT 확립*
+*FaceLift Hypothesis Roadmap v4.0 | 2026-03-31 | Consolidated detailed analysis from hypotheses/*.md*
+
+---
+
+## Detailed Hypothesis Analysis (Consolidated 260331)
+
+> Consolidated from individual `hypotheses/*.md` files. Originals archived to `_archive/hypotheses/`. See git history for full versions.
+
+### H4: View Ablation — Detailed Results
+
+**Experiment Design**: All runs used `base_uniform_v2.yaml` (GS-LRM pretrained ckpt_21125, M5t2 temporal 80:10:10, 15840 steps/11 epochs, batch 2, AdamW lr=1e-6, seed=42, `random_view_selection: true`, 1x A6000 48GB). Total ~168 GPU-hours.
+
+**Val PSNR Results** (complement to §3 fair eval PSNR_fg):
+
+| Views | Val PSNR | Best Step | Δ vs Baseline (15.99) | Δ vs Previous |
+|:-----:|:--------:|:---------:|:---------------------:|:-------------:|
+| baseline (0-shot) | 15.99 | 0 | — | — |
+| 1 | 11.08 | 2,401 | -4.91 | — |
+| 2 | 17.75 | 11,801 | +1.76 | +6.67 |
+| 3 | 20.01 | 10,701 | +4.02 | +2.26 |
+| 4 | 21.71 | 9,201 | +5.72 | +1.70 |
+| 5 | 23.02 | 13,101 | +7.03 | +1.31 |
+| 6 | 24.49 | 4,201 | +8.50 | +1.47 |
+
+**Key unique findings**:
+
+- **Linear relationship**: `PSNR ≈ 11.08 + 2.68 × views` (R² ≈ 0.97). No diminishing returns — each camera provides non-redundant information.
+- **5→6 gain (+1.47) > 4→5 (+1.31)**: Counter-intuitively, adding the 6th view helps more.
+- **1-view anomaly**: 11.08 < baseline 15.99. Single view destroys pretrained multi-view consistency knowledge.
+- **6-view converges fastest** (best at step 4201 vs 13101 for 5-view). Sufficient information enables rapid convergence.
+- **Best step pattern**: 1v=early(2401, quick overfit) → 6v=early(4201, fast convergence). Middle views peak later (9K-13K).
+- **R1→R2 reversal**: Prior R1 (non-uniform sampling) concluded "3-view best" (21.12). R2 (uniform) showed monotonic increase. R1's 3v=21.12 > R2's 3v=20.01, but R1's 6v=19.58 << R2's 6v=24.49. Lesson: uniform sampling essential for ablation.
+- **Paper-aligned comparison**: `lr=1e-4, no LPIPS/SSIM, 20K` → 21.09 vs our 21.71 at 4-view.
+
+**Dead config warnings**: `max_steps` (unused by train_gslrm.py), `training.schedule.val_every` (code ignores it), `max_fwdbwd_passes` rounds up to epoch boundary.
+
+### H5: MVDiffusion Training — Detailed Results
+
+**Experiment matrix** (all sparse=true unless noted):
+
+| Config | Key Change | Steps | LR | Result |
+|--------|-----------|:-----:|:--:|--------|
+| Baseline (M5t2) | — | 10K | piecewise 5e-5 | PSNR 27.30 (CFG 3.0) |
+| cfgr | sparse=**false** | 10K | piecewise 5e-5 | -0.48 dB (sparse wins) |
+| P0 randref_sparse | ref=random | 10K | piecewise 5e-5 | ~27, oscillation |
+| P1 pose_spherical | spherical concat | 10K | piecewise 5e-5 | plateau after 5K |
+| E1 20k_cosine | cosine LR | 20K | cosine 5e-5→0 | (trained) |
+| E2 resume | P0 resume, LR decay | 20K | piecewise 1e-5 | (trained) |
+
+**Root cause of P0/P1 failure**: `step_rules: "1:100000,0.5"` meant LR decay never triggered within 10K steps. Constant LR 5e-5 caused oscillation (P0) and plateau (P1).
+
+**Phase 3 design rationale**: E1 (cosine) and E2 (piecewise decay) address LR issue. E3/E4 (add integration vs concat) address pose injection method. Comparison pairs: P1 vs E4 (concat vs add), E3 vs E4 (extrinsic vs spherical encoding).
+
+**Success criteria**: E1 val PSNR > 28.0; E2 monotonic increase 10K→20K; E3/E4 E2E fg_PSNR > 8.0, sIoU > 0.55.
+
+### H6: Alpha Mask Loss — Detailed Results
+
+**Literature basis**: LGM (MSE alpha, "faster shape convergence"), GaussianObject (BCE alpha), Pose-Splatter (normalized masked L1), Compact-3DGS (anisotropy reg).
+
+**Warning**: `mask_mode: alpha` risks feedback loop — inaccurate initial alpha → BG Gaussians → alpha expansion (fg_coverage 0.33→0.70 observed). Use `mask_mode: gt` for safety.
+
+**Results (v3 configs, 4-view uniform)**:
+
+| α Weight | Best PSNR | vs Baseline | LPIPS ↓ | SSIM ↑ | Alpha IoU ↑ |
+|:--------:|:---------:|:-----------:|:-------:|:------:|:-----------:|
+| 0.0 | **21.82** | — | 0.0429 | 0.9473 | N/A |
+| 0.3 | 21.34 | -0.48 | — | — | — |
+| 0.5 | 21.20 | -0.62 | 0.0204 | 0.9725 | 0.9451 |
+| 1.0 | 20.84 | -0.98 | **0.0147** | **0.9742** | **0.9562** |
+
+**Key insight**: PSNR monotonically decreases, but LPIPS improves 3x and SSIM/IoU improve significantly. Alpha loss blurs fine fur textures at mask boundary → pixel error increases, but geometry quality improves substantially.
+
+**Re-evaluation (260316)**: Status changed from ❌ to 🔄 — alpha loss suppresses opacity outside silhouette → removes background "pancake" Gaussians → reduces bottom-view novel-view artifacts.
+
+### H7: SSIM Loss Weight — Detailed Results
+
+**Literature**: 3DGS (0.8×L1 + 0.2×SSIM), Instant-3D (MSE + 0.5×SSIM), Splatter Image (~0.5 L1+SSIM).
+
+**Results (4-view, base_uniform_v2)**:
+
+| SSIM Weight | Best PSNR | Final PSNR | Status |
+|:-----------:|:---------:|:----------:|:------:|
+| 0.1 (baseline) | **21.71** | **21.71** | ✅ Optimal |
+| 0.3 | 21.10 | 19.69 | Declining |
+| 0.5 | 21.30 | **10.17** | ☠️ Collapse |
+| 1.0 | 21.20 | **4.72** | ☠️ Collapse |
+
+**Failure analysis**: SSIM loss is window-based (11×11) which creates gradient conflict with high-resolution Gaussian rasterization. At weight ≥0.5, loss landscape becomes unstable → mode collapse. 0.3 shows grad norm explosion symptoms. Baseline 0.1 is the only stable equilibrium with L2(1.0) + perceptual(0.5).
+
+### H8: Opacity & Anisotropy — Detailed Results
+
+**Method**: 20 test frames (M5t2 3240-3599), opacity_analysis.py, comparing 6v α=0.0 vs 4v α=0.3.
+
+**Opacity distribution pipeline (H8a: REJECTED — unimodal, not bimodal)**:
+
+| Stage | N Gaussians | Mean | Median |
+|-------|:-----------:|:----:|:------:|
+| Raw (pre-filter) | 20,971,560 | 0.008 | 0.001 |
+| After opacity prune (>0.04) | 330,605 | 0.380 | 0.275 |
+| After scaling prune (<0.1) | 330,560 | 0.380 | 0.275 |
+| After floater crop | 330,542 | 0.380 | 0.275 |
+| **After all filters** | **265,300** | **0.317** | **0.243** |
+
+**Filter effectiveness**: Opacity prune removes 98.4% (dominant). Scaling prune (45 removed) and floater crop (18 removed) are negligible. BBox crop removes ~65K (1.6%).
+
+**Alpha supervision effect**: α=0.3 reduces raw mean opacity 0.0076→0.0049 (35% reduction), pushing spurious Gaussians toward zero.
+
+**Anisotropy (H8b: PARTIALLY CONFIRMED)**: 93.8% of Gaussians are "flat" (max/min ratio ≥30), median ratio=6335. This is NORMAL for surface representation. The artifact root cause is NOT anisotropy itself, but flat Gaussians whose min-scale axis aligns with world Z → visible edge-on from bottom views.
+
+**Root cause chain**: Thin white lines in bottom view ← flat Gaussians seen edge-on ← min-scale axis ≈ world Z ← model represents top-down surfaces as horizontal discs ← training rig has 6 top-down cameras.
+
+**Proposed fix**: Orientation-aware filter — `is_artifact = (ratio > 30) AND (z_alignment > 0.85) AND (opacity < 0.4)` → attenuate opacity ×0.1. Targets ~5-10% of Gaussians.
+
+### Generalization Roadmap — Camera & Subject Analysis
+
+**Pipeline constraints**: Input view fixed (cam_0), output views fixed (M5 6-direction), subject fixed (1 mouse), no camera parameter input to MVDiff (CLIP text only), camera distribution biased (elevation 10°-31°, no horizontal/bottom views).
+
+**Scenario capability matrix**:
+
+| Stage | M5 other view | Different angle | Other mouse (M5) | Arbitrary input |
+|-------|:---:|:---:|:---:|:---:|
+| Current (ref=0) | Degraded | Fail | Degraded | Fail |
+| +P0 (random ref) | **OK** | Fail | Degraded | Fail |
+| +P1 (pose cond.) | **OK** | Reasonable | Degraded | Performance loss |
+| +P2-P3 (multi-species+rig) | **OK** | **OK** | **OK** | **Possible** |
+| +P4 (MV-Adapter) | **OK** | **OK** | **OK** | **OK** |
+
+**GS-LRM retraining requirements**: P0/P1 = not needed (output 6-view positions unchanged). P2 = recommended (different body shapes). P3/P4 = required (different c2w).
+
+**Pose conditioning mechanism**: Token injection into cross-attention K/V — UNet modification NOT required. Cross-attention has no constraint on key/value sequence length. Adds 1 pose token (SphericalEncoder output) to prompt embedding via concat. ~100 lines code, ~10 lines train_diffusion.py modification.
+
+### RMA & Camera Layout — Technical Analysis
+
+**M5 vs Original FaceLift cameras**:
+- Original: all 6 cameras at elevation 0° (perfect equatorial), azimuth gaps 45°-90°
+- M5: elevation -8.53° to +9.58° (18.1° spread), two groups — HIGH (+6.4° to +9.6°) and LOW (-6.7° to -8.5°), azimuth ~60° average spacing
+
+**Critical code finding**: RMA is NOT row-enforced in code (`transformer_mv2d_image.py:814-834`). It uses dense attention — all spatial tokens attend to all others. "Row-wise" correspondence is an implicit learned pattern from canonical cameras, not an attention mask.
+
+**Epipolar tilt analysis** — M5 pairwise elevation differences:
+- Same group (HIGH-HIGH or LOW-LOW): ≤3.2° (OK)
+- Cross-group: 13°-18.1° (⚠️ significant tilt)
+- Worst pair: cam_3 ↔ cam_5 = 18.1°
+
+**Why baseline works despite non-uniform cameras**: Fixed ref=0 → model learns one specific geometry pattern. Dense attention can handle tilted epipolar lines.
+
+**Random ref challenge**: Each reference creates different epipolar geometry (6 patterns vs 1). Sparse mode mitigates: 6 cross-view pairs vs 36 in full attention (6x less burden). Cyclic (full+random) failed at -5.5 dB; randref_sparse expected to be viable.
+
+**MV-Adapter comparison**: Current RMA has implicit row attention (learnable) vs MV-Adapter's explicit row rearrangement. MV-Adapter uses Plücker ray (6ch) + T2IAdapter for explicit camera encoding — structurally better suited for non-uniform cameras long-term.

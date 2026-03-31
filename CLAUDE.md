@@ -171,6 +171,7 @@ conda activate facelift
 |------|------|
 | **허용 GPU** | `CUDA_VISIBLE_DEVICES=4,5,6,7` (4~7번만 사용) |
 | **동시 실행** | VRAM 허용 시 같은 GPU에서 2-3개 작업 가능 |
+| **DataLoader** | 실험 config에서 `num_workers≤4, prefetch_factor≤2` 권장 (cgroup v2 page cache 방지) |
 
 ### Data Directory Convention
 
@@ -366,6 +367,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 | Deform V2 BG 낭비 | ✅ **V3에서 해결** | 97.5% BG Gaussians 학습 → FG-only cache (3MB/frame vs 85MB) |
 | OMP_NUM_THREADS 미설정 | ✅ 해결됨 | dl_base.sh → .bashrc interactive guard 위 이동. OMP=1 (260331) |
 | 5view ablation 수렴 | ✅ **중단 (260331)** | plateau 23.0-23.1 dB (step 12200). 결과 기록 완료 |
+| DataLoader 과다 프로세스 | ✅ 해결됨 | base num_workers=8 → 실험 config에서 4로 override, prefetch_factor 8→2. 공용 서버 cgroup page cache 부담 방지 (260331) |
 
 ### Deformation V3 (진행 중, 260331~)
 
@@ -376,7 +378,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 | **학습** | `train_deform.py` (unified, config-driven) + `deform_v3.yaml` |
 | **다음** | FG cache 완료 → smoke test → rendering loss 검증 |
 | **이론** | Obsidian `theory/DEFORMATION_STRATEGY.md`, `BOTTOM_VIEW_ENHANCEMENT_STRATEGY.md` |
-| **계획** | `docs/experiments/DEFORM_V3_FG_AWARE_PLAN.md` |
+| **계획** | `docs/experiments/DEFORMATION_ROADMAP.md` §2 |
 
 ---
 
@@ -430,7 +432,7 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 
 ### Best Checkpoints — 3-Best Rule (260326 Comprehensive Eval)
 
-> **SSOT**: `docs/experiments/CHECKPOINT_INVENTORY_260326.md` + `ALPHA_COMPREHENSIVE_EVAL_260326.md`
+> **SSOT**: `docs/experiments/MASTER_RESULTS_TABLE.md` + `docs/experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS.md` §Comprehensive
 > **모두 M5t2 split (80:10:10)으로 학습**. α=0.0 이름에 M5t2 미포함이나 동일 split 사용.
 
 | 기준 | α | Checkpoint | PSNR_gt | IoU | 용도 |
@@ -441,7 +443,7 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 | GS-LRM 4v | 0.0 | `base_uniform_v2_4view_v2` | — | — | View ablation |
 | MVDiff | — | `mouse_M5t2/checkpoint-5000` | — | — | E2E |
 
-> ⚠️ PSNR_gt (masked FG) ≠ 이전 "23.84" (다른 eval 프로토콜). 상세: `ALPHA_COMPREHENSIVE_EVAL_260326.md` §3.4
+> ⚠️ PSNR_gt (masked FG) ≠ 이전 "23.84" (다른 eval 프로토콜). 상세: `ALPHA_LOSS_NOVEL_VIEW_ANALYSIS.md` §Comprehensive Evaluation
 
 ### Phase 3 Conclusion
 

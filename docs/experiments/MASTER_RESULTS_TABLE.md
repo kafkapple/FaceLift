@@ -1,7 +1,7 @@
 # Master Results Table
 
 > **Version**: v1.0 | **Created**: 2026-03-23 | **Status**: ACTIVE (논문 Table SSOT)
-> **Navigation**: [← INDEX](../INDEX.md) | [UNIFIED_ABLATION_REPORT](UNIFIED_ABLATION_REPORT.md) | [comprehensive_analysis_report](comprehensive_analysis_report.md)
+> **Navigation**: [← INDEX](../INDEX.md) | [UNIFIED_ABLATION_REPORT](UNIFIED_ABLATION_REPORT.md)
 > **Last validated**: 2026-03-23 S26 (all numbers from fair eval JSONs on gpu03)
 
 ---
@@ -294,7 +294,7 @@ All checkpoints at: `/node_data/joon/checkpoints/FaceLift/gslrm/` or `.../mvdiff
 |:---|:---|
 | ↑ [[../INDEX]] | Document hub |
 | ↔ [[UNIFIED_ABLATION_REPORT]] | Ablation analysis + interpretation + audit trail |
-| ↔ [[comprehensive_analysis_report]] | H1-H8 hypothesis testing |
+| ↔ comprehensive_analysis_report _(archived)_ | H1-H8 hypothesis testing |
 | ↔ [[ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] | Alpha loss deep-dive + artifact mechanism |
 | ↔ [[EXPERIMENT_REGISTRY]] | Individual experiment configs |
 | ↔ [[evaluation_protocol_v1]] | Eval protocol specification |

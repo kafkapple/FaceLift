@@ -502,7 +502,7 @@ FileNotFoundError: outputs/tier_comparison/gslrm_6view_test/samples/003240/cam_0
 | Topic | Document |
 |-------|----------|
 | Experiment overview | [[EXPERIMENT_MASTER_GUIDE]] |
-| FL vs PS comparison | [[FL_vs_PS_comparison]] |
+| FL vs PS comparison | [[fl_vs_ps_comparison]] |
 | Stage 1 bottleneck analysis | [[mvdiffusion_bottleneck_analysis]] |
 | Evaluation protocol | [[evaluation_protocol_v1]] |
 | Metric theory | [[theory/METRICS_PROTOCOL]] |

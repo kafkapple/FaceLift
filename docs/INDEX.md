@@ -1,8 +1,8 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-03-31 | **Version**: v17.0
-> **Active**: 77개 | **Archive**: 27개 (docs/_archive/, git history에 보존)
+> **Updated**: 2026-03-31 | **Version**: v18.0
+> **Active**: 58개 | **Archive**: 26개 (docs/_archive/, git history에 보존)
 >
 > **Phase Structure**: Phase 1 (MVDiff bottleneck) = 유지보수 | **Phase 2 (Novel View + Multi-Species) = 현재 포커스**
 >
@@ -19,10 +19,9 @@
 |------|------|
 | **Phase 2 로드맵 (START HERE)** | [[experiments/PHASE2_NOVEL_VIEW_ROADMAP]] **v2.0** |
 | **FL vs PS 비교 (SSOT)** | [[experiments/fl_vs_ps_comparison]] **v11** |
-| **가설 SSOT (로드맵)** | [[experiments/hypothesis_roadmap]] **v3.0** |
+| **가설 SSOT (로드맵)** | [[experiments/hypothesis_roadmap]] **v4.0** |
 | **평가 프로토콜** | [[experiments/evaluation_protocol_v1]] **v1.0** |
 | **명령어 SSOT** | [[experiments/COMMANDS]] |
-| ~~DiFix 학습 전략~~ | ~~[[experiments/DIFIX_TRAINING_STRATEGY]]~~ **[DEPRECATED — PoC 실패 260322, mode collapse]** |
 | **Master Results Table** | [[experiments/MASTER_RESULTS_TABLE]] **v1.0** |
 | **통합 Ablation 보고서** | [[experiments/UNIFIED_ABLATION_REPORT]] **v1.0** |
 | **Alpha Loss 분석** | [[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] **v2.0** |
@@ -49,42 +48,22 @@
 
 #### Core Documents (최신, 빈번 참조)
 
-| 문서 | 내용 | 상태 | 관련 |
-|------|------|:----:|------|
-| **[[experiments/PHASE2_NOVEL_VIEW_ROADMAP]]** | **Phase 2 로드맵**: Novel View + Multi-Species + NeurIPS Dataset Track | **✅ v2.0** | → mesh_gs_pair, KEYPOINT_3D |
-| ~~[[experiments/DIFIX_TRAINING_STRATEGY]]~~ | ~~DiFix 3D+ 학습 전략~~: **[DEPRECATED — PoC 실패 260322 S25, mode collapse]** | ~~v1.0~~ | — |
-| **[[experiments/DIFIX_TYPE2_MAMMAL_PLAN]]** | DiFix Type 2 재시도: MAMMAL mesh bottom view pair + 학습 (MoA audit 승인) | **v1.0** | → DIFIX_TRAINING_STRATEGY |
-| **[[experiments/DEFORM_V3_FG_AWARE_PLAN]]** | ⭐ **Deform V3**: FG-aware rendering loss, V2 중단 후 전환 (4× MoA Audit) | **v1.0** | → DEFORMATION_4DGS, TEMPORAL |
-| **[[experiments/DEFORMATION_4DGS_EXPERIMENT_PLAN]]** | 4D-GS Deformation 실험 계획: Phase 0-3, 논문 기준 학습 | **v1.0** | → TEMPORAL_CONSISTENCY_STUDY |
-| **[[experiments/TEMPORAL_CONSISTENCY_STUDY]]** | Temporal flickering 분석 + smoothing 방법 비교 (EMA/OptFlow/DeformV2) | **✅ v1.0** | → TEMPORAL_EVAL_STANDARD |
-| **[[experiments/TEMPORAL_EVAL_STANDARD]]** | Temporal 평가 기준 SSOT (프레임/뷰/메트릭) | **✅ v1.0** | → TEMPORAL_CONSISTENCY_STUDY |
-| **[[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss novel view artifact 억제 효과 분석 | **✅ v1.0** | → [[hypotheses/H6_ALPHA_MASK]], PHASE2 |
-| **[[experiments/ALPHA_COMPREHENSIVE_EVAL_260326]]** | ⭐ **6v Alpha 종합 평가**: PSNR_gt/int, IoU, Sil.Prec, per-cam, Gaussian stats | **✅ 완료** | → METRICS_PROTOCOL §7 |
-| **[[experiments/CHECKPOINT_INVENTORY_260326]]** | 체크포인트 현황 + P0-P3 실행 계획 (17 ckpts) | **✅ P0 완료** | → H8, Pruning Design |
-| **[[experiments/fl_vs_ps_comparison]]** | FL vs PS 통합 비교 (9-exp) | **✅ v12** | → eval_protocol, GAUSSIAN_COUNT |
-| **[[experiments/GAUSSIAN_COUNT_FAIR_COMPARISON]]** | Gaussian 수 매칭 공정 비교 실험 설계 | 📋 Design | → fl_vs_ps, METRICS_PROTOCOL |
-| **[[experiments/hypothesis_roadmap]]** | 가설 검정 결과 + 우선순위 | ✅ v3.0 | → H4-H7 |
-| **[[experiments/UNIFIED_ABLATION_REPORT]]** | **통합 Ablation 보고서**: View/Alpha/E2E/Resolution 일관 비교 | **✅ v1.0** | → 모든 ablation |
-| **[[experiments/comprehensive_analysis_report]]** | 종합 실험 보고서 (H1-H8) | **✅ v1.0** | → 모든 실험 |
-| **[[experiments/evaluation_protocol_v1]]** | NVS 평가 프로토콜 (Fair Eval) | **✅ v1.0** | → FL_vs_PS |
-| **[[experiments/mesh_gs_pair_collection]]** | Novel view dataset pipeline v2.0 | **✅ v2.0** | → PHASE2, [[experiments/DATASET_QA_VIEWER]] |
-| **[[experiments/DATASET_QA_VIEWER]]** | Novel view dataset QA viewer (stdlib HTTP, exclude 관리) | **✅ v1.0** | → mesh_gs_pair |
-| **[[experiments/REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 (코드+메트릭+프로토콜) | **✅ v1.0** | |
-| **[[experiments/PAST_SESSION_AUDIT_260322]]** | 과거 7개 항목 감사 (HLAC/DiFix/canonical set/VAME 등) | **✅ v2.0** (bias-corrected) | → PHASE2, hypothesis_roadmap |
-| **[[experiments/HLAC_COMPREHENSIVE_260322]]** | HLAC 종합 분석: 2992 frames, K=8, Gaussian vs KP feature comparison | **✅ v1.0** | → BehaviorSplatter, PAST_SESSION_AUDIT |
-
-#### Reference Documents (안정, 삭제/통합된 문서)
-
 | 문서 | 내용 | 상태 |
 |------|------|:----:|
-| ~~training_optimal_settings~~ | _(삭제됨 — bottleneck에 통합)_ | 📦 |
-| ~~mvdiff_improvement_roadmap~~ | _(삭제됨 — bottleneck에 통합)_ | 📦 |
-| ~~FL_PS_metric_consistency~~ | _(삭제됨 — evaluation_protocol에 통합)_ | 📦 |
-| ~~260216_PHASE3_REPORT~~ | _(삭제됨 — comprehensive_analysis_report로 대체)_ | 📦 |
-| ~~260216_MVDIFF_TRAINING_ANALYSIS~~ | _(삭제됨 — comprehensive_analysis_report로 대체)_ | 📦 |
-
-| **[[experiments/NOVEL_VIEW_QUALITY_STRATEGY]]** | Novel view 품질 개선 전략 (3-model deliberation 기반) | **✅ v1.0** | → PHASE2, ALPHA_LOSS |
-| **[[experiments/RELATED_WORK_SURVEY]]** | NeurIPS 2026 Dataset Track 관련 논문 조사 (2026-03-19) | **✅ v1.0** | → PHASE2, gap analysis |
+| **[[experiments/PHASE2_NOVEL_VIEW_ROADMAP]]** | **Phase 2 로드맵** + Novel View Quality Strategy (통합) | **✅ v3.0** |
+| **[[experiments/DIFIX_STRATEGY]]** | DiFix 전략 통합: 원본 전략 [DEPRECATED] + Type 2 MAMMAL 재시도 | **v2.0** |
+| **[[experiments/DEFORMATION_ROADMAP]]** | ⭐ **Deformation V2→V3 로드맵**: V2 중단 + V3 FG-aware rendering loss | **v1.0** |
+| **[[experiments/TEMPORAL_ANALYSIS]]** | Temporal 평가 기준 + flickering 분석 + smoothing 비교 (통합) | **✅ v1.0** |
+| **[[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss 분석 + 6v 종합 평가 (통합) | **✅ v2.0** |
+| **[[experiments/fl_vs_ps_comparison]]** | FL vs PS 통합 비교 + Gaussian count 공정 비교 (통합) | **✅ v13** |
+| **[[experiments/hypothesis_roadmap]]** | ⭐ **가설 SSOT**: H4-H8 상세 분석 포함 (260331 통합) | **✅ v4.0** |
+| **[[experiments/UNIFIED_ABLATION_REPORT]]** | 통합 Ablation 보고서: View/Alpha/E2E/Resolution | **✅ v1.0** |
+| **[[experiments/MASTER_RESULTS_TABLE]]** | 논문 Table SSOT (Fair Eval 수치) | **✅ v1.0** |
+| **[[experiments/evaluation_protocol_v1]]** | NVS 평가 프로토콜 (Fair Eval) | **✅ v1.0** |
+| **[[experiments/mesh_gs_pair_collection]]** | Novel view dataset pipeline + QA Viewer (통합) | **✅ v3.0** |
+| **[[experiments/HLAC_COMPREHENSIVE_260322]]** | HLAC 종합 분석: 2992 frames, K=8 | **✅ v1.0** |
+| **[[experiments/RELATED_WORK_SURVEY]]** | NeurIPS 2026 Dataset Track 관련 논문 조사 | **✅ v1.0** |
+| **[[experiments/REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 | **✅ v1.0** |
 
 #### Operational Guides
 
@@ -144,19 +123,9 @@
 | → [[guides/pipeline/PH6_FAIR_EVALUATION]] | Phase 6: Fair Evaluation |
 | → [[guides/pipeline/PH7_3D_KEYPOINT]] | Phase 7: 3D Keypoint Pipeline |
 
-### hypotheses/ (연구 가설)
-
-| 문서 | 핵심 질문 | 상태 |
-|------|----------|:----:|
-| [[hypotheses/H4_VIEW_ABLATION]] | 최적 입력 뷰 수 | ✅ 6-view 단조 증가 |
-| [[hypotheses/H5_MVDIFFUSION]] | MVDiff 개선 방법 | ✅ Phase 3 완료 |
-| [[hypotheses/H6_ALPHA_MASK]] | Alpha mask loss 효과 | **✅ 완료 (α=0.3@6v best trade-off, IoU↑ +0.002, PSNR -0.55 dB)** → [[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]] |
-| [[hypotheses/H7_SSIM_WEIGHT]] | SSIM weight 최적값 | **❌ 기각** (0.5/1.0 collapse, 0.3 하락) |
-| [[hypotheses/GENERALIZATION_ROADMAP]] | 카메라/피사체 일반화 | 📋 계획 |
-| [[hypotheses/RMA_CAMERA_ANALYSIS]] | M5 카메라 비균일 배치 | 📊 분석 완료 |
-
-> **Active hypotheses**: H_T1 (distribution mismatch) → DA1 실험 진행중
-> See: [[_archive/phase1_experiments/mvdiff_bottleneck_analysis]] §5
+> **가설 상세**: 개별 H4-H8 + RMA + Generalization 분석이 [[experiments/hypothesis_roadmap]] v4.0에 통합됨 (260331).
+> 원본 파일은 `_archive/hypotheses/`에 보존.
+> **Active**: H_T1 (distribution mismatch) → DA1. See: [[_archive/phase1_experiments/mvdiff_bottleneck_analysis]] §5
 
 ### specs/ (기술 사양)
 
@@ -204,9 +173,7 @@
 | **[[KEYPOINT_3D_PIPELINE]]** | 3D Keypoint 삼각측량 + FL vs PS 비교 | **✅ v1.0** |
 | [[outputs_inventory_README]] | outputs/ 디렉토리 전체 인벤토리 | ✅ 참조 |
 | [[outputs/STRUCTURE]] | outputs/ v2 구조 문서 (디렉토리 맵, 레거시, 심링크, 사이즈) | **🆕 v1.0** |
-| [[EXECUTIVE_SUMMARY]] | → Obsidian `neurips/executive_summary` (프로젝트 총괄 요약) | 🔗 Stub |
-| [[PROJECT_SYNTHESIS]] | → Obsidian `neurips/project_synthesis` (프로젝트 종합) | 🔗 Stub |
-| [[NEURIPS_GAP_ANALYSIS]] | → Obsidian `neurips/gap_analysis` (NeurIPS Gap 분석) | 🔗 Stub |
+| **[[OBSIDIAN_POINTERS]]** | Obsidian 문서 포인터 (Executive Summary, Project Synthesis, Gap Analysis) | 🔗 |
 
 ### tools/ (스크립트 & 레포트)
 
@@ -224,8 +191,8 @@
 
 ### _archive/ (Phase 1 보존)
 
-> 19개 Phase 1 문서가 `docs/_archive/`로 이동됨 (git history에도 보존).
-> 분류: `phase1_experiments/` (10), `phase1_guides/` (4), `phase1_root/` (2), `meta/` (3)
+> 26개 문서 보존 (고유 정보 또는 active 참조). 통합 완료 파일은 삭제됨 (260331, git history 보존).
+> 분류: `phase1_experiments/` (8), `hypotheses/` (7), `phase1_guides/` (2), `phase1_root/` (1), `handoffs/` (3), `meta/` (1), snapshots (3), root (1)
 
 ---
 
@@ -246,11 +213,11 @@
 
 | Hypothesis | Result | Reference |
 |-----------|--------|-----------|
-| H4: View Ablation | ✅ 6-view monotonic | [[hypotheses/H4_VIEW_ABLATION]] |
-| H5: MVDiffusion | ✅ Phase 3 done | [[hypotheses/H5_MVDIFFUSION]] |
-| H6: Alpha Mask | ✅ 완료 (α=0.3@6v best trade-off) | [[hypotheses/H6_ALPHA_MASK]] |
-| H7: SSIM Weight | ❌ Rejected | [[hypotheses/H7_SSIM_WEIGHT]] |
-| **H8: Opacity & Anisotropy** | **✅ 완료 (unimodal, orientation filter 구현)** | [[hypotheses/H8_opacity_anisotropy_analysis]] |
+| H4: View Ablation | ✅ 6-view monotonic | [[experiments/hypothesis_roadmap]] §H4 |
+| H5: MVDiffusion | ✅ Phase 3 done | [[experiments/hypothesis_roadmap]] §H5 |
+| H6: Alpha Mask | ✅ 완료 (α=0.3@6v best trade-off) | [[experiments/hypothesis_roadmap]] §H6 |
+| H7: SSIM Weight | ❌ Rejected | [[experiments/hypothesis_roadmap]] §H7 |
+| H8: Opacity & Anisotropy | ✅ 완료 (orientation filter) | [[experiments/hypothesis_roadmap]] §H8 |
 | HP: Preprocessing | ✅ M0 diverges, M5_4 baseline match | [[experiments/hypothesis_roadmap]] |
 | **H_T1: Dist. Mismatch** | **🔬 Testing (DA1)** | [[_archive/phase1_experiments/mvdiff_bottleneck_analysis]] §5 |
 
@@ -282,7 +249,6 @@ experiments/comparison/
 | `specs/` | 기술 사양 (I/O, 프로토콜) | `theory/` | 수학, 이론, 원리, 모델 계보 |
 | `guides/` | 실행 가이드, 코드 워크스루 | `research/` | 분석, 비교, 대안 기술 |
 | `datasets/` | 전처리 레지스트리, 데이터 명세 | `_Notes/` | 날짜 기반 연구 일지 |
-| `hypotheses/` | 가설 검증 결과 (수치 테이블) | `Presentation/` | 발표 슬라이드 |
 
 **판단 기준**: "이 문서 없이 실험을 실행할 수 있는가?" Yes → Obsidian. No → 서버.
 
@@ -299,4 +265,4 @@ experiments/comparison/
 
 ---
 
-*MoC v17.0 | Updated: 2026-03-31 | Audit: wikilink fix, case normalize, ORIENTATION_FILTER + CINEMATIC_V11 등록, SESSION_HANDOFF 아카이브, comprehensive superseded 마커*
+*MoC v18.0 | Updated: 2026-03-31 | Major consolidation: 77→58 active (7 experiment merges, hypotheses/ 통합, 3 stub→1, 3 archive). Wikilink/case fix.*
