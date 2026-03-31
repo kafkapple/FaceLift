@@ -12,13 +12,12 @@ Preserves all Gaussian properties, just removes low-opacity entries.
 Usage:
     python -m mouse_extensions.scripts.filter_ply \
         --source /node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/ply_a0.3 \
-        --output /node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/pruned/a0.3_t0.2 \
+        --output /node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/filtered/a0.3_t0.2 \
         --opacity_threshold 0.2
 
 Terminology (see docs/theory/GAUSSIAN_FILTERING_THEORY.md):
   - "Pruning" = training-time adaptive density control (Kerbl 2023)
   - "Filtering" = post-hoc opacity thresholding (this script)
-  We use "prune" in filename for user familiarity, but method is filtering.
 """
 
 import argparse
@@ -37,7 +36,7 @@ def sigmoid(x):
     return 1.0 / (1.0 + np.exp(-np.clip(x, -20, 20)))
 
 
-def prune_single_ply(src_path: Path, dst_path: Path, threshold: float) -> dict:
+def filter_single_ply(src_path: Path, dst_path: Path, threshold: float) -> dict:
     """Filter a single PLY by opacity threshold."""
     from plyfile import PlyData, PlyElement
 
@@ -77,8 +76,8 @@ def prune_single_ply(src_path: Path, dst_path: Path, threshold: float) -> dict:
     }
 
 
-def prune_directory(src_dir: Path, dst_dir: Path, threshold: float) -> list:
-    """Prune all PLY files in a directory (preserving train/test/val structure)."""
+def filter_directory(src_dir: Path, dst_dir: Path, threshold: float) -> list:
+    """Filter all PLY files in a directory (preserving train/test/val structure)."""
     results = []
 
     for split in ["train", "val", "test"]:
@@ -90,10 +89,10 @@ def prune_directory(src_dir: Path, dst_dir: Path, threshold: float) -> list:
         ply_files = sorted(split_src.glob("*.ply"))
         logger.info(f"Processing {split}: {len(ply_files)} files")
 
-        for ply_path in tqdm(ply_files, desc=f"Pruning {split}"):
+        for ply_path in tqdm(ply_files, desc=f"Filtering {split}"):
             dst_path = split_dst / ply_path.name
             try:
-                stats = prune_single_ply(ply_path, dst_path, threshold)
+                stats = filter_single_ply(ply_path, dst_path, threshold)
                 stats["split"] = split
                 stats["frame"] = ply_path.stem
                 results.append(stats)
@@ -104,9 +103,9 @@ def prune_directory(src_dir: Path, dst_dir: Path, threshold: float) -> list:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Prune PLY files by opacity threshold")
+    parser = argparse.ArgumentParser(description="Filter PLY files by opacity threshold")
     parser.add_argument("--source", type=str, required=True, help="Source PLY directory (e.g., ply_a0.3)")
-    parser.add_argument("--output", type=str, required=True, help="Output directory (e.g., pruned/a0.3_t0.2)")
+    parser.add_argument("--output", type=str, required=True, help="Output directory (e.g., filtered/a0.3_t0.2)")
     parser.add_argument("--opacity_threshold", type=float, default=0.2, help="Opacity threshold (sigmoid space)")
     args = parser.parse_args()
 
@@ -117,7 +116,7 @@ def main():
     logger.info(f"Output: {dst_dir}")
     logger.info(f"Threshold: sigmoid(opacity) > {args.opacity_threshold}")
 
-    results = prune_directory(src_dir, dst_dir, args.opacity_threshold)
+    results = filter_directory(src_dir, dst_dir, args.opacity_threshold)
 
     if not results:
         logger.error("No files processed!")
@@ -127,7 +126,7 @@ def main():
     arr = np.array([(r["n_original"], r["n_kept"], r["src_size_mb"], r["dst_size_mb"]) for r in results])
     logger.info(
         f"\n{'='*60}\n"
-        f"Pruning complete: {len(results)} files\n"
+        f"Filtering complete: {len(results)} files\n"
         f"Threshold: sigmoid(opacity) > {args.opacity_threshold}\n"
         f"Gaussians: {arr[:,0].mean():.0f} → {arr[:,1].mean():.0f} "
         f"(kept {arr[:,1].sum()/arr[:,0].sum()*100:.1f}%)\n"
