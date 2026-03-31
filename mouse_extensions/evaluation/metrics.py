@@ -1,3 +1,4 @@
+# no-split: single MetricsComputer class — _compute_psnr/_ssim/_lpips share instance state and numpy helpers
 """
 Metrics computation module for FaceLift evaluation.
 
@@ -421,7 +422,9 @@ class MetricsComputer:
             mask = mask.squeeze()
             if mask.ndim == 2:
                 mask = mask[..., np.newaxis]
-            mse = np.sum((rendered - gt) ** 2 * mask) / (np.sum(mask) * 3 + 1e-8)
+            # Binarize soft alpha masks to avoid denominator underestimation
+            binary_mask = (mask > 0.5).astype(np.float32)
+            mse = np.sum((rendered - gt) ** 2 * binary_mask) / (np.sum(binary_mask) * 3 + 1e-8)
         else:
             mse = np.mean((rendered - gt) ** 2)
 
