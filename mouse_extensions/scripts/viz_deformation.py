@@ -47,11 +47,14 @@ def load_gaussian_from_pt(pt_path: str, device: str = "cuda"):
 
     # Handle both dict and GaussianParams formats
     if isinstance(data, dict):
-        xyz = data["xyz"]
-        features = data.get("features", data.get("features_dc"))
-        scaling = data["scaling"]
-        rotation = data["rotation"]
-        opacity = data["opacity"]
+        # Support fg_* prefix (V3 FG cache) and plain keys
+        def _get(key):
+            return data.get(key, data.get(f"fg_{key}"))
+        xyz = _get("xyz")
+        features = _get("features") or _get("features_dc")
+        scaling = _get("scaling")
+        rotation = _get("rotation")
+        opacity = _get("opacity")
     else:
         # GaussianParams object
         xyz = data.xyz
