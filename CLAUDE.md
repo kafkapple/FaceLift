@@ -148,7 +148,25 @@ docs/
 | 코드/config | `/home/joon/dev/FaceLift/` | NFS (OK, 소량) |
 | outputs/ (viz, reports) | `/home/joon/dev/FaceLift/outputs/` | NFS (OK, 비학습) |
 
-### 2.5 Rotation Direction Convention
+### 2.5 DataLoader Resource Management (공용 서버 필수)
+
+> **교훈 (260331)**: OMP_NUM_THREADS로 해결 시도 → 실패. 프로세스 수와 스레드 수는 별개 레이어.
+
+**3-Layer 구분** (혼동 주의):
+
+| 설정 | 제어 대상 | 레이어 | 기본값 |
+|------|----------|--------|:------:|
+| `OMP_NUM_THREADS` | OpenMP 스레드 (프로세스 내부) | Thread | 1 |
+| `num_workers` | DataLoader worker 프로세스 수 | Process | base=8 |
+| `nproc_per_node` | GPU당 학습 rank 수 | GPU Rank | 1 |
+
+**프로세스 곱셈 효과**: `persistent_workers=True` + 복수 DataLoader(train/val) → workers가 **합산** 상주
+- `num_workers=4` → 1 main + 4 train + 4 val = **9 procs** (× ~640MB RSS each)
+- `prefetch_factor=8` → worker당 8 batch 미리 로드 → **page cache 폭증** → cgroup v2 과금 → oomd kill
+
+**실험 config 필수 override**: `num_workers ≤ 4, prefetch_factor ≤ 2`
+
+### 2.6 Rotation Direction Convention
 
 > **상세**: Obsidian `COORDINATE_SYSTEMS.md` → "Turntable vs Camera Order" 참조
 
@@ -367,7 +385,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 | Deform V2 BG 낭비 | ✅ **V3에서 해결** | 97.5% BG Gaussians 학습 → FG-only cache (3MB/frame vs 85MB) |
 | OMP_NUM_THREADS 미설정 | ✅ 해결됨 | dl_base.sh → .bashrc interactive guard 위 이동. OMP=1 (260331) |
 | 5view ablation 수렴 | ✅ **중단 (260331)** | plateau 23.0-23.1 dB (step 12200). 결과 기록 완료 |
-| DataLoader 과다 프로세스 | ✅ 해결됨 | base num_workers=8 → 실험 config에서 4로 override, prefetch_factor 8→2. 공용 서버 cgroup page cache 부담 방지 (260331) |
+| DataLoader 과다 프로세스 | ✅ 완화됨 (rat_ft_v2) | base num_workers=8 → rat_ft_v2에서 4로 override, prefetch_factor 8→2. 다른 실험 config도 동일 적용 권장. cgroup v2 page cache 방지 (260331) |
 
 ### Deformation V3 (진행 중, 260331~)
 
