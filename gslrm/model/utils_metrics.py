@@ -44,9 +44,18 @@ def compute_psnr(
     Returns:
         Per-batch PSNR values [B]
     """
+    # DEBUG: log shapes once to diagnose val PSNR bug
+    if not hasattr(compute_psnr, '_shape_logged'):
+        print(f"[DEBUG compute_psnr] gt={ground_truth.shape}, pred={predicted.shape}")
+        compute_psnr._shape_logged = True
+
+    # Handle channel mismatch: if GT has alpha channel, strip it
+    if ground_truth.shape[1] != predicted.shape[1]:
+        ground_truth = ground_truth[:, :predicted.shape[1]]
+
     ground_truth = ground_truth.clip(min=0, max=1)
     predicted = predicted.clip(min=0, max=1)
-    
+
     if mask is not None:
         # Masked PSNR: compute MSE only on foreground pixels
         mask_binary = (mask > 0.5).float()

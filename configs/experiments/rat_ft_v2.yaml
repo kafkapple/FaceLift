@@ -1,0 +1,30 @@
+# Rat Fine-Tuning v2 (RAT2 dataset)
+# Transfer from mouse α=0.3 6-view checkpoint → rat domain
+# 3× more data than v1 (2967 vs 1001 frames) → 3× more steps
+# Data on /node_data/ (local NVMe) to avoid NFS page cache issues
+model:
+  num_input_views: 6
+  num_views: 6
+training:
+  losses:
+    alpha_loss_weight: 0.3
+  dataloader:
+    num_workers: 4       # base=8 → 4: shared server safety (9 procs vs 17, with train+val DL)
+    prefetch_factor: 2   # base=8 → 2: reduce page cache pressure under cgroup v2
+  schedule:
+    max_fwdbwd_passes: 15000  # 3× v1 (5000) — proportional to data increase
+    early_stop_patience: 0    # Disable — FT transition dip triggers false early stop
+  optimizer:
+    lr: 5e-5  # 1/10 of mouse training LR (conservative for domain adaptation)
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/RAT2_rat_ft_v2
+    resume_from: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+wandb:
+  name: RAT2_rat_ft_v2
+  tags:
+  - rat
+  - fine_tuning
+  - alpha_0.3
+  - 6view
+  - sdannce
+  - hlac_stratified
