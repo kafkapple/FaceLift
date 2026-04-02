@@ -53,7 +53,8 @@ RAW_DATA_DIR = DATA_ROOT / "raw"
 KP_22 = COLD / "data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz"
 M5_DATA = PREPROCESSED_DIR / "M5"
 M5T2_DATA = PREPROCESSED_DIR / "M5t2"
-RAT_DATA = FACELIFT_ROOT / "outputs/datasets/fine_tune/rat/gslrm_format"
+# Rat FT data now in /home/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2_despilled/
+RAT_DATA = Path("/home/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2_despilled")
 
 # === Checkpoints ===
 CKPT_DIR = HOT / "checkpoints/FaceLift/gslrm"
@@ -107,7 +108,7 @@ GAUSSIAN_RAW_FEATURES = FEATURES_BASE / "gaussian_raw_features.npz"
 COV_N2_DIR = FEATURES_BASE / "covariance_n2"
 TEMPORAL_DIR = FEATURES_BASE / "temporal"
 
-REPORT_BASE = OUTPUTS_DIR / "report" / "clustering"
+REPORT_BASE = OUTPUTS_DIR / "reports" / "clustering"
 
 
 # ============================================================================

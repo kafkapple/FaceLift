@@ -1,8 +1,8 @@
 # FaceLift Mouse Documentation
 
 > **MoC (Map of Content)** — Central hub for all project documents.
-> **Updated**: 2026-03-31 | **Version**: v18.0
-> **Active**: 58개 | **Archive**: 26개 (docs/_archive/, git history에 보존)
+> **Updated**: 2026-04-02 | **Version**: v19.1
+> **Active**: 53개 | **Archive**: 31개 (docs/_archive/, git history에 보존)
 >
 > **Phase Structure**: Phase 1 (MVDiff bottleneck) = 유지보수 | **Phase 2 (Novel View + Multi-Species) = 현재 포커스**
 >
@@ -19,7 +19,7 @@
 |------|------|
 | **Phase 2 로드맵 (START HERE)** | [[experiments/PHASE2_NOVEL_VIEW_ROADMAP]] **v2.0** |
 | **FL vs PS 비교 (SSOT)** | [[experiments/fl_vs_ps_comparison]] **v11** |
-| **가설 SSOT (로드맵)** | [[experiments/hypothesis_roadmap]] **v4.0** |
+| **가설 SSOT (로드맵)** | [[_archive/hypothesis_roadmap]] **v4.0** (archived) |
 | **평가 프로토콜** | [[experiments/evaluation_protocol_v1]] **v1.0** |
 | **명령어 SSOT** | [[experiments/COMMANDS]] |
 | **Master Results Table** | [[experiments/MASTER_RESULTS_TABLE]] **v1.0** |
@@ -35,7 +35,7 @@
 
 | Phase | Focus | Status | Key Doc |
 |:-----:|-------|:------:|---------|
-| **Phase 1** | MVDiff bottleneck (Sil loss, DA, Spatial Token) | 🔧 유지보수 | [[experiments/hypothesis_roadmap]] |
+| **Phase 1** | MVDiff bottleneck (Sil loss, DA, Spatial Token) | 🔧 유지보수 | [[_archive/hypothesis_roadmap]] |
 | **Phase 2** ⭐ | Novel View + Multi-Species + NeurIPS Dataset Track | **🔬 ACTIVE** | [[experiments/PHASE2_NOVEL_VIEW_ROADMAP]] |
 
 > 기본 포커스는 Phase 2. Phase 1 작업은 명시적 요청 시에만.
@@ -51,7 +51,7 @@
 | 문서 | 내용 | 상태 |
 |------|------|:----:|
 | **[[experiments/PHASE2_NOVEL_VIEW_ROADMAP]]** | **Phase 2 로드맵** + Novel View Quality Strategy (통합) | **✅ v3.0** |
-| **[[experiments/DIFIX_STRATEGY]]** | DiFix 전략 통합: 원본 전략 [DEPRECATED] + Type 2 MAMMAL 재시도 | **v2.0** |
+| ~~DIFIX_STRATEGY~~ | DiFix 실패 확정 → `_archive/` | archived |
 | **[[experiments/DEFORMATION_ROADMAP]]** | ⭐ **Deformation V2→V3 로드맵**: V2 중단 + V3 FG-aware rendering loss | **v1.0** |
 | **[[experiments/TEMPORAL_ANALYSIS]]** | Temporal 평가 기준 + flickering 분석 + smoothing 비교 (통합) | **✅ v1.0** |
 | **[[experiments/ALPHA_LOSS_NOVEL_VIEW_ANALYSIS]]** | Alpha loss 분석 + 6v 종합 평가 (통합) | **✅ v2.0** |
@@ -60,7 +60,7 @@
 | **[[experiments/UNIFIED_ABLATION_REPORT]]** | 통합 Ablation 보고서: View/Alpha/E2E/Resolution | **✅ v1.0** |
 | **[[experiments/MASTER_RESULTS_TABLE]]** | 논문 Table SSOT (Fair Eval 수치) | **✅ v1.0** |
 | **[[experiments/evaluation_protocol_v1]]** | NVS 평가 프로토콜 (Fair Eval) | **✅ v1.0** |
-| **[[experiments/mesh_gs_pair_collection]]** | Novel view dataset pipeline + QA Viewer (통합) | **✅ v3.0** |
+| ~~mesh_gs_pair_collection~~ | PoC 완료 → `_archive/` | archived |
 | **[[experiments/HLAC_COMPREHENSIVE_260322]]** | HLAC 종합 분석: 2992 frames, K=8 | **✅ v1.0** |
 | **[[experiments/RELATED_WORK_SURVEY]]** | NeurIPS 2026 Dataset Track 관련 논문 조사 | **✅ v1.0** |
 | **[[experiments/REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 | **✅ v1.0** |
@@ -134,13 +134,14 @@
 | **[[specs/PIPELINE_ARCHITECTURE]]** | 2-stage 파이프라인 사양 (MVDiff + GS-LRM I/O, config) |
 | **[[specs/MAMMAL_MESH_RENDERING_PIPELINE]]** | MAMMAL mesh rendering 3단계 사양 |
 | [[specs/METRICS_PROTOCOL]] | 평가 메트릭 프로토콜 (White-BG, FG-only) |
-| **[[specs/NEURAL_TEXTURE_ANALYSIS]]** | MoReMouse 기반 neural texture 분석 + 3-model deliberation + 구현 전략 | **🆕 v1.0** |
-| **[[specs/NEURAL_TEXTURE_RENDERING_DIAGNOSIS]]** | Neural texture 렌더 품질 진단: mesh fitting vs UV encoding (MAMMAL 팀 핸드오프) | **🆕 v1.0** |
+| ~~NEURAL_TEXTURE_*~~ | Neural texture 실험 완료 → `_archive/` | archived |
 | **[[specs/FRAME_SELECTION_LITERATURE_REVIEW]]** | Pose-diversity frame selection 문헌 조사: FPS, k-means, FisherRF, coreset, 3-stage hybrid 제안 | **🆕 v1.0** |
 | **[[specs/KEYPOINT_ABLATION_FRAMEWORK]]** | 5-tier keypoint ablation 프레임워크: tier별 문헌 근거 + task matrix + YAML SSOT | **🆕 v1.0** |
 | **[[specs/PATHS_SSOT_DESIGN]]** | outputs/ v2 경로 설계 + paths.py factory | ✅ |
 | **[[specs/RAT_PREPROCESSING_STRATEGY]]** | RAT zero-pad vs crop vs hybrid 전처리 비교 + 3-model audit + 실험 계획 | **🆕 v1.0** |
+| **[[specs/RAT2_V3_SUCCESS_CRITERIA]]** | RAT2 v3 recentered training 성공 기준: 2-tier milestones + geometry checks + abort conditions | **🆕 v1.0** |
 | **[[specs/CINEMATIC_V11_SPEC]]** | NeurIPS 2026 데모 영상 파이프라인 (768px, 13 segments, 20fps) | **✅ v11c** |
+| [[specs/4DGS_METHOD_COMPARISON]] | → **Obsidian** `concepts/55_4DGS_METHOD_COMPARISON` (pointer only) | v2.0 |
 
 > **이론 문서 → Obsidian으로 이동** (2026-03-17):
 > MULTIVIEW_DIFFUSION_THEORY → `Obsidian/docs/theory/`, MV_ADAPTER_TECHNICAL → `Obsidian/docs/research/`, SLIDES → `Obsidian/Presentation/`
@@ -148,13 +149,23 @@
 
 ### outputs/reports/ (실험 보고서)
 
-| 문서 | 내용 | 상태 |
-|------|------|:----:|
-| **[[outputs/reports/260321_behaviorsplatter_comprehensive]]** | **BehaviorSplatter 종합 보고서**: N>=2 filter, opacity 분석, feature 필터링 부재 발견, 실험 계획, s-DANNCE 현황 | **✅ SSOT** |
-| — | **Behavior Metrics**: `mouse_extensions/behavior/metrics.py` — Silhouette, TPI, Entropy Rate, Bout stats, Short Bout Ratio, Autocorrelation, Cohen's d, McNemar, KS test 등 20+ metrics. Obsidian [[260317_Core_Hypothesis_Dense_Temporal_Stability]] §4 참조 | **✅ v2.0** |
-| [[outputs/reports/260320_gaussian_bodypart_analysis]] | Gaussian body-part 분포 분석 + bone-distance 한계 | ✅ |
+> **L1 Sub-MoC**: [[outputs/reports/README]] — 12 topic × 35 files 전체 목록
+> **Behavior Metrics**: `mouse_extensions/behavior/metrics.py` — 20+ metrics. Obsidian [[260317_Core_Hypothesis_Dense_Temporal_Stability]] §4
 
-> **🔴 Critical**: 이전 covariance feature 실험에 GT mask 필터링 미적용 → 재검증 필수. 상세: [[outputs/reports/260321_behaviorsplatter_comprehensive]] §4
+| Topic | Key Report | 상태 |
+|-------|-----------|:----:|
+| **view_ablation/** | [260331 종합 분석](../outputs/reports/view_ablation/260331_comprehensive.md) — 1-6v 정량/정성 + PS + Gaussian audit + 6차트 | **✅ v1.1** |
+| **behaviorsplatter/** | [260321 종합](../outputs/reports/behaviorsplatter/260321_comprehensive.md) — N>=2 filter, opacity, s-DANNCE | **✅ SSOT** |
+| **clustering/** | 6 HTML reports (clustering_main 50MB, ablation, BehaveMAE, phase3) | ✅ |
+| **comparison/** | [6view_comparison.html](../outputs/reports/comparison/6view_comparison.html) — FL vs PS 시각 비교 | ✅ |
+| **gaussian_analysis/** | [260320 body-part](../outputs/reports/gaussian_analysis/260320_bodypart_analysis.md) | ✅ |
+| **rat/** | SAM2 annotation + propagation fix + Stage 5-7 handoff (3 files) | ✅ |
+| **cinematic/** | v6 완료 + visualization issues (2 files) | ✅ |
+| **deformation/** | V3 session report | ✅ |
+| **alpha_loss/** | Study + slides (2 files) | ✅ |
+| **session/** | 260320 세션 기록 + handoffs (6 files) | ✅ |
+
+> **🔴 Critical**: 이전 covariance feature 실험에 GT mask 필터링 미적용 → 재검증 필수. 상세: [[outputs/reports/behaviorsplatter/260321_comprehensive]] §4
 
 ### mouse_extensions/docs/ (구현 상세)
 

@@ -1,3 +1,4 @@
+# no-split: single-file interactive viewer with tightly coupled UI state and rendering logic
 #!/usr/bin/env python3
 """Dataset QA Viewer v2 — dual-mode (GT-view + Novel-view), zero-dependency.
 
@@ -20,7 +21,7 @@ from urllib.parse import urlparse, parse_qs
 # ============================================================
 # Config
 # ============================================================
-DEFAULT_DATASET = "/home/joon/dev/FaceLift/outputs/datasets/novel_view"
+DEFAULT_DATASET = "/home/joon/data/derived/FaceLift/novel_view"
 SPECIES_DATASET = "mouse_m5t2"
 PORT = 8899
 

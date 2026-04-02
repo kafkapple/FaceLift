@@ -180,7 +180,7 @@ def main():
     )
     parser.add_argument(
         "--output-dir",
-        default="outputs/datasets/novel_view/ply/mouse_6view_best",
+        default="/home/joon/data/derived/FaceLift/novel_view/ply/mouse_6view_best",
         help="Output directory for .ply files"
     )
     parser.add_argument(

@@ -135,18 +135,29 @@ def load_gt_image(frame_dir: str, view_idx: int, resolution: int = 512) -> np.nd
     return np.array(img)
 
 
-def add_label(img: np.ndarray, text: str, row_label: str = "") -> np.ndarray:
-    """Add overlay labels to image."""
+def add_label(img: np.ndarray, text: str, row_label: str = "",
+              color=(255, 255, 0), outline: bool = False) -> np.ndarray:
+    """Add overlay labels to image.
+
+    Args:
+        text: Primary label (top-left).
+        row_label: Secondary label (bottom-left, smaller).
+        color: Text color (B,G,R). Default yellow for legacy compat.
+        outline: If True, draw dark outline behind text for contrast.
+    """
     out = img.copy()
-    # View label (top-left)
-    cv2.putText(out, text, (8, 28), cv2.FONT_HERSHEY_SIMPLEX,
-                0.65, (255, 255, 0), 2, cv2.LINE_AA)
-    # Row label (top-right, smaller)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    # Primary label (top-left)
+    if outline:
+        cv2.putText(out, text, (8, 28), font, 0.65, (0, 0, 0), 4, cv2.LINE_AA)
+    cv2.putText(out, text, (8, 28), font, 0.65, color, 2, cv2.LINE_AA)
+    # Secondary label (bottom-left, smaller)
     if row_label:
-        tw, _ = cv2.getTextSize(row_label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0], 0
-        x = out.shape[1] - tw[0] - 8
+        if outline:
+            cv2.putText(out, row_label, (8, out.shape[0] - 10),
+                        font, 0.45, (0, 0, 0), 3, cv2.LINE_AA)
         cv2.putText(out, row_label, (8, out.shape[0] - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1, cv2.LINE_AA)
+                    font, 0.45, color, 1, cv2.LINE_AA)
     return out
 
 

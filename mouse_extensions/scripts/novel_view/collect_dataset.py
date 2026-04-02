@@ -98,7 +98,7 @@ GSLRM_CONFIG = (
     "M5t2_6view_alpha03_v3/config.yaml"
 )
 
-OUTPUT_BASE = "/home/joon/dev/FaceLift/outputs/datasets/novel_view"
+OUTPUT_BASE = "/home/joon/data/derived/FaceLift/novel_view"
 SPECIES_DATASET = "mouse_m5t2"
 
 # M5t2 split boundaries

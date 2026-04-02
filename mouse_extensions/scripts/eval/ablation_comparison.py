@@ -1,12 +1,13 @@
 """Ablation comparison grid video generator.
 
 Generates side-by-side grid videos for:
-  --type view   : 4-view vs 6-view ablation (2 rows × 4 representative novel views)
+  --type view   : 1~6-view ablation (6 rows × 4 representative novel views)
   --type alpha  : alpha-weight ablation (4 rows × 4 representative novel views)
                   α ∈ {0.0, 0.3, 0.5, 1.0} using 4-view checkpoints
 
+For 2×6 grid (Row1=GT, Row2=Novel, Cols=1v~6v), use view_ablation_2x6.py instead.
+
 No intermediate PNGs — writes directly to VideoWriter.
-Rows = models, Columns = representative novel views.
 
 Usage (run on gpu03):
     CUDA_VISIBLE_DEVICES=4 python -m mouse_extensions.scripts.eval.ablation_comparison \\
@@ -47,11 +48,14 @@ _CKPT_BASE = Path("/node_data/joon/checkpoints/FaceLift/gslrm")
 # not needed for inference. Use base config for all models.
 _BASE_CFG = Path("configs/base/gslrm_mouse.yaml")
 
-# Only 4-view and 6-view checkpoints (best_psnr.pt) are available.
-# 1/2/3/5-view configs exist but were never trained to completion.
+# All 1~6-view checkpoints trained to completion (best_psnr.pt available).
 VIEW_ABLATION_EXPERIMENTS: List[Dict] = [
+    {"label": "1-view",   "ckpt_dir": "base_uniform_v2_1view_v2", "n_views": 1},
+    {"label": "2-view",   "ckpt_dir": "base_uniform_v2_2view_v2", "n_views": 2},
+    {"label": "3-view",   "ckpt_dir": "base_uniform_v2_3view_v2", "n_views": 3},
     {"label": "4-view",   "ckpt_dir": "base_uniform_v2_4view_v2", "n_views": 4},
-    {"label": "6-view ⭐", "ckpt_dir": "base_uniform_v2_6view_v2", "n_views": 6},
+    {"label": "5-view",   "ckpt_dir": "base_uniform_v2_5view_v2", "n_views": 5},
+    {"label": "6-view",   "ckpt_dir": "base_uniform_v2_6view_v2", "n_views": 6},
 ]
 
 # α=0.1 checkpoint was never trained; confirmed available: 0.0, 0.3, 0.5, 1.0
@@ -171,7 +175,8 @@ def run_ablation_comparison(
                     print(f"  [warn] render failed {exp['label']} {vname} frame {fi}: {e}")
                     cell = np.full((cell_size, cell_size, 3), 80, dtype=np.uint8)
 
-                cell = add_label(cell, vdef["label"], exp["label"])
+                cell = add_label(cell, vdef["label"], exp["label"],
+                                color=(255, 255, 255), outline=True)
                 cells.append(cell)
 
             rows.append(np.hstack(cells))
@@ -180,7 +185,7 @@ def run_ablation_comparison(
         cv2.putText(
             frame_grid, f"Frame {fi:04d}",
             (8, H_total - 8), cv2.FONT_HERSHEY_SIMPLEX,
-            0.45, (255, 255, 0), 1, cv2.LINE_AA,
+            0.45, (255, 255, 255), 1, cv2.LINE_AA,
         )
         writer.write(cv2.cvtColor(frame_grid, cv2.COLOR_RGB2BGR))
 
