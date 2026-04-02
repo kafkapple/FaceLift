@@ -22,7 +22,7 @@ def imageseq2video(images: np.ndarray, filename: str, fps: int = 24) -> None:
 
     if images.dtype == np.uint8:
         images = images.astype(np.float32) / 255.0
-    videoio.videosave(filename, images, lossless=False, preset="medium", fps=fps)
+    videoio.videosave(filename, images, lossless=False, preset="slow", fps=fps)
 
 
 def save_video(frames: np.ndarray, path: str, fps: int = 30) -> bool:

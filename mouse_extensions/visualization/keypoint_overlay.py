@@ -1,12 +1,12 @@
+# no-split: projection + drawing + camera-follow are tightly coupled (shared keypoint geometry)
 """Keypoint overlay visualization for 3D-to-2D projection on rendered images.
 
-Provides utilities to project MAMMAL 22 3D keypoints onto 2D images and draw
+Provides utilities to project 3D keypoints onto 2D images and draw
 skeleton overlays with joint markers and bone connections.
+Supports multiple species via keypoint_config.py (mouse, rat, marmoset).
 
-Color scheme follows MAMMAL KEYPOINTS.md convention:
-    Head (0-2): Yellow | Body (3-4): Magenta | Tail (5-7): Orange
-    Left Front (8-11): Blue | Right Front (12-15): Green
-    Left Hind (16-18): Cyan | Right Hind (19-21): Red
+Color scheme follows species-specific YAML configs in configs/keypoints/.
+Default species is "mouse" for backward compatibility.
 
 Constants loaded from configs/keypoints/ via keypoint_config.py (SSOT).
 """
@@ -18,20 +18,23 @@ import cv2
 import numpy as np
 
 from mouse_extensions.constants import MOUSE_KP_NAMES, SKELETON_BONES
-from mouse_extensions.keypoint_config import load_keypoint_config
+from mouse_extensions.keypoint_config import KeypointConfig, load_keypoint_config
 
 
-# --- Constants (derived from YAML SSOT) ---
+# --- Default config (mouse, backward compat) ---
 
+_DEFAULT_SPECIES = "mouse"
+_mouse_cfg = load_keypoint_config(_DEFAULT_SPECIES)
+
+# Backward-compatible module-level constants (mouse-only)
 KEYPOINT_NAMES = list(MOUSE_KP_NAMES)
-
-_mouse_cfg = load_keypoint_config("mouse")
-
-# Body part grouping with BGR colors (OpenCV convention)
 JOINT_GROUPS = _mouse_cfg.joint_groups_bgr
-
-# Precomputed index → BGR color map
 _JOINT_COLORS: Dict[int, Tuple[int, int, int]] = _mouse_cfg.kp_colors_bgr
+
+
+def _get_species_config(species: Optional[str] = None) -> KeypointConfig:
+    """Load species config, defaulting to mouse for backward compat."""
+    return load_keypoint_config(species or _DEFAULT_SPECIES)
 
 
 # --- Projection ---
@@ -91,28 +94,36 @@ def draw_keypoint_overlay(
     joint_radius: int = 4,
     bone_thickness: int = 2,
     label_font_scale: float = 0.3,
+    species: Optional[str] = None,
 ) -> np.ndarray:
     """Draw keypoint overlay on image.
 
     Args:
         image: (H, W, 3) BGR image (uint8)
-        kp_2d: (22, 2) pixel coordinates
-        valid: (22,) boolean mask
+        kp_2d: (K, 2) pixel coordinates
+        valid: (K,) boolean mask
         draw_labels: whether to draw joint name labels
         draw_skeleton: whether to draw bone connections
         joint_radius: radius of joint circles
         bone_thickness: thickness of bone lines
         label_font_scale: font scale for labels
+        species: species name for config lookup (default: mouse)
 
     Returns:
         Annotated image copy
     """
+    cfg = _get_species_config(species)
+    joint_colors = cfg.kp_colors_bgr
+    skeleton_bones = cfg.skeleton_bones
+
     img = image.copy()
     h, w = img.shape[:2]
 
     # Draw skeleton bones first (behind joints)
     if draw_skeleton:
-        for i, j in SKELETON_BONES:
+        for i, j in skeleton_bones:
+            if i >= len(valid) or j >= len(valid):
+                continue
             if not (valid[i] and valid[j]):
                 continue
             p1 = tuple(kp_2d[i].astype(int))
@@ -120,8 +131,8 @@ def draw_keypoint_overlay(
             if not (_in_bounds(p1, w, h) or _in_bounds(p2, w, h)):
                 continue
             # Average color of connected joints
-            c1 = np.array(_JOINT_COLORS.get(i, (255, 255, 255)))
-            c2 = np.array(_JOINT_COLORS.get(j, (255, 255, 255)))
+            c1 = np.array(joint_colors.get(i, (255, 255, 255)))
+            c2 = np.array(joint_colors.get(j, (255, 255, 255)))
             color = tuple(((c1 + c2) / 2).astype(int).tolist())
             cv2.line(img, p1, p2, color, bone_thickness, cv2.LINE_AA)
 
@@ -132,7 +143,7 @@ def draw_keypoint_overlay(
         pt = tuple(kp_2d[idx].astype(int))
         if not _in_bounds(pt, w, h):
             continue
-        color = _JOINT_COLORS.get(idx, (255, 255, 255))
+        color = joint_colors.get(idx, (255, 255, 255))
         cv2.circle(img, pt, joint_radius, color, -1, cv2.LINE_AA)
         cv2.circle(img, pt, joint_radius, (0, 0, 0), 1, cv2.LINE_AA)  # outline
 
@@ -182,13 +193,19 @@ def draw_bounding_box(
 
 @dataclass
 class KeypointVisualizer:
-    """Manages keypoint visualization settings and batch processing."""
+    """Manages keypoint visualization settings and batch processing.
+
+    Args:
+        species: Species name for config lookup (default: mouse).
+            Supports any species defined in configs/keypoints/.
+    """
 
     joint_radius: int = 4
     bone_thickness: int = 2
     draw_labels: bool = False
     draw_skeleton: bool = True
     label_font_scale: float = 0.3
+    species: Optional[str] = None  # None = mouse (backward compat)
 
     def overlay_on_image(
         self,
@@ -201,7 +218,7 @@ class KeypointVisualizer:
 
         Args:
             image: (H, W, 3) BGR image
-            keypoints_3d: (22, 3) world-space keypoints
+            keypoints_3d: (K, 3) world-space keypoints
             w2c: (4, 4) world-to-camera matrix
             intrinsics: dict with fx, fy, cx, cy
 
@@ -216,6 +233,7 @@ class KeypointVisualizer:
             joint_radius=self.joint_radius,
             bone_thickness=self.bone_thickness,
             label_font_scale=self.label_font_scale,
+            species=self.species,
         )
 
     def overlay_multiview(
@@ -694,17 +712,32 @@ class KeypointFollowCamera:
         return c2ws, intrinsics_list
 
 
-def create_legend(height: int = 512, width: int = 200) -> np.ndarray:
-    """Create a color legend with index→name mapping for all 22 keypoints."""
+def create_legend(
+    height: int = 512,
+    width: int = 200,
+    species: Optional[str] = None,
+) -> np.ndarray:
+    """Create a color legend with index to name mapping for keypoints.
+
+    Args:
+        height: Legend image height in pixels.
+        width: Legend image width in pixels.
+        species: Species name for config lookup (default: mouse).
+    """
+    cfg = _get_species_config(species)
+    joint_groups = cfg.joint_groups_bgr
+    kp_names = list(cfg.keypoint_names)
+
     img = np.zeros((height, width, 3), dtype=np.uint8)
 
     # Title
-    cv2.putText(img, "Keypoints", (5, 16),
+    title = f"Keypoints ({cfg.species})" if species else "Keypoints"
+    cv2.putText(img, title, (5, 16),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
     y = 32
 
     # Per-group: group name header + individual keypoint entries
-    for group_name, info in JOINT_GROUPS.items():
+    for group_name, info in joint_groups.items():
         color = info["color"]
         # Group header with color bar
         cv2.rectangle(img, (5, y - 8), (width - 10, y + 2), color, -1)
@@ -714,7 +747,7 @@ def create_legend(height: int = 512, width: int = 200) -> np.ndarray:
 
         # Individual keypoints: "idx: name"
         for idx in info["indices"]:
-            name = KEYPOINT_NAMES[idx] if idx < len(KEYPOINT_NAMES) else f"kp{idx}"
+            name = kp_names[idx] if idx < len(kp_names) else f"kp{idx}"
             cv2.circle(img, (12, y - 3), 4, color, -1, cv2.LINE_AA)
             cv2.putText(img, f"{idx:2d}: {name}", (22, y),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (220, 220, 220), 1, cv2.LINE_AA)

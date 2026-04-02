@@ -386,6 +386,9 @@ python -m mouse_extensions.preprocessing.preprocess \
 | OMP_NUM_THREADS 미설정 | ✅ 해결됨 | dl_base.sh → .bashrc interactive guard 위 이동. OMP=1 (260331) |
 | 5view ablation 수렴 | ✅ **중단 (260331)** | plateau 23.0-23.1 dB (step 12200). 결과 기록 완료 |
 | DataLoader 과다 프로세스 | ✅ 완화됨 (rat_ft_v2) | base num_workers=8 → rat_ft_v2에서 4로 override, prefetch_factor 8→2. 다른 실험 config도 동일 적용 권장. cgroup v2 page cache 방지 (260331) |
+| RAT2 v2 3D geometry 손상 | ✅ **v3에서 수정 (260402)** | `clip_xyz: true` + 비정규화 카메라 → Gaussian 위치 절삭. `mouse_dataset.py`에 `recenter_cameras` flag 추가. v2 체크포인트 삭제 (28.2GB). |
+| videoio 극저 bitrate | ⚠️ 부분 해결 | `video_io.py` preset medium→slow 변경. videoio API에 crf 미지원. 근본 해결은 ffmpeg subprocess 대체 필요. |
+| Novel view 512px 데이터셋 | 🔴 미완성 | 디렉토리 구조만 존재, 0 frames 생성됨. `outputs/datasets/novel_view/mouse_m5t2/` |
 
 ### Deformation V3 (진행 중, 260331~)
 
@@ -470,30 +473,16 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 - Training strategy optimization is saturated → architecture change needed
 - GS-LRM 6v > PS by +7.13 dB (Tier A fair eval)
 
-### Rat FT (RAT1_rat_ft_v1, 260323)
+### Rat FT (RAT1→RAT2 v1→v2→v3)
 
-| Metric | Zero-shot baseline | 1-UID (S33) | 100-UID (S34) | Notes |
-|--------|:------------------:|:-----------:|:-------------:|-------|
-| Val PSNR | **2.77 dB** | 17.1 dB | **17.49 dB** | FT gain = +14.72 dB |
-| Val SSIM | — | 0.69 | **0.7373** | |
-| Val LPIPS | — | 0.28 | **0.2542** | |
-| Train PSNR | — | ~35 dB | ~35 dB | |
-| Gap | — | 17.9 dB | **17.5 dB** | overfitting 확정 |
-| PSNR range | — | — | 16.3~19.3 | Narrow distribution |
-| Data | mouse pretrained | Train 800 / Val 100 | 6cam SAM2 masks | |
-| Checkpoint | — | `RAT1_rat_ft_v1/ckpt_0000000000005200.pt` | | |
+| Version | Val PSNR | Data | Status | Notes |
+|---------|:--------:|:----:|:------:|-------|
+| RAT1 v1 | 17.49 | 1001 frames | ✅ Baseline | overfitting 17.5dB gap |
+| RAT2 v2 (despilled) | 18.67 | 2967 frames | ❌ **INVALID** | 3D geometry 손상 (clip_xyz + 비정규화 카메라). 체크포인트 삭제됨 (260402) |
+| **RAT2 v3 (recentered)** | TBD | 2967 frames | 🔄 **학습 중** | `recenter_cameras: true` fix. GPU7, step 0→15000 (260402~) |
 
-> 데이터 부족이 주 병목 (domain shift 21.72 dB). Multi-species 공동 학습 phase에서 개선 예정.
-
-### RAT2 (260324, Planned — SAM2 미실행)
-
-| Config | Split | Status |
-|--------|-------|:------:|
-| `configs/datasets/RAT2.yaml` | 2371 train / 297 val / 299 test | 🔄 SAM2 annotation 대기 (gpu03) |
-
-> HLAC-stratified 2-phase split. `mouse_extensions/scripts/select_hlac_frames.py` 완료 (commit `9f4036f`).
-
-⚠️ Train/Val gap 17.5 dB = overfitting 확정 (100 UID 재현). Feasibility demo 수준 — multi-species 공동 학습 phase에서 개선 예정.
+> **v2→v3 전환 이유**: `clip_xyz: true`가 Gaussian을 [-1,1]로 clipping하는데, rat 카메라가 원점 중심이 아님 (convergence center = (0.14, -3.14, -0.99)). Mouse는 전처리에서 recentering되어 문제 없었지만 rat은 누락 → v3에서 loader-time recentering 추가.
+> **Checkpoint**: `RAT2_despilled_rat_ft_v3/` | Config: `rat_ft_v3.yaml`
 
 ### PS M5 Retraining (in progress)
 

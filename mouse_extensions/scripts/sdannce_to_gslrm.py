@@ -26,6 +26,8 @@ import cv2
 import numpy as np
 import scipy.io as sio
 
+from mouse_extensions.preprocessing.camera_normalizer import normalize_camera_distance
+
 
 # === GS-LRM target parameters (must match pretrained model) ===
 TARGET_IMG_SIZE = 512
@@ -258,32 +260,17 @@ def normalize_cameras(
     Only normalizes spatial scale (camera distance → target_dist).
     Intrinsics (fx, fy, cx, cy) are preserved from PP-centering step.
     cx=cy=256 is guaranteed by extract_and_crop_frame.
+
+    Delegates distance scaling to camera_normalizer.normalize_camera_distance().
     """
-    # Compute current camera distances
-    distances = []
-    for w2c in cameras_w2c:
-        c2w = np.linalg.inv(w2c)
-        cam_pos = c2w[:3, 3]
-        distances.append(np.linalg.norm(cam_pos))
+    norm_w2c_list, spatial_scale = normalize_camera_distance(
+        cameras_w2c, target_distance=target_dist,
+    )
 
-    mean_dist = np.mean(distances)
-    spatial_scale = target_dist / mean_dist  # mm → normalized units
-
-    norm_w2c_list = []
-    norm_intr_list = []
-
-    for w2c, intr in zip(cameras_w2c, intrinsics_list):
-        # Scale translation only
-        w2c_norm = w2c.copy()
-        w2c_norm[:3, 3] *= spatial_scale
-
-        # Keep intrinsics as-is (cx=cy=256 from PP-centering)
-        norm_w2c_list.append(w2c_norm)
-        norm_intr_list.append(intr)
-
+    mean_dist = target_dist / spatial_scale if spatial_scale != 0 else 0.0
     print(f"Camera normalization: dist {mean_dist:.1f}mm → {target_dist:.3f}, scale={spatial_scale:.6f}")
     print(f"  Intrinsics preserved: fx={intrinsics_list[0]['fx']:.1f}, cx={intrinsics_list[0]['cx']:.1f}")
-    return norm_w2c_list, norm_intr_list
+    return norm_w2c_list, list(intrinsics_list)
 
 
 def save_gslrm_frame(

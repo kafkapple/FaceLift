@@ -128,3 +128,39 @@ def normalize_single_frame(
     new_frame["w2c"] = new_w2c.tolist()
     
     return new_frame
+
+
+def normalize_camera_distance(
+    cameras_w2c: List[np.ndarray],
+    target_distance: float = 2.7,
+) -> Tuple[List[np.ndarray], float]:
+    """Normalize camera distance without modifying intrinsics.
+
+    Unlike normalize_cameras() which scales both intrinsics and distance,
+    this function only scales the translation component of w2c matrices.
+    Use when intrinsics are already correct (e.g., after PP-centering where
+    cx=cy=256 is guaranteed by the crop step).
+
+    Args:
+        cameras_w2c: List of (4, 4) world-to-camera matrices.
+        target_distance: Target average camera distance from origin.
+
+    Returns:
+        (normalized_w2c_list, spatial_scale) tuple.
+    """
+    distances = []
+    for w2c in cameras_w2c:
+        c2w = w2c_to_c2w(w2c)
+        cam_pos = c2w[:3, 3]
+        distances.append(np.linalg.norm(cam_pos))
+
+    mean_dist = np.mean(distances)
+    spatial_scale = target_distance / mean_dist if mean_dist > 0 else 1.0
+
+    norm_w2c_list = []
+    for w2c in cameras_w2c:
+        w2c_norm = w2c.copy()
+        w2c_norm[:3, 3] *= spatial_scale
+        norm_w2c_list.append(w2c_norm)
+
+    return norm_w2c_list, spatial_scale

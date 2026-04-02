@@ -1,3 +1,4 @@
+# no-split: single Dataset class — __getitem__ + camera normalization + augmentation tightly coupled
 # Copyright 2025 Adobe Inc.
 # Modified for Mouse-FaceLift project
 #
@@ -129,6 +130,11 @@ class MouseViewDataset(Dataset):
         self.target_camera_distance = mouse_config.get("target_camera_distance", 2.7)
         # Z-up vs Y-up: Human data uses Z-up, so default to Z-up for compatibility
         self.normalize_to_z_up = mouse_config.get("normalize_to_z_up", True)
+
+        # Camera recentering: shift camera centroid to origin
+        # Required for species where raw cameras are NOT origin-centered (e.g., s-DANNCE rat)
+        # Mouse data is already origin-centered from preprocessing, so default=False
+        self.recenter_cameras = mouse_config.get("recenter_cameras", False)
 
         # Auto mask generation: Create alpha channel from white background
         # This is critical for mouse images that don't have alpha channel
@@ -445,6 +451,16 @@ class MouseViewDataset(Dataset):
             input_images = torch.stack(input_images, dim=0)
             input_fxfycxcy = np.array(input_fxfycxcy)
             input_c2ws = np.array(input_c2ws)
+
+            # Recenter cameras: shift centroid to origin
+            # Required for datasets where cameras are NOT origin-centered (e.g., s-DANNCE rat)
+            # Mouse data is already centered from preprocessing, so this is a no-op for mouse
+            if self.recenter_cameras:
+                cam_positions = input_c2ws[:, :3, 3]  # [N, 3]
+                centroid = cam_positions.mean(axis=0)  # [3]
+                input_c2ws[:, :3, 3] -= centroid
+                all_c2ws_raw[:, :3, 3] -= centroid
+                all_fxfycxcy_raw = all_fxfycxcy_raw  # intrinsics unchanged by translation
 
             # Normalize cameras to Z-up or Y-up coordinate system
             # IMPORTANT: Analysis shows GS-LRM pretrained model uses Z-up (not Y-up!)
