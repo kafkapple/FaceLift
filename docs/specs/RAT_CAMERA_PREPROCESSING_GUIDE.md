@@ -1,6 +1,6 @@
 # Rat Camera Preprocessing Guide
 
-> **Version**: 1.0 | **Date**: 2026-04-05
+> **Version**: 2.0 | **Date**: 2026-04-06
 > **Audience**: Research team — camera geometry + GS-LRM preprocessing 이해 목적
 > **Prerequisite**: GS-LRM 기본 구조 이해 (multi-view → 3D Gaussians)
 
@@ -251,20 +251,24 @@ v4b 접근: v4 + clip_xyz 비활성화
   → 3모델 audit에서 "fx-distance 정합성"이 근본 원인으로 확정
 ```
 
-### 4.4 v5: fx 정규화 (mouse 방식 적용) — 진행 중
+### 4.4 v5: despill + fx 정규화 (mouse 방식 적용) — ✅ 준비 완료
 
 ```
-v5 접근: 전처리에서 fx=605→549로 affine 정규화 (mouse M5와 동일)
+v5 접근: 2-stage 전처리
+  Stage 1: despill.py (green spill 제거, G/R 0.977→0.798)
+  Stage 2: normalize_fx.py (fx=605→549 affine, 이미지 0.908x 축소)
 
-  sdannce_to_gslrm.py --normalize_fx 플래그 추가
-  fx_scale = 549/605 = 0.908
-  이미지를 0.908x 축소 + white border
+  ⚠️ v5a 실패: fxnorm WITHOUT despill → 녹색 재구성
+  → Stage 순서 중요: despill(색상) → fxnorm(기하) (MoA 6/6 합의)
+
   fx = 549 ✅ (pretrained와 정확히 일치)
-  recenter_cameras = false (v1과 동일)
+  recenter_cameras = false (v1과 동일, v3 실패 교훈)
   clip_xyz = false (v2 3D 손상 방지)
-  target_camera_distance = 0 (v1과 동일 — raw ~2.6 ≈ 2.7)
+  target_camera_distance = 0 (sdannce_to_gslrm.py가 이미 2.7 정규화)
+  green G/R = 0.810 ✅ (despill 보존 확인)
 
-  상태: 전처리 실행 중 (2967 frames)
+  데이터셋: rat2_s1despill_s2fxnorm (2967 frames)
+  상태: 전처리 완료, 학습 준비 완료
 ```
 
 ---
@@ -329,63 +333,78 @@ Rat v4b:
 
 ---
 
-## 6. 개선 옵션 비교
+## 6. v5 vs M5 비교 분석 (2026-04-06 검증)
 
-### Option A: 현재 유지 (v4b)
+### 6.1 정량 비교
 
-```
-변경: 없음 (이미 실행 중)
-fx = 605, distance = 2.7
-장점: 구현 완료, 학습 중, 추가 비용 0
-단점: fx-distance 10% 불일치
-기대: Fine-tuning이 적응하면 v1(17.49)급 이상 가능
-판단 시점: step 500 결과
-```
+| 항목 | Mouse M5 (기준) | Rat v5 | 일치? | 비고 |
+|------|:---:|:---:|:---:|------|
+| **fx** | 549.0 | 549.0 | ✅ | affine 정규화 |
+| **fy** | 549.0 | 549.0 | ✅ | square pixel |
+| **cx, cy** | 256.0, 256.0 | 256.0, 256.0 | ✅ | 이미지 중심 |
+| **avg distance** | 2.700 | 2.700 | ✅ | sdannce_to_gslrm.py 내부 정규화 |
+| **distance range** | 2.593-2.799 | 2.456-2.896 | ⚠️ | rat 분산 더 큼 |
+| **centroid** | [0, 0, 0] | [0.04, 2.61, 0.55] | ⚠️ | 의도적 (§4.1 참조) |
+| **FG coverage** | 2.54% | 1.14% | ⚠️ | rat arena 넓어 FG 작음 |
+| **Green G/R** | N/A | 0.810 | ✅ | despill 적용 확인 |
 
-### Option B: fx 정규화 전처리 추가
+### 6.2 차이점 분석
 
-```
-변경: sdannce_to_gslrm.py에 affine transform 추가
-  - fx 605 → 549로 스케일링 (이미지도 동시 축소)
-  - 이미지 내 rat이 549/605 = 0.908배로 약간 작아짐
-  - coverage: 1.5% × 0.908² ≈ 1.24% (더 작아짐)
-  
-전처리 재실행 필요 (2967 frames × 6 cameras, ~1-2시간)
-장점: fx-distance 완전 일치, pretrained와 동일 조건
-단점: rat이 더 작아짐 (1.24%), 전처리 재실행 비용
-```
+**centroid ≠ origin**: Mouse M5는 batch uniform recentering으로 centroid=origin.
+Rat v5는 recentering 없음 — v3에서 centroid shift가 거리 붕괴(2.6→0.4)를 일으켜 실패.
+v1(no recenter, val PSNR 17.49)이 이 구조의 유효성을 실증.
 
-### Option C: Coverage-based Zoom
+**coverage 1.14% vs 2.54%**: rat이 넓은 arena에 있어 FG 비율이 낮음.
+M5 mouse는 좁은 cage에서 촬영. 이 차이는 전처리로 해결할 수 없고 (zoom-in 하면
+per-frame fx 변동 위험 = D4 bug), 모델이 적응해야 하는 domain gap.
 
-```
-변경: 전처리에서 rat 중심 crop + zoom
-  - mask centroid 기반 center crop
-  - target coverage 5-8%로 zoom
-  - fx는 zoom에 따라 자동 조정
-  
-전처리 재실행 + SAM2 mask 필요
-장점: rat이 크게 보임, coverage 제어 가능
-단점: per-frame fx 변동 위험 (D4 bug 재현 가능성), PP 불안정
-```
+**distance range**: rat 카메라 간 거리 편차(0.44)가 mouse(0.21)보다 큼.
+이는 s-DANNCE arena의 비대칭 카메라 배치 때문. 학습에 큰 영향 없음.
 
-### Option D: Option A + B 하이브리드
+### 6.3 v5 전처리 파이프라인 (최종)
 
 ```
-변경: convergence recenter + distance norm + fx scaling (이미지도 함께)
-  - v4b 기반이지만 scale_intrinsics_with_distance: true
-  - fx: 605 × (2.7/5.96) = 274 ... ❌ 너무 작음
-  
-이 옵션은 불가: 이미지를 건드리지 않으면서 fx를 549로 맞출 수 없음
+Stage 0: sdannce_to_gslrm.py (원본 비디오 → GS-LRM format)
+  - 1920×1200 → zero-pad → 512×512
+  - SAM2 mask → alpha channel
+  - 카메라 정규화: normalize_cameras() → distance=2.7
+  → gslrm_format_rat2 (fx=605, G/R=0.977)
+
+Stage 1: despill.py (녹색 제거)
+  - FG 픽셀의 green spill 제거 (VFX 2-stage)
+  - G/R: 0.977 → 0.798
+  → gslrm_format_rat2_despilled (fx=605, G/R=0.798)
+
+Stage 2: normalize_fx.py (기하 정규화)
+  - affine scaling: fx=605→549 (scale=0.908)
+  - mask: INTER_NEAREST (이진성 보존)
+  - RGB: INTER_LANCZOS4 (품질 보존)
+  - BG: white compositing 후 재적용
+  → rat2_s1despill_s2fxnorm (fx=549, G/R=0.810)
 ```
 
-### 권장 경로
+### 6.4 가설 (v5 학습 목적)
 
-```
-1. [즉시] v4b step 500 결과 대기 (비용 0)
-2. [판단] v4b가 v1(17.49 dB)을 넘으면 → 현재 유지
-3. [판단] v4b가 v1 미달이면 → Option B 전처리 재실행
-4. [장기] 최적 coverage 실험 (2.5% vs 5% vs 8%) — NeurIPS 준비
-```
+**H1: fx 정규화 + despill → v1 대비 PSNR 개선**
+
+| 조건 | v1 (baseline) | v5 (현재) | 변경 이유 |
+|------|:---:|:---:|------|
+| 데이터 | RAT1 (1001fr) | RAT2 (2967fr) | 3× 데이터 |
+| fx | 605 (10% off) | 549 (정확히 일치) | Plucker ray 정확성 |
+| despill | ❌ | ✅ | 녹색 artifact 제거 |
+| distance norm | 2.7 (전처리) | 2.7 (전처리) | 동일 |
+| recenter | ❌ | ❌ | 동일 (v3 교훈) |
+
+**예상 결과**:
+- v1 (17.49 dB) 대비 **+2~5 dB** 개선 기대
+  - 3× 데이터 → overfitting 감소
+  - fx=549 → Plucker ray 정확성 → 초기 수렴 가속
+  - despill → FG 색상 정확성 → PSNR 직접 기여
+
+**성공 기준**:
+- Tier 1 (최소): val PSNR ≥ 17.49 (v1 이상)
+- Tier 2 (기대): val PSNR ≥ 20.0 (mouse 6v 수준)
+- Tier 3 (이상): val PSNR ≥ 22.0 (mouse 6v best 근접)
 
 ---
 
