@@ -202,7 +202,19 @@ Rat은 fx를 **그대로 유지** (605)하고 이미지도 원본 비율 그대�
 
 ---
 
-## 4. v3/v4/v4b 실험 히스토리: 왜 실패했고 무엇이 달라졌나
+## 4. 실험 히스토리: v1→v5 (7회 실험, 6회 실패)
+
+### 전체 버전 매트릭스
+
+| Ver | 데이터 | fx | Despill | Distance | 핵심 변경 | 결과 | 교훈 |
+|:---:|--------|:---:|:---:|:---:|------|:---:|------|
+| **v1** | RAT1 1001fr | 605 | ❌ | 2.7 (전처리) | baseline | **17.49 dB** | — |
+| v2 | RAT2 2967fr | 605 | ❌ | 2.7 (전처리) | +clip_xyz | ❌ 3D 손상 | clip_xyz 위험 |
+| v3 | RAT2 despill | 605 | ✅ | centroid recenter | +recenter | ❌ dist 붕괴 | 밀집 카메라 recenter 금지 |
+| v4 | RAT2 despill | 605 | ✅ | convergence+2.7 | +convergence | ❌ IoU=0 | clip_xyz 확정 금지 |
+| v4b | RAT2 despill | 605 | ✅ | convergence+2.7 | -clip_xyz | ❌ PSNR 0.9 | **fx-distance 정합성 필수** |
+| v5a | RAT2 fxnorm | **549** | ❌ | 2.7 (전처리) | +fxnorm, -despill | ❌ 녹색 | **despill 누락 금지** |
+| **v5** | RAT2 despill+fxnorm | **549** | ✅ | 2.7 (전처리) | despill→fxnorm | **준비 완료** | 전 교훈 반영 |
 
 ### 4.1 v3: Centroid Recentering → 거리 붕괴
 
@@ -269,6 +281,19 @@ v5 접근: 2-stage 전처리
 
   데이터셋: rat2_s1despill_s2fxnorm (2967 frames)
   상태: 전처리 완료, 학습 준비 완료
+```
+
+### 4.5 v5a: fxnorm WITHOUT despill → 녹색 재구성
+
+```
+v5a 접근: sdannce_to_gslrm.py --normalize_fx로 원본에서 직접 재생성
+  → 디렉토리명 gslrm_format_rat2_despilled_fxnorm (이름에 "despilled" 포함)
+  → 실제로 despill.py 미적용, G/R = 0.975 (원본 수준)
+  
+  결과: 학습 시 녹색 tinted 3D 재구성
+  원인: 2-stage 파이프라인에서 stage 1 (despill) 누락
+  → MoA 6/6 합의: despill(색상) → fxnorm(기하) 순서 필수
+  → 잘못된 데이터셋 삭제, rat2_s1despill_s2fxnorm으로 재생성
 ```
 
 ---
