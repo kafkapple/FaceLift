@@ -58,7 +58,9 @@ def normalize_frame(
     # Use same scale for both axes to maintain square pixels (pretrained assumes fx=fy)
     fy_scale = fx_scale
 
-    # Affine: uniform scale around image center
+    # Affine: uniform scale around image center (256, 256)
+    # This centers cx/cy regardless of original value (rat cx=250.7 → 256)
+    # Matches pretrained model's assumption of centered principal point
     M = np.float32([
         [fx_scale, 0, TARGET_CX * (1 - fx_scale)],
         [0, fy_scale, TARGET_CY * (1 - fy_scale)],
@@ -75,15 +77,14 @@ def normalize_frame(
         borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255),
     )
 
-    # Transform mask (black border, then re-binarize)
-    alpha_float = alpha.astype(np.float32) / 255.0
+    # Transform mask with INTER_NEAREST (matches sdannce_to_gslrm.py reference)
+    # INTER_LINEAR + threshold causes 1px erosion bias at boundaries
     alpha_warped = cv2.warpAffine(
-        alpha_float, M, (IMG_SIZE, IMG_SIZE),
-        flags=cv2.INTER_LINEAR,
-        borderMode=cv2.BORDER_CONSTANT, borderValue=0.0,
+        alpha, M, (IMG_SIZE, IMG_SIZE),
+        flags=cv2.INTER_NEAREST,
+        borderMode=cv2.BORDER_CONSTANT, borderValue=0,
     )
-    # Re-binarize to prevent boundary artifacts
-    alpha_norm = (alpha_warped > 0.5).astype(np.uint8) * 255
+    alpha_norm = alpha_warped
 
     # Composite: ensure BG is white where mask is 0
     bg_mask = alpha_norm == 0
@@ -93,7 +94,7 @@ def normalize_frame(
 
     new_intrinsics = {
         "fx": float(target_fx),
-        "fy": float(fy * fy_scale),  # scaled proportionally (≈target_fx if fx≈fy)
+        "fy": float(target_fx),  # pretrained assumes fx=fy=549 (square pixels)
         "cx": float(TARGET_CX),
         "cy": float(TARGET_CY),
     }
@@ -120,7 +121,7 @@ def process_frame_dir(
 
     for i, frame in enumerate(cam_data["frames"]):
         img_path = input_dir / "images" / f"cam_{i:03d}.png"
-        img = np.array(Image.open(img_path))
+        img = np.array(Image.open(img_path).convert("RGBA"))
 
         intrinsics = {
             "fx": frame["fx"], "fy": frame["fy"],

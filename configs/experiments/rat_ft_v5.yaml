@@ -23,10 +23,10 @@ training:
   optimizer:
     lr: 5e-5
   checkpointing:
-    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/RAT2_despilled_rat_ft_v5
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/rat2_s1despill_s2fxnorm_ft_v5
     resume_from: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
 wandb:
-  name: RAT2_despilled_rat_ft_v5
+  name: rat2_s1despill_s2fxnorm_ft_v5
   tags:
   - rat
   - fine_tuning
