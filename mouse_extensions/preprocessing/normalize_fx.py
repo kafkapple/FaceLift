@@ -55,9 +55,10 @@ def normalize_frame(
         return img_rgba.copy(), intrinsics.copy()
 
     fx_scale = target_fx / fx
-    fy_scale = target_fx / fy
+    # Use same scale for both axes to maintain square pixels (pretrained assumes fx=fy)
+    fy_scale = fx_scale
 
-    # Affine: scale around image center
+    # Affine: uniform scale around image center
     M = np.float32([
         [fx_scale, 0, TARGET_CX * (1 - fx_scale)],
         [0, fy_scale, TARGET_CY * (1 - fy_scale)],
@@ -92,7 +93,7 @@ def normalize_frame(
 
     new_intrinsics = {
         "fx": float(target_fx),
-        "fy": float(target_fx),
+        "fy": float(fy * fy_scale),  # scaled proportionally (≈target_fx if fx≈fy)
         "cx": float(TARGET_CX),
         "cy": float(TARGET_CY),
     }
@@ -207,17 +208,16 @@ def main():
               f"G/R ratio: mean={np.mean(all_gr):.3f}, "
               f"min={np.min(all_gr):.3f}, max={np.max(all_gr):.3f}")
 
-    # Copy split files if they exist
+    # Copy split files with resolved absolute paths
     if not args.validate and args.output_dir:
+        input_resolved = str(args.input_dir.resolve())
+        output_resolved = str(args.output_dir.resolve())
         for split_file in args.input_dir.glob("data_rat2_*.txt"):
-            # Update paths in split file
             new_lines = []
             with open(split_file) as f:
                 for line in f:
-                    old_path = line.strip()
-                    new_path = old_path.replace(
-                        str(args.input_dir), str(args.output_dir)
-                    )
+                    old_path = str(Path(line.strip()).resolve())
+                    new_path = old_path.replace(input_resolved, output_resolved)
                     new_lines.append(new_path)
             out_split = args.output_dir / split_file.name
             with open(out_split, "w") as f:

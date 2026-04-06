@@ -15,8 +15,8 @@ from PIL import Image
 
 VERSIONS = [
     ("gslrm_format_rat2", "Original", "fx=604.9, fy=606.8, cx=250.7, cy=260.4"),
-    ("gslrm_format_rat2_despilled", "Green Despill", "fx=604.9, fy=606.8, cx=250.7, cy=260.4"),
-    ("gslrm_format_rat2_despilled_fxnorm", "FX Normalized", "fx=549, fy=549, cx=256, cy=256"),
+    ("gslrm_format_rat2_despilled", "S1: Despill", "fx=604.9, fy=606.8, cx=250.7, cy=260.4"),
+    ("rat2_s1despill_s2fxnorm", "S1+S2: Despill+FXNorm", "fx=549, fy=549, cx=256, cy=256"),
 ]
 
 NUM_CAMS = 6

@@ -43,6 +43,7 @@ from mouse_extensions.visualization.video_io import save_video
 
 # Defaults
 DEFAULT_DATA_ROOT = "/node_data/joon/data/preprocessed/FaceLift_rat"
+DEFAULT_DATA_VERSION = "rat2_s1despill_s2fxnorm"
 DEFAULT_CKPT_DIR = "/node_data/joon/checkpoints/FaceLift/gslrm"
 DEFAULT_CONFIG = "/home/joon/dev/FaceLift/configs/base/gslrm_mouse.yaml"
 DEFAULT_OUTPUT = "outputs/viz/rat_inference"
@@ -208,7 +209,7 @@ def main():
     )
     parser.add_argument("--checkpoint", default="M5t2_6view_alpha03_v3",
                         help="Checkpoint name under gslrm/")
-    parser.add_argument("--data-version", default="gslrm_format_rat2_despilled_fxnorm",
+    parser.add_argument("--data-version", default=DEFAULT_DATA_VERSION,
                         help="Preprocessing version dirname")
     parser.add_argument("--num-frames", type=int, default=10)
     parser.add_argument("--frame-stride", type=int, default=30,

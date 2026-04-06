@@ -1,3 +1,4 @@
+# BASELINE — val PSNR 17.49dB, RAT1 data (1001fr, no despill, fx=605). Superseded by rat_ft_v5.yaml
 # Rat Fine-Tuning v1
 # Transfer from mouse α=0.3 6-view checkpoint → rat domain
 # Lower LR for domain adaptation, keep alpha loss

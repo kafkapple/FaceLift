@@ -1,3 +1,4 @@
+# FAILED — centroid recentering collapsed camera distances (2.6→0.4). Superseded by rat_ft_v5.yaml
 # Rat Fine-Tuning v3 (RAT2 despilled + camera recentering)
 # Fix: add recenter_cameras to shift camera centroid to origin
 # Without this, clip_xyz clips Gaussians to wrong region → corrupted 3D geometry

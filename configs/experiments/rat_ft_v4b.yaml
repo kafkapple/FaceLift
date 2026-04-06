@@ -1,0 +1,38 @@
+# FAILED — PSNR 0.9dB, fx=605 + distance=2.7 mismatch. Superseded by rat_ft_v5.yaml
+# Rat Fine-Tuning v4b (convergence recenter + distance norm + clip_xyz OFF)
+# v4 failure: clip_xyz=true clips Gaussians even with convergence recentering → IoU=0 at step 101
+# v4b fix: disable clip_xyz so Gaussians can occupy correct positions
+# All other settings identical to v4.
+model:
+  num_input_views: 6
+  num_views: 6
+  clip_xyz: false                       # CRITICAL: disable clipping (v4 lesson)
+mouse:
+  recenter_cameras: true              # convergence point recentering
+  target_camera_distance: 2.7         # normalize to pretrained expectation
+  scale_intrinsics_with_distance: false  # keep fx=605
+  normalize_cameras: false
+training:
+  losses:
+    alpha_loss_weight: 0.3
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  schedule:
+    max_fwdbwd_passes: 15000
+    early_stop_patience: 2000
+  optimizer:
+    lr: 5e-5
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/RAT2_despilled_rat_ft_v4b
+    resume_from: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+wandb:
+  name: RAT2_despilled_rat_ft_v4b
+  tags:
+  - rat
+  - fine_tuning
+  - alpha_0.3
+  - 6view
+  - sdannce
+  - convergence_recenter
+  - no_clip_xyz
