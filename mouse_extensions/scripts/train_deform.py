@@ -187,9 +187,10 @@ def velocity_loss(delta_prev: Optional[torch.Tensor], delta_curr: torch.Tensor) 
 
 def zero_regularization(model: nn.Module, n_samples: int = 1000, device: str = "cuda") -> torch.Tensor:
     """Penalize non-zero output for random BG-like positions (replaces BG data)."""
-    random_pos = torch.randn(n_samples, 6, device=device) * 2.0
+    random_xyz_t = torch.randn(n_samples, 3, device=device) * 2.0
+    random_xyz_t1 = random_xyz_t + torch.randn(n_samples, 3, device=device) * 0.01
     time_idx = torch.zeros(n_samples, device=device)
-    output = model(random_pos, time_idx)
+    output = model(random_xyz_t, random_xyz_t1, time_idx)
     return output.pow(2).mean()
 
 
@@ -220,10 +221,9 @@ def train_step(
     n = min(xyz_t.shape[0], xyz_t1.shape[0])
     xyz_t, xyz_t1, weights = xyz_t[:n], xyz_t1[:n], weights[:n]
 
-    # Forward: predict deformation
-    input_pair = torch.cat([xyz_t, xyz_t1], dim=-1)  # [N, 6]
+    # Forward: predict deformation (V2 API: xyz_t, xyz_t1, time_index)
     time_tensor = torch.full((n,), frame_idx, dtype=torch.float32, device=device)
-    delta = model(input_pair, time_tensor)
+    delta = model(xyz_t, xyz_t1, time_tensor)
 
     # Apply deformation
     parsed = model.parse_output(delta)
@@ -330,7 +330,12 @@ def train(config: dict):
         data_list = os.path.expanduser(gslrm_full_config.training.dataset.dataset_path)
 
     dataset = FGPairDataset(config["cache_dir"], data_list, config.get("num_frames", 0))
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=0)
+    def collate_fn(batch):
+        """Pass through — no stacking for variable-size Gaussian dicts."""
+        return batch[0]  # batch_size=1, just unwrap
+
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=0,
+                            collate_fn=collate_fn)
 
     # Network
     net_config = DeformationConfigV2()
@@ -386,7 +391,10 @@ def train(config: dict):
 
         pbar = tqdm(dataloader, desc=f"Epoch {epoch}", leave=False)
         for batch in pbar:
-            g_t, g_t1, frame_idx, target = batch[0][0], batch[0][1], batch[0][2].item(), batch[0][3]
+            # collate_fn unwraps batch_size=1 → returns __getitem__ output directly
+            g_t, g_t1, frame_idx, target = batch
+            if isinstance(frame_idx, torch.Tensor):
+                frame_idx = frame_idx.item()
 
             optimizer.zero_grad()
             loss, metrics, delta_prev = train_step(

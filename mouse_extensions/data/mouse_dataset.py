@@ -46,6 +46,7 @@ from mouse_extensions.data.preprocessing import (
     preprocess_cameras,
     PreprocessingConfig,
 )
+from mouse_extensions.data.camera_geometry import compute_convergence_point
 
 
 
@@ -131,10 +132,16 @@ class MouseViewDataset(Dataset):
         # Z-up vs Y-up: Human data uses Z-up, so default to Z-up for compatibility
         self.normalize_to_z_up = mouse_config.get("normalize_to_z_up", True)
 
-        # Camera recentering: shift camera centroid to origin
+        # Camera recentering: shift convergence point (scene center) to origin
+        # Uses ray intersection instead of camera centroid to preserve natural distances.
         # Required for species where raw cameras are NOT origin-centered (e.g., s-DANNCE rat)
         # Mouse data is already origin-centered from preprocessing, so default=False
         self.recenter_cameras = mouse_config.get("recenter_cameras", False)
+        # When False, distance normalization moves cameras without adjusting fx/fy.
+        # Use False for species where convergence-point recentering changes distance
+        # significantly (e.g., rat: 6.0 → 2.7), to keep fx close to pretrained value.
+        self.scale_intrinsics_with_distance = mouse_config.get(
+            "scale_intrinsics_with_distance", True)
 
         # Auto mask generation: Create alpha channel from white background
         # This is critical for mouse images that don't have alpha channel
@@ -304,6 +311,7 @@ class MouseViewDataset(Dataset):
         Returns:
             dict: Contains 'image', 'c2w', 'fxfycxcy', 'index', 'bg_color'
         """
+        up_direction = None  # initialized before try for all_c2ws normalization scope
         try:
             data_json_path = os.path.join(
                 self.all_data_paths[idx].strip(), "opencv_cameras.json"
@@ -452,15 +460,20 @@ class MouseViewDataset(Dataset):
             input_fxfycxcy = np.array(input_fxfycxcy)
             input_c2ws = np.array(input_c2ws)
 
-            # Recenter cameras: shift centroid to origin
-            # Required for datasets where cameras are NOT origin-centered (e.g., s-DANNCE rat)
-            # Mouse data is already centered from preprocessing, so this is a no-op for mouse
+            # Recenter cameras: shift scene center to origin
+            # Uses convergence point (where camera rays intersect) instead of camera centroid.
+            # This preserves natural camera-to-scene distances.
+            # - Mouse: cameras already look at origin → convergence ≈ [0,0,0] → no-op
+            # - Rat: cameras look at arena center → shift that point to origin
+            # v3 lesson: centroid recentering collapsed camera distances from 2.6 → 0.4
             if self.recenter_cameras:
-                cam_positions = input_c2ws[:, :3, 3]  # [N, 3]
-                centroid = cam_positions.mean(axis=0)  # [3]
-                input_c2ws[:, :3, 3] -= centroid
-                all_c2ws_raw[:, :3, 3] -= centroid
-                all_fxfycxcy_raw = all_fxfycxcy_raw  # intrinsics unchanged by translation
+                scene_center = compute_convergence_point(input_c2ws)
+                input_c2ws[:, :3, 3] -= scene_center
+                all_c2ws_raw[:, :3, 3] -= scene_center
+                if idx == 0:
+                    dists = np.linalg.norm(input_c2ws[:, :3, 3], axis=1)
+                    print(f"[Recenter] scene_center={np.round(scene_center, 3)}, "
+                          f"post_dist={np.round(dists, 3)} (mean={dists.mean():.3f})")
 
             # Normalize cameras to Z-up or Y-up coordinate system
             # IMPORTANT: Analysis shows GS-LRM pretrained model uses Z-up (not Y-up!)
@@ -487,11 +500,17 @@ class MouseViewDataset(Dataset):
             # Normalize camera distances to fixed radius
             # FaceLift pretrained model expects cameras at distance ~2.7
             if self.target_camera_distance > 0:
-                # Use the new function that also adjusts fx/fy proportionally
-                # This fixes the "ghost mouse" issue caused by distance/intrinsics mismatch
-                input_c2ws, input_fxfycxcy = normalize_camera_distance_with_intrinsics(
-                    input_c2ws, input_fxfycxcy, self.target_camera_distance
-                )
+                if self.scale_intrinsics_with_distance:
+                    input_c2ws, input_fxfycxcy = normalize_camera_distance_with_intrinsics(
+                        input_c2ws, input_fxfycxcy, self.target_camera_distance
+                    )
+                else:
+                    # Scale positions only, keep fx/fy unchanged
+                    # For convergence-point recentered data where large distance
+                    # change would distort fx (e.g., rat 6.0→2.7 = 0.45x fx)
+                    input_c2ws = normalize_camera_distance(
+                        input_c2ws, self.target_camera_distance
+                    )
 
         except Exception as e:
             traceback.print_exc()
@@ -506,9 +525,14 @@ class MouseViewDataset(Dataset):
             else:
                 all_c2ws_raw = normalize_cameras_to_y_up(all_c2ws_raw, up_direction)
         if self.target_camera_distance > 0:
-            all_c2ws_raw, all_fxfycxcy_raw = normalize_camera_distance_with_intrinsics(
-                all_c2ws_raw, all_fxfycxcy_raw, self.target_camera_distance
-            )
+            if self.scale_intrinsics_with_distance:
+                all_c2ws_raw, all_fxfycxcy_raw = normalize_camera_distance_with_intrinsics(
+                    all_c2ws_raw, all_fxfycxcy_raw, self.target_camera_distance
+                )
+            else:
+                all_c2ws_raw = normalize_camera_distance(
+                    all_c2ws_raw, self.target_camera_distance
+                )
 
         input_c2ws = torch.from_numpy(input_c2ws).float()
         input_fxfycxcy = torch.from_numpy(input_fxfycxcy).float()

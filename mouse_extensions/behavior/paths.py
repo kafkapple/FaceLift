@@ -8,7 +8,7 @@ Directory structure (v2 — see mouse_extensions/paths.py for full structure):
     │   ├── gaussians_raw/               ← Per-frame NPZ (1M Gaussians, float16)
     │   ├── covariance_n2/               ← Covariance features
     │   └── temporal/                    ← Temporal features
-    outputs/report/clustering/           ← Legacy reports (symlink → analysis/)
+    outputs/reports/clustering/           ← Consolidated reports (topic-based)
     ├── data/                            ← Input data (keypoints copy)
     ├── results/                         ← JSON experiment results
     ├── visualizations/                  ← Plots, GIFs, images

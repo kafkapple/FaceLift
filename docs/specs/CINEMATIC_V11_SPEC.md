@@ -14,7 +14,7 @@ NeurIPS 2026 데모 영상. GS-LRM 기반 Multi-view Mouse 3D Reconstruction 파
 | FPS | 20 | Matches source data rate (100fps / 5-frame interval) |
 | frame_step | 1 (global default) | Every frame used. No per-segment override. |
 | Background | White (1,1,1) | Clean presentation |
-| Frame range | 1500:1860 | 360 frames temporal coverage |
+| Frame range | 1900:2260 | 360 frames, high motion, no jump frames |
 | Crossfade | 0.3s | Global default (overridden per segment) |
 | Font scaling | Resolution-proportional | Reference: 512px. Auto-scales via `H / 512.0` |
 

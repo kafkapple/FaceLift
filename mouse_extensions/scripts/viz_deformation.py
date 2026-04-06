@@ -51,7 +51,9 @@ def load_gaussian_from_pt(pt_path: str, device: str = "cuda"):
         def _get(key):
             return data.get(key, data.get(f"fg_{key}"))
         xyz = _get("xyz")
-        features = _get("features") or _get("features_dc")
+        features = _get("features")
+        if features is None:
+            features = _get("features_dc")
         scaling = _get("scaling")
         rotation = _get("rotation")
         opacity = _get("opacity")
@@ -66,6 +68,13 @@ def load_gaussian_from_pt(pt_path: str, device: str = "cuda"):
     # Ensure correct shapes
     if features.dim() == 2:
         features = features.unsqueeze(1)  # [N, F] → [N, 1, F] for SH dim
+
+    # Ensure float32 for renderer (FG cache may be float16)
+    xyz = xyz.float()
+    features = features.float()
+    scaling = scaling.float()
+    rotation = rotation.float()
+    opacity = opacity.float()
 
     gm = GaussianModel(sh_degree=0)
     gm.set_data(

@@ -1,3 +1,4 @@
+# no-split: unified cluster visualization pipeline (GIF + comparison + HTML report), all functions share rendering state
 """Cluster visualization module — GIF montages, preprocessing comparison, HTML report.
 
 Generates:
@@ -7,7 +8,7 @@ Generates:
 - UMAP scatter, ethogram, transition matrix
 - Self-contained HTML report
 
-All outputs saved to `outputs/report/clustering/` (see paths.py).
+All outputs saved to `outputs/reports/clustering/` (see paths.py).
 
 Usage on gpu03:
     cd /home/joon/dev/FaceLift

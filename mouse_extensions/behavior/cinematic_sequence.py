@@ -203,7 +203,8 @@ def load_mask_overlay(fd_path, view, border_color=None, bg_color=(1.0, 1.0, 1.0)
 
 
 def overlay_keypoints(img, kp_2d, kp_valid, bone_width=2, kp_radius=5,
-                       kp_depth=None, show_labels=False, show_legend=False):
+                       kp_depth=None, show_labels=False, show_legend=False,
+                       alpha_min=0.35, alpha_max=1.0):
     """Keypoint + skeleton overlay with optional depth-based opacity and labels.
 
     Args:
@@ -211,18 +212,22 @@ def overlay_keypoints(img, kp_2d, kp_valid, bone_width=2, kp_radius=5,
                   Used for depth-based opacity: closer = brighter/larger.
         show_labels: Draw abbreviated keypoint names next to each point.
         show_legend: Draw legend panel on right side of image.
+        alpha_min: Minimum opacity for farthest keypoints.
+        alpha_max: Maximum opacity for closest keypoints.
     """
     u8 = (np.clip(img, 0, 1) * 255).astype(np.uint8).copy()
     H, W = u8.shape[:2]
 
-    # Per-keypoint opacity multiplier from depth (0.35 = far, 1.0 = close)
-    depth_alpha = np.ones(len(kp_2d))
+    # Per-keypoint opacity multiplier from depth
+    depth_alpha = np.ones(len(kp_2d)) * alpha_max
     if kp_depth is not None:
         valid_d = kp_depth[kp_valid]
         if len(valid_d) > 1:
             d_min, d_max = valid_d.min(), valid_d.max()
             d_range = max(d_max - d_min, 1e-6)
-            depth_alpha = 1.0 - 0.65 * np.clip((kp_depth - d_min) / d_range, 0, 1)
+            alpha_range = alpha_max - alpha_min
+            depth_alpha = alpha_max - alpha_range * np.clip(
+                (kp_depth - d_min) / d_range, 0, 1)
 
     # Skeleton bones
     for a, b in SKELETON_BONES:
@@ -330,16 +335,25 @@ def project_kp_to_novel_cam(kp_3d, c2w, fxfy, w, h):
     return uv, in_img
 
 
-def add_label(img, text, fontscale=0.65, thickness=1):
-    """Add text label with semi-transparent background panel (ASCII-safe)."""
+def add_label(img, text, fontscale=None, thickness=None):
+    """Add text label with semi-transparent background panel (ASCII-safe).
+
+    fontscale and thickness auto-scale based on image resolution (reference: 512px).
+    """
     img_u8 = (np.clip(img, 0, 1) * 255).astype(np.uint8).copy()
+    H = img_u8.shape[0]
+    res_scale = H / 512.0  # reference resolution
+    if fontscale is None:
+        fontscale = 0.65 * res_scale
+    if thickness is None:
+        thickness = max(1, int(1 * res_scale))
     # Replace non-ASCII chars with ASCII fallbacks
     safe = text.replace('\u00b0', 'deg').replace('\u2014', '-').replace('\u2013', '-')
     safe = safe.encode('ascii', 'replace').decode('ascii')
     font = cv2.FONT_HERSHEY_DUPLEX
     (tw, th), base = cv2.getTextSize(safe, font, fontscale, thickness)
-    pad = 6
-    x0, y0 = 10, 8
+    pad = max(4, int(6 * res_scale))
+    x0, y0 = max(6, int(10 * res_scale)), max(5, int(8 * res_scale))
     x1, y1 = x0 + tw + pad * 2, y0 + th + base + pad * 2
     # Semi-transparent dark background
     overlay = img_u8.copy()
@@ -372,7 +386,8 @@ SEGMENT_ICON_MAP = {
     "flow_novel": "PLAY", "flow_novel_extra": "PLAY",
     "freeze_orbit": "ORBIT",
     "flow_head_kp": "KP",
-    "flow_gt_zoom_out": "PLAY", "grid_novel_6views": "GRID",
+    "flow_gt_zoom_out": "PLAY", "flow_render_mosaic": "GRID",
+    "grid_novel_6views": "GRID",
     "grid_novel_dense": "GRID",
     # Legacy (v5 backward compat)
     "grid_multiview": "GRID",
@@ -482,6 +497,13 @@ class CinematicPipeline:
         self.kp_overlay = self.g.get("keypoint_overlay", False)
         self.border_color = self.g.get("mask_border_color", None)
         self._show_controls = self.g.get("show_controls", False)
+
+        # KP visualization params (from config or defaults)
+        kp_cfg = cfg.get("keypoint", {})
+        self.kp_radius = kp_cfg.get("kp_radius", 5)
+        self.kp_bone_width = kp_cfg.get("bone_width", 2)
+        self.kp_alpha_min = kp_cfg.get("depth_alpha_min", 0.35)
+        self.kp_alpha_max = kp_cfg.get("depth_alpha_max", 1.0)
 
         # State shared across segments
         self._last_orbit_az: float = 270.0          # updated by freeze_orbit handler
@@ -898,7 +920,12 @@ class CinematicPipeline:
 
     def _seg_freeze_orbit(self, seg, n, prev_fd):
         fd = prev_fd or self._ensure_fd()
-        target_elev = seg.get("elevation", 20)
+        # match_gt=true: use GT camera's actual elevation (eliminates teleportation)
+        if seg.get("match_gt", False):
+            _, gt_el, _ = gt_camera_spherical(fd["frame_dir"], self.gt_view)
+            target_elev = gt_el
+        else:
+            target_elev = seg.get("elevation", 20)
         transition_frames = seg.get("transition_frames", 15)
 
         # Get GT camera's ACTUAL spherical coordinates (radius, elevation, azimuth)
@@ -910,35 +937,21 @@ class CinematicPipeline:
             orbit_n, target_elev, self.radius, self.hfov, self.res,
             start_azimuth=gt_az)
 
-        # Transition: smoothly sweep from GT camera's actual position to orbit start
-        # Instead of SLERP (which jumps position), sweep spherical coordinates:
-        # radius: gt_r → self.radius, elevation: gt_el → target_elev, azimuth: fixed (gt_az)
+        # Transition: SLERP from actual GT c2w to orbit start c2w
+        # Spherical interpolation caused look-at mismatch (GT looks at mouse, orbit looks at origin)
+        gt_c2w_actual = gt_camera_c2w(fd["frame_dir"], self.gt_view)
+        _, gt_fxfy_scaled = self._cam_from_gt_view(fd["frame_dir"], self.gt_view)
+        orbit_start_c2w = c2ws[0]
+        trans_c2ws = list(interpolate_cameras(
+            gt_c2w_actual, orbit_start_c2w, transition_frames))
+
         imgs = []
         for i in range(transition_frames):
             t = (i + 1) / transition_frames
-            t_ease = t * t * (3 - 2 * t)  # smoothstep
-            # Interpolate spherical coordinates
-            r_interp = gt_r + (self.radius - gt_r) * t_ease
-            el_interp = gt_el + (target_elev - gt_el) * t_ease
-            # Generate camera at interpolated spherical position
-            elev_r = np.deg2rad(el_interp)
-            azim_r = np.deg2rad(gt_az)
-            z = r_interp * np.sin(elev_r)
-            base = r_interp * np.cos(elev_r)
-            pos = np.array([base * np.cos(azim_r), base * np.sin(azim_r), z])
-            fwd = -pos / np.linalg.norm(pos)
-            up_v = np.array([0.0, 0.0, 1.0])
-            right = np.cross(fwd, up_v)
-            right /= np.linalg.norm(right)
-            up = np.cross(right, fwd)
-            R = np.stack((right, -up, fwd), axis=1)
-            trans_c2w = np.eye(4)
-            trans_c2w[:3, :4] = np.concatenate((R, pos[:, None]), axis=1)
+            t_ease = t * t * (3 - 2 * t)
             # Interpolate intrinsics (GT fx → orbit fx)
-            # Use _cam_from_gt_view for correct scaling (handles non-512px GT)
-            _, gt_fxfy_scaled = self._cam_from_gt_view(fd["frame_dir"], self.gt_view)
             trans_fxfy = gt_fxfy_scaled + (fxfy[0] - gt_fxfy_scaled) * t_ease
-            img = render_cam(fd["gaussians"], trans_c2w, trans_fxfy, w, h,
+            img = render_cam(fd["gaussians"], trans_c2ws[i], trans_fxfy, w, h,
                              mask=fd["vis_mask"], bg=self.bg, device=self.device)
             imgs.append(img)
 
@@ -1073,15 +1086,16 @@ class CinematicPipeline:
         imgs, fd = self._render_temporal_flow(fis, c2w_fn, prev_fd)
 
         if kp_on:
-            # Optional KP filter: list of keypoint indices to show (e.g. [8,12,16,19] for paws)
             kp_filter = seg.get("kp_filter", None)
+            show_kp_labels = seg.get("show_kp_labels", False)
             valid_mask = [img.any() for img in imgs]
             imgs = [
                 self._overlay_kp_novel(
                     img, fi,
                     trans_c2ws[i] if i < trans_n else c2w_fixed,
                     fxfy_fixed, self.res, self.res,
-                    kp_filter=kp_filter)
+                    kp_filter=kp_filter,
+                    show_labels=show_kp_labels)
                 if valid_mask[i] else img
                 for i, (img, fi) in enumerate(zip(imgs, fis))
             ]
@@ -1229,43 +1243,43 @@ class CinematicPipeline:
         cell_x0 = cell_col * cell
         cell_y0 = pad_top + cell_row * cell
 
-        fis = self._next_frames(n2, step=seg.get("frame_step", 2))
-        # Full-res target GT image for quality blend at end of zoom-in
-        full_gt_last = load_gt(self._fd(fis[-1]), gt_v, self.bg, raw=True, res=self.res)
-
         imgs = []
         # Phase 1: TEMPORAL mosaic (different frame each, not static)
-        fis_phase1 = self._next_frames(n1, step=seg.get("frame_step", 2))
+        fis_phase1 = self._next_frames(n1, step=seg.get("frame_step", 1))
         for fi_p1 in fis_phase1:
             mosaic = make_mosaic(fi_p1, show_labels=True)
             imgs.append(mosaic)
 
-        # Phase 2: crop-zoom IN animation (full mosaic → cell view)
-        # Start: show full mosaic (cs=res), End: zoomed into gt_view cell (cs=cell)
-        for j, fi in enumerate(fis):
-            t = j / max(n2 - 1, 1)
-            t_ease = t * t * (3 - 2 * t)  # smoothstep
+        # Phase 2: crop-zoom IN animation (full mosaic → single GT view cell)
+        # Skip when mosaic_ratio=1.0 (all-mosaic, no zoom needed)
+        if n2 > 0:
+            fis = self._next_frames(n2, step=seg.get("frame_step", 1))
+            full_gt_last = load_gt(self._fd(fis[-1]), gt_v, self.bg,
+                                   raw=True, res=self.res)
+            for j, fi in enumerate(fis):
+                t = j / max(n2 - 1, 1)
+                t_ease = t * t * (3 - 2 * t)  # smoothstep
 
-            # Zoom IN: crop window shrinks from full frame → cell bounds
-            cx0 = int(cell_x0 * t_ease)                        # 0 → cell_x0
-            cy0 = int(cell_y0 * t_ease)                        # 0 → cell_y0
-            cs = int(self.res - (self.res - cell) * t_ease)    # res → cell
-            cs = max(cs, cell)
+                # Crop window shrinks from full frame → cell bounds
+                cx0 = int(cell_x0 * t_ease)
+                cy0 = int(cell_y0 * t_ease)
+                cs = int(self.res - (self.res - cell) * t_ease)
+                cs = max(cs, cell)
 
-            mosaic_f = make_mosaic(fi, show_labels=True)
-            # Crop the progressively narrowing window and upscale to full res
-            crop = mosaic_f[cy0:cy0 + cs, cx0:cx0 + cs]
-            if crop.size == 0:
-                crop = mosaic_f
-            frame = cv2.resize(crop.astype(np.float32), (self.res, self.res),
-                               interpolation=cv2.INTER_LINEAR)
+                mosaic_f = make_mosaic(fi, show_labels=True)
+                crop = mosaic_f[cy0:cy0 + cs, cx0:cx0 + cs]
+                if crop.size == 0:
+                    crop = mosaic_f
+                frame = cv2.resize(crop.astype(np.float32),
+                                   (self.res, self.res),
+                                   interpolation=cv2.INTER_LINEAR)
 
-            # Blend with full-res GT in final 20% for quality (zoomed to gt_view)
-            blend_t = max(0.0, (t - 0.8) / 0.2) if t > 0.8 else 0.0
-            if blend_t > 0:
-                frame = crossfade(frame, full_gt_last, blend_t)
+                # Blend with full-res GT in final 20% for quality
+                blend_t = max(0.0, (t - 0.8) / 0.2) if t > 0.8 else 0.0
+                if blend_t > 0:
+                    frame = crossfade(frame, full_gt_last, blend_t)
 
-            imgs.append(frame)
+                imgs.append(frame)
 
         return imgs, prev_fd  # no inference performed
 
@@ -1278,7 +1292,7 @@ class CinematicPipeline:
             frames_per_cam: auto = n // len(cams), or override per cam
             transition_frames: SLERP frames between consecutive cameras
         """
-        step = seg.get("frame_step", 2)
+        step = seg.get("frame_step", 1)
         include_extreme = seg.get("include_extreme", True)
         trans_n = seg.get("transition_frames", 20)
 
@@ -1373,8 +1387,11 @@ class CinematicPipeline:
         gt_fxfy_raw = gt_camera_fxfycxcy(self._fd(fi_ref), self.gt_view)
         gt_fxfy = gt_fxfy_raw * (self.res / 512.0)
 
-        # Start camera: last novel cam or fallback
-        start_c2w = self._last_novel_c2w
+        # Start camera: prefer last orbit cam (most recent inference segment),
+        # fallback to last novel cam, then default spherical
+        start_c2w = self._last_orbit_c2w
+        if start_c2w is None:
+            start_c2w = self._last_novel_c2w
         if start_c2w is None:
             start_c2w, _ = self._cam_spherical(0, 270)
 
@@ -1435,30 +1452,154 @@ class CinematicPipeline:
             imgs.append(img)
         return imgs, fd
 
+    def _seg_flow_render_mosaic(self, seg, n, prev_fd):
+        """GS-LRM render at 6 GT cameras in 3×2 grid, with zoom-out + fade + hold.
+
+        Phase 1 (25%): Continue single-view render (from orbit), zoom out
+        Phase 2 (25%): Crossfade zoomed single-view → 6-cam render grid
+        Phase 3 (50%): Static hold — show completed 6-cam grid (content time)
+        Camera index labels displayed on grid cells.
+        """
+        step = seg.get("frame_step", 1)
+        fis = self._next_frames(n, step=step)
+        n1 = int(n * 0.15)   # zoom-out (shorter)
+        n2 = int(n * 0.35)   # crossfade (longer, smoother blend)
+        n3 = n - n1 - n2     # static hold
+
+        cell = self.res // 3
+        pad_top = (self.res - cell * 2) // 2
+
+        # Start camera: last orbit cam or GT cam fallback
+        start_c2w = self._last_orbit_c2w
+        if start_c2w is None:
+            start_c2w, _ = self._cam_from_gt_view(
+                self._fd(fis[0]), self.gt_view)
+
+        # GT camera intrinsics for single-view render
+        gt_c2w = None
+        gt_fxfy = None
+
+        def make_render_mosaic(fd_use):
+            canvas = np.ones((self.res, self.res, 3),
+                             dtype=np.float32) * np.array(self.bg)
+            for v in range(6):
+                cam = load_camera(
+                    str(Path(fd_use["frame_dir"]) / "opencv_cameras.json"), v)
+                cell_img = render_filtered_gaussians(
+                    fd_use["gaussians"], fd_use["vis_mask"], cam,
+                    self.bg, self.device)
+                if cell_img.shape[0] != self.res:
+                    cell_img = cv2.resize(cell_img.astype(np.float32),
+                                          (self.res, self.res),
+                                          interpolation=cv2.INTER_LINEAR)
+                sm = cv2.resize(cell_img.astype(np.float32), (cell, cell),
+                                interpolation=cv2.INTER_AREA)
+                row, col = v // 3, v % 3
+                y0 = pad_top + row * cell
+                canvas[y0:y0 + cell, col * cell:(col + 1) * cell] = sm
+            # Camera index labels
+            canvas_u8 = (np.clip(canvas, 0, 1) * 255).astype(np.uint8)
+            for v in range(6):
+                row, col = v // 3, v % 3
+                x0_cell = col * cell
+                y0_cell = pad_top + row * cell
+                cv2.putText(canvas_u8, f"Cam {v}",
+                            (x0_cell + 4, y0_cell + 16),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.38,
+                            (40, 40, 40), 2, cv2.LINE_AA)
+                cv2.putText(canvas_u8, f"Cam {v}",
+                            (x0_cell + 4, y0_cell + 16),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.38,
+                            (210, 210, 210), 1, cv2.LINE_AA)
+            return canvas_u8 / 255.0
+
+        # Pre-compute: infer first frame to get GT camera, then build SLERP path
+        fd = prev_fd
+        first_fi = fis[0]
+        if fd is None or "frame_dir" not in fd:
+            fd = infer_frame(self.model, first_fi, self.m5, self.kp,
+                             self.n_thresh, self.res, self.device)
+        if fd is not None:
+            gt_c2w, gt_fxfy = self._cam_from_gt_view(
+                fd["frame_dir"], self.gt_view)
+
+        # Smooth SLERP path for Phase 1 (orbit → GT)
+        phase1_c2ws = list(interpolate_cameras(
+            start_c2w, gt_c2w, max(1, n1))) if gt_c2w is not None else []
+
+        imgs = []
+        for i, fi in enumerate(fis):
+            if fd and i > 0:
+                free_fd(fd)
+            if i > 0 or fd is None:
+                fd = infer_frame(self.model, fi, self.m5, self.kp,
+                                 self.n_thresh, self.res, self.device)
+            if fd is None:
+                imgs.append(np.zeros((self.res, self.res, 3)))
+                continue
+
+            if i < n1:
+                # Phase 1: Smooth SLERP from orbit → GT cam + zoom-out
+                t = i / max(n1 - 1, 1)
+                t_ease = t * t * (3 - 2 * t)
+                img = render_cam(fd["gaussians"], phase1_c2ws[i], gt_fxfy,
+                                 self.res, self.res, mask=fd["vis_mask"],
+                                 bg=self.bg, device=self.device)
+                zoom_val = max(1.0 - 0.5 * t_ease, 0.5)
+                img = zoom_out_canvas(img, zoom_val, self.bg)
+            elif i < n1 + n2:
+                # Phase 2: Crossfade zoomed single → render mosaic
+                j = i - n1
+                t = j / max(n2 - 1, 1)
+                t_ease = t * t * (3 - 2 * t)
+                single = render_cam(fd["gaussians"], gt_c2w, gt_fxfy,
+                                    self.res, self.res, mask=fd["vis_mask"],
+                                    bg=self.bg, device=self.device)
+                single = zoom_out_canvas(single, 0.5, self.bg)
+                mosaic = make_render_mosaic(fd)
+                img = crossfade(single, mosaic, t_ease)
+            else:
+                # Phase 3: Static hold — show completed 6-cam grid
+                img = make_render_mosaic(fd)
+
+            imgs.append(img)
+
+        # Save last camera for downstream
+        self._last_novel_c2w = gt_c2w
+        return imgs, fd
+
     def _seg_grid_novel_6views(self, seg, n, prev_fd):
         """6 fixed novel views in 3×2 grid (top/bottom/front/right/rear/left), temporal flow.
 
         Layout: 3 cols × 2 rows, same cell layout as grid_multiview.
         """
-        step = seg.get("frame_step", 2)
+        step = seg.get("frame_step", 1)
         fis = self._next_frames(n, step=step)
 
-        # 6 canonical novel views (reference: novel_6view_grid.png)
-        # Row 1: Top, Front-high, Right
-        # Row 2: Bottom, Back-high, Left
-        novel_elevs  = [80,    40,   20,  -85,   40,   20]
-        novel_azims  = [270,  270,    0,  270,   90,  180]
-        novel_labels = ["Top", "Frt-hi", "Right", "Bot", "Bk-hi", "Left"]
+        # 6 extrapolated novel views (far outside GT camera distribution)
+        # GT cameras: elevation 20-40deg. These are all >20deg outside GT range.
+        # Row 1: Top-Down, High-Front, High-Side
+        # Row 2: Belly-Up, Rear-Low, Front-Low
+        novel_elevs  = [80,    70,   60,  -85,  -40,  -30]
+        novel_azims  = [270,  270,    0,  270,   90,  270]
+        novel_labels = [
+            "Top-Down (80deg)", "High-Front (70deg)", "High-Side (60deg)",
+            "Belly-Up (-85deg)", "Rear-Low (-40deg)", "Front-Low (-30deg)"]
         novel_cams = [self._cam_spherical(e, a) for e, a in zip(novel_elevs, novel_azims)]
 
         cell = self.res // 3
         pad_top = (self.res - cell * 2) // 2
 
         def make_novel_grid(fd_use):
+            # Use opacity mask instead of vis_mask for novel views:
+            # vis_mask filters by GT camera visibility (all above) → bottom Gaussians lost
+            g = fd_use["gaussians"]
+            opacity = g.get_opacity.detach().cpu().numpy().squeeze()
+            opacity_mask = opacity > 0.05
             canvas = np.ones((self.res, self.res, 3), dtype=np.float32) * np.array(self.bg)
             for idx, (nc2w, nfxfy) in enumerate(novel_cams):
                 cell_img = render_cam(fd_use["gaussians"], nc2w, nfxfy,
-                                      self.res, self.res, mask=fd_use["vis_mask"],
+                                      self.res, self.res, mask=opacity_mask,
                                       bg=self.bg, device=self.device)
                 sm = cv2.resize(cell_img.astype(np.float32), (cell, cell),
                                 interpolation=cv2.INTER_AREA)
@@ -1478,7 +1619,8 @@ class CinematicPipeline:
             return canvas_u8 / 255.0
 
         zoom_out = seg.get("zoom_out", False)
-        n_zoom_start = int(n * 0.7) if zoom_out else n
+        z_ratio = seg.get("zoom_ratio", 0.3)
+        n_zoom_start = int(n * (1.0 - z_ratio)) if zoom_out else n
 
         imgs = []
         fd = prev_fd
@@ -1493,7 +1635,8 @@ class CinematicPipeline:
             grid = make_novel_grid(fd)
             if zoom_out and i >= n_zoom_start:
                 t = (i - n_zoom_start) / max(n - n_zoom_start - 1, 1)
-                z = 1.0 - 0.3 * t  # 1.0 → 0.7
+                t_ease = t * t * (3 - 2 * t)
+                z = 1.0 - 0.3 * t_ease  # 1.0 → 0.7
                 grid = zoom_out_canvas(grid, z, self.bg)
             imgs.append(grid)
         return imgs, fd
@@ -1504,7 +1647,7 @@ class CinematicPipeline:
         Layout: rows = elevation (high→low), cols = azimuth (uniform rotation).
         Default 6×6=36 views covering full sphere including extreme elevations.
         """
-        step = seg.get("frame_step", 2)
+        step = seg.get("frame_step", 1)
         fis = self._next_frames(n, step=step)
         n_cols = seg.get("cols", 6)
         n_rows = seg.get("rows", 6)
@@ -1528,11 +1671,22 @@ class CinematicPipeline:
         pad_x = (self.res - grid_w) // 2
         pad_y = (self.res - grid_h) // 2
 
+        # Render resolution per cell (default=self.res, use cell_resolution for optimization)
+        cell_render_res = seg.get("cell_resolution", self.res)
+
         def make_dense_grid(fd_use):
+            # Opacity mask for novel views (vis_mask filters by GT cam → misses bottom)
+            g = fd_use["gaussians"]
+            opacity = g.get_opacity.detach().cpu().numpy().squeeze()
+            opacity_mask = opacity > 0.05
+            # Scale intrinsics for lower render resolution
+            res_scale = cell_render_res / self.res
             canvas = np.ones((self.res, self.res, 3), dtype=np.float32) * np.array(self.bg)
             for idx, (nc2w, nfxfy) in enumerate(cam_list):
-                cell_img = render_cam(fd_use["gaussians"], nc2w, nfxfy,
-                                      self.res, self.res, mask=fd_use["vis_mask"],
+                scaled_fxfy = nfxfy * res_scale if res_scale != 1.0 else nfxfy
+                cell_img = render_cam(fd_use["gaussians"], nc2w, scaled_fxfy,
+                                      cell_render_res, cell_render_res,
+                                      mask=opacity_mask,
                                       bg=self.bg, device=self.device)
                 sm = cv2.resize(cell_img.astype(np.float32), (cell, cell),
                                 interpolation=cv2.INTER_AREA)
@@ -1553,9 +1707,13 @@ class CinematicPipeline:
                             (180, 180, 180), 1, cv2.LINE_AA)
             return canvas_u8 / 255.0
 
+        zoom_in = seg.get("zoom_in", False)
+        z_ratio = seg.get("zoom_ratio", 0.2)
+        n_zoom_out_start = int(n * (1.0 - z_ratio)) if zoom_out else n
+        n_zoom_in_end = int(n * z_ratio) if zoom_in else 0
+
         imgs = []
         fd = prev_fd
-        n_zoom_start = int(n * 0.7) if zoom_out else n
         for i, fi in enumerate(fis):
             if fd:
                 free_fd(fd)
@@ -1565,9 +1723,16 @@ class CinematicPipeline:
                 imgs.append(np.zeros((self.res, self.res, 3)))
                 continue
             grid = make_dense_grid(fd)
-            if zoom_out and i >= n_zoom_start:
-                t = (i - n_zoom_start) / max(n - n_zoom_start - 1, 1)
-                z = 1.0 - 0.3 * t  # 1.0 → 0.7
+            if zoom_in and i < n_zoom_in_end:
+                # Zoom in: 0.7 → 1.0 over first zoom_ratio of frames
+                t = i / max(n_zoom_in_end - 1, 1)
+                t_ease = t * t * (3 - 2 * t)
+                z = 0.7 + 0.3 * t_ease  # 0.7 → 1.0
+                grid = zoom_out_canvas(grid, z, self.bg)
+            elif zoom_out and i >= n_zoom_out_start:
+                t = (i - n_zoom_out_start) / max(n - n_zoom_out_start - 1, 1)
+                t_ease = t * t * (3 - 2 * t)
+                z = 1.0 - 0.3 * t_ease  # 1.0 → 0.7
                 grid = zoom_out_canvas(grid, z, self.bg)
             imgs.append(grid)
         return imgs, fd
@@ -1577,7 +1742,7 @@ class CinematicPipeline:
 
         Layout: 3 columns x 2 rows (256x256 cells at res=768), centered in canvas.
         """
-        step = seg.get("frame_step", 2)
+        step = seg.get("frame_step", 1)
         fis = self._next_frames(n, step=step)
         n1 = n // 3       # GT grid
         n2 = n // 3       # Recon grid

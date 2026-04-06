@@ -1,0 +1,17 @@
+# Dataset: RAT2 (fx-normalized)
+# Same as RAT2_despilled but preprocessed with --normalize_fx (fx=549)
+_name: RAT2_despilled_fxnorm
+_description: "Lone rat (despilled, fx-normalized to 549) fine-tuning dataset"
+
+training:
+  dataset:
+    data_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2_despilled_fxnorm
+    dataset_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2_despilled_fxnorm/data_rat2_train.txt
+
+validation:
+  data_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2_despilled_fxnorm
+  dataset_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2_despilled_fxnorm/data_rat2_val.txt
+
+test:
+  data_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2_despilled_fxnorm
+  dataset_path: /node_data/joon/data/preprocessed/FaceLift_rat/gslrm_format_rat2_despilled_fxnorm/data_rat2_test.txt

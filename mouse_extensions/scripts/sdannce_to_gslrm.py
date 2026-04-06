@@ -151,6 +151,7 @@ def extract_padded_frame(
     frame_idx: int,
     camera: dict,
     mask_img: np.ndarray = None,
+    normalize_fx: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, dict]:
     """Extract frame, zero-pad to square, resize to 512x512.
 
@@ -158,6 +159,10 @@ def extract_padded_frame(
     - No information loss (no cropping)
     - fx ≈ 605 (close to GS-LRM training fx=549, ratio 1.1×)
     - cx ≈ 256, cy ≈ 256 (naturally centered by symmetric padding)
+
+    If normalize_fx=True, applies additional affine scaling to match
+    pretrained fx=549. Image is shrunk by ~0.908× with white border.
+    This matches mouse M5 preprocessing approach.
 
     Args:
         video_path: Path to camera video file.
@@ -229,6 +234,34 @@ def extract_padded_frame(
     fy_new = K[1, 1] * scale
     cx_new = K[0, 2] * scale
     cy_new = (K[1, 2] + pad_top) * scale
+
+    # --- Optional: normalize fx to TARGET_FX (549) via affine ---
+    # Without this, rat fx≈605 (10% off pretrained 549).
+    # With this, image is slightly shrunk to match pretrained FOV exactly.
+    # This is the same approach as mouse M5 preprocessing (affine fx normalization).
+    if normalize_fx and fx_new > TARGET_FX * 1.02:  # only if fx significantly off
+        fx_scale = TARGET_FX / fx_new   # 549/605 ≈ 0.908
+        fy_scale = TARGET_FX / fy_new   # independent fy scaling (handles fx≠fy)
+        # Build affine: independent x/y scale around image center (256, 256)
+        M = np.float32([
+            [fx_scale, 0, TARGET_CX * (1 - fx_scale)],
+            [0, fy_scale, TARGET_CY * (1 - fy_scale)],
+        ])
+        # Apply to image and mask (white border for image, black for mask)
+        rgb_composite = cv2.warpAffine(
+            rgb_composite, M, (TARGET_IMG_SIZE, TARGET_IMG_SIZE),
+            flags=cv2.INTER_LANCZOS4,
+            borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255))
+        mask_resized = cv2.warpAffine(
+            mask_resized, M, (TARGET_IMG_SIZE, TARGET_IMG_SIZE),
+            flags=cv2.INTER_NEAREST,
+            borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+        rgba = np.dstack([rgb_composite, mask_resized])
+        # Scale intrinsics independently
+        fx_new = TARGET_FX
+        fy_new = TARGET_FX  # target fx=fy=549 (pretrained assumption)
+        cx_new = TARGET_CX  # centered by construction
+        cy_new = TARGET_CY
 
     intrinsics = {
         "fx": float(fx_new),
@@ -534,7 +567,8 @@ def process_session(
 
             try:
                 rgba, mask, intr, pad_info = extract_padded_frame(
-                    video_path, fi, camera, mask_img
+                    video_path, fi, camera, mask_img,
+                    normalize_fx=args.normalize_fx,
                 )
             except RuntimeError as e:
                 print(f"  Camera {cam_idx + 1}: {e}")
@@ -643,6 +677,12 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Multi-camera SAM2 mask directory (Camera1/...Camera6/ subdirs with mask_NNNNNN.npz)",
+    )
+    parser.add_argument(
+        "--normalize_fx",
+        action="store_true",
+        default=False,
+        help="Normalize fx to 549 via affine scaling (matches mouse M5 preprocessing)",
     )
 
     args = parser.parse_args()
