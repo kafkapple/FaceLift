@@ -389,6 +389,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 | RAT2 v2 3D geometry 손상 | ✅ **v3에서 수정 (260402)** | `clip_xyz: true` + 비정규화 카메라 → Gaussian 위치 절삭. `mouse_dataset.py`에 `recenter_cameras` flag 추가. v2 체크포인트 삭제 (28.2GB). |
 | videoio 극저 bitrate | ⚠️ 부분 해결 | `video_io.py` preset medium→slow 변경. videoio API에 crf 미지원. 근본 해결은 ffmpeg subprocess 대체 필요. |
 | Novel view 512px 데이터셋 | 🔴 미완성 | 디렉토리 구조만 존재, 0 frames 생성됨. `outputs/datasets/novel_view/mouse_m5t2/` |
+| Val PSNR clip 누락 | ✅ 해결됨 | `evaluation/metrics.py`에서 render [0,1] clip 누락 → PSNR 극저 보고 (21→1.2dB). `compute_per_view_metrics`에서 clip 추가 (260406) |
 
 ### Deformation V3 (진행 중, 260331~)
 
@@ -479,10 +480,12 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 |---------|:--------:|:----:|:------:|-------|
 | RAT1 v1 | 17.49 | 1001 frames | ✅ Baseline | overfitting 17.5dB gap |
 | RAT2 v2 (despilled) | 18.67 | 2967 frames | ❌ **INVALID** | 3D geometry 손상 (clip_xyz + 비정규화 카메라). 체크포인트 삭제됨 (260402) |
-| **RAT2 v3 (recentered)** | TBD | 2967 frames | 🔄 **학습 중** | `recenter_cameras: true` fix. GPU7, step 0→15000 (260402~) |
+| RAT2 v3 (recentered) | — | 2967 frames | ❌ **FAILED** | centroid recenter → dist collapse (2.6→0.4). 체크포인트 삭제됨 |
+| RAT2 v4b (convergence) | 0.90 | 2967 frames | ❌ **FAILED** | convergence-point recenter + clip_xyz=false. PSNR 0.9 → 학습 실패. 체크포인트 삭제됨 (260406) |
+| **RAT2 v5 (fx-norm)** | TBD | 2968 frames | 🔄 **학습 중** | `--normalize_fx` 전처리 (fx=549). GPU5, step 0→15000 (260406~). Val PSNR clip 버그 수정 후 재시작 |
 
-> **v2→v3 전환 이유**: `clip_xyz: true`가 Gaussian을 [-1,1]로 clipping하는데, rat 카메라가 원점 중심이 아님 (convergence center = (0.14, -3.14, -0.99)). Mouse는 전처리에서 recentering되어 문제 없었지만 rat은 누락 → v3에서 loader-time recentering 추가.
-> **Checkpoint**: `RAT2_despilled_rat_ft_v3/` | Config: `rat_ft_v3.yaml`
+> **v3→v4b→v5 진화**: v3(centroid recenter→거리 붕괴), v4(clip_xyz), v4b(convergence point→PSNR 0.9), v5(근본원인=fx 미정규화. 전처리 단계에서 fx=549로 통일).
+> **Checkpoint**: `RAT2_despilled_rat_ft_v5/` | Config: `rat_ft_v5.yaml` | Dataset: `RAT2_despilled_fxnorm.yaml`
 
 ### PS M5 Retraining (in progress)
 
