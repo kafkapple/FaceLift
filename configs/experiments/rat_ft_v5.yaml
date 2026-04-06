@@ -1,0 +1,36 @@
+# Rat Fine-Tuning v5 (despilled + fx-normalized preprocessing)
+# Pipeline: raw → sdannce_to_gslrm.py → despill.py → normalize_fx.py
+# v4b failure: fx=605 + distance=2.7 → fx-distance mismatch
+# v5a failure: fxnorm WITHOUT despill → green reconstruction
+# v5 fix: despill FIRST, then fx-norm (Option C from MoA audit 260406)
+model:
+  num_input_views: 6
+  num_views: 6
+  clip_xyz: false                       # CRITICAL: rat cameras not origin-centered (v2 lesson)
+mouse:
+  recenter_cameras: false             # not needed: mouse-style fx normalization
+  target_camera_distance: 0            # match v1 (no distance norm — raw ~2.6 ≈ pretrained 2.7)
+  normalize_cameras: false
+training:
+  losses:
+    alpha_loss_weight: 0.3
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  schedule:
+    max_fwdbwd_passes: 15000
+    early_stop_patience: 2000
+  optimizer:
+    lr: 5e-5
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/RAT2_despilled_rat_ft_v5
+    resume_from: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+wandb:
+  name: RAT2_despilled_rat_ft_v5
+  tags:
+  - rat
+  - fine_tuning
+  - alpha_0.3
+  - 6view
+  - sdannce
+  - fx_normalized
