@@ -9,7 +9,7 @@ model:
   clip_xyz: false                       # CRITICAL: rat cameras not origin-centered (v2 lesson)
 mouse:
   recenter_cameras: false             # not needed: mouse-style fx normalization
-  target_camera_distance: 0            # match v1 (no distance norm — raw ~2.6 ≈ pretrained 2.7)
+  target_camera_distance: 0            # 0=skip distance norm. Raw ~2.6 ≈ pretrained 2.7 (4% off, acceptable)
   normalize_cameras: false
 training:
   losses:

@@ -100,7 +100,9 @@ def compute_lpips(
         Per-batch LPIPS values [B]
     """
     lpips_fn = get_lpips(predicted.device)
-    
+    ground_truth = ground_truth.clip(min=0, max=1)
+    predicted = predicted.clip(min=0, max=1)
+
     if mask is not None:
         # Apply mask: set background to neutral gray (0.5) to minimize its influence
         mask_binary = (mask > 0.5).float()
@@ -141,13 +143,16 @@ def compute_ssim(
     Returns:
         Per-batch SSIM values [B]
     """
+    ground_truth = ground_truth.clip(min=0, max=1)
+    predicted = predicted.clip(min=0, max=1)
+
     if mask is not None:
         # Apply mask: set background to neutral gray (0.5)
         mask_binary = (mask > 0.5).float()
         neutral_value = 0.5
         ground_truth = ground_truth * mask_binary + neutral_value * (1 - mask_binary)
         predicted = predicted * mask_binary + neutral_value * (1 - mask_binary)
-    
+
     ssim = [
         structural_similarity(
             gt.detach().cpu().numpy(),
