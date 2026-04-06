@@ -417,7 +417,10 @@ class MetricsComputer:
         gt: np.ndarray,
         mask: Optional[np.ndarray] = None,
     ) -> float:
-        """Compute PSNR between two images."""
+        """Compute PSNR between two images.
+
+        Expects inputs already clipped to [0, 1] (done in compute_per_view_metrics).
+        """
         if mask is not None:
             mask = mask.squeeze()
             if mask.ndim == 2:
@@ -545,8 +548,8 @@ class MetricsComputer:
             if gt_mask is not None:
                 mask_v = gt_mask[v]
             
-            gt_np = gt_v.permute(1, 2, 0).cpu().numpy()
-            rendered_np = rendered_rgb.permute(1, 2, 0).cpu().numpy()
+            gt_np = gt_v.permute(1, 2, 0).cpu().numpy().clip(0.0, 1.0)
+            rendered_np = rendered_rgb.permute(1, 2, 0).cpu().numpy().clip(0.0, 1.0)
             
             mask_np = None
             if mask_v is not None:
