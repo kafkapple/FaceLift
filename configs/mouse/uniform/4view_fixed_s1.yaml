@@ -1,0 +1,29 @@
+# 4-view FIXED default (cam[0,1,2,3], min=57.8°, mean=109.2°), seed 42
+# Phase 1 methodology validation (260408). Baseline comparison: 4view_v2 (random).
+# Supersedes 4view_fixed_v2.yaml (which was created but never trained — smoking gun).
+model:
+  num_input_views: 4
+training:
+  optimizer:
+    lr: 1.0e-07   # LR patch 260410: collapse at 1e-6.
+  runtime:
+    seed: 42
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  dataset:
+    random_view_selection: false
+    num_input_views: 4
+    fixed_input_indices: [0, 1, 2, 3]
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/4view_fixed_s1
+wandb:
+  name: uniform_v2_4view_fixed_s1
+  tags:
+  - uniform_v2
+  - M5t2
+  - methodology_validation_260408
+  - seed42
+  - 4view
+  - fixed_views
+  - default_subset

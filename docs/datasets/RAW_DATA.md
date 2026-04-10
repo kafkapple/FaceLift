@@ -25,6 +25,22 @@ M5t2 데이터 (3,600 samples × 6 views × 512×512 RGBA)
 
 ---
 
+### 1.2 Rat (s-DANNCE → 본 프로젝트)
+
+**데이터 출처 체인**:
+```
+s-DANNCE (Marshall et al., Harvard Dataverse)
+  │  6cam rat, 1280×1024, 50fps, .mat keypoints + labels
+  v
+본 프로젝트 (FaceLift Rat)
+  │  RAT1: SAM2 mask + gslrm_format 변환 (1001 frames, despilled)
+  │  RAT2: 2967 frames, v1→v8 진화 (현재 v8 = scene-centered recentering)
+  v
+RAT2_v8_recentered (현재 active ⭐)
+```
+
+---
+
 ## 2. 버전별 상세 명세
 
 ### 2.1 원본 (DANNCE)
@@ -142,6 +158,79 @@ M5t2 데이터 (3,600 samples × 6 views × 512×512 RGBA)
 
 ---
 
+### 2.5 Rat — RAT1 / RAT2 시리즈
+
+**RAT1** (260323 baseline):
+| 항목 | 값 |
+|------|-----|
+| **출처** | s-DANNCE (Harvard Dataverse) |
+| **카메라** | 6 views |
+| **프레임** | 1,001 (SAM2 mask 적용 subset) |
+| **Val PSNR** | 17.49 dB (100-UID), zero-shot 2.77 dB (FT gain +14.72) |
+| **상태** | ✅ Baseline (overfitting 17.5dB gap) |
+| **데이터 경로** | `/home/joon/dev/FaceLift/outputs/sdannce_rat_ft/gslrm_format/` (NFS, 소규모) |
+| **Split 파일** | `data_sdannce_{train,val,test}.txt` |
+| **Config** | `configs/datasets/RAT1.yaml` |
+
+**RAT2 v2~v6** — ❌ 모두 retracted (v3/v6 audit 260407 참조). `feedback_fx_normalization_checklist.md` / `feedback_bg_dominated_loss.md` 참조.
+
+**RAT2 v8_recentered** (현재 active ⭐, 260407):
+| 항목 | 값 |
+|------|-----|
+| **Pipeline** | `rat2_s1despill_s2fxnorm` → `sdannce_recenter_adapter` (Plan v2 Phase A.2) |
+| **총 프레임** | 2,967 |
+| **Split** | Train 2385 / Val 290 / Test 292 |
+| **Scene center** | com3d 기반 recentering → `[-0.501, +0.330, +0.112]` |
+| **Cam distance** | 2.7 (mouse-equivalent normalization) |
+| **Pairwise angle** | 13.9° (v6의 5.8°는 camera convergence point 기준 오측) |
+| **Parallax (50mm)** | ~5.8 px (v6 ~1.1 px) |
+| **fx** | 549.0 (normalized) |
+| **데이터 경로** | `/node_data/joon/data/preprocessed/FaceLift_rat/rat2_v8_recentered/` ⚠️ NVMe |
+| **Split 파일** | `data_rat2_{train,val,test}.txt` |
+| **Config** | `configs/datasets/RAT2_v8_recentered.yaml` |
+| **Audit 근거** | `~/results/FaceLift/rat/AUDIT_NARROW_BASELINE.md` |
+
+---
+
+### 2.6 s-DANNCE 행동 데이터 (별도 구조)
+
+> ⚠️ `preprocessed/`가 아닌 `sdannce/` 독립 경로. 이유: 행동 .mat ≠ 이미지 전처리.
+
+```
+/home/joon/data/sdannce/
+├── mouse/
+│   ├── dataverse/    # Harvard Dataverse .mat 원본 (keypoints + labels)
+│   └── features/     # 추출 .npz (covariance, S1, S3 등)
+├── rat/
+│   ├── dataverse/    # Harvard Dataverse .mat 원본
+│   └── features/     # 추출 .npz
+└── metadata/         # cohort 메타데이터, HLAC 매핑
+```
+
+**관련 문서**: [[SDANNCE_VIDEO_AVAILABILITY]]
+
+---
+
+## 3. 절대 경로 SSOT (⭐ Quick Reference)
+
+> **⚠️ Storage Tier 규칙** (CLAUDE.md §2.4): 학습 데이터는 **반드시 `/node_data/` (local NVMe)**.
+> NFS (`/home/joon/dev/`) 금지 — cgroup v2 page cache → oomd kill 위험.
+> `/home/joon/data → /node_data/joon/data` symlink.
+
+| 용도 | 절대 경로 | Storage |
+|------|----------|:-------:|
+| **Mouse 원본** | `/home/joon/data/raw/markerless_mouse_1_nerf/` | NVMe (symlink) |
+| **Mouse M5t2 (현재)** | `/home/joon/data/preprocessed/FaceLift_mouse/M5/` + `data_mouse_t2_*.txt` | NVMe |
+| **Rat RAT1** | `/home/joon/dev/FaceLift/outputs/sdannce_rat_ft/gslrm_format/` | NFS (소규모 OK) |
+| **Rat RAT2_v8 (현재)** | `/node_data/joon/data/preprocessed/FaceLift_rat/rat2_v8_recentered/` | NVMe ✅ |
+| **s-DANNCE 원본 (rat)** | `/home/joon/data/sdannce/rat/dataverse/` | NVMe (symlink) |
+| **s-DANNCE features (rat)** | `/home/joon/data/sdannce/rat/features/` | NVMe (symlink) |
+| **체크포인트** | `/node_data/joon/checkpoints/` | NVMe ✅ |
+| **코드/config** | `/home/joon/dev/FaceLift/` | NFS (소량 OK) |
+| **outputs/ (viz, reports)** | `/home/joon/dev/FaceLift/outputs/` | NFS (비학습) |
+
+---
+
 ## 4. PoseSplatter 데이터와의 관계
 
 > ⚠️ PoseSplatter (Goffinet et al. 2025)는 DANNCE/MAMMAL 데이터를 사용하지 **않으며**, **자체 녹화한 별도 데이터**를 사용합니다
@@ -151,6 +240,8 @@ M5t2 데이터 (3,600 samples × 6 views × 512×512 RGBA)
 ---
 
 ## 5. 전처리 명령어
+
+### 5.1 Mouse (M5t2)
 
 ```bash
 # M5t2 생성 (M5 기반 temporal split)
@@ -163,6 +254,28 @@ python -m mouse_extensions.preprocessing.preprocess \
 # 검증
 python mouse_extensions/scripts/diagnostics/verify_pp_mvg_consistency.py \
     --datasets M5t2 --verbose
+```
+
+### 5.2 Rat (RAT2_v8_recentered)
+
+```bash
+# Phase A.2: scene-centered recentering (Plan v2)
+# Pipeline: rat2_s1despill_s2fxnorm → sdannce_recenter_adapter
+python -m mouse_extensions.preprocessing.adapters.sdannce_recenter_adapter \
+    --input-dir /node_data/joon/data/preprocessed/FaceLift_rat/rat2_s1despill_s2fxnorm \
+    --output-dir /node_data/joon/data/preprocessed/FaceLift_rat/rat2_v8_recentered
+```
+
+### 5.3 학습 실행 (config 지정)
+
+```bash
+# Mouse
+CUDA_VISIBLE_DEVICES=4 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d M5t2 -e E0_1_facelift
+
+# Rat (v8)
+CUDA_VISIBLE_DEVICES=5 torchrun --standalone --nproc_per_node=1 \
+    train_gslrm.py -d RAT2_v8_recentered -e <rat_experiment>
 ```
 
 ---
@@ -198,4 +311,4 @@ DISCONTINUITY_FRAMES = {5900, 11800, 17700}
 
 ---
 
-*Raw Data Sources v2.1 | Updated: 2026-03-30 | v13 섹션 삭제, CAMERA_NORMALIZATION 역링크 추가*
+*Raw Data Sources v3.0 | Updated: 2026-04-08 | Rat (RAT1/RAT2_v8) + s-DANNCE + 절대 경로 SSOT 섹션 추가*

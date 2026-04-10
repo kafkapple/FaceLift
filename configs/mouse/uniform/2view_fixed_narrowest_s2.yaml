@@ -1,0 +1,32 @@
+# 2-view FIXED narrowest (cam[1,3] @ 57.8°), seed 1337 — variance estimate
+# Addresses Research Analyst P0 finding (260408): Phase 1 had seed asymmetry
+# (only widest had 2 seeds). Narrowest is ill-conditioned (57.8° min pair)
+# → higher expected variance, needs 2nd seed for power estimation.
+model:
+  num_input_views: 2
+training:
+  optimizer:
+    lr: 1.0e-07   # LR patch 260410: collapse at 1e-6.
+  runtime:
+    seed: 1337
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  dataset:
+    random_view_selection: false
+    num_input_views: 2
+    fixed_input_indices: [1, 3]
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/2view_fixed_narrowest_s2
+wandb:
+  name: uniform_v2_2view_fixed_narrowest_s2
+  tags:
+  - uniform_v2
+  - M5t2
+  - methodology_validation_260408
+  - phase1_5
+  - seed1337
+  - 2view
+  - fixed_views
+  - narrowest_57deg
+  - variance_estimate

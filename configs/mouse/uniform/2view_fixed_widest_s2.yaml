@@ -1,0 +1,29 @@
+# 2-view FIXED widest (cam[0,1] @ 177.3°), seed 1337 — variance estimate
+# Phase 1 methodology validation (260408). Paired with _s1 for variance.
+model:
+  num_input_views: 2
+training:
+  optimizer:
+    lr: 1.0e-07   # LR patch 260410: collapse at 1e-6.
+  runtime:
+    seed: 1337
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  dataset:
+    random_view_selection: false
+    num_input_views: 2
+    fixed_input_indices: [0, 1]
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/2view_fixed_widest_s2
+wandb:
+  name: uniform_v2_2view_fixed_widest_s2
+  tags:
+  - uniform_v2
+  - M5t2
+  - methodology_validation_260408
+  - seed1337
+  - 2view
+  - fixed_views
+  - widest_177deg
+  - variance_estimate

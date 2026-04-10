@@ -1,0 +1,29 @@
+# 2-view FIXED narrowest (cam[1,3] @ 57.8° — mouse min pair), seed 42
+# Phase 1 methodology validation (260408).
+# Purpose: Test PSNR at narrowest fixed baseline the mouse rig allows.
+model:
+  num_input_views: 2
+training:
+  optimizer:
+    lr: 1.0e-07   # LR patch 260410: collapse at 1e-6.
+  runtime:
+    seed: 42
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  dataset:
+    random_view_selection: false
+    num_input_views: 2
+    fixed_input_indices: [1, 3]
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/2view_fixed_narrowest_s1
+wandb:
+  name: uniform_v2_2view_fixed_narrowest_s1
+  tags:
+  - uniform_v2
+  - M5t2
+  - methodology_validation_260408
+  - seed42
+  - 2view
+  - fixed_views
+  - narrowest_57deg

@@ -1,0 +1,66 @@
+# Rat Fine-Tuning v9: Camera-Level Holdout (NeurIPS D&B valid)
+#
+# Problem with v6/v8: Frame-level temporal splits — all 6 cameras seen during
+# training → measures temporal reconstruction, NOT novel-view synthesis.
+# NeurIPS D&B requires genuine novel-view generalization.
+#
+# v9 fix: Hold out cameras [4, 5] entirely from encoder input.
+#   - Train: encoder sees [0,1,2,3], rendering loss from [4,5]
+#   - Val/Test: encoder sees [0,1,2,3], PSNR measured on [4,5]
+#
+# Cameras [4,5] are NEVER used as encoder input → true novel-view synthesis.
+# Dataset: RAT2_v8_recentered (scene-centered, fx-normalized, masked loss)
+#
+# Pre-committed success criteria (sign before training):
+#   - PASS: val PSNR ≥ 18 dB on held-out cams [4,5] (camera-level)
+#   - Marginal: val PSNR 14-18 dB
+#   - Failed: val PSNR < 14 dB OR training collapse
+# Note: direct comparison to v6/v8 frame-level numbers is INVALID (different metric).
+# Compare instead to mouse 6v fixed PSNR on test set as cross-species reference.
+#
+# Created: 2026-04-10 (camera-level holdout, MoA consensus 260409)
+
+model:
+  num_input_views: 4
+  num_views: 6
+  clip_xyz: false
+
+mouse:
+  recenter_cameras: false
+  target_camera_distance: 0
+  normalize_cameras: false
+
+training:
+  losses:
+    alpha_loss_weight: 0.3
+    mask_mode: gt
+    masked_l2_loss: true
+    masked_perceptual_loss: true
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  dataset:
+    random_view_selection: false        # CRITICAL: no random camera sampling
+    fixed_input_indices: [0, 1, 2, 3]  # Encoder ALWAYS sees these 4 cameras
+    target_has_input: false             # Rendering loss from [4,5] only
+  schedule:
+    max_fwdbwd_passes: 10000
+    early_stop_patience: 2000
+  optimizer:
+    lr: 5.0e-05
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/rat2_v9_camera_holdout
+    resume_from: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+
+validation:
+  target_has_input: false              # Eval on held-out cams [4,5] only
+
+wandb:
+  name: rat2_v9_camera_holdout
+  tags:
+  - rat
+  - v9_camera_holdout
+  - novel_view_synthesis
+  - neurips_valid
+  - camera_level_eval
+  - scene_centered

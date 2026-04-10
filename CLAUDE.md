@@ -173,6 +173,39 @@ docs/
 **핵심 규칙**: `rotation_direction=ccw` → physical CCW (위에서 반시계) = math CW → `clockwise=True` 전달.
 **Smooth Trajectory**: `smooth_trajectory: true` → CubicSpline + RotationSpline, smoothstep easing.
 
+### 2.7 Methodology Rigor (⭐ 260408 view ablation slip 교훈)
+
+> **상세**: `~/results/FaceLift/rat/REPORT_260408_VIEW_ABLATION_METHODOLOGY_SLIP.md`
+> **Memory**: `feedback_methodology_two_checkpoint_rule.md`, `feedback_critique_before_execute.md`, `feedback_inherited_code_hypothesis.md`
+
+**사건**: Mouse view ablation 전체가 `random_view_selection: true`로 학습됨 → batch마다 N개 random 카메라 샘플링 → optimizer gradient state에 6 카메라 기하 전부 누설. 0/6 SOTA 이 방식 미사용. `4view_fixed_v2.yaml`이 존재하나 미학습 = **foreseeable negligence** (NIH 기준).
+
+**Two-Checkpoint Rule** (L3+ 실험 필수):
+
+**학습 전**:
+1. 과학적 질문 1문장 기술
+2. config 파라미터 전부 나열: fixed / varied / randomized?
+3. randomized 파라미터 각각: 이 질문에 대해 randomization이 맞는가?
+4. ≥2개 published paper methodology와 대조
+
+**작성 전**:
+1. 모델이 학습 중 **실제로** 본 것은? (의도가 아닌 실제)
+2. cross-experiment 비교가 공정한가? (held-constant 변수 동일?)
+3. methodology 한계를 명시적으로 기술
+
+**Critique-Before-Execute Rule** (L3+ 실험 mandatory):
+- ❌ Old: "Run experiment X with config Y"
+- ✅ New: "Critique experiment X as peer reviewer. Identify 3 strongest potential flaws in this design against published methodology. Then propose corrections. Run only after critique passes."
+- L3+ 실험: `/deliberate --moa --audit --devil`을 실험 **설계**에 적용 (결과가 아닌)
+- 비용: ~$0.18 + 30분. 절약: 주 단위 GPU + 무효화된 결론
+
+**Inherited Code is a Hypothesis**:
+- 상속 config의 모든 default = 다른 시점/목적을 가진 누군가의 선택 = 가설
+- "이미 있으니까" 신뢰 금지 — paper-grade 실험은 모든 파라미터의 origin 추적 + 현재 질문에 대한 정당성 검증
+- `random_view_selection` (260408), `clip_xyz` (260402 rat) 모두 이 패턴
+
+**Configuration is Methodology**: config 작성 시 "이걸 1000번 돌리면 모델이 무엇을 보는가?"를 물어야 함. "어떤 명령어를 칠까?"가 아님.
+
 ---
 
 ## 3. Environment
@@ -390,6 +423,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 | videoio 극저 bitrate | ⚠️ 부분 해결 | `video_io.py` preset medium→slow 변경. videoio API에 crf 미지원. 근본 해결은 ffmpeg subprocess 대체 필요. |
 | Novel view 512px 데이터셋 | 🔴 미완성 | 디렉토리 구조만 존재, 0 frames 생성됨. `outputs/datasets/novel_view/mouse_m5t2/` |
 | Val PSNR clip 누락 | ✅ 해결됨 | `evaluation/metrics.py`에서 render [0,1] clip 누락 → PSNR 극저 보고 (21→1.2dB). `compute_per_view_metrics`에서 clip 추가 (260406) |
+| Rat FG 1.6% BG-dominated loss | ✅ **v6에서 해결** | Unmasked loss → 98.4% BG가 gradient 지배 → FG 학습 불가 (v5 val PSNR 4.9). `masked_l2_loss: true` + `masked_perceptual_loss: true` 활성화 (260406) |
 
 ### Deformation V3 (진행 중, 260331~)
 
@@ -482,10 +516,13 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 | RAT2 v2 (despilled) | 18.67 | 2967 frames | ❌ **INVALID** | 3D geometry 손상 (clip_xyz + 비정규화 카메라). 체크포인트 삭제됨 (260402) |
 | RAT2 v3 (recentered) | — | 2967 frames | ❌ **FAILED** | centroid recenter → dist collapse (2.6→0.4). 체크포인트 삭제됨 |
 | RAT2 v4b (convergence) | 0.90 | 2967 frames | ❌ **FAILED** | convergence-point recenter + clip_xyz=false. PSNR 0.9 → 학습 실패. 체크포인트 삭제됨 (260406) |
-| **RAT2 v5 (fx-norm)** | TBD | 2968 frames | 🔄 **학습 중** | `--normalize_fx` 전처리 (fx=549). GPU5, step 0→15000 (260406~). Val PSNR clip 버그 수정 후 재시작 |
+| RAT2 v5 (fx-norm) | 4.92 | 2968 frames | ❌ **FAILED** | FG=1.6% → BG-dominated loss → train PSNR 24 (거짓 수렴), val PSNR 4.9 (FG 학습 안 됨). 체크포인트 삭제됨 (260406) |
+| RAT2 v6 (masked loss) | 27.74 (frame-holdout) | 2968 frames | ⚠️ **RETRACTED (260407)** | val split=frame-level, NOT camera-level → novel view 측정 안 됨. 28.2 dB ≠ mouse 23.84 (다른 metric). 5.8° baseline = 2.63px parallax (marginal) |
+| **RAT2 v7 (planned)** | TBD | Same data | 🔬 **PLANNED** | 4 train + 1 val + 1 test cameras (camera-level held-out). Pre-commit: PSNR≥24 + voluminous mesh + occlusion test PASS |
 
-> **v3→v4b→v5 진화**: v3(centroid recenter→거리 붕괴), v4(clip_xyz), v4b(convergence point→PSNR 0.9), v5(근본원인=fx 미정규화. 전처리 단계에서 fx=549로 통일).
-> **Checkpoint**: `RAT2_despilled_rat_ft_v5/` | Config: `rat_ft_v5.yaml` | Dataset: `RAT2_despilled_fxnorm.yaml`
+> **v3→v6 메타 패턴**: 6번의 sequential debugging이 모두 표면 fix만 — root data geometry는 v6 audit (260407)에서야 발견. **5.8° baseline = 2.63 px parallax** (marginal). User noticed visualization anomaly → /deliberate --moa --audit → v6 retraction.
+> **Audit**: `~/results/FaceLift/rat/AUDIT_NARROW_BASELINE.md` (전체 분석)
+> **History**: `~/results/FaceLift/rat/RAT_VERSION_HISTORY.md` (v1-v7 진화)
 
 ### PS M5 Retraining (in progress)
 

@@ -1,0 +1,42 @@
+# Dataset: RAT2 v8 (scene-centered recentering applied)
+#
+# Pipeline: rat2_s1despill_s2fxnorm → sdannce_recenter_adapter (Plan v2 Phase A.2)
+#
+# Difference from rat2_s1despill_s2fxnorm:
+#   - Cameras recentered using rat com3d as scene center (mouse-equivalent normalization)
+#   - Result: scene at (0,0,0), cameras at mean distance 2.7
+#   - Pairwise camera angles around rat: 13.9° (was 5.8° around wrong center)
+#
+# Key audit insight: Earlier "5.8° baseline" was measured around camera convergence
+# point (LS ray intersection), which was ~5.96 units from cameras. After recentering
+# to actual rat position (from com3d), the angles around the SUBJECT are 13.9°.
+# This 2.4× larger spread is the relevant value for parallax-based 3D learning.
+#
+# Created: 2026-04-07 (Plan v2 Phase A.2)
+
+_name: RAT2_v8_recentered
+_description: "Rat2 with scene-centric recentering (mouse-equivalent normalization)"
+_audit_note: "Plan v2 Phase A.2 control experiment for 'preprocessing fix' hypothesis"
+
+training:
+  dataset:
+    data_path: /node_data/joon/data/preprocessed/FaceLift_rat/rat2_v8_recentered
+    dataset_path: /node_data/joon/data/preprocessed/FaceLift_rat/rat2_v8_recentered/data_rat2_train.txt
+
+validation:
+  data_path: /node_data/joon/data/preprocessed/FaceLift_rat/rat2_v8_recentered
+  dataset_path: /node_data/joon/data/preprocessed/FaceLift_rat/rat2_v8_recentered/data_rat2_val.txt
+
+test:
+  data_path: /node_data/joon/data/preprocessed/FaceLift_rat/rat2_v8_recentered
+  dataset_path: /node_data/joon/data/preprocessed/FaceLift_rat/rat2_v8_recentered/data_rat2_test.txt
+
+_stats:
+  num_total: 2967
+  num_train: 2385
+  num_val: 290
+  num_test: 292
+  scene_center_units: [-0.501, +0.330, +0.112]
+  cam_distance_to_scene: 2.7
+  pairwise_angle_around_scene: "6.7-19.2° (mean 13.9°)"
+  parallax_for_50mm_depth: "~5.8 px (vs v6 ~1.1 px around wrong center)"

@@ -109,6 +109,21 @@ class MouseViewDataset(Dataset):
         self.num_input_views = dataset_config.get("num_input_views", 1)
         self.target_has_input = dataset_config.get("target_has_input", True)
         self.random_view_selection = dataset_config.get("random_view_selection", False)
+        # Explicit input camera subset for rigorous view ablation (260408).
+        # When set, overrides default sequential selection (list(range(num_input_views))).
+        # Required for methodology validation experiments where specific pairwise
+        # baselines must be held constant (e.g., widest vs narrowest camera pair).
+        self.fixed_input_indices = dataset_config.get("fixed_input_indices", None)
+        if self.fixed_input_indices is not None:
+            if self.random_view_selection:
+                raise ValueError(
+                    "fixed_input_indices is incompatible with random_view_selection=true"
+                )
+            if len(self.fixed_input_indices) != self.num_input_views:
+                raise ValueError(
+                    f"fixed_input_indices length {len(self.fixed_input_indices)} "
+                    f"!= num_input_views {self.num_input_views}"
+                )
 
         # Camera exclusion/inclusion for ablation experiments
         # Use either exclude_camera_indices OR include_camera_indices (not both)
@@ -286,10 +301,13 @@ class MouseViewDataset(Dataset):
         elif self.exclude_camera_indices:
             all_indices = [i for i in all_indices if i not in self.exclude_camera_indices]
 
-        # Fixed view ordering for both training and validation
-        # This ensures consistent camera-to-index mapping
-        # Randomness comes from different samples, not view shuffling
-        if getattr(self, 'random_view_selection', False) and getattr(self, 'split', 'train') == "train":
+        # View selection priority:
+        # 1. fixed_input_indices (explicit subset, methodology validation)
+        # 2. random_view_selection + train (stochastic subset)
+        # 3. default: sequential list(range(num_input_views))
+        if getattr(self, 'fixed_input_indices', None) is not None:
+            input_indices = list(self.fixed_input_indices)
+        elif getattr(self, 'random_view_selection', False) and getattr(self, 'split', 'train') == "train":
             input_indices = sorted(random.sample(all_indices, self.num_input_views))
         else:
             input_indices = list(range(self.num_input_views))

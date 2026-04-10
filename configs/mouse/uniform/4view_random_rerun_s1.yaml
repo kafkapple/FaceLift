@@ -1,0 +1,27 @@
+# 4-view RANDOM re-run — matched control for Phase 1 fixed-view comparison.
+# Addresses Research Analyst P0 finding (260408): existing 4view_v2 baseline
+# (PSNR 20.66) had confounding DataLoader + latent bug conditions.
+model:
+  num_input_views: 4
+training:
+  runtime:
+    seed: 42
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  dataset:
+    random_view_selection: true
+    num_input_views: 4
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/4view_random_rerun_s1
+wandb:
+  name: uniform_v2_4view_random_rerun_s1
+  tags:
+  - uniform_v2
+  - M5t2
+  - methodology_validation_260408
+  - phase1_5
+  - matched_control
+  - seed42
+  - 4view
+  - random

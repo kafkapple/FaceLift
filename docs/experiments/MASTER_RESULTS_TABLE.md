@@ -65,8 +65,23 @@
 
 ## 1. GS-LRM: View Count Ablation (H4)
 
+> 🔴 **METHODOLOGY WARNING (260408)**: These values are CONDITIONAL.
+> All runs used `random_view_selection: true` during training — each batch sampled
+> N random cameras from 6 available → **information leakage through optimizer state**
+> (all 6 cameras' geometry visible across training, even "low-N" experiments).
+> 0/6 SOTA papers (LRM, GS-LRM, PixelNeRF, MVSNeRF, SparseNeRF, Wonder3D) use
+> within-batch random sampling for view ablation. A fixed-view config
+> (`4view_fixed_v2.yaml`) was created but never trained = smoking gun.
+>
+> **Phase 1 validation in progress** (GPU 7, ETA ~2026-04-10 03:00 KST):
+> - 2view_fixed_widest/narrowest/midrange + 2v widest_s2 variance
+> - 4view_fixed default (0,1,2,3) + alt (2,3,4,5)
+> - Expected: decide note-as-variant (<1dB gap) / flag-limitation (1-2dB) / full-rerun (>2dB)
+>
+> **Detail**: `~/results/FaceLift/rat/REPORT_260408_VIEW_ABLATION_METHODOLOGY_SLIP.md`
+
 **Controlled**: base_uniform_v2 config, M5t2, L2 + Perceptual loss, GT input images
-**Varied**: `num_input_views` (1–6)
+**Varied**: `num_input_views` (1–6) — **with random sampling each batch (not pure N-view training)**
 
 | Views | PSNR_gt ↑ | ± std | IoU ↑ | ± std | PSNR_int ↑ | SSIM ↑ | Coverage | Δ PSNR | n |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|

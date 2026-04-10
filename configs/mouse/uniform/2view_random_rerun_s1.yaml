@@ -1,0 +1,33 @@
+# 2-view RANDOM re-run — matched control for Phase 1 fixed-view comparison.
+# Addresses Research Analyst P0 finding (260408): existing 2view_v2 baseline
+# (PSNR 15.95) was trained with num_workers=8/prefetch=8 AND latent bug
+# `dataset.num_input_views default=1`, both confounding fixed-vs-random gap.
+#
+# This run uses IDENTICAL infrastructure to Phase 1 fixed runs:
+#   - num_workers=4, prefetch_factor=2 (safe cgroup)
+#   - num_input_views=2 explicit (no latent bug)
+#   - random_view_selection=true (the only differing variable)
+model:
+  num_input_views: 2
+training:
+  runtime:
+    seed: 42
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  dataset:
+    random_view_selection: true   # THE ONLY difference vs fixed runs
+    num_input_views: 2             # explicit — no latent default=1 bug
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/uniform_v2/2view_random_rerun_s1
+wandb:
+  name: uniform_v2_2view_random_rerun_s1
+  tags:
+  - uniform_v2
+  - M5t2
+  - methodology_validation_260408
+  - phase1_5
+  - matched_control
+  - seed42
+  - 2view
+  - random
