@@ -40,6 +40,7 @@ training:
     num_workers: 4
     prefetch_factor: 2
   dataset:
+    num_input_views: 4                  # MUST match fixed_input_indices length
     random_view_selection: false        # CRITICAL: no random camera sampling
     fixed_input_indices: [0, 1, 2, 3]  # Encoder ALWAYS sees these 4 cameras
     target_has_input: false             # Rendering loss from [4,5] only
