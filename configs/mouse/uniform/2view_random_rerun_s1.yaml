@@ -10,6 +10,8 @@
 model:
   num_input_views: 2
 training:
+  optimizer:
+    lr: 1.0e-07   # LR patch 260410: match fixed-view runs for fair comparison.
   runtime:
     seed: 42
   dataloader:

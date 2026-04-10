@@ -28,6 +28,8 @@ RUNS=(
     "4view_fixed_s1"            # 4. 4v default (0,1,2,3)
     "4view_fixed_alt_s1"        # 5. 4v alternate (2,3,4,5) — subset sensitivity
     "2view_fixed_widest_s2"     # 6. widest seed=1337 — variance estimate
+    "2view_random_rerun_s1"     # 7. 2v random matched control (lr=1e-7, same infra)
+    "4view_random_rerun_s1"     # 8. 4v random matched control (lr=1e-7, same infra)
 )
 
 cd "$FACELIFT_DIR"

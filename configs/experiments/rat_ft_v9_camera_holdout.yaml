@@ -51,7 +51,7 @@ training:
     lr: 5.0e-05
   checkpointing:
     checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/rat2_v9_camera_holdout
-    resume_from: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+    resume_ckpt: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
 
 validation:
   target_has_input: false              # Eval on held-out cams [4,5] only
