@@ -41,6 +41,55 @@ RAT2_v8_recentered (현재 active ⭐)
 
 ---
 
+### 1.3 Rat 7M (DANNCE) — 신규 (260415, Phase 2)
+
+**데이터 출처 체인**:
+```
+Rat 7M (Dunn 2021, Nature Methods, Figshare collection 5295370)
+  │  6cam Long-Evans rat, 1328×1048, 120fps
+  │  6 rats × 10.8h = 6,986,058 frames total
+  │  20 mocap keypoints (true GT, mocap markers visible on rat)
+  v
+본 프로젝트 (FaceLift Rat 7M)
+  │  Subject 4 Day 1 (PoC): 21,600 source frames @ stride 6 → 3,600 UIDs (20 fps eff)
+  │  SAM2 keypoint-prompted mask (auto-generated v0)
+  │  Conversion: sdannce_to_gslrm_rat7m.py (combined mat + chunked video)
+  v
+FaceLift_rat_7m/v0 (PoC, 260415 진행 중)
+```
+
+**원본 spec (verified)**:
+
+| 항목 | 값 | 검증 명령 |
+|------|-----|----------|
+| **출처** | Dunn et al. 2021 Nature Methods | DOI 10.1038/s41592-021-01106-6 |
+| **데이터명** | Rat 7M Subject 4 Day 1 (mocap+cal) | figshare article 13739233 file 26379283 |
+| **해상도** | 1328 × 1048 px | `cv2.CAP_PROP_FRAME_*` |
+| **FPS (native)** | **120 fps** ⚠️ | `cv2.CAP_PROP_FPS` |
+| **카메라** | 6 (Point Grey Flea3, Camera1-6) | `mocap.cameras` struct |
+| **Calibration** | MATLAB row-major IntrinsicMatrix (transposed for OpenCV) | `IntrinsicMatrix.T` |
+| **fx range (Subj4 Day1)** | 2449 - 3521 (mean 2951) | per-camera |
+| **Min pairwise angle** | **38.3°** (cam 3-6) | from scene center (mocap.SpineM mean) |
+| **Mean pairwise angle** | 90.2° | 15 pairs |
+| **σ_z (σ_px=1, min baseline)** | 0.77 mm | d²·σ_px/(f·B) |
+| **Mocap keypoints** | 20 (HeadF/B/L, SpineF/M/L, Offset1/2, Hip×2, Elbow×2, Arm×2, Shoulder×2, Knee×2, Shin×2) | `mocap.{name}` |
+| **Valid frames (Subj4 Day1)** | 57,915 / 59,452 (97.4%) | non-NaN |
+| **Markers visible?** | **YES** (small reflective dots on body) | visual inspection |
+| **Background** | sawdust + transparent cylinder + tripods + cables | visual inspection |
+| **Chunk format** | 3500 frames per MP4 (`s{X}-d{Y}-camera{N}-{chunk_id}.mp4`) | filename |
+
+**저장 위치**:
+```
+/node_data/joon/data/raw/dannce/rat_7m/
+├── calibration/mocap-s4-d1.mat       # combined cal + mocap (11 MB)
+├── videos/s4_d1/s4-d1-camera{1-6}-{28000,31500,35000,38500,42000,45500,49000}.mp4   # 42 chunks, 148 MB
+└── sam2_masks/s4_d1_v0/Camera{1-6}/mask_{NNNNNN}.npz   # auto-generated SAM2 (PoC)
+```
+
+> ⚠️ **주의**: Rat 7M ≠ s-DANNCE. 다른 그룹 (Dunn vs Marshall), 다른 rig, 다른 keypoint count. 디렉토리 분리 필수 (`dannce/` vs `sdannce/`).
+
+---
+
 ## 2. 버전별 상세 명세
 
 ### 2.1 원본 (DANNCE)
