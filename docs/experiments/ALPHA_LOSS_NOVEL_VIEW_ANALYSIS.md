@@ -36,7 +36,9 @@ Bottom view에서 edge-on으로 관찰 → 얇고 긴 흰색 선으로 렌더링
 
 ## 2. H6 Alpha Loss 재평가
 
-### 2.1 기존 결론 (2026-02-22): ❌ 기각
+### 2.1 기존 결론 (2026-02-22): ❌ 기각 — ⚠️ OBSOLETE
+
+> ⚠️ **OBSOLETE numbers (PSNR_wh-based, pre-fair-eval).** Superseded by [UNIFIED_ABLATION_REPORT §3.7](UNIFIED_ABLATION_REPORT.md) and [MASTER_RESULTS_TABLE §2a](MASTER_RESULTS_TABLE.md). Canonical 수치는 MASTER §2a 참조. 아래 표는 재평가 narrative 용도로만 보존.
 
 H6 실험은 PSNR 하락만을 근거로 기각됨:
 

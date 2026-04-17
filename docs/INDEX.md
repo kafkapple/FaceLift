@@ -1,8 +1,10 @@
 # FaceLift Mouse Documentation
 
+> ⭐ **ENTRY POINT**: [FACELIFT_SSOT.md](FACELIFT_SSOT.md) — 인용·참조 시 먼저 읽을 것. 9개 후보 문서 → 1 canonical entry (수치·methodology caveat·known drifts 집계). INDEX.md = full navigation.
+>
 > **MoC (Map of Content)** — Central hub for all project documents.
 > **Updated**: 2026-04-02 | **Version**: v19.1
-> **Active**: 53개 | **Archive**: 31개 (docs/_archive/, git history에 보존)
+> **Active**: 54개 (FACELIFT_SSOT 추가 260417) | **Archive**: 31개 (docs/_archive/, git history에 보존)
 >
 > **Phase Structure**: Phase 1 (MVDiff bottleneck) = 유지보수 | **Phase 2 (Novel View + Multi-Species) = 현재 포커스**
 >
@@ -213,8 +215,8 @@
 
 | Metric | FL GS-LRM 6v (GT) | FL E2E Best | PS 6-cam |
 |--------|:-----------------:|:-----------:|:--------:|
-| PSNR_gt | **23.84** | 9.04 | 13.78 |
-| IoU | **0.954** | 0.577 | 0.846 |
+| PSNR_gt | **23.84** | 8.20 | 13.78 |
+| IoU | **0.954** | 0.521 | 0.846 |
 | Coverage | ~1.0 | ~0.75 | 0.919 |
 
 > FL GS-LRM >> PS by +10.06 dB. E2E bottleneck = Stage 1 MVDiffusion (86% of gap).

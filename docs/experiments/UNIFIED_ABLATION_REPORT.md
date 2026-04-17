@@ -61,6 +61,10 @@ PSNR_wh includes background pixels (white on white) which dominate the metric. E
 
 ## 2. Factor 1: View Count (H4)
 
+> 🔴 **METHODOLOGY WARNING (260408)** — These numbers are CONDITIONAL.
+> All runs used `random_view_selection: true` → each batch sampled N random cameras from 6 available → **information leakage through optimizer state** (all 6-view geometry visible across training). 0/6 SOTA papers use within-batch random sampling for view ablation. **N-view values are upper bounds on pure N-view training.**
+> Canonical WARNING source: [MASTER_RESULTS_TABLE §1 L68-83](MASTER_RESULTS_TABLE.md). Detail: `~/results/FaceLift/rat/REPORT_260408_VIEW_ABLATION_METHODOLOGY_SLIP.md`. Fixed-view validation (Phase 1) pending.
+
 ### Design
 
 | Parameter | Setting |

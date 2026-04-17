@@ -2,6 +2,8 @@
 
 GS-LRM 기반 Multi-view Mouse 3D Reconstruction
 
+> ⭐ **Canonical Entry**: [docs/FACELIFT_SSOT.md](docs/FACELIFT_SSOT.md) — 수치 인용·cross-project 참조(ICML Workshop 포함) 시 먼저 이 파일 read. Role matrix + inline caveats (C1-C4) + drift ledger (D1-D9). INDEX.md = full navigation (entry 후 용도).
+
 ---
 
 ## 0. Phase Structure (2026-03-12~)
@@ -37,7 +39,7 @@ GS-LRM 기반 Multi-view Mouse 3D Reconstruction
 
 | 경로 | 내용 |
 |------|------|
-| `~/Documents/Obsidian/30_Projects/_CODES/FaceLift/docs/INDEX.md` | **Obsidian MoC** (v7.0) |
+| `~/Documents/Obsidian/30_Projects/_CODES/FaceLift/docs/INDEX.md` | **Obsidian MoC** (v7.6, 260408) |
 | `docs/neurips/` | 논문 초안, Gap 분석, Executive Summary, 프로젝트 종합 |
 | `docs/theory/` | 좌표계, Stage1/2 이론, MVDiff 이론, Loss 수식 |
 | `docs/research/` | E2E 분석, PS 비교, MV-Adapter 기술 분석 |
