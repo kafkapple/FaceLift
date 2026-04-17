@@ -533,3 +533,15 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 ---
 
 *Last Updated: 2026-03-23 | 상세 문서는 [[INDEX]] 참조*
+
+---
+
+## ⚠️ logs/ 경로 주의 (2026-04-15)
+
+`logs/` 는 `/node_data/joon/logs_FaceLift` 로의 symlink. **절대 /home/joon NFS에 직접 쓰지 말 것.**
+
+- Train launch: `python train_gslrm.py ... > logs/phase_XXX/run.log 2>&1` (그대로 OK — symlink가 처리)
+- 직접 경로 쓸 때: `> /node_data/joon/logs_FaceLift/...` 사용
+- `logs.nfs_bak_260415_0027/` 은 이전 NFS 데이터 백업 (필요 시 보존/삭제)
+
+배경: 2026-04-15 NFS write 병목(avg 2.2s/op, 9.8% error)로 find/du/git 9개 프로세스 4h+ D-state hang 사고.
