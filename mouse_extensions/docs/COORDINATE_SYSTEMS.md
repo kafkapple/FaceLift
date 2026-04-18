@@ -12,10 +12,13 @@ FaceLift 프로젝트의 다중 좌표계 간 변환 규칙. **모든 렌더링 
 |------|-----|
 | **단위** | mm (밀리미터) |
 | **원점** | 케이지 기준 (DANNCE/MAMMAL fitting 원점) |
-| **축 방향** | 미확인 (OBJ 로딩 후 검증 필요) |
+| **축 방향** | **-Y up, +X head (forward), +Z right** (2026-04-17 MVP 검증) |
 | **대표 범위** | 수십~수백 mm |
 | **파일** | `step_2_frame_XXXXXX.obj` |
 | **경로** | `/home/joon/dev/MAMMAL_mouse/results/fitting/.../obj/` |
+
+> 🔗 **Novel view 렌더링 cross-project bridge**: `/home/joon/dev/MAMMAL_mouse/docs/coordinates/MAMMAL_FACELIFT_BRIDGE.md`
+> MVP (frame 1800, v3 6-view) 렌더링 empirical 검증 — `mammal_to_gslrm()` + camera `@ diag(1,-1,-1,1)` flip 충분, axis swap 불필요.
 
 ### 1.2 FaceLift Normalized (GS-LRM operating space)
 
