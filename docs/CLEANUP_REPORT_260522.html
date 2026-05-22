@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>FaceLift Cleanup Report — 2026-05-22</title>
+<style>
+  body { font-family: -apple-system, "SF Pro", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 2em auto; padding: 0 1.5em; color: #1a1a1a; line-height: 1.55; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.4em; }
+  h2 { border-bottom: 1px solid #cbd5e1; padding-bottom: 0.3em; margin-top: 2em; color: #1e40af; }
+  h3 { margin-top: 1.5em; color: #334155; }
+  code, pre { background: #f1f5f9; border-radius: 4px; padding: 0.1em 0.3em; font-family: "SF Mono", Menlo, monospace; font-size: 0.92em; }
+  pre { padding: 0.8em 1em; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  th, td { border: 1px solid #cbd5e1; padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+  th { background: #e0e7ff; font-weight: 600; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  .ok { color: #16a34a; font-weight: 600; }
+  .warn { color: #ea580c; font-weight: 600; }
+  .danger { color: #dc2626; font-weight: 600; }
+  .badge { display: inline-block; padding: 0.15em 0.6em; border-radius: 12px; font-size: 0.82em; font-weight: 600; }
+  .b-ok { background: #dcfce7; color: #166534; }
+  .b-warn { background: #fef3c7; color: #92400e; }
+  .b-pending { background: #fee2e2; color: #991b1b; }
+  .b-info { background: #dbeafe; color: #1e40af; }
+  blockquote { border-left: 4px solid #94a3b8; margin: 1em 0; padding: 0.4em 1em; background: #f1f5f9; color: #475569; }
+  .summary-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 1em 1.5em; margin: 1.5em 0; }
+  .num { font-family: "SF Mono", Menlo, monospace; text-align: right; }
+  details { margin: 0.5em 0; }
+  summary { cursor: pointer; font-weight: 600; color: #1e40af; }
+  .ts { color: #64748b; font-size: 0.85em; }
+</style>
+</head>
+<body>
+
+<h1>FaceLift Cleanup Report</h1>
+<p class="ts">날짜: <strong>2026-05-22</strong> · Branch: <code>refactor/mouse-extensions</code> · Scope: P1–P4 dead-code/duplicates 일원화</p>
+
+<div class="summary-box">
+  <h3 style="margin-top:0">📌 TL;DR</h3>
+  <ul>
+    <li><strong>3 commits</strong>, <strong>175+ files</strong> archived/moved/정리 — 모두 reversible (gitignored <code>_archive/</code>로 일원화)</li>
+    <li><strong>mac local 정리 + gpu03 sync 완료</strong> (gpu03 변경사항은 stash@{0}에 보존)</li>
+    <li><strong>Broken-import scan PASS</strong> (1 pre-existing 이슈 제외 모두 정상)</li>
+    <li><strong>잔여 user-action 3건</strong>: gpu03 stash 검토, root-owned 정크 삭제, P4 outputs/ 결정</li>
+  </ul>
+</div>
+
+<h2>1. Commits 요약</h2>
+<table>
+  <tr><th>Hash</th><th>Subject</th><th>Files</th><th>Phase</th></tr>
+  <tr>
+    <td><code>6bad4ee</code></td>
+    <td>refactor: cleanup cinematic configs + docs consolidation</td>
+    <td class="num">25</td>
+    <td>P1+P3</td>
+  </tr>
+  <tr>
+    <td><code>122563f</code></td>
+    <td>refactor: archive 80+ one-off scripts in mouse_extensions/{scripts,behavior}/</td>
+    <td class="num">82</td>
+    <td>P2</td>
+  </tr>
+  <tr>
+    <td><code>5d1de7c</code></td>
+    <td>refactor: P2-followup — archive 45 files in mixed dirs (eval/inference/report/…)</td>
+    <td class="num">46</td>
+    <td>P2-followup</td>
+  </tr>
+</table>
+
+<h2>2. 영역별 변경 — Before / After</h2>
+<table>
+  <tr>
+    <th>영역</th>
+    <th class="num">Before</th>
+    <th class="num">After</th>
+    <th class="num">Archived</th>
+    <th>비고</th>
+  </tr>
+  <tr>
+    <td><code>configs/mouse/cinematic/</code></td>
+    <td class="num">30</td>
+    <td class="num"><strong>7</strong></td>
+    <td class="num">23</td>
+    <td>정본 + α=0.3 / α=1.0 / filtered FINAL 변형</td>
+  </tr>
+  <tr>
+    <td><code>scripts/</code> (root)</td>
+    <td class="num">9</td>
+    <td class="num">3</td>
+    <td class="num">6</td>
+    <td><code>debug_*.py</code> archive, <code>verify_*.sh</code> keep</td>
+  </tr>
+  <tr>
+    <td><code>mouse_extensions/scripts/</code></td>
+    <td class="num">17 subdirs, ~120 files</td>
+    <td class="num">11 subdirs, ~50 files</td>
+    <td class="num">~75</td>
+    <td>6 subdir 일괄 + mixed dirs 선별</td>
+  </tr>
+  <tr>
+    <td><code>mouse_extensions/behavior/</code></td>
+    <td class="num">30 files + <code>_experiments/</code></td>
+    <td class="num"><strong>14 ACTIVE</strong></td>
+    <td class="num">42</td>
+    <td>cinematic/multiview/render/visualize/preprocess 코어 keep</td>
+  </tr>
+  <tr>
+    <td><code>docs/</code> (untracked)</td>
+    <td class="num">3 unsorted + 1 stale</td>
+    <td class="num">4 staged</td>
+    <td class="num">1</td>
+    <td>VIZ_INDEX, ICML_PLAN, VISUAL_EMBEDDING_SSOT 등록</td>
+  </tr>
+</table>
+
+<h2>3. Cinematic Configs — 7 Keepers</h2>
+<table>
+  <tr><th>Config</th><th>Mode</th><th>용도</th></tr>
+  <tr><td><code>_base.yaml</code></td><td>—</td><td>Inheritance root (model/camera/global 공통)</td></tr>
+  <tr><td><code>cinematic_v11.yaml</code></td><td>live ckpt</td><td>Production (768px / 20fps / 17 segs)</td></tr>
+  <tr><td><code>cinematic_v11_FINAL_alpha03_16k.yaml</code></td><td>PLY α=0.3</td><td>Paper-consistent best alpha</td></tr>
+  <tr><td><code>cinematic_v11_FINAL_alpha10_16k.yaml</code></td><td>PLY α=1.0</td><td>Artifact demo</td></tr>
+  <tr><td><code>cinematic_v11_FINAL_filtered_a067.yaml</code></td><td>PLY view-filtered</td><td>Comparison variant</td></tr>
+  <tr><td><code>cinematic_v11_paper.yaml</code></td><td>live ckpt</td><td>Paper render</td></tr>
+  <tr><td><code>cinematic_default.yaml</code></td><td>minimal</td><td>Smoke / dev (512px / 15fps)</td></tr>
+</table>
+
+<h2>4. 의존성 검증 (Broken Import Scan)</h2>
+<table>
+  <tr><th>Step</th><th>Result</th></tr>
+  <tr><td>P2 archive 후 import 스캔 (84 imports)</td><td><span class="ok">2 broken — 즉시 fix</span></td></tr>
+  <tr><td>→ <code>unified_pipeline.py</code> 미사용 <code>JOINT_GROUPS_LEGACY</code> 제거</td><td><span class="ok">resolved</span></td></tr>
+  <tr><td>→ <code>logging_utils</code> (pre-existing, <code>apply_patches.py</code>)</td><td><span class="warn">pre-existing, scope 외</span></td></tr>
+  <tr><td>P2-followup 후 재스캔</td><td><span class="ok">0 new broken</span> (pre-existing 1 제외)</td></tr>
+  <tr><td>늦은 발견 (un-archive 처리)</td><td>
+    <code>artifact_metrics</code>, <code>fair_comparison</code> (← <code>unified_eval.py</code>) /
+    <code>fl_gt_view_comparison</code> (← <code>viz_rat_inference.py</code>) /
+    <code>run_temporal_v2_streaming</code> (← <code>inference/temporal_e2e.py</code>)
+  </td></tr>
+  <tr><td>AST parse 9 core active modules</td><td><span class="ok">PASS</span></td></tr>
+</table>
+
+<h2>5. Code Reviewer Agent 출력 (P1 pre-commit)</h2>
+<details open>
+<summary>3 broken doc-references — commit 전 모두 수정 완료</summary>
+<table>
+  <tr><th>Severity</th><th>위치</th><th>이슈</th><th>처리</th></tr>
+  <tr>
+    <td><span class="badge b-pending">B1 Blocker</span></td>
+    <td><code>docs/guides/VISUALIZATION_GUIDE.md:128–189</code></td>
+    <td>"Cinematic Demo v6" 섹션이 삭제된 <code>cinematic_demo_v6_A.yaml</code> / <code>cinematic_demo_v6_C.yaml</code> 직접 참조</td>
+    <td><span class="ok">현행 7-config 표로 교체</span></td>
+  </tr>
+  <tr>
+    <td><span class="badge b-pending">B2 Blocker</span></td>
+    <td><code>configs/mouse/cinematic/cinematic_default.yaml:2-3</code></td>
+    <td>헤더 주석이 삭제된 demo_v6 파일 가리킴</td>
+    <td><span class="ok">v11 references로 갱신</span></td>
+  </tr>
+  <tr>
+    <td><span class="badge b-warn">W1 Warning</span></td>
+    <td><code>docs/specs/CINEMATIC_V11_SPEC.md</code></td>
+    <td><code>v9_quick</code> / <code>quick_test</code> / <code>paper_ply</code> 등 archived preset 참조</td>
+    <td><span class="ok">TL;DR + inheritance + Usage + Wall-time 표 전면 갱신</span></td>
+  </tr>
+  <tr>
+    <td><span class="badge b-info">정보</span></td>
+    <td><code>docs/VIZ_INDEX.md</code></td>
+    <td>(자체 발견) "10 yamls / v9_quick" 표기 stale</td>
+    <td><span class="ok">"7 yamls / FINAL variants" 갱신</span></td>
+  </tr>
+</table>
+</details>
+
+<h2>6. gpu03 Sync</h2>
+<table>
+  <tr><th>단계</th><th>액션</th><th>상태</th></tr>
+  <tr>
+    <td>1. 첫 push 시도</td>
+    <td><code>git push</code> rejected (dirty WD)</td>
+    <td><span class="warn">차단</span></td>
+  </tr>
+  <tr>
+    <td>2. WD inspect</td>
+    <td>8 modifications + <code>Users/</code> + <code>configs/configs/</code> 정크 발견</td>
+    <td><span class="b-info badge">진단</span></td>
+  </tr>
+  <tr>
+    <td>3. <code>git stash push -u</code></td>
+    <td>8 modification + 일부 untracked → <code>stash@{0}: pre-cleanup-pull-260522-mac</code> 보존</td>
+    <td><span class="ok">완료</span></td>
+  </tr>
+  <tr>
+    <td>4. 정크 삭제: <code>rm -rf Users/</code></td>
+    <td>156K rsync 경로 오류 잔여물 (4개 중복 파일)</td>
+    <td><span class="ok">완료</span></td>
+  </tr>
+  <tr>
+    <td>5. 정크 삭제: <code>rm -rf configs/configs/</code></td>
+    <td>492K rsync 중복 (92 files), <code>mvdiffusion/</code> 일부 <strong>root 소유</strong></td>
+    <td><span class="danger">부분 실패 (Permission denied)</span></td>
+  </tr>
+  <tr>
+    <td>6. <code>git checkout -- .</code></td>
+    <td>tracked WD 변경분 reset (stash@{0}이 백업)</td>
+    <td><span class="ok">완료</span></td>
+  </tr>
+  <tr>
+    <td>7. <code>git push</code> retry</td>
+    <td><code>26d6cc7..5d1de7c</code> push 성공</td>
+    <td><span class="ok">완료</span></td>
+  </tr>
+  <tr>
+    <td>8. gpu03 verify</td>
+    <td><code>cinematic/</code> 7 yamls, 3 cleanup commits HEAD 도달</td>
+    <td><span class="ok">완료</span></td>
+  </tr>
+</table>
+
+<h2>7. ⚠️ 사용자 직접 조치 필요 항목</h2>
+
+<h3 style="color:#dc2626">A. gpu03 <code>configs/configs/mvdiffusion/</code> root-owned 정크 삭제</h3>
+<p>13개 yaml 파일 + 부모 디렉토리가 <code>root:root</code> 소유 (2026-04-16 22:45 timestamp — 어떤 root 프로세스가 잘못 생성). SSH agent (joon) 권한으로는 삭제 불가.</p>
+<pre>ssh gpu03
+cd /home/joon/dev/FaceLift
+ls -la configs/configs/mvdiffusion/      # 확인
+sudo rm -rf configs/configs/             # root 권한 필요
+git status --short                       # ?? configs/configs/ 사라졌는지 확인</pre>
+<p><strong>원인 추정</strong>: 과거 root sudo 컨테이너/스크립트가 <code>configs/</code> 자체를 <code>configs/configs/</code>로 복사. 1차 source는 정상 <code>configs/mvdiffusion/</code>에 존재 — 삭제해도 데이터 손실 없음.</p>
+
+<h3 style="color:#dc2626">B. gpu03 <code>stash@{0}</code> 검토 — 회수할 변경분 결정</h3>
+<p>stash@{0}에 8개 파일 변경분 보존. 대부분 우리 cleanup이 대체했지만 <strong>다음 2개는 평가 필요</strong>:</p>
+<table>
+  <tr><th>파일</th><th>gpu03 변경 요지</th><th>제안</th></tr>
+  <tr>
+    <td><code>mouse_extensions/scripts/evaluate_test.py</code></td>
+    <td>forward pass를 <code>torch.amp.autocast("cuda", dtype=torch.bfloat16)</code>로 감쌈 (+3/-1)</td>
+    <td><strong>회수 권장</strong> — bf16 autocast 패치는 의미 있음. 다만 evaluate_test.py는 archive됨. <code>_archive</code>에서 복원 후 패치 적용 또는 <code>unified_eval.py</code>에 같은 패턴 흡수</td>
+  </tr>
+  <tr>
+    <td><code>configs/mouse/cinematic/cinematic_v9_quick.yaml</code></td>
+    <td>v5 변경 (gaussian_flash 추가, KP overlay thin, face_follow segment, <code>extends: _base.yaml</code> 채택)</td>
+    <td><strong>이미 v11에 통합됨</strong> — v11.yaml이 face_follow + gaussian_flash 포함. 확인 후 stash 폐기 가능</td>
+  </tr>
+</table>
+<pre>ssh gpu03
+cd /home/joon/dev/FaceLift
+git stash show stash@{0} --stat       # 전체 변경 요약
+git stash show -p stash@{0} -- mouse_extensions/scripts/evaluate_test.py  # 정확한 diff
+# 회수 옵션:
+git checkout stash@{0} -- mouse_extensions/scripts/evaluate_test.py   # 단일 파일만
+# 또는 stash 폐기:
+git stash drop stash@{0}</pre>
+<p>그 외 6개 파일 (cinematic_v11.yaml, VISUALIZATION_GUIDE.md, cinematic_sequence.py, keypoint_overlay.py, cinematic_6view_grid.yaml, cinematic_default.yaml) = 우리 cleanup commit이 동일/대체. 폐기 OK.</p>
+
+<h3 style="color:#dc2626">C. P4 — <code>outputs/</code> + checkpoints 정리 (별도 세션 권장)</h3>
+<table>
+  <tr><th>위치</th><th>크기</th><th>상태</th></tr>
+  <tr><td>local <code>outputs/</code></td><td>700K</td><td>거의 비어있음 — 작업 불필요</td></tr>
+  <tr><td>gpu03 <code>/home/joon/dev/FaceLift/outputs/</code></td><td>210M</td><td>적당 — 보류</td></tr>
+  <tr><td>gpu03 <code>/node_data/joon/logs_FaceLift</code></td><td>31M</td><td>tiny — 작업 불필요</td></tr>
+  <tr><td>gpu03 <code>/node_data/joon/checkpoints/FaceLift</code></td><td><strong>61G</strong></td><td>experiment_id별 case-by-case 결정 필요</td></tr>
+</table>
+<p><strong>제안 절차</strong>:</p>
+<pre>ssh gpu03 'cd /node_data/joon/checkpoints/FaceLift &amp;&amp; du -sh */ | sort -hr | head -20'
+# 큰 순으로 확인 → CLAUDE.md §9 retracted (v2/v3/v4b/v5 rat ckpt) 매칭 → archive/삭제 결정</pre>
+
+<h3 style="color:#ea580c">D. (선택) <code>mouse_extensions/apply_patches.py</code> pre-existing 버그</h3>
+<p><code>from mouse_extensions.logging_utils import ...</code> ← 실제 경로는 <code>mouse_extensions.utils.logging_utils</code>. 이번 cleanup 범위 밖이지만 같이 수정 가능.</p>
+
+<h2>8. P2 Follow-up Triage 상세</h2>
+<details>
+<summary>Mixed dirs 분류 결과 (의존성 검증 후 결정)</summary>
+<table>
+  <tr><th>Subdir</th><th>총 files</th><th>ACTIVE</th><th>ARCHIVE</th><th>특이 사항</th></tr>
+  <tr>
+    <td><code>scripts/eval/</code></td>
+    <td class="num">38</td>
+    <td class="num">17</td>
+    <td class="num">22</td>
+    <td>artifact_metrics + fair_comparison + fl_gt_view_comparison는 unified_eval/viz_rat_inference 의존 → 회수</td>
+  </tr>
+  <tr>
+    <td><code>scripts/inference/</code></td>
+    <td class="num">12</td>
+    <td class="num">4</td>
+    <td class="num">8</td>
+    <td>run_temporal_v2_streaming은 inference/temporal_e2e public API 의존 → keep</td>
+  </tr>
+  <tr>
+    <td><code>scripts/keypoint_detection/</code></td>
+    <td class="num">6</td>
+    <td class="num">2</td>
+    <td class="num">4</td>
+    <td>render_novel_views_for_detection (active) keep</td>
+  </tr>
+  <tr>
+    <td><code>scripts/report/</code></td>
+    <td class="num">8 + configs/</td>
+    <td class="num">1 yaml</td>
+    <td class="num">5 + 3 yaml</td>
+    <td>view_ablation_report.yaml만 keep (active)</td>
+  </tr>
+  <tr>
+    <td><code>scripts/diagnostics/</code></td>
+    <td class="num">5</td>
+    <td class="num">1</td>
+    <td class="num">4</td>
+    <td>diagnose_facelift_cameras.py만 keep (CLAUDE.md ref)</td>
+  </tr>
+  <tr>
+    <td><code>scripts/solutions/</code></td>
+    <td class="num">3</td>
+    <td class="num">2</td>
+    <td class="num">1</td>
+    <td><strong>pp_correction_integration.py는 PRODUCTION</strong> (mouse_dataset.py:55 의존). camera_normalization만 archive</td>
+  </tr>
+  <tr>
+    <td><code>scripts/novel_view/</code></td>
+    <td class="num">4</td>
+    <td class="num">2 + __init__</td>
+    <td class="num">1 sh</td>
+    <td>migrate_outputs.sh archive</td>
+  </tr>
+</table>
+</details>
+
+<details>
+<summary>완전 일괄 archive subdirs (외부 import 0건 확인)</summary>
+<ul>
+  <li><code>scripts/_archive/analysis/</code> (5 files — 모두 2026-03-03 exploratory)</li>
+  <li><code>scripts/_archive/blender/</code> (10 files — synthetic data gen, superseded)</li>
+  <li><code>scripts/_archive/setup/</code> (5 files — one-time env setup)</li>
+  <li><code>scripts/_archive/validation/</code> (1 file)</li>
+  <li><code>scripts/_archive/evaluation/</code> (2 files — generate_experiment_report 등)</li>
+  <li><code>scripts/_archive/domain_adapt/</code> (2 files — MVDiff training data gen + finetune launcher)</li>
+  <li><code>behavior/_archive/_experiments/</code> (12 files — 이전 exploratory batch)</li>
+</ul>
+</details>
+
+<details>
+<summary>behavior/ ACTIVE 14 keepers</summary>
+<table>
+  <tr><th>파일</th><th>역할</th></tr>
+  <tr><td><code>cinematic_sequence.py</code></td><td>Cinematic pipeline entry (1960L+)</td></tr>
+  <tr><td><code>multiview_visibility_filter.py</code></td><td>N-view filter, cinematic 의존</td></tr>
+  <tr><td><code>render_bodypart_gaussians.py</code></td><td>BONE_SEGMENTS + bodypart viz</td></tr>
+  <tr><td><code>generate_6view_grid.py</code></td><td>6-cam grid (GT vs render)</td></tr>
+  <tr><td><code>find_active_segments.py</code></td><td>High-motion 구간 탐색 (VIZ_GUIDE ref)</td></tr>
+  <tr><td><code>unified_pipeline.py</code></td><td>통합 파이프라인 (legacy import 제거)</td></tr>
+  <tr><td><code>visualize_clusters.py</code></td><td>Behavior cluster viz</td></tr>
+  <tr><td><code>camera_system.py</code></td><td>OpenCV camera SSOT (cinematic 의존)</td></tr>
+  <tr><td><code>coordinate_utils.py</code></td><td>좌표계 re-export</td></tr>
+  <tr><td><code>metrics.py</code></td><td>Behavior metrics SSOT</td></tr>
+  <tr><td><code>paths.py</code></td><td>Path config (recent edit)</td></tr>
+  <tr><td><code>preprocessing.py</code></td><td>Preprocess + PRESETS (unified_pipeline 의존)</td></tr>
+  <tr><td><code>keypoint_projection.py</code></td><td>KP projection (보수적 keep)</td></tr>
+  <tr><td><code>view_projected_filtering.py</code></td><td>View filter (보수적 keep)</td></tr>
+</table>
+</details>
+
+<h2>9. 메타 회고 (Tier 2)</h2>
+<table>
+  <tr><th>발견 패턴</th><th>대응</th></tr>
+  <tr>
+    <td>Triage agent가 <code>ACTIVE</code> 분류 시 mtime + 단일-grep 위주 → <strong>역방향 의존성 (active→archive imports)</strong> 미고려</td>
+    <td>archive 실행 전 <strong>역방향 import scan 필수화</strong>. 본 세션에서 3건 (artifact_metrics/fair_comparison/fl_gt_view_comparison) 사후 발견 → un-archive로 복구</td>
+  </tr>
+  <tr>
+    <td>gpu03 push가 dirty WD로 차단되는 패턴 반복 가능성 — rsync hook이 일부만 sync하면 gpu03 WD가 stale</td>
+    <td>gpu03 routine에 <strong>daily <code>git status</code> 점검</strong> + 의심 시 stash 후 reset. 본 세션 stash@{0} 패턴 재사용</td>
+  </tr>
+  <tr>
+    <td>rsync 경로 오류로 <code>Users/joon/dev/...</code> 및 <code>configs/configs/</code> 정크 누적</td>
+    <td>rsync 스크립트 인자 검증 + gpu03에 <code>~/.facelift_rsync_audit.log</code> 도입 검토</td>
+  </tr>
+  <tr>
+    <td>Triage가 "test_*" prefix를 무조건 ARCHIVE로 처리 → <code>test_evaluation_extension.py</code>는 train_gslrm.py:60 dep (실제 production)</td>
+    <td>"test_" 명명 ≠ test code. 일관된 conventional naming guide 필요 (예: pytest는 <code>tests/</code> 디렉토리만)</td>
+  </tr>
+</table>
+
+<h2>10. 다음 세션 권장 (P5+)</h2>
+<ol>
+  <li><strong>P4 outputs/checkpoints case-by-case</strong> — CLAUDE.md §9 retracted (RAT2 v2/v3/v4b/v5) 매칭 후 <code>checkpoints/_archive/</code> 도입</li>
+  <li><strong>behavior/ 잔여 14 ACTIVE</strong> 재검토 — preprocessing.py (old superseded by mouse_extensions/preprocessing/ 패키지), keypoint_projection (only self-ref), view_projected_filtering 등 추가 archive 여지</li>
+  <li><strong>scripts/blender/, scripts/neural_texture/</strong> 활성 여부 본인 확인 — neural_texture는 모두 ACTIVE 분류되었으나 mtime 2026-03-23 동일 = 일괄 commit 흔적, 실제 사용 여부 점검 필요</li>
+  <li><strong>logging_utils import 경로 수정</strong> (<code>apply_patches.py</code> 1 line fix)</li>
+  <li><strong>configs/visualization/</strong> + <code>configs/inference/</code> 등 다른 config dirs 동일 패턴 cleanup 검토</li>
+</ol>
+
+<hr>
+<p class="ts">생성: Claude Opus 4.7 (1M context) · 세션: refactor/mouse-extensions · 검증: AST parse + import graph scan + Code Reviewer agent</p>
+
+</body>
+</html>
