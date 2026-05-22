@@ -1,126 +1,144 @@
-# Cinematic v11 Production Specification
+# Cinematic v11/v9 Production Specification
 
-> Version: v11c | Updated: 2026-03-31 | Base: v10d → v11 → v11b → v11c
+> Version: **v13 (PLY mode)** | Updated: 2026-05-15 | SSOT for cinematic directing
+> Code: `mouse_extensions/behavior/cinematic_sequence.py` | Configs: `configs/mouse/cinematic/`
 
-## Overview
+## TL;DR
 
-NeurIPS 2026 데모 영상. GS-LRM 기반 Multi-view Mouse 3D Reconstruction 파이프라인 시각화.
+NeurIPS 2026 데모. GS-LRM 기반 Multi-view Mouse 3D Reconstruction 파이프라인 시각화.
 
-## Global Settings
+| Preset | Resolution / FPS | Mode | Source |
+|---|---|---|---|
+| **`cinematic_v11`** | 768px / 20fps | live ckpt | production |
+| **`cinematic_v11_FINAL_alpha03_16k`** | 768px / 20fps | **PLY (α=0.3, 16k)** | paper-consistent ✓ |
+| `cinematic_v11_FINAL_alpha10_16k` | 768px / 20fps | PLY (α=1.0) | artifact demo |
+| `cinematic_v11_FINAL_filtered_a067` | 768px / 20fps | PLY (view-filtered) | comparison |
+| `cinematic_v11_paper` | 768px / 20fps | live ckpt | paper render |
+| `cinematic_default` | 512px / 15fps | minimal | smoke / dev |
 
-| Parameter | Value | Notes |
-|-----------|-------|-------|
-| Resolution | 768px (test: 384px) | Square, production quality |
-| FPS | 20 | Matches source data rate (100fps / 5-frame interval) |
-| frame_step | 1 (global default) | Every frame used. No per-segment override. |
-| Background | White (1,1,1) | Clean presentation |
-| Frame range | 1900:2260 | 360 frames, high motion, no jump frames |
-| Crossfade | 0.3s | Global default (overridden per segment) |
-| Font scaling | Resolution-proportional | Reference: 512px. Auto-scales via `H / 512.0` |
+> Legacy v6/v8/v9/quick_test/compare/face_follow variants archived to `configs/mouse/cinematic/_archive/` (2026-05-22).
 
-## Segment Structure (13 segments, ~58.5s)
+## Outputs
 
-### Act 1: Input & Pipeline (0:00 – 0:12.5)
+| 위치 | 용도 |
+|---|---|
+| `~/results/FaceLift/cinematic/{preset}/` | 최신 결과 (로컬) |
+| `gpu03:/node_data/joon/cinematic_repro/{preset}/` | 생성 산출 + segment cache |
 
-| # | Type | Duration | Transition | Content | Label |
-|---|------|----------|-----------|---------|-------|
-| 0 | flow_gt_opener | 3.0s | — | 3.0s 6-cam GT temporal mosaic | (none) |
-| 1 | flow_gt_opener | 2.0s | 2.0s crop-zoom | — | (none) |
-| 2 | flow_gt | 2.0s | — | 2.0s GT RGB single view | "GT RGB (Camera 0)" |
-| 3 | flow_mask | 1.5s | — | 1.5s FG segmentation | "FG Segmentation (SAM2)" |
-| 4 | flow_render | 4.0s | — | 4.0s GS-LRM splatting | "GS-LRM 6v Reconstruction" |
+자동 파일명: `cinematic_{stem}_{res}px_{fps}fps_f{start}-{end}.mp4` (auto H.264 reencode via `_reencode_h264`).
 
-### Act 2: 3D Exploration (0:12.5 – 0:36.0)
+## Segment Structure (production: 17 segments, ~99-101s @ v11)
 
-| # | Type | Duration | Transition | Content | Label |
-|---|------|----------|-----------|---------|-------|
-| 5 | freeze_orbit | 9.0s | 0.5s elevation sweep | 8.5s 360° orbit (frozen time) | "360-deg Orbit (Frozen Time)" |
-| 6 | flow_novel | 3.0s | 0.75s elevation sweep | 2.25s bottom view render | "Novel View (Bottom, -80deg)" |
-| 7 | flow_novel | 3.0s | — | 3.0s bottom + paw KP overlay | "Novel View (Bottom) + Paw Keypoints" |
-| 8 | flow_head_kp | 7.5s | 0.75s elevation sweep | 6.75s progressive body + 22 KP | "Body Parts + All Keypoints" |
-| 9 | freeze_orbit | 7.5s | 0.5s transition | 7.0s temporal orbit | "Temporal Orbit (Time+Rotation)" |
+### Act 1 — Input & Pipeline
 
-### Act 3: Comparison & Novel Views (0:36.0 – 0:58.5)
+| # | Type | Notes |
+|---|---|---|
+| 0-1 | `flow_gt_opener` ×2 | GT 6-cam mosaic → crop-zoom → single view |
+| 2 | `flow_gt` | GT RGB single view |
+| 3 | `flow_mask` | FG Segmentation (SAM2) |
+| 4 | `gaussian_flash` | Frozen-time 360° Gaussian primitive orbit, `match_gt: true`, `pause_at_end: 1.0` |
+| 5 | `flow_render` | GS-LRM 6-cam render, `crossfade: 0.4` |
 
-| # | Type | Duration | Transition | Content | Label |
-|---|------|----------|-----------|---------|-------|
-| 10 | flow_render_mosaic | 5.0s | 1.25s zoom + 1.25s fade | **2.5s static 6-cam render grid** | "GS-LRM Reconstruction (6 Cameras)" |
-| 11 | grid_novel_6views | 4.0s | 0.8s zoom-out | 3.2s extrapolated views | "Extrapolated Novel Views" |
-| 12 | grid_novel_dense | 6.0s | 0.3s crossfade-in | 5.7s turntable grid | "Turntable Grid (36 Views)" |
+### Act 2 — 3D Exploration
+
+| # | Type | Notes |
+|---|---|---|
+| 6 | `freeze_orbit` | 360° orbit, frozen time, `match_gt: true` |
+| 7 | `flow_novel` | Bottom view (-80°), SLERP from elev=20 |
+| 8 / 8b | `flow_novel` | Bottom + 4 paw KP / Return (-80° → 25°) + ALL 22 KP |
+| 9 | `flow_head_kp` | Body part reveal + KP overlay continuous |
+| 9c / 9d | `face_follow` front / reverse | nose→neck axis, distance 1.2, smoothing_window 7, `kp_toggle`, `show_kp_labels` |
+| 10 | `freeze_orbit` | Temporal Orbit, `use_prev_novel: true` (SLERP from face_follow) |
+
+### Act 3 — Comparison & Novel Views
+
+| # | Type | Notes |
+|---|---|---|
+| 11 | `flow_render_mosaic` | 6-cam render zoom + fade + static hold |
+| 12 | `grid_novel_6views` | 3×2 extrapolated novel views grid |
+| 13 | `grid_novel_dense` | 6×6 turntable grid (36 views) |
 
 ## Key Technical Decisions
 
-### frame_step = 1 (Global)
-- **Why**: frame_step>1 causes frame repetition → 끊김. fps가 playback 속도를 제어.
-- **Rule**: YAML에 frame_step 하드코딩 금지. 코드 기본값 1.
+| Decision | Code SSOT | Rationale |
+|---|---|---|
+| **Scene-centred orbit** | `compute_scene_center_from_gt` | LSQ ray intersection of GT cams → mouse-centric rotation (vs world origin) |
+| **gaussian_flash fxfy interp** | `_seg_gaussian_flash` | Interpolate GT→orbit fxfy in transition phase (avoids projection drift) |
+| **Frame range wrap-around** | yaml `frame_range` | v11=`0:3500`, v9=`500:2500` — covers demand 무 wrap |
+| **KP overlay refinement** | `overlay_keypoints` | radius=1, bone_width=1, `LINE_8` (no AA bleed), depth-modulated, length sanity |
+| **Per-segment crossfade** | yaml `crossfade:` field | overrides global 0.3s |
+| **face_follow smoothing** | `smoothing_window: 7` | rolling mean of kp_3d → camera trajectory 안정 (overlay는 raw kp 유지) |
+| **face_follow opacity_mask** | `reverse: true` default | vis_mask = GT 6 cams 학습 → reverse cam 영역 sparse 보존 |
+| **PLY mode** | `load_gaussians_from_ply` + `infer_frame_from_ply` | ckpt-independent, paper-consistent (16k count-matched 사전 저장) |
 
-### Orbit Elevation: match_gt = true
-- **Why**: GT 카메라(~35°) → orbit target(20°) elevation 차이가 vertical teleportation 유발.
-- **Fix**: `match_gt: true` → GT 카메라의 실제 elevation 사용. Transition에서 elevation 변화 없음.
+## Model / Data SSOT
 
-### Novel View Masking: opacity > 0.05
-- **Why**: vis_mask는 GT 카메라(위에서 촬영)에서의 가시성만 고려. Bottom view에서 belly Gaussians 삭제됨.
-- **Fix**: opacity threshold만으로 노이즈 제거. 전 방향 Gaussian 보존.
+| Item | Value |
+|---|---|
+| **PLY (paper)** | `/node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/M5t2_6view_alpha03_v3_maskcarve16k/` (3600 PLYs, alpha=0.3, 16k count-matched) |
+| **Fallback ckpt** | `base_uniform_v2_6view_v2/best_psnr.pt` (24.49 PSNR, no alpha) |
+| GS-LRM config | `configs/base/gslrm_mouse.yaml` |
+| `num_input_views` | 6 |
+| Data | `/home/joon/data/preprocessed/FaceLift_mouse/M5` |
+| Keypoints | `~/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz` |
+| Camera distance | 2.7 (normalized) |
+| hfov | 50° |
 
-### Dense Grid: cell_resolution = 256
-- **Why**: 768px grid에서 셀=128px. 768px로 렌더 후 128px downsample은 6× 낭비.
-- **Fix**: 256px로 렌더 → 128px downsample. **fxfy를 res_scale로 스케일링** 필수.
+> **CKPT 손실 사고 (2026-05-15)**: `M5t2_6view_alpha03_v3` symlink target 삭제. PLY mode 도입으로 시네마틱이 ckpt 가용성에서 독립.
 
-### Font Scaling: Resolution-proportional
-- **Why**: fontscale=0.65 고정 시 384px에서 과대, 768px에서 과소.
-- **Fix**: `fontscale = 0.65 * (H / 512.0)`. Reference resolution = 512px.
+## Config Inheritance
 
-## Render Mosaic Segment (Seg 10) — 3-Phase Design
+`_base.yaml` (24L) — model/camera/global 공통. Preset yaml `extends:` 체인으로 chain:
 
 ```
-Phase 1 (25%): Zoom-out from temporal orbit camera
-  - SLERP: orbit_c2w → GT_c2w
-  - Scale: 1.0 → 0.5
-
-Phase 2 (25%): Crossfade
-  - Blend: zoomed single-view → 6-cam render grid
-  - smoothstep easing
-
-Phase 3 (50%): Static hold ★
-  - Show completed 6-cam render grid
-  - Camera index labels (Cam 0–5)
-  - Viewer absorption time: ~2.5s
+_base.yaml
+  ├── cinematic_v11.yaml (production, 17 segs)
+  │   ├── cinematic_v11_FINAL_alpha03_16k.yaml (PLY α=0.3)
+  │   ├── cinematic_v11_FINAL_alpha10_16k.yaml (PLY α=1.0)
+  │   └── cinematic_v11_FINAL_filtered_a067.yaml (PLY view-filtered)
+  ├── cinematic_v11_paper.yaml (paper render, live ckpt)
+  └── cinematic_default.yaml (minimal smoke)
 ```
 
-## Extrapolated Novel 6 Views (Seg 11)
+Recursive `_load_yaml_with_extends` (cycle-guarded). Deep merge.
 
-GT cameras: elevation 20-40°, azimuth 0-300° (6 views, 60° apart).
+## Usage
 
-| Position | Label | Elev | Azim | Distance from GT |
-|----------|-------|------|------|------------------|
-| Top-Down | "Top-Down (80deg)" | +80° | 270° | +40° above GT max |
-| High-Front | "High-Front (70deg)" | +70° | 270° | +30° above GT max |
-| High-Side | "High-Side (60deg)" | +60° | 0° | +20° above GT max |
-| Belly-Up | "Belly-Up (-85deg)" | -85° | 270° | -105° below GT min |
-| Rear-Low | "Rear-Low (-40deg)" | -40° | 90° | -60° below GT min |
-| Front-Low | "Front-Low (-30deg)" | -30° | 270° | -50° below GT min |
+```bash
+# Paper preset (PLY mode, ckpt-independent, α=0.3 best)
+CUDA_VISIBLE_DEVICES=N python -m mouse_extensions.behavior.cinematic_sequence \
+    --config configs/mouse/cinematic/cinematic_v11_FINAL_alpha03_16k.yaml \
+    --output-dir /node_data/joon/cinematic_repro/v11_alpha03 \
+    --use-cache --save-segments
 
-All rendered with **opacity > 0.05 mask** (not vis_mask).
+# Production (live ckpt)
+... --config configs/mouse/cinematic/cinematic_v11.yaml ...
 
-## KP Visualization
+# Smoke / dev (512px, faster)
+... --config configs/mouse/cinematic/cinematic_default.yaml ...
+```
 
-| Parameter | Value | Reference |
-|-----------|-------|-----------|
-| kp_radius | 4 | Config override |
-| bone_width | 2 | Default |
-| depth_alpha | 0.25–0.80 | Config override |
-| show_labels (bottom paw) | true | LP, RP, LF, RF |
-| show_labels (body parts) | true | All 22 abbreviations |
+## Wall-time
 
-## Duration Balance
+| Preset | First run | Cached re-run |
+|---|---|---|
+| default (minimal, 512px, 15fps) | ~30 min | ~3 min |
+| v11 / v11_FINAL_* (17 segs, 768px, 20fps) | ~2-3 hours | ~10-15 min |
 
-| Act | Duration | Content | Ratio |
-|-----|----------|---------|-------|
-| Act 1 (Input) | 12.5s | 10.5s | 84% content |
-| Act 2 (3D) | 23.5s | 20.5s | 87% content |
-| Act 3 (Comparison) | 15.0s | 11.4s | 76% content |
-| **Total** | **58.5s** | **42.4s** | **72% content** |
+Heaviest: `grid_novel_dense` (36-view turntable).
 
----
+<details><summary>📚 Iteration history (v3 → v13)</summary>
 
-*SSOT for cinematic directing. Config: `configs/mouse/cinematic/cinematic_v11.yaml`*
+- **v13 (2026-05-15)**: PLY mode (`load_gaussians_from_ply` + `_infer` dispatcher). Recursive `extends` (cycle-guarded). ckpt 손실 사고 → 시네마틱 decoupling.
+- **v12 (2026-05-15)**: scene_center alignment (LSQ ray intersection) + `pause_at_end` 1.0s freeze. fxfy interpolation fix (gaussian_flash transition phase).
+- **v11 (2026-05-14)**: KP refinement (`max(1,...)`, conditional outline, `LINE_8` for r=1, depth-modulated bone width, length sanity).
+- **v10 (2026-05-14)**: face_follow `smoothing_window` (scipy uniform_filter1d) + `show_kp_labels`. Slow gaussian (1.3x).
+- **v9 (2026-05-14)**: gaussian_flash camera_fix (`get_orbit_cameras` accepts `center`).
+- **v8 (2026-05-14)**: gaussian orbit (frozen-time 360°), `kp_toggle`, `use_opacity_mask=true` for reverse, `show_kp` split.
+- **v7 (2026-05-14)**: frame_range wrap-around fix (cursor `% len`), face_follow SLERP entry (`interpolate_cameras`).
+- **v6 (2026-05-14)**: face_follow segment (`compute_face_camera_c2w`), KP `kp_radius/bone_width: 1`.
+- **v5 (2026-05-14)**: gaussian_flash 신설, 1.3x slowdown, mp4v→H.264 auto-reencode (`_reencode_h264`).
+- **v4 (2026-05-14)**: frame_step 제거 (5Hz → 15Hz unique content rate).
+- **v3 (2026-05-14)**: SSIM=1.0 regression (refactor + `_base.yaml` extends bit-perfect).
+
+</details>

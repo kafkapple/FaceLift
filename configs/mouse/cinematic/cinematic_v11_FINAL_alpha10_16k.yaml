@@ -1,0 +1,11 @@
+# FINAL alpha=1.0 sharper supervision variant (16k count-matched)
+extends: cinematic_v11.yaml
+
+model:
+  ply_dir: /node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/M5t2_6view_alpha10_v3_maskcarve16k
+
+global:
+  fps: 20
+  resolution: 1024
+  gt_auto_trim_padding: true
+  gt_trim_pad_extra: 4

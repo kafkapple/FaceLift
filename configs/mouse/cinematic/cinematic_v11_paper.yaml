@@ -1,0 +1,16 @@
+# Cinematic v11 PAPER — count-matched 16k Gaussians per ICML SSOT
+# Reference: PARADIGM_COMPARISON_SSOT.md §36 — "GS → 16k (5/6 multi-view opacity vote, top-K opacity, w_α=0.3 ckpt)"
+# Identical to v11 except mask = count_match(n_filter=5, top_k=16000) globally
+# (renders ALL segments at 16k count for paper-consistent visual)
+
+extends: cinematic_v11.yaml
+
+global:
+  n_filter: 5  # 5/6 multi-view opacity vote (was 2 for cinematic visual quality)
+
+# Global count_match override applied via mask in cinematic_sequence.py
+# (each segment honors `count_match: true` flag below — affects all inference renders)
+count_match:
+  enabled: true
+  n_filter: 5
+  top_k: 16000

@@ -1,97 +1,96 @@
-# Cinematic v11 Production (768px, 30fps)
-# SSOT: docs/specs/CINEMATIC_V11_SPEC.md
+# Cinematic v11 v6 — Production (768px, 20fps)
+# 2026-05-14 v6: smaller KP overlay (4→2 radius, 2→1 bone), added face_follow
+# (front + reverse) after head_kp segment. Inherits v5 structure (gaussian_flash,
+# 1.3x slowdown, original layout). SSOT: docs/specs/CINEMATIC_V11_SPEC.md
+extends: _base.yaml
 
 global:
   fps: 20
   resolution: 768
-  bg_color: [1.0, 1.0, 1.0]
-  n_filter: 2
-  gt_view: 0
-  crossfade: 0.3
-  mask_border_color: null
-  keypoint_overlay: false
-  show_controls: false
 
-model:
-  config: configs/base/gslrm_mouse.yaml
-  num_input_views: 6
-  checkpoint: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
-  m5_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5
-  kp_path: ~/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz
+frame_range: "0:3500"  # full dataset — covers 101s @ 20fps demand without wrap
 
-camera:
-  radius: 2.7
-  hfov: 50
-
-frame_range: "1900:2260"
-
-# KP visualization overrides
+# KP visualization: minimal dots/edges (smaller per user feedback)
 keypoint:
-  kp_radius: 4
-  bone_width: 2
-  depth_alpha_min: 0.25
-  depth_alpha_max: 0.80
+  kp_radius: 1
+  bone_width: 1
+  depth_alpha_min: 0.30
+  depth_alpha_max: 0.85
 
 segments:
-  # === Act 1: Input & Pipeline (0:00 – 0:12.5) ===
+  # === Act 1: Input & Pipeline ===
 
   # Seg 0: GT 6-cam temporal mosaic (pure, no transition)
   - type: flow_gt_opener
-    duration: 3.0
+    duration: 3.9
     mosaic_ratio: 1.0
     no_crossfade: true
     label: ""
 
   # Seg 1: Crop-zoom from 6-cam mosaic → Camera 0
   - type: flow_gt_opener
-    duration: 2.0
+    duration: 2.6
     mosaic_ratio: 0.0
     no_crossfade: true
     label: ""
 
   # Seg 2: GT RGB single view
   - type: flow_gt
-    duration: 2.0
+    duration: 2.6
     raw: true
     no_crossfade: true
     label: "GT RGB (Camera 0)"
 
   # Seg 3: FG segmentation overlay
   - type: flow_mask
-    duration: 1.5
+    duration: 2.0
     no_crossfade: true
     label: "FG Segmentation (SAM2)"
 
-  # Seg 4: GS-LRM splatting reconstruction
-  - type: flow_render
-    duration: 4.0
-    no_crossfade: true
-    label: "GS-LRM Reconstruction (6 Cameras)"
-
-  # === Act 2: 3D Exploration (0:12.5 – 0:33.5) ===
-
-  # Seg 5: 360-deg frozen-time orbit (1.5x slower, match GT elevation)
-  - type: freeze_orbit
-    duration: 9.0
+  # Seg 4 (REDESIGNED): Frozen-time Gaussian primitive 360° orbit (~4.5s)
+  # Phase A (SLERP from prev GT cam) → Phase B (360° orbit showing 3D structure)
+  - type: gaussian_flash
+    duration: 11.7  # slowed to match freeze_orbit speed
     match_gt: true
-    transition_frames: 10
+    transition_frames: 25
+    pause_at_end: 1.0  # 1s freeze before render handoff
+    point_size: 2.0
+    opacity_thresh: 0.05
+    no_crossfade: false
+    label: "AI 3D Gaussian Primitives"
+
+  # Seg 5: GS-LRM render (single GT view) — HARD CUT from gaussian_flash (no fade)
+  # gaussian_flash already has pause_at_end=1.0 which gives "breath"; crossfade
+  # adds visual ghost that obscures the representation switch. Hard cut is cleaner.
+  - type: flow_render
+    duration: 5.2
+    no_crossfade: true
+    label: "GS-LRM Reconstruction"
+
+  # === Act 2: 3D Exploration ===
+
+  # Seg 6: 360-deg frozen-time orbit — proves 3D nature
+  - type: freeze_orbit
+    duration: 11.7
+    match_gt: true
+    transition_frames: 13
     no_crossfade: true
     label: "360-deg Orbit (Frozen Time)"
 
-  # Seg 6: Bottom view — render only
+  # Seg 7: Bottom view — render only
   - type: flow_novel
-    duration: 3.0
+    duration: 3.9
     elevation: -80
     use_prev_azimuth: true
     prev_elevation: 20
-    transition_frames: 15
+    transition_frames: 20
     no_crossfade: true
     keypoint_overlay: false
     label: "Novel View (Bottom, -80deg)"
 
-  # Seg 7: Bottom view + 4 paw KP with labels
+  # Seg 8: Bottom view + 4 paw KP with labels
   - type: flow_novel
-    duration: 3.0
+    duration: 3.9
     elevation: -80
     use_prev_azimuth: true
     prev_elevation: -80
@@ -102,44 +101,96 @@ segments:
     show_kp_labels: true
     label: "Novel View (Bottom) + Paw Keypoints"
 
-  # Seg 8: Progressive body part reveal + all 22 KP
+  # Seg 8b: Return from -80° to normal view (slower SLERP + ALL 22 KP overlay)
+  - type: flow_novel
+    duration: 4.0
+    elevation: 25
+    use_prev_azimuth: true
+    prev_elevation: -80
+    transition_frames: 60
+    no_crossfade: true
+    keypoint_overlay: true
+    show_kp_labels: true
+    label: "Return to Normal View + All KP"
+
+  # Seg 9: Body parts reveal WITH KP overlay (1-stage simplified, 2026-05-15)
   - type: flow_head_kp
-    duration: 7.5
+    duration: 7.0
     elevation: 25
     zoom: 1.0
-    prev_elevation: -80
-    transition_frames: 15
+    prev_elevation: 25
+    transition_frames: 25
+    show_kp: true
+    reveal_stages: 1          # NEW: single stage face → full body
+    final_full_pct: 0.30      # last 30% guaranteed full body
     no_crossfade: true
-    label: "Body Parts + All Keypoints"
+    label: "Body Parts + Keypoints"
 
-  # Seg 9: Temporal orbit (time + rotation)
+  # Seg 9c: Face-follow FRONT — v5 settings (UPSTREAM face KP smoothing, depth occlusion ON)
+  - type: face_follow
+    duration: 5.5
+    distance: 1.2
+    reverse: false
+    transition_frames: 25
+    smoothing_window: 1
+    kp_toggle: false           # always-on KP+labels (silhouette filter auto)
+    show_kp_labels: true
+    camera_smooth: true        # 1-Euro UPSTREAM on face KPs (Ns/Nk/LE/RE)
+    camera_mincutoff: 0.5
+    camera_beta: 0.02
+    face_kp_median: 7
+    no_crossfade: true
+    label: "Camera Follows Face (Front)"
+
+  # Seg 9d: Face-follow REVERSE — v5 settings (show-through body for visibility)
+  - type: face_follow
+    duration: 5.5
+    distance: 1.2
+    reverse: true
+    transition_frames: 30
+    smoothing_window: 1
+    kp_toggle: false
+    show_kp_labels: false      # 2026-05-16: KP overlay 끔 (reverse 시각화 quality 낮음)
+    camera_smooth: true
+    camera_mincutoff: 0.5
+    camera_beta: 0.02
+    face_kp_median: 7
+    use_depth_occlusion: false
+    hide_interior_kp: false
+    silhouette_eps: 0.0001
+    no_crossfade: true
+    label: "Camera Follows Gaze Direction"
+
+  # Seg 10: Temporal orbit — end exactly at GT cam0 for clean mosaic handoff
   - type: freeze_orbit
-    duration: 7.5
-    elevation: 20
+    duration: 9.8
+    match_gt: true
     temporal: true
-    transition_frames: 10
+    transition_frames: 28
+    use_prev_novel: true
+    end_at_gt_view: true      # NEW: snap last frame to GT cam0 pose
     no_crossfade: true
     label: "Temporal Orbit (Time+Rotation)"
 
-  # === Act 3: Comparison & Novel Views (0:33.5 – 0:57) ===
+  # === Act 3: Comparison & Novel Views ===
 
-  # Seg 10: GS-LRM render at 6 GT cameras (zoom + fade + static hold)
+  # Seg 11: GS-LRM render at 6 GT cameras (zoom + fade + static hold)
   - type: flow_render_mosaic
-    duration: 6.0
+    duration: 7.8
     no_crossfade: true
     label: "GS-LRM Reconstruction (6 Cameras)"
 
-  # Seg 11: 6 extrapolated novel views (3×2 grid)
+  # Seg 12: 6 extrapolated novel views (3×2 grid)
   - type: grid_novel_6views
-    duration: 4.0
+    duration: 5.2
     no_crossfade: true
     zoom_out: true
     zoom_ratio: 0.2
     label: "Extrapolated Novel Views"
 
-  # Seg 12: Dense 6×6 turntable grid (fade-in, static end)
+  # Seg 13: Dense 6×6 turntable grid (fade-in, static end)
   - type: grid_novel_dense
-    duration: 6.0
+    duration: 7.8
     rows: 6
     cols: 6
     elevations: [80, 40, 20, -20, -60, -85]

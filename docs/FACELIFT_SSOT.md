@@ -28,6 +28,9 @@ role: single_entry_moc
 | 🗂️ **Full navigation** | `docs/INDEX.md` | MoC |
 | 🧭 **Project conventions** | `CLAUDE.md` (root) | Instr |
 | 📐 **Theory / paper strategy** | Obsidian `30_Projects/_CODES/FaceLift/docs/INDEX.md` v7.6 | Secondary MoC |
+| 🎨 **Visual embedding / feature dim SSOT** | `docs/specs/VISUAL_EMBEDDING_SSOT.md` (🆕 260418) | SSOT |
+| 📝 **ICML AI4Science Workshop plan** (D-6) | `docs/experiments/ICML_CLUSTERING_MODULE_PLAN.md` (🆕 260418) | Plan |
+| 🗄️ **Results MoC** (per-species artifacts) | `~/results/FaceLift/INDEX.md` v4 | MoC |
 
 ---
 

@@ -313,11 +313,24 @@ def compute_face_camera_c2w(
     # Build c2w (OpenCV: z=forward into scene, y=down in image)
     forward = _normalize(face_center - cam_pos)  # z-axis: look direction
 
-    # Up hint: face-plane normal (skull outward) keeps ears horizontal
+    # Up hint: face-plane normal (skull outward) keeps ears horizontal.
+    # Degeneracy guard: if cross product is near-zero (ears collinear with nose,
+    # i.e., head pointing straight up/down) → fall back to world Z-up to avoid
+    # orientation flip per audit (Gemini Critical, 2026-05-16).
     v_ear = R_ear - L_ear
     ear_mid = (L_ear + R_ear) / 2.0
     v_nose = nose - ear_mid
-    face_normal = _normalize(np.cross(v_ear, v_nose))
+    raw_normal = np.cross(v_ear, v_nose)
+    nrm = float(np.linalg.norm(raw_normal))
+    if nrm < 1e-4:
+        face_normal = np.array([0.0, 0.0, 1.0])  # world Z-up fallback
+    else:
+        face_normal = raw_normal / nrm
+    # Additional guard: if face_normal nearly parallel to forward → use world Z-up
+    if abs(float(np.dot(forward, face_normal))) > 0.95:
+        face_normal = np.array([0.0, 0.0, 1.0])
+        if abs(float(np.dot(forward, face_normal))) > 0.95:
+            face_normal = np.array([0.0, 1.0, 0.0])
 
     right = _normalize(np.cross(forward, face_normal))  # x-axis
     down = np.cross(forward, right)                      # y-axis

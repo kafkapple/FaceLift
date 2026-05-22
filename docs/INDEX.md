@@ -66,6 +66,7 @@
 | **[[experiments/HLAC_COMPREHENSIVE_260322]]** | HLAC 종합 분석: 2992 frames, K=8 | **✅ v1.0** |
 | **[[experiments/RELATED_WORK_SURVEY]]** | NeurIPS 2026 Dataset Track 관련 논문 조사 | **✅ v1.0** |
 | **[[experiments/REPORT_SYSTEM_GUIDE]]** | HTML 레포트 시스템 통합 가이드 | **✅ v1.0** |
+| **[[experiments/ICML_CLUSTERING_MODULE_PLAN]]** | ⭐ ICML 2026 Workshop unsupervised clustering 모듈 plan (MVP: PS-50d + DINOv2 + Cov 154d, PCA-50d matched, HLAC 4-class headline) | **🆕 v1.0** |
 
 #### Operational Guides
 
@@ -143,6 +144,7 @@
 | **[[specs/RAT_PREPROCESSING_STRATEGY]]** | RAT zero-pad vs crop vs hybrid 전처리 비교 + 3-model audit + 실험 계획 | **🆕 v1.0** |
 | **[[specs/RAT2_V3_SUCCESS_CRITERIA]]** | RAT2 v3 recentered training 성공 기준: 2-tier milestones + geometry checks + abort conditions | **🆕 v1.0** |
 | **[[specs/CINEMATIC_V11_SPEC]]** | NeurIPS 2026 데모 영상 파이프라인 (768px, 13 segments, 20fps) | **✅ v11c** |
+| **[[specs/VISUAL_EMBEDDING_SSOT]]** | ⭐ Visual embedding feature SSOT (768/154/308/129/50/256d 전량 I/O 명세, COV 88d drift alert) | **🆕 v1.0** |
 | [[specs/4DGS_METHOD_COMPARISON]] | → **Obsidian** `concepts/55_4DGS_METHOD_COMPARISON` (pointer only) | v2.0 |
 
 > **이론 문서 → Obsidian으로 이동** (2026-03-17):

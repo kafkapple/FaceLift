@@ -51,7 +51,6 @@ CUDA_VISIBLE_DEVICES=5 bash mouse_extensions/behavior/run_all_visualizations.sh
 | `freeze_bodypart` | ❄️ frozen | turntable | 정지 + 부위 전환 + orbit |
 | `flow_novel` | ✅ advancing | fixed novel | 고정 novel camera에서 temporal flow. `elevation`, `prev_elevation`+`transition_frames`으로 smoothstep sweep 진입 가능 |
 | `flow_head_kp` | ✅ advancing | orbit+zoom | 머리 부위 확대 + MAMMAL 22-keypoint overlay (depth-based opacity, 약어 라벨, 우측 legend) |
-| `grid_multiview` | ✅ advancing | 3×2 grid | 6-view grid 3단계: GT raw → GS-LRM recon → Novel views (2 elevations × 3 azimuths) |
 
 ### Config 옵션 (YAML)
 
@@ -126,67 +125,47 @@ ssh gpu03 "grep 'CINEMATIC_DONE' ~/dev/FaceLift/outputs/experiments/mouse/cinema
 Turntable orbit는 **GT 카메라와 동일한 방향에서 시작**합니다.
 GT camera의 c2w에서 azimuth를 추출하여 `get_turntable_cameras` 출력을 회전시킵니다.
 
-## 4. Cinematic Demo v6 (configs/mouse/cinematic/)
+## 4. Cinematic Production (configs/mouse/cinematic/)
 
-논문용 데모 영상. 3 variants, 30fps, 768px, ~68s.
+논문용 데모 영상. **Spec SSOT**: [`docs/specs/CINEMATIC_V11_SPEC.md`](../specs/CINEMATIC_V11_SPEC.md) — segment/preset/PLY mode 상세.
 
-### v6 Variants
+### Active Presets (post-260522 cleanup)
 
-| Variant | Config | Controls | Extreme Views | 비고 |
-|---------|--------|----------|---------------|------|
-| **v6_A** | `cinematic_demo_v6_A.yaml` | ON | ON | Full version (icon bar 포함) |
-| **v6_B** | (v6_A `--dual-output-dir`) | OFF | ON | v6_A dual output (추가 추론 없음) |
-| **v6_C** | `cinematic_demo_v6_C.yaml` | OFF | OFF | Clean standard (moderate views only) |
+| Preset | Config | Mode | 용도 |
+|---|---|---|---|
+| **v11** | `cinematic_v11.yaml` | live ckpt | production (768px/20fps, 17 segs) |
+| **paper α=0.3** | `cinematic_v11_FINAL_alpha03_16k.yaml` | PLY | paper-consistent (best alpha) |
+| **paper α=1.0** | `cinematic_v11_FINAL_alpha10_16k.yaml` | PLY | artifact demo |
+| **filtered** | `cinematic_v11_FINAL_filtered_a067.yaml` | PLY | view-filtered |
+| paper (live) | `cinematic_v11_paper.yaml` | live ckpt | paper render |
+| default | `cinematic_default.yaml` | minimal | smoke (512px/15fps) |
+| _base | `_base.yaml` | — | inheritance root |
 
-### 세그먼트 구성 (v6_A, 10 segments)
-
-| # | Type | Duration | 설명 |
-|---|------|----------|------|
-| 1 | `flow_gt_opener` | 3.0s | GT 6-cam mosaic → zoom to cam 0 |
-| 2 | `flow_gt` | 3.0s | GT RGB (raw background) |
-| 3 | `flow_mask` | 2.5s | SAM2 foreground segmentation |
-| 4 | `flow_render` | 8.0s | GS-LRM 재구성 (α=0.3) |
-| 5 | `freeze_orbit` | 10.0s | 360° turntable (SLERP 진입, no_crossfade) |
-| 6 | `flow_novel` | 6.0s | Bottom view (-80°, use_prev_azimuth) |
-| 7 | `flow_head_kp` | 9.0s | Head close-up + KP (zoom 1.0→0.75→1.0) |
-| 8 | `flow_novel_extra` | 8.0s | Extrapolated novel views cycling |
-| 9 | `flow_gt_zoom_out` | 5.0s | SLERP → GT cam + zoom-out to mosaic |
-| 10 | `grid_novel_6views` | 8.0s | 6 novel views grid (Top/Bot/Frt/Rgt/Rear/Lft) |
+> Legacy v6/v8/v9/quick_test/compare/face_follow variants → `configs/mouse/cinematic/_archive/` (gitignored).
 
 ### 실행 명령
 
 ```bash
-# 전체 3 variants 동시 실행 (GPU4 + GPU5)
-bash mouse_extensions/scripts/run_cinematic_v6_all.sh
+# Production
+CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.cinematic_sequence \
+    --config configs/mouse/cinematic/cinematic_v11.yaml \
+    --output-dir /node_data/joon/cinematic_repro/v11 \
+    --use-cache --save-segments
 
-# 또는 개별 실행
-CUDA_VISIBLE_DEVICES=5 /home/joon/anaconda3/envs/facelift/bin/python \
-    -m mouse_extensions.behavior.cinematic_sequence \
-    --config configs/mouse/cinematic/cinematic_demo_v6_A.yaml \
-    --output-dir outputs/viz/cinematic/mouse/demo_v6_A \
-    --use-cache --save-segments \
-    --dual-output-dir outputs/viz/cinematic/mouse/demo_v6_B
+# Paper PLY (ckpt-independent)
+... --config configs/mouse/cinematic/cinematic_v11_FINAL_alpha03_16k.yaml ...
 
 # 완료 확인
-grep 'CINEMATIC_DONE' outputs/viz/cinematic/mouse/demo_v6_A/run.log
-
-# 다운로드
-scp gpu03:~/dev/FaceLift/outputs/viz/cinematic/mouse/demo_v6_{A,B,C}/cinematic_demo.mp4 ~/Downloads/
+grep 'CINEMATIC_DONE' /node_data/joon/cinematic_repro/v11/run.log
 ```
 
-### 소요 시간
-
-- 총 unique inference: ~526 (frame_step=2 적용 후)
-- GPU당 inference 속도: ~17s/frame (GPU5 기준, 260329 측정)
-- 예상 완료 시간: **약 2.5시간**
-
-### 왜 MP4 크기가 작나? (~7MB)
+### MP4 압축 노트
 
 | 단계 | 크기 | 이유 |
 |------|------|------|
-| Float32 프레임 | ~10GB | 768²×3×4B×1545f |
+| Float32 프레임 | ~10GB | 768²×3×4B×N |
 | uint8 변환 | ~2.7GB | 4x 절약 |
-| **mp4v 압축 후** | **~7MB** | ~385:1 — 흰 배경 + 느린 움직임으로 temporal redundancy 극대화 |
+| **H.264 압축 후** | **~7-30MB** | 흰 배경 + 느린 움직임으로 temporal redundancy 극대화 |
 
 ## 5. 세그먼트 캐시 시스템
 

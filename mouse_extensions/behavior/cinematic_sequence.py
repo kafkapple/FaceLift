@@ -9,16 +9,13 @@ Segment types (active, v6+):
   freeze_orbit         — Freeze time, 360° turntable
   flow_novel           — Temporal flow at fixed novel camera (elevation param)
   flow_head_kp         — Temporal flow, head-only + keypoint overlay + orbit
-  flow_novel_extra     — Temporal flow cycling through multiple novel cameras
-  flow_gt_zoom_out     — SLERP back to GT cam + zoom-out to 6-cam mosaic
+  face_follow          — Body-part camera tracking (nose→neck axis, front/reverse)
+  gaussian_flash       — Frozen-time Gaussian primitive 360° orbit
   grid_novel_6views    — 6 fixed novel views in 3×2 grid
-
-Legacy (v5 backward compat):
-  grid_multiview       — 6-view grid: GT / recon / novel phases
 
 Usage:
     CUDA_VISIBLE_DEVICES=5 python -m mouse_extensions.behavior.cinematic_sequence \
-        --config mouse_extensions/behavior/cinematic_default.yaml \
+        --config configs/mouse/cinematic/cinematic_default.yaml \
         --output-dir outputs/viz/cinematic/mouse/latest
 
     # Or with CLI overrides:
@@ -93,8 +90,12 @@ def gt_camera_spherical(frame_dir: str, view_idx: int) -> Tuple[float, float, fl
 def get_orbit_cameras(n_frames: int, elevation: float, radius: float = 2.7,
                       hfov: float = 50, resolution: int = 512,
                       mode: str = "turntable", elevation_end: float = None,
-                      start_azimuth: float = 270.0):
-    """Generate camera poses via get_turntable_cameras."""
+                      start_azimuth: float = 270.0, center=None):
+    """Generate camera poses via get_turntable_cameras.
+
+    center: 3D point (scene center) for orbit. If None, uses world origin.
+            Use compute_camera_convergence_center(GT_c2ws) for proper alignment.
+    """
     from mouse_extensions.visualization.camera_utils import get_turntable_cameras
 
     kw = dict(hfov=hfov, num_views=n_frames, w=resolution, h=resolution,
@@ -102,14 +103,30 @@ def get_orbit_cameras(n_frames: int, elevation: float, radius: float = 2.7,
               start_azimuth=start_azimuth)
     if elevation_end is not None:
         kw["elevation_end"] = elevation_end
+    if center is not None:
+        kw["center"] = center
     w, h, _, fxfy, c2ws = get_turntable_cameras(**kw)
 
     return c2ws, fxfy, w, h
 
 
+def compute_scene_center_from_gt(frame_dir: str, num_views: int = 6) -> np.ndarray:
+    """Compute scene center via least-squares ray intersection of GT cams.
+
+    Use as look-at target for orbit cameras to align with actual mouse position
+    (instead of defaulting to world origin).
+    """
+    from mouse_extensions.visualization.camera_utils import compute_camera_convergence_center
+    c2ws = np.array([gt_camera_c2w(frame_dir, v) for v in range(num_views)])
+    return compute_camera_convergence_center(c2ws)
+
+
 def render_cam(gaussians, c2w, fxfy, w, h, mask=None,
-               bg=(0., 0., 0.), device="cuda"):
-    """Render with pre-computed camera matrices."""
+               bg=(0., 0., 0.), device="cuda", return_depth=False):
+    """Render with pre-computed camera matrices.
+
+    return_depth=True returns (img, depth_map_HxW) for KP occlusion tests.
+    """
     from mouse_extensions.visualization import render_opencv_cam
     c2w_t = torch.tensor(c2w, dtype=torch.float32, device=device)
     fxfy_t = torch.tensor(fxfy, dtype=torch.float32, device=device)
@@ -121,10 +138,52 @@ def render_cam(gaussians, c2w, fxfy, w, h, mask=None,
         with torch.no_grad():
             r = render_opencv_cam(gaussians, h, w, c2w_t, fxfy_t, bg_color=bg)
         img = r["render"].permute(1, 2, 0).cpu().numpy()
+        if return_depth:
+            dep = r["depth"]
+            # depth shape: (1, H, W) or (H, W) — squeeze to HxW float32 ndarray
+            if hasattr(dep, "permute"):
+                dep_np = dep.squeeze().detach().cpu().numpy()
+            else:
+                dep_np = np.asarray(dep).squeeze()
     finally:
         if old is not None:
             gaussians._opacity.data = old
-    return np.clip(img, 0, 1)
+    img_clip = np.clip(img, 0, 1)
+    if return_depth:
+        return img_clip, dep_np
+    return img_clip
+
+
+def temporal_smooth_frames(imgs, window=3, weights=None):
+    """Apply per-pixel weighted moving average across frames in `imgs` list.
+
+    window: odd int. weights: optional (window,) array (default: gaussian).
+    Edge frames use truncated kernel (mode='reflect').
+    Reduces high-frequency render flicker without blurring slow motion.
+    """
+    if window <= 1 or len(imgs) < 2:
+        return imgs
+    n = len(imgs)
+    arr = np.stack(imgs, axis=0)  # (N, H, W, 3)
+    if weights is None:
+        # Gaussian weights centered at window//2
+        sig = max(window / 3.0, 0.5)
+        x = np.arange(window) - window // 2
+        weights = np.exp(-(x ** 2) / (2 * sig ** 2))
+    weights = np.asarray(weights, dtype=np.float32)
+    weights = weights / weights.sum()
+    half = window // 2
+    out = np.empty_like(arr)
+    for i in range(n):
+        acc = np.zeros_like(arr[0])
+        wsum = 0.0
+        for k, w in enumerate(weights):
+            j = i + (k - half)
+            j = max(0, min(n - 1, j))  # reflect at edges
+            acc = acc + arr[j] * w
+            wsum += w
+        out[i] = acc / wsum
+    return [out[i] for i in range(n)]
 
 
 # ---------------------------------------------------------------------------
@@ -146,8 +205,107 @@ def infer_frame(model, fi, m5_dir, kp_path, n_thresh=2, res=512, device="cuda"):
     pm = assign_gaussians_to_bodyparts_3d(xyz, kp)
     del result, imgs, c2ws, fxfy
     torch.cuda.empty_cache()
-    return {"gaussians": g, "vis_mask": vm, "part_masks": pm,
+    return {"gaussians": g, "vis_mask": vm, "vis_counts": vc, "part_masks": pm,
             "frame_dir": str(fd), "frame_idx": fi}
+
+
+def load_gaussians_from_ply(ply_path: str, device: str = "cuda"):
+    """Load Inria-format 3DGS PLY → GaussianModel (matches gslrm.model.gaussians_renderer).
+
+    PLY stores RAW (pre-activation) values: opacity (logit), scale_0/1/2 (log),
+    rot_0/1/2/3 (unnormalized). Activations are applied by GaussianModel.get_*.
+    Detects sh_degree from f_rest_* count: (1 + N/3) coefficients → sh_degree.
+    """
+    from plyfile import PlyData
+    from gslrm.model.gaussians_renderer import GaussianModel
+
+    p = PlyData.read(ply_path)
+    v = p["vertex"].data
+    names = v.dtype.names
+    n = len(v)
+
+    xyz = np.stack([v["x"], v["y"], v["z"]], axis=1).astype(np.float32)
+    f_dc = np.stack([v["f_dc_0"], v["f_dc_1"], v["f_dc_2"]], axis=1).astype(np.float32)
+    rest_names = sorted([nm for nm in names if nm.startswith("f_rest_")],
+                        key=lambda s: int(s.split("_")[-1]))
+    if rest_names:
+        f_rest_flat = np.stack([v[nm] for nm in rest_names], axis=1).astype(np.float32)
+        # Inria layout: f_rest stored as (N, 3*coef) ordered [r0,r1,...rK, g0,...gK, b0,...bK]
+        n_coef_rest = len(rest_names) // 3
+        f_rest = f_rest_flat.reshape(n, 3, n_coef_rest).transpose(0, 2, 1)
+    else:
+        n_coef_rest = 0
+        f_rest = np.zeros((n, 0, 3), dtype=np.float32)
+
+    sh_count = 1 + n_coef_rest
+    sh_degree = int(np.sqrt(sh_count)) - 1
+    features = np.concatenate([f_dc[:, None, :], f_rest], axis=1)  # (N, sh_count, 3)
+
+    opacity = v["opacity"].astype(np.float32).reshape(n, 1)
+    scaling = np.stack([v["scale_0"], v["scale_1"], v["scale_2"]], axis=1).astype(np.float32)
+    rotation = np.stack([v["rot_0"], v["rot_1"], v["rot_2"], v["rot_3"]], axis=1).astype(np.float32)
+
+    g = GaussianModel(sh_degree=sh_degree)
+    g.set_data(
+        torch.from_numpy(xyz).to(device),
+        torch.from_numpy(features).to(device),
+        torch.from_numpy(scaling).to(device),
+        torch.from_numpy(rotation).to(device),
+        torch.from_numpy(opacity).to(device),
+    )
+    return g
+
+
+def infer_frame_from_ply(ply_dir, fi, m5_dir, kp_path, n_thresh=2, device="cuda"):
+    """PLY-mode counterpart to infer_frame: loads precomputed Gaussians from disk.
+
+    Skips model.forward; uses GT cameras + keypoints from m5_dir/kp_path for
+    visibility counts + body-part assignment. Frame index → ply path:
+    {ply_dir}/{split}/frame_{fi:06d}.ply (split auto-detected: train/val/test).
+    """
+    fd = Path(m5_dir) / f"{fi:06d}"
+    if not fd.exists():
+        return None
+    pdir = Path(ply_dir)
+    name = f"frame_{fi:06d}.ply"
+    ply_path = None
+    if (pdir / name).exists():
+        ply_path = pdir / name
+    else:
+        for sp in ("train", "val", "test"):
+            cand = pdir / sp / name
+            if cand.exists():
+                ply_path = cand
+                break
+    if ply_path is None:
+        return None
+    g = load_gaussians_from_ply(str(ply_path), device=device)
+    xyz = g.get_xyz.detach().cpu().numpy()
+    vc = compute_visibility_counts(xyz, str(fd), n_views=6)
+    vm = vc >= n_thresh
+    kp = load_keypoints_gslrm(kp_path, fi)
+    pm = assign_gaussians_to_bodyparts_3d(xyz, kp)
+    return {"gaussians": g, "vis_mask": vm, "vis_counts": vc, "part_masks": pm,
+            "frame_dir": str(fd), "frame_idx": fi}
+
+
+def build_count_match_mask(fd, n_filter: int = 5, top_k: int = 16000) -> np.ndarray:
+    """Paper count-match: N-of-6 multi-view opacity vote + top-K opacity selection.
+
+    Reference: ICML workshop PARADIGM_COMPARISON_SSOT.md §36 — GS native ~100k →
+    16k (5/6 multi-view opacity-mask vote, top-K opacity, w_α=0.3 ckpt).
+    """
+    vis = fd["vis_counts"] >= n_filter
+    opacity = fd["gaussians"].get_opacity.detach().cpu().numpy().squeeze()
+    cands = np.where(vis)[0]
+    if len(cands) <= top_k:
+        mask = np.zeros_like(opacity, dtype=bool)
+        mask[cands] = True
+        return mask
+    top_idx = cands[np.argsort(-opacity[cands])[:top_k]]
+    mask = np.zeros_like(opacity, dtype=bool)
+    mask[top_idx] = True
+    return mask
 
 
 def free_fd(fd):
@@ -157,20 +315,256 @@ def free_fd(fd):
 
 
 # ---------------------------------------------------------------------------
+# 1-Euro camera filter (CHI 2012) — velocity-adaptive low-pass for c2w sequences.
+# Removes hand-tracking-style jitter while preserving deliberate large motion.
+# ---------------------------------------------------------------------------
+
+class OneEuroFilter:
+    """1-Euro low-pass filter (Casiez et al. CHI 2012). Velocity-adaptive cutoff."""
+    def __init__(self, mincutoff: float = 1.0, beta: float = 0.05,
+                 dcutoff: float = 1.0, freq: float = 30.0):
+        self.mincutoff = mincutoff
+        self.beta = beta
+        self.dcutoff = dcutoff
+        self.freq = freq
+        self._prev_x = None
+        self._prev_dx = None
+
+    @staticmethod
+    def _alpha(cutoff: float, freq: float) -> float:
+        tau = 1.0 / (2.0 * np.pi * cutoff)
+        te = 1.0 / freq
+        return 1.0 / (1.0 + tau / te)
+
+    def __call__(self, x):
+        x = np.asarray(x, dtype=np.float64)
+        if self._prev_x is None:
+            self._prev_x = x.copy()
+            self._prev_dx = np.zeros_like(x)
+            return x
+        dx = (x - self._prev_x) * self.freq
+        a_d = self._alpha(self.dcutoff, self.freq)
+        edx = a_d * dx + (1 - a_d) * self._prev_dx
+        cutoff = self.mincutoff + self.beta * float(np.linalg.norm(edx))
+        a = self._alpha(cutoff, self.freq)
+        ex = a * x + (1 - a) * self._prev_x
+        self._prev_x = ex
+        self._prev_dx = edx
+        return ex
+
+
+def _quat_from_R(R):
+    tr = R[0, 0] + R[1, 1] + R[2, 2]
+    if tr > 0:
+        s = 2.0 * np.sqrt(tr + 1.0)
+        w = 0.25 * s
+        x = (R[2, 1] - R[1, 2]) / s
+        y = (R[0, 2] - R[2, 0]) / s
+        z = (R[1, 0] - R[0, 1]) / s
+    elif R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
+        s = 2.0 * np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2])
+        w = (R[2, 1] - R[1, 2]) / s
+        x = 0.25 * s
+        y = (R[0, 1] + R[1, 0]) / s
+        z = (R[0, 2] + R[2, 0]) / s
+    elif R[1, 1] > R[2, 2]:
+        s = 2.0 * np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2])
+        w = (R[0, 2] - R[2, 0]) / s
+        x = (R[0, 1] + R[1, 0]) / s
+        y = 0.25 * s
+        z = (R[1, 2] + R[2, 1]) / s
+    else:
+        s = 2.0 * np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1])
+        w = (R[1, 0] - R[0, 1]) / s
+        x = (R[0, 2] + R[2, 0]) / s
+        y = (R[1, 2] + R[2, 1]) / s
+        z = 0.25 * s
+    q = np.array([w, x, y, z])
+    return q / np.linalg.norm(q)
+
+
+def _R_from_quat(q):
+    w, x, y, z = q
+    return np.array([
+        [1 - 2*(y*y + z*z), 2*(x*y - z*w), 2*(x*z + y*w)],
+        [2*(x*y + z*w), 1 - 2*(x*x + z*z), 2*(y*z - x*w)],
+        [2*(x*z - y*w), 2*(y*z + x*w), 1 - 2*(x*x + y*y)],
+    ])
+
+
+def smooth_camera_oneuro(c2ws, mincutoff: float = 1.2, beta: float = 0.05,
+                         freq: float = 30.0, median_window: int = 3):
+    """Apply 1-Euro filter to a sequence of c2w (4x4) matrices.
+    Translation: median(3) + 1-Euro per-component.
+    Rotation: SLERP-based smoothing (quaternion-aware, NOT per-component median —
+    audit found that breaks SE(3) integrity → camera flips/jumps).
+
+    Audit fixes applied (2026-05-16):
+    - Removed per-component median on quaternion (Gemini Major, o3 Critical)
+    - Post-1-Euro quaternion sign continuity check (Haiku Major)
+    - 1-Euro defaults rebalanced for 20fps target (o3 Critical: was tuned for 120Hz)
+    - SE(3)-aware: rotations smoothed via SLERP across local window
+    """
+    if not c2ws:
+        return c2ws
+    n = len(c2ws)
+
+    # 1) Extract translations + quaternions with shortest-path flips (raw seq)
+    ts = np.zeros((n, 3))
+    qs = np.zeros((n, 4))
+    prev_q = None
+    for i, c2w in enumerate(c2ws):
+        ts[i] = c2w[:3, 3]
+        q = _quat_from_R(c2w[:3, :3])
+        if prev_q is not None and np.dot(prev_q, q) < 0:
+            q = -q
+        prev_q = q
+        qs[i] = q
+
+    # 2) Translation: median pre-pass (1-frame outlier reject) + 1-Euro
+    if median_window > 1 and n >= median_window:
+        from scipy.ndimage import median_filter
+        for ax in range(3):
+            ts[:, ax] = median_filter(ts[:, ax], size=median_window, mode='nearest')
+    t_filter = OneEuroFilter(mincutoff, beta, freq=freq)
+    ts_smooth = np.array([t_filter(ts[i]) for i in range(n)])
+
+    # 3) Rotation: SLERP-based windowed mean (preserves SO(3) manifold).
+    # For each frame, blend with previous smoothed quat using 1-Euro alpha
+    # computed from quaternion ANGULAR velocity (not per-component velocity).
+    q_smooth = np.zeros_like(qs)
+    q_smooth[0] = qs[0]
+    prev_smooth = qs[0]
+    prev_dq = 0.0
+    a_d_const = OneEuroFilter._alpha(1.0, freq)
+    for i in range(1, n):
+        # Angular distance: |1 - |dot(prev, curr)||
+        d = abs(np.dot(prev_smooth, qs[i]))
+        d = min(d, 1.0)
+        ang_dist = 2.0 * np.arccos(d)  # rad in [0, π]
+        # Velocity = ang_dist * freq (rad/sec), low-passed
+        ang_vel = ang_dist * freq
+        edx = a_d_const * ang_vel + (1 - a_d_const) * prev_dq
+        prev_dq = edx
+        cutoff = mincutoff + beta * float(edx)
+        a = OneEuroFilter._alpha(cutoff, freq)
+        # SLERP from prev_smooth to qs[i] by amount 'a'
+        q_smooth[i] = _slerp(prev_smooth, qs[i], a)
+        # Sign continuity check (post-filter): ensure smooth trajectory
+        if np.dot(q_smooth[i], prev_smooth) < 0:
+            q_smooth[i] = -q_smooth[i]
+        prev_smooth = q_smooth[i]
+
+    # 4) Reassemble c2w
+    out = []
+    for i in range(n):
+        c = np.eye(4)
+        c[:3, :3] = _R_from_quat(q_smooth[i])
+        c[:3, 3] = ts_smooth[i]
+        out.append(c)
+    return out
+
+
+def _slerp(q0, q1, t: float):
+    """Spherical linear interpolation between unit quaternions."""
+    d = float(np.dot(q0, q1))
+    if d < 0:
+        q1 = -q1
+        d = -d
+    if d > 0.9995:
+        # Linear interp + renormalize for near-identical quats (avoids div-by-0)
+        r = q0 + t * (q1 - q0)
+        return r / np.linalg.norm(r)
+    theta_0 = np.arccos(d)
+    theta = theta_0 * t
+    sin_theta = np.sin(theta)
+    sin_theta_0 = np.sin(theta_0)
+    s0 = np.cos(theta) - d * sin_theta / sin_theta_0
+    s1 = sin_theta / sin_theta_0
+    return s0 * q0 + s1 * q1
+
+
+# Per-KP reliability tier: 'high' = on body surface, easy to align;
+# 'mid' = limb extremities; 'low' = body interior (poor MAMMAL↔GS-LRM agreement).
+# Used by face_follow auto-hide to drop low-reliability KPs by default.
+_KP_RELIABILITY = {
+    0: 'high',  1: 'high',  2: 'high',  3: 'high',   # face: LE, RE, Ns, Nk
+    4: 'low',                                         # BM (body middle, interior)
+    5: 'low',  6: 'low',                              # TR, TM (tail root/middle, interior)
+    7: 'mid',                                         # TE (tail end, surface)
+    8: 'high',  12: 'high', 16: 'high', 19: 'high',  # paw tips (LP, RP, LF, RF)
+    9: 'mid', 10: 'mid', 11: 'mid',                   # left limb intermediate
+    13: 'mid', 14: 'mid', 15: 'mid',                  # right limb intermediate
+    17: 'mid', 18: 'mid', 20: 'mid', 21: 'mid',       # hindlimb intermediate
+}
+
+
+# ---------------------------------------------------------------------------
 # Image helpers
 # ---------------------------------------------------------------------------
 
-def load_gt(fd_path, view, bg_color=(1.0, 1.0, 1.0), raw=False, res=None):
+def _detect_content_bbox(rgb_full, white_thr: int = 240):
+    """Find tight bbox of non-white content (drops PNG padding).
+    Returns (y0, y1, x0, x1) inclusive. None if all-white."""
+    u8 = (rgb_full * 255).astype(np.uint8)
+    gray = u8.mean(axis=-1)
+    not_white = gray < white_thr
+    rows = np.where(not_white.any(axis=1))[0]
+    cols = np.where(not_white.any(axis=0))[0]
+    if not len(rows) or not len(cols):
+        return None
+    return int(rows[0]), int(rows[-1]), int(cols[0]), int(cols[-1])
+
+
+def load_gt(fd_path, view, bg_color=(1.0, 1.0, 1.0), raw=False, res=None,
+            crop_margin: float = 0.0, center_on_mouse: bool = False,
+            crop_size_pct: float = 0.70, auto_trim_padding: bool = False,
+            trim_pad_extra: int = 0):
     """Load GT RGB. raw=True keeps original background, False composites onto bg_color.
-    If res is provided, output is resized to (res, res) so it matches VideoWriter dimensions."""
+    If res is provided, output is resized to (res, res) so it matches VideoWriter dimensions.
+    crop_margin: fraction (0.0-0.20) of image edge to crop before resize. Mitigates
+        wide-FOV perspective curvature on edges (no dist coeffs in opencv_cameras.json).
+    center_on_mouse: if True, override crop_margin and crop a square window of size
+        (crop_size_pct * min(H,W)) centered on the mouse alpha bbox centroid. Aligns
+        all 6 views' visual content (mouse always centered, same zoom).
+    """
     from PIL import Image
     p = Path(fd_path) / "images" / f"cam_{view:03d}.png"
     img = np.array(Image.open(p))
-    rgb = img[:, :, :3] / 255.0
+    rgb_full = img[:, :, :3] / 255.0
+    h_img, w_img = rgb_full.shape[:2]
     if not raw and img.shape[-1] == 4:
         alpha = img[:, :, 3:4] / 255.0
         bg = np.array(bg_color).reshape(1, 1, 3)
-        rgb = rgb * alpha + bg * (1 - alpha)
+        rgb = rgb_full * alpha + bg * (1 - alpha)
+    else:
+        rgb = rgb_full
+    if auto_trim_padding:
+        # Per-view: detect content bbox (non-white) → crop tight → all views same content
+        # height after resize → mosaic borders horizontally aligned.
+        bb = _detect_content_bbox(rgb_full, white_thr=240)
+        if bb is not None:
+            y0, y1, x0, x1 = bb
+            y0 = max(0, y0 - trim_pad_extra)
+            y1 = min(rgb.shape[0] - 1, y1 + trim_pad_extra)
+            x0 = max(0, x0 - trim_pad_extra)
+            x1 = min(rgb.shape[1] - 1, x1 + trim_pad_extra)
+            rgb = rgb[y0:y1 + 1, x0:x1 + 1]
+    elif center_on_mouse and img.shape[-1] == 4:
+        mask = img[..., 3] > 128
+        if mask.any():
+            ys, xs = np.where(mask)
+            cy = int((ys.min() + ys.max()) / 2)
+            cx = int((xs.min() + xs.max()) / 2)
+            crop_sz = int(min(h_img, w_img) * crop_size_pct)
+            half = crop_sz // 2
+            y0 = max(0, min(h_img - crop_sz, cy - half))
+            x0 = max(0, min(w_img - crop_sz, cx - half))
+            rgb = rgb[y0:y0 + crop_sz, x0:x0 + crop_sz]
+    elif crop_margin and crop_margin > 0:
+        m_h = int(h_img * crop_margin)
+        m_w = int(w_img * crop_margin)
+        rgb = rgb[m_h:h_img - m_h, m_w:w_img - m_w]
     if res is not None and (rgb.shape[0] != res or rgb.shape[1] != res):
         rgb = cv2.resize(rgb, (res, res), interpolation=cv2.INTER_LINEAR)
     return rgb
@@ -229,17 +623,27 @@ def overlay_keypoints(img, kp_2d, kp_valid, bone_width=2, kp_radius=5,
             depth_alpha = alpha_max - alpha_range * np.clip(
                 (kp_depth - d_min) / d_range, 0, 1)
 
-    # Skeleton bones
+    # Skeleton bones — depth-modulated width + length sanity filter
+    diag2 = float(W * W + H * H)
     for a, b in SKELETON_BONES:
-        if kp_valid[a] and kp_valid[b]:
-            p1 = (int(kp_2d[a, 0]), int(kp_2d[a, 1]))
-            p2 = (int(kp_2d[b, 0]), int(kp_2d[b, 1]))
-            ca = np.array(MAMMAL_KP_COLORS.get(a, (200, 200, 200)), dtype=np.float32)
-            cb = np.array(MAMMAL_KP_COLORS.get(b, (200, 200, 200)), dtype=np.float32)
-            ba = (depth_alpha[a] + depth_alpha[b]) / 2
-            bc = tuple(int(v * ba) for v in ((ca + cb) / 2).astype(np.uint8))
-            cv2.line(u8, p1, p2, (0, 0, 0), bone_width + 2, cv2.LINE_AA)
-            cv2.line(u8, p1, p2, bc, bone_width, cv2.LINE_AA)
+        if not (kp_valid[a] and kp_valid[b]):
+            continue
+        p1 = (int(kp_2d[a, 0]), int(kp_2d[a, 1]))
+        p2 = (int(kp_2d[b, 0]), int(kp_2d[b, 1]))
+        # Skip impossibly long bones (off-screen projection artifact)
+        dx, dy = p1[0] - p2[0], p1[1] - p2[1]
+        if dx * dx + dy * dy > diag2 * 0.25:  # > 50% of diagonal = likely bug
+            continue
+        ca = np.array(MAMMAL_KP_COLORS.get(a, (200, 200, 200)), dtype=np.float32)
+        cb = np.array(MAMMAL_KP_COLORS.get(b, (200, 200, 200)), dtype=np.float32)
+        ba = (depth_alpha[a] + depth_alpha[b]) / 2
+        bc = tuple(int(v * ba) for v in ((ca + cb) / 2).astype(np.uint8))
+        # Depth-modulated bone width: closer = thicker
+        bw = max(1, int(bone_width * (0.6 + 0.4 * ba)))
+        line_type = cv2.LINE_AA if bw >= 2 else cv2.LINE_8
+        if bw >= 2:
+            cv2.line(u8, p1, p2, (0, 0, 0), bw + 1, cv2.LINE_AA)
+        cv2.line(u8, p1, p2, bc, bw, line_type)
 
     # Keypoints
     for i in range(len(kp_2d)):
@@ -251,17 +655,21 @@ def overlay_keypoints(img, kp_2d, kp_valid, bone_width=2, kp_radius=5,
         c_full = np.array(MAMMAL_KP_COLORS.get(i, (200, 200, 200)), dtype=np.float32)
         da = depth_alpha[i]
         c = tuple(int(v * da) for v in c_full.astype(np.uint8))
-        r = max(2, int(kp_radius * (0.55 + 0.45 * da)))  # closer = larger dot
-        cv2.circle(u8, (x, y), r + 2, (0, 0, 0), -1, cv2.LINE_AA)
-        cv2.circle(u8, (x, y), r, c, -1, cv2.LINE_AA)
+        r = max(1, int(kp_radius * (0.55 + 0.45 * da)))  # closer = larger dot
+        # Use LINE_8 (sharp, no AA bleed) when r=1 — keeps tiny dots crisp instead of fuzzy 3-4px
+        line_type = cv2.LINE_AA if r >= 2 else cv2.LINE_8
+        if r >= 2:
+            cv2.circle(u8, (x, y), r + 1, (0, 0, 0), -1, cv2.LINE_AA)
+        cv2.circle(u8, (x, y), r, c, -1, line_type)
         if show_labels:
             abbrev = KP_ABBREVS[i] if i < len(KP_ABBREVS) else str(i)
-            tx, ty = x + r + 3, y + 4
-            if 0 <= tx < W - 20 and 0 <= ty < H - 2:
+            tx, ty = x + r + 4, y + 5
+            if 0 <= tx < W - 24 and 0 <= ty < H - 2:
+                # Larger font (0.30 → 0.45), thicker outline for legibility on light bg
                 cv2.putText(u8, abbrev, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.30, (0, 0, 0), 2, cv2.LINE_AA)
+                            0.45, (0, 0, 0), 3, cv2.LINE_AA)
                 cv2.putText(u8, abbrev, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.30, (220, 220, 220), 1, cv2.LINE_AA)
+                            0.45, (255, 255, 255), 1, cv2.LINE_AA)
 
     if show_legend:
         u8 = _add_kp_legend(u8)
@@ -380,17 +788,16 @@ def crossfade(a, b, t):
 
 # Icon bar: maps segment type → icon name
 SEGMENT_ICON_MAP = {
-    # Active segment types (v6+)
+    # Active segment types (v12+, post-cleanup 2026-05-15)
     "flow_gt": "PLAY", "flow_gt_opener": "PLAY", "flow_mask": "PLAY",
-    "flow_render": "PLAY", "flow_raw_gaussians": "PLAY",
-    "flow_novel": "PLAY", "flow_novel_extra": "PLAY",
+    "flow_render": "PLAY", "flow_novel": "PLAY",
     "freeze_orbit": "ORBIT",
     "flow_head_kp": "KP",
-    "flow_gt_zoom_out": "PLAY", "flow_render_mosaic": "GRID",
+    "flow_render_mosaic": "GRID",
     "grid_novel_6views": "GRID",
     "grid_novel_dense": "GRID",
-    # Legacy (v5 backward compat)
-    "grid_multiview": "GRID",
+    "gaussian_flash": "PLAY",
+    "face_follow": "KP",
 }
 # BODY icon used for intra-segment toggle (full body reveal in flow_head_kp)
 ICON_DEFS = [("PLAY", "> PLAY"), ("ORBIT", "() ORBIT"), ("KP", "* KP"),
@@ -494,9 +901,20 @@ class CinematicPipeline:
         self.hfov = self.cam_cfg.get("hfov", 50)
         self.m5 = os.path.expanduser(cfg["model"]["m5_dir"])
         self.kp = os.path.expanduser(cfg["model"]["kp_path"])
+        # PLY mode: if set, load precomputed Gaussians instead of running model.forward.
+        # ckpt-independent, paper-consistent (uses _maskcarve16k or equivalent).
+        _pd = cfg["model"].get("ply_dir")
+        self.ply_dir = os.path.expanduser(_pd) if _pd else None
         self.kp_overlay = self.g.get("keypoint_overlay", False)
         self.border_color = self.g.get("mask_border_color", None)
         self._show_controls = self.g.get("show_controls", False)
+        # Wide-FOV perspective curvature mitigation (no dist coeffs in opencv_cameras.json).
+        # Crops outermost N% of GT image edges before resize. Default off.
+        self.crop_margin = float(self.g.get("crop_margin", 0.0))
+        # GT padding auto-trim — drops PNG white padding so 6 views align horizontally
+        # (each view has different white-border thickness; uniform crop_margin can't fix).
+        self.gt_auto_trim = bool(self.g.get("gt_auto_trim_padding", False))
+        self.gt_trim_extra = int(self.g.get("gt_trim_pad_extra", 0))
 
         # KP visualization params (from config or defaults)
         kp_cfg = cfg.get("keypoint", {})
@@ -508,7 +926,7 @@ class CinematicPipeline:
         # State shared across segments
         self._last_orbit_az: float = 270.0          # updated by freeze_orbit handler
         self._last_orbit_c2w: Optional[np.ndarray] = None   # for SLERP into flow_novel
-        self._last_novel_c2w: Optional[np.ndarray] = None   # for SLERP into flow_gt_zoom_out
+        self._last_novel_c2w: Optional[np.ndarray] = None   # face_follow → freeze_orbit SLERP continuity
         self._pending_subevents: List[tuple] = []           # (rel_frame_idx, icon) from handlers
 
         # Pre-load keypoints array if overlay enabled
@@ -557,6 +975,16 @@ class CinematicPipeline:
 
     def _fd(self, fi):
         return str(Path(self.m5) / f"{fi:06d}")
+
+    def _infer(self, fi, n_thresh=None, res=None):
+        """Dispatch frame inference: PLY load (if ply_dir set) or live model.forward."""
+        nt = n_thresh if n_thresh is not None else self.n_thresh
+        if self.ply_dir is not None:
+            return infer_frame_from_ply(self.ply_dir, fi, self.m5, self.kp,
+                                        n_thresh=nt, device=self.device)
+        r = res if res is not None else self.res
+        return infer_frame(self.model, fi, self.m5, self.kp,
+                           n_thresh=nt, res=r, device=self.device)
 
     def _apply_kp(self, img, fi, view=None):
         """Overlay keypoints on image if enabled."""
@@ -637,9 +1065,7 @@ class CinematicPipeline:
 
                 # Restore prev_fd for downstream segments that need Gaussians
                 if stype not in _NO_INFER_SEGS and "last_fi" in d:
-                    fd_restored = infer_frame(
-                        self.model, int(d["last_fi"][0]),
-                        self.m5, self.kp, self.n_thresh, self.res, self.device)
+                    fd_restored = self._infer(int(d["last_fi"][0]))
                     if fd_restored is not None:
                         last_fd = fd_restored
 
@@ -649,6 +1075,15 @@ class CinematicPipeline:
                 fi_before = self.fi
                 frames, last_fd = handler(seg, n, last_fd)
                 fi_after = self.fi
+
+                # Optional temporal smoothing (per-segment, applied BEFORE cache save).
+                # Excluded: opener/grid/mosaic segments (frames are already composited
+                # mosaics, smoothing would blur tile boundaries).
+                _ts = seg.get("temporal_smooth", self.g.get("temporal_smooth", 0))
+                _excluded = {"flow_gt_opener", "grid_novel_6views", "grid_novel_dense",
+                             "flow_render_mosaic"}
+                if _ts and _ts > 1 and stype not in _excluded:
+                    frames = temporal_smooth_frames(frames, window=int(_ts))
 
                 if cache_file:
                     step = seg.get("frame_step", 1)
@@ -683,8 +1118,11 @@ class CinematicPipeline:
                 frames = [add_label(f, label) for f in frames]
 
             # Crossfade from previous segment (skip if no_crossfade=true)
-            if last_img is not None and self.cf_frames > 0 and frames and not no_crossfade:
-                cf = min(self.cf_frames, len(frames))
+            # Per-segment `crossfade: <seconds>` overrides global cf_frames
+            seg_cf_sec = seg.get("crossfade", None)
+            cf_n = int(self.fps * seg_cf_sec) if seg_cf_sec else self.cf_frames
+            if last_img is not None and cf_n > 0 and frames and not no_crossfade:
+                cf = min(cf_n, len(frames))
                 for i in range(cf):
                     t = (i + 1) / cf
                     frames[i] = crossfade(last_img, frames[i], t)
@@ -749,6 +1187,7 @@ class CinematicPipeline:
                 u8 = (np.clip(frame, 0, 1) * 255).astype(np.uint8)
                 vw.write(cv2.cvtColor(u8, cv2.COLOR_RGB2BGR))
             vw.release()
+            _reencode_h264(path)  # cv2 mp4v → ffmpeg H.264 in-place (smooth playback)
             print(f"  Saved: {path}")
             print(f"✅ CINEMATIC_DONE: {vdur:.1f}s ({len(all_imgs)}f) → {path}")
 
@@ -771,7 +1210,7 @@ class CinematicPipeline:
         fis = self._next_frames(n, step=step)
         raw = seg.get("raw", False)
         imgs = [self._apply_kp(
-            load_gt(self._fd(fi), self.gt_view, self.bg, raw=raw, res=self.res), fi)
+            load_gt(self._fd(fi), self.gt_view, self.bg, raw=raw, res=self.res, crop_margin=self.crop_margin, auto_trim_padding=self.gt_auto_trim, trim_pad_extra=self.gt_trim_extra), fi)
                 for fi in fis]
         return imgs, prev_fd
 
@@ -789,7 +1228,7 @@ class CinematicPipeline:
                                   bg_color=None):
         """Render Gaussians as colored scatter for a given camera (w2c).
 
-        Shared by flow_raw_gaussians orbit and temporal phases.
+        Used by gaussian_flash to project Gaussians as colored point cloud.
         """
         if bg_color is None:
             bg_color = [1.0, 1.0, 1.0]
@@ -824,78 +1263,311 @@ class CinematicPipeline:
                     canvas[qy, qx] = pt_c
         return canvas
 
-    def _seg_flow_raw_gaussians(self, seg, n, prev_fd):
-        """Raw 3D Gaussian scatter: 2-phase visualization.
+    def _seg_face_follow(self, seg, n, prev_fd):
+        """Body-part camera tracking: virtual camera follows nose→neck axis.
 
-        Phase A (orbit_ratio): freeze single frame, orbit 360° as Gaussian scatter.
-        Phase B (remainder): fixed GT camera, temporal flow as Gaussian scatter.
+        Front mode (reverse=false): camera in front of face, looking at face.
+        Reverse (reverse=true): camera behind head, looking outward (gaze).
+
+        SLERP transition_frames: first N frames smoothly interpolate camera
+        from prev cam (`_last_novel_c2w` or `_last_orbit_c2w`) to face cam.
+        Avoids abrupt pose jumps.
+
+        Yaml fields:
+          duration: float
+          distance: 0.8
+          reverse: false
+          transition_frames: 0 (N frames of SLERP from prev cam to face cam)
+          frame_step: 1
+          label: str
         """
+        from mouse_extensions.visualization.keypoint_overlay import compute_face_camera_c2w
+
         step = seg.get("frame_step", 1)
-        point_size = seg.get("point_size", 1.5)
+        distance = seg.get("distance", 1.2)  # default farther for less zoom
+        reverse = seg.get("reverse", False)
+        transition_n = seg.get("transition_frames", 0)
+        smoothing_window = seg.get("smoothing_window", 5)  # rolling avg of kp_3d for stable cam
+        show_kp_labels = seg.get("show_kp_labels", True)
+        fis = self._next_frames(n, step=step)
+
+        # Pre-load all keypoints + smooth via rolling average → stable camera trajectory
+        all_kps = np.array([load_keypoints_gslrm(self.kp, fi) for fi in fis])  # (N, 22, 3)
+        if smoothing_window > 1 and len(all_kps) > smoothing_window:
+            from scipy.ndimage import uniform_filter1d
+            smoothed = uniform_filter1d(all_kps, size=smoothing_window, axis=0, mode='nearest')
+        else:
+            smoothed = all_kps
+
+        # Helper: compute face cam (front or reverse) at given kp_3d
+        def _face_cam(kp_3d):
+            if not reverse:
+                return compute_face_camera_c2w(kp_3d, distance=distance)
+            # Reverse: behind head, looking outward (gaze direction)
+            nose, neck = kp_3d[2], kp_3d[3]
+            face_center = (kp_3d[0] + kp_3d[1] + nose) / 3.0
+            gaze_dir = neck - nose
+            gaze_norm = gaze_dir / (np.linalg.norm(gaze_dir) + 1e-8)
+            cam_pos = face_center + distance * gaze_norm
+            forward = face_center - cam_pos
+            forward = forward / (np.linalg.norm(forward) + 1e-8)
+            v_ear = kp_3d[1] - kp_3d[0]
+            ear_mid = (kp_3d[0] + kp_3d[1]) / 2.0
+            v_nose = nose - ear_mid
+            face_normal = np.cross(v_ear, v_nose)
+            face_normal = face_normal / (np.linalg.norm(face_normal) + 1e-8)
+            right = np.cross(forward, face_normal)
+            right = right / (np.linalg.norm(right) + 1e-8)
+            down = np.cross(forward, right)
+            c2w = np.eye(4)
+            c2w[:3, 0] = right
+            c2w[:3, 1] = down
+            c2w[:3, 2] = forward
+            c2w[:3, 3] = cam_pos
+            return c2w
+
+        # Compute fxfy from hfov (constant for entire segment)
+        fov_rad = np.deg2rad(self.hfov)
+        fx = self.res / (2.0 * np.tan(fov_rad / 2.0))
+        fxfy = np.array([fx, fx, self.res / 2.0, self.res / 2.0])
+
+        # Determine prev camera for SLERP entry
+        prev_c2w = self._last_novel_c2w
+        if prev_c2w is None:
+            prev_c2w = self._last_orbit_c2w
+        do_transition = transition_n > 0 and prev_c2w is not None and len(fis) > transition_n
+
+        # Mask strategy: novel-view masks (vis_mask) come from GT cams (front-facing).
+        # Reverse cam sees back of head → vis_mask filters out back-of-head Gaussians,
+        # producing sparse/noisy renders. Use opacity threshold instead for reverse.
+        # Front face cam is well-covered by GT cams → vis_mask OK.
+        use_opacity_mask = seg.get("use_opacity_mask", reverse)
         opacity_thresh = seg.get("opacity_thresh", 0.05)
-        raw_bg = seg.get("bg_color", [1.0, 1.0, 1.0])
-        orbit_ratio = seg.get("orbit_ratio", 0.5)
-        orbit_elev = seg.get("orbit_elevation", 20)
 
-        n_orbit = max(1, int(n * orbit_ratio))
-        n_temporal = n - n_orbit
+        # KP toggle: optional overlay (e.g., first half OFF, second half ON or vice versa)
+        kp_toggle = seg.get("kp_toggle", False)
+        kp_first_on = seg.get("kp_first_on", False)  # if true: first half ON, else first half OFF
 
-        # Consume frames for temporal phase only (orbit reuses frozen frame)
-        fis_temporal = self._next_frames(n_temporal, step=step) if n_temporal > 0 else []
+        # ROOT CAUSE FIX (2026-05-16, evidence-based):
+        # Camera-pose 1-Euro on c2w is INSUFFICIENT — measurement showed gaze_dir
+        # amplifies KP jitter 3-12× (frame 1179: Ns Δ 0.48 → cam Δ 1.53).
+        # Fix: apply UPSTREAM smoothing on the 4 face KPs (Ns/Nk/LE/RE) BEFORE
+        # computing gaze_dir, so the unit-vector amplification operates on a
+        # smoothed signal. Overlay still uses RAW kp (unaffected).
+        camera_smooth = bool(seg.get("camera_smooth", True))
+        if camera_smooth:
+            # Robust pre-smoothing on face KPs (median(7) + 1-Euro per component)
+            from scipy.ndimage import median_filter
+            mincutoff = float(seg.get("camera_mincutoff", 0.5))
+            beta = float(seg.get("camera_beta", 0.02))
+            face_med_window = int(seg.get("face_kp_median", 7))
+            face_kps = np.array([smoothed[i][:4] for i in range(len(fis))])  # (N, 4, 3)
+            # Median (4 face KPs × 3 axes)
+            if face_med_window > 1 and len(face_kps) >= face_med_window:
+                for k_idx in range(4):
+                    for ax in range(3):
+                        face_kps[:, k_idx, ax] = median_filter(
+                            face_kps[:, k_idx, ax], size=face_med_window, mode='nearest')
+            # 1-Euro per face KP per axis
+            face_kps_smooth = np.zeros_like(face_kps)
+            filters = [[OneEuroFilter(mincutoff, beta, freq=float(self.fps)) for _ in range(3)]
+                       for _ in range(4)]
+            for i in range(len(fis)):
+                for k_idx in range(4):
+                    for ax in range(3):
+                        face_kps_smooth[i, k_idx, ax] = filters[k_idx][ax](face_kps[i, k_idx, ax])
+            # Build c2w from smoothed face KPs (other 18 KPs untouched, raw)
+            target_c2ws = []
+            for i in range(len(fis)):
+                kp_for_cam = smoothed[i].copy()
+                kp_for_cam[:4] = face_kps_smooth[i]
+                target_c2ws.append(_face_cam(kp_for_cam))
+            # Diagnostic
+            t_arr = np.array([c[:3, 3] for c in target_c2ws])
+            if len(t_arr) > 1:
+                deltas = np.linalg.norm(np.diff(t_arr, axis=0), axis=1)
+                print(f"    [face_follow{'_R' if reverse else '_F'} cam UPSTREAM] "
+                      f"smoothed c2w Δ: max={deltas.max():.4f}, "
+                      f"mean={deltas.mean():.4f}, p95={np.percentile(deltas, 95):.4f}")
+        else:
+            target_c2ws = [_face_cam(smoothed[i]) for i in range(len(fis))]
+
+        # Auto-hide unreliable interior KPs (BM, TR, TM by default — disagree
+        # between MAMMAL detector and GS-LRM surface).
+        hide_interior = bool(seg.get("hide_interior_kp", True))
+        interior_hide = {k for k, t in _KP_RELIABILITY.items() if t == 'low'}
 
         imgs = []
-
-        # --- Phase A: Freeze frame + orbit as Gaussians ---
-        # Infer a single frame for the orbit
-        fi_freeze = self.all_frames[(self.fi - 1) % len(self.all_frames)] if fis_temporal else \
-            self.all_frames[self.fi % len(self.all_frames)]
-        fd = infer_frame(self.model, fi_freeze, self.m5, self.kp,
-                         self.n_thresh, self.res, self.device)
-        if fd is None:
-            return [np.zeros((self.res, self.res, 3))] * n, prev_fd
-
-        # GT camera for reference (return target after orbit)
-        cam = load_camera(str(Path(fd["frame_dir"]) / "opencv_cameras.json"), self.gt_view)
-        gt_w2c = np.array(cam["w2c"])
-        scale = self.res / cam["w"]
-        gt_fx, gt_fy = cam["fx"] * scale, cam["fy"] * scale
-        gt_cx, gt_cy = cam["cx"] * scale, cam["cy"] * scale
-
-        # Orbit cameras
-        _, gt_el, gt_az = gt_camera_spherical(fd["frame_dir"], self.gt_view)
-        orbit_c2ws, orbit_fxfy, ow, oh = get_orbit_cameras(
-            n_orbit, orbit_elev, self.radius, self.hfov, self.res,
-            start_azimuth=gt_az)
-
-        for i in range(n_orbit):
-            orb_c2w = orbit_c2ws[i]
-            orb_w2c = np.linalg.inv(orb_c2w)
-            ofx = float(orbit_fxfy[i][0])
-            ofy = float(orbit_fxfy[i][1])
-            ocx = float(orbit_fxfy[i][2]) if len(orbit_fxfy[i]) > 2 else self.res / 2.0
-            ocy = float(orbit_fxfy[i][3]) if len(orbit_fxfy[i]) > 3 else self.res / 2.0
-            canvas = self._render_gaussian_scatter(
-                fd, orb_w2c, ofx, ofy, ocx, ocy,
-                point_size=point_size, opacity_thresh=opacity_thresh,
-                bg_color=raw_bg)
-            imgs.append(canvas)
-
-        # --- Phase B: Fixed GT camera, temporal flow as Gaussians ---
-        for fi in fis_temporal:
-            if fd:
-                free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
+        fd = None
+        c2w = None
+        for i, fi in enumerate(fis):
+            if fd: free_fd(fd)
+            fd = self._infer(fi)
             if fd is None:
                 imgs.append(np.zeros((self.res, self.res, 3)))
                 continue
+            kp_3d_raw = load_keypoints_gslrm(self.kp, fi)  # raw kp for overlay
+            target_c2w = target_c2ws[i]  # 1-Euro smoothed (or raw if camera_smooth=false)
+            if do_transition and i < transition_n:
+                slerp = list(interpolate_cameras(prev_c2w, target_c2w, transition_n))
+                c2w = slerp[i] if i < len(slerp) else target_c2w
+            else:
+                c2w = target_c2w
+            # Mask: opacity-based for reverse cam (sees back of head, vis_mask filters out)
+            if use_opacity_mask:
+                opacity = fd["gaussians"].get_opacity.detach().cpu().numpy().squeeze()
+                mask = opacity > opacity_thresh
+            else:
+                mask = fd["vis_mask"]
+            # Decide whether to draw KP overlay this frame
+            if kp_toggle:
+                in_first_half = i < len(fis) // 2
+                draw_kp = (kp_first_on and in_first_half) or (not kp_first_on and not in_first_half)
+            else:
+                # No toggle: always draw KP if labels requested (cleanest default)
+                draw_kp = show_kp_labels
+            # Capture depth if needed for silhouette filter (always when drawing KPs)
+            if draw_kp:
+                img, depth_map = render_cam(fd["gaussians"], c2w, fxfy, self.res, self.res,
+                                            mask=mask, bg=self.bg, device=self.device,
+                                            return_depth=True)
+                # Silhouette filter: hide KPs floating in bg (no Gaussian within nbr).
+                # Relaxed for sparse 16k carved Gaussians (was nbr=15, eps=0.005 → too strict).
+                kp_3d = load_keypoints_gslrm(self.kp, fi)
+                uv_kp, valid_kp = project_kp_to_novel_cam(kp_3d, c2w, fxfy, self.res, self.res)
+                Hc, Wc = depth_map.shape[:2]
+                nbr = int(seg.get("silhouette_nbr", 30))
+                surf_eps = float(seg.get("silhouette_eps", 0.001))
+                # Face KPs (LE/RE/Ns/Nk = 0,1,2,3) always shown — they anchor the
+                # camera, hiding them feels wrong even if outside silhouette.
+                face_force = {0, 1, 2, 3}
+                sil_keep = np.zeros_like(valid_kp)
+                for k in range(len(uv_kp)):
+                    if not valid_kp[k]:
+                        continue
+                    if k in face_force:
+                        sil_keep[k] = True
+                        continue
+                    uu, vv = int(round(uv_kp[k, 0])), int(round(uv_kp[k, 1]))
+                    if not (0 <= uu < Wc and 0 <= vv < Hc):
+                        continue
+                    v0, v1 = max(0, vv - nbr), min(Hc, vv + nbr + 1)
+                    u0, u1 = max(0, uu - nbr), min(Wc, uu + nbr + 1)
+                    sil_keep[k] = depth_map[v0:v1, u0:u1].max() > surf_eps
+                # Combine silhouette + interior-KP auto-hide (face_force overrides interior).
+                kp_keep_idx = [int(k) for k in range(len(valid_kp))
+                               if sil_keep[k] and (k in face_force or not hide_interior or k not in interior_hide)]
+                kp_filter_eff = kp_keep_idx or None
+                # Depth occlusion (opt-in for reverse mode): hide KPs behind rendered surface.
+                # Useful for back-of-head cam where front KPs (nose/ears) project on body.
+                use_depth_occlusion = seg.get("use_depth_occlusion", reverse)
+                dmap = depth_map if use_depth_occlusion else None
+                img = self._overlay_kp_novel(img, fi, c2w, fxfy, self.res, self.res,
+                                              show_labels=show_kp_labels, show_legend=False,
+                                              kp_filter=kp_filter_eff, depth_map=dmap,
+                                              occlusion_eps=seg.get("occlusion_eps", 0.10))
+            else:
+                img = render_cam(fd["gaussians"], c2w, fxfy, self.res, self.res,
+                                 mask=mask, bg=self.bg, device=self.device)
+            imgs.append(img)
+
+        if c2w is not None:
+            self._last_novel_c2w = c2w.copy()
+        return imgs, fd
+
+    def _seg_gaussian_flash(self, seg, n, prev_fd):
+        """Frozen-time Gaussian primitive 360° orbit.
+
+        Single inference (frozen mouse), camera orbits from prev pose → 360° around
+        body → returns near GT cam (smooth handoff to next segment).
+        Visualizes "AI 3D structure" while preserving camera continuity.
+
+        Phase A (transition_frames): SLERP from prev_c2w to orbit start (at GT azim)
+        Phase B (remaining): 360° orbit at given elevation, frozen time
+        """
+        point_size = seg.get("point_size", 2.0)
+        opacity_thresh = seg.get("opacity_thresh", 0.05)
+        match_gt = seg.get("match_gt", True)  # default: orbit at GT elev (no jump)
+        orbit_elev_cfg = seg.get("elevation", 20)
+        transition_n = seg.get("transition_frames", 0)
+
+        # Single inference (frozen time)
+        fi = self.fi
+        fd = prev_fd
+        if fd is None:
+            fd = self._infer(fi)
+        if fd is None:
+            return [np.zeros((self.res, self.res, 3))] * n, prev_fd
+
+        # GT camera state (orbit starting azimuth + elevation)
+        _, gt_el, gt_az = gt_camera_spherical(fd["frame_dir"], self.gt_view)
+        # If match_gt: orbit elevation = actual GT cam elev (no vertical teleportation)
+        orbit_elev = gt_el if match_gt else orbit_elev_cfg
+
+        # Scene center from GT cam convergence (least-squares) — fixes orbit-at-origin offset
+        scene_center = compute_scene_center_from_gt(fd["frame_dir"])
+
+        # Orbit cameras: 360° starting from GT azimuth, at orbit_elev, centered on mouse
+        orbit_n = max(1, n - transition_n)
+        c2ws, fxfy_arr, w, h = get_orbit_cameras(
+            orbit_n, orbit_elev, self.radius, self.hfov, self.res,
+            start_azimuth=gt_az, center=scene_center)
+
+        # Phase A: SLERP from GT cam (or prev novel) → orbit[0]
+        # Always start from GT cam after flow_mask (mask just shows GT frame).
+        # Using prev_orbit_c2w would skip the natural GT→orbit handoff.
+        imgs = []
+        if seg.get("use_prev_novel", False) and self._last_novel_c2w is not None:
+            prev_c2w = self._last_novel_c2w
+        else:
+            prev_c2w = gt_camera_c2w(fd["frame_dir"], self.gt_view)
+        if transition_n > 0:
+            slerp = list(interpolate_cameras(prev_c2w, c2ws[0], transition_n))
+            # Intrinsics: interpolate GT fxfy → orbit fxfy (matches freeze_orbit pattern)
+            _, gt_fxfy_scaled = self._cam_from_gt_view(fd["frame_dir"], self.gt_view)
+            orbit_fxfy0 = fxfy_arr[0]
+            for i in range(transition_n):
+                t = (i + 1) / transition_n
+                t_ease = t * t * (3 - 2 * t)  # smoothstep
+                t_c2w = slerp[i] if i < len(slerp) else c2ws[0]
+                t_w2c = np.linalg.inv(t_c2w)
+                trans_fxfy = gt_fxfy_scaled + (orbit_fxfy0 - gt_fxfy_scaled) * t_ease
+                fx = float(trans_fxfy[0]); fy = float(trans_fxfy[1])
+                cx = float(trans_fxfy[2]) if len(trans_fxfy) > 2 else self.res / 2.0
+                cy = float(trans_fxfy[3]) if len(trans_fxfy) > 3 else self.res / 2.0
+                canvas = self._render_gaussian_scatter(
+                    fd, t_w2c, fx, fy, cx, cy,
+                    point_size=point_size, opacity_thresh=opacity_thresh,
+                    bg_color=self.bg)
+                imgs.append(canvas)
+
+        # Phase B: orbit 360°
+        for i in range(orbit_n):
+            w2c = np.linalg.inv(c2ws[i])
+            fx = float(fxfy_arr[i][0]); fy = float(fxfy_arr[i][1])
+            cx = float(fxfy_arr[i][2]) if len(fxfy_arr[i]) > 2 else self.res / 2.0
+            cy = float(fxfy_arr[i][3]) if len(fxfy_arr[i]) > 3 else self.res / 2.0
             canvas = self._render_gaussian_scatter(
-                fd, gt_w2c, gt_fx, gt_fy, gt_cx, gt_cy,
+                fd, w2c, fx, fy, cx, cy,
                 point_size=point_size, opacity_thresh=opacity_thresh,
-                bg_color=raw_bg)
+                bg_color=self.bg)
             imgs.append(canvas)
 
+        # Pause at end: freeze last frame for pause_at_end seconds (visual breath before next seg)
+        pause_sec = seg.get("pause_at_end", 0)
+        if pause_sec > 0 and imgs:
+            pause_frames = int(self.fps * pause_sec)
+            last_frame = imgs[-1].copy()
+            for _ in range(pause_frames):
+                imgs.append(last_frame.copy())
+
+        # Store ending camera state for downstream SLERP continuity
+        last_c2w = c2ws[-1]
+        x, y = last_c2w[0, 3], last_c2w[1, 3]
+        self._last_orbit_az = (np.degrees(np.arctan2(y, x)) + 360) % 360
+        self._last_orbit_c2w = last_c2w.copy()
         return imgs, fd
+
 
     def _seg_flow_render(self, seg, n, prev_fd):
         fis = self._next_frames(n, step=seg.get("frame_step", 1))
@@ -904,8 +1576,7 @@ class CinematicPipeline:
         for fi in fis:
             if fd:
                 free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
+            fd = self._infer(fi)
             if fd is None:
                 imgs.append(np.zeros((self.res, self.res, 3)))
                 continue
@@ -931,16 +1602,34 @@ class CinematicPipeline:
         # Get GT camera's ACTUAL spherical coordinates (radius, elevation, azimuth)
         gt_r, gt_el, gt_az = gt_camera_spherical(fd["frame_dir"], self.gt_view)
 
-        # Generate orbit cameras starting from GT azimuth at TARGET elevation
+        # Generate orbit cameras starting from GT azimuth at TARGET elevation.
+        # end_at_gt_view: ensure the last frame lands EXACTLY at gt_az (full 360° loop).
+        # Otherwise the orbit ends one frame short of completing the loop, causing a
+        # visible jump when subsequent flow_render_mosaic snaps to GT cam0.
         orbit_n = max(1, n - transition_frames)
-        c2ws, fxfy, w, h = get_orbit_cameras(
-            orbit_n, target_elev, self.radius, self.hfov, self.res,
-            start_azimuth=gt_az)
+        end_at_gt = seg.get("end_at_gt_view", False)
+        if end_at_gt:
+            # Generate orbit_n+1 frames covering [0, 360°], drop last (== first)
+            c2ws_full, fxfy_full, w, h = get_orbit_cameras(
+                orbit_n + 1, target_elev, self.radius, self.hfov, self.res,
+                start_azimuth=gt_az)
+            c2ws, fxfy = c2ws_full[:orbit_n], fxfy_full[:orbit_n]
+            # Replace last frame's camera with GT cam0 pose so the handoff is exact
+            c2ws[-1] = gt_camera_c2w(fd["frame_dir"], self.gt_view)
+        else:
+            c2ws, fxfy, w, h = get_orbit_cameras(
+                orbit_n, target_elev, self.radius, self.hfov, self.res,
+                start_azimuth=gt_az)
 
-        # Transition: SLERP from actual GT c2w to orbit start c2w
-        # Spherical interpolation caused look-at mismatch (GT looks at mouse, orbit looks at origin)
-        gt_c2w_actual = gt_camera_c2w(fd["frame_dir"], self.gt_view)
-        _, gt_fxfy_scaled = self._cam_from_gt_view(fd["frame_dir"], self.gt_view)
+        # Transition source: prefer last novel cam (e.g., face_follow) if requested,
+        # else use GT cam. Avoids hard pose jump when entering orbit from non-GT pose.
+        use_prev_novel = seg.get("use_prev_novel", False)
+        if use_prev_novel and self._last_novel_c2w is not None:
+            gt_c2w_actual = self._last_novel_c2w
+            _, gt_fxfy_scaled = self._cam_from_gt_view(fd["frame_dir"], self.gt_view)
+        else:
+            gt_c2w_actual = gt_camera_c2w(fd["frame_dir"], self.gt_view)
+            _, gt_fxfy_scaled = self._cam_from_gt_view(fd["frame_dir"], self.gt_view)
         orbit_start_c2w = c2ws[0]
         trans_c2ws = list(interpolate_cameras(
             gt_c2w_actual, orbit_start_c2w, transition_frames))
@@ -964,8 +1653,7 @@ class CinematicPipeline:
             if temporal:
                 # Re-infer each frame for temporal orbit
                 free_fd(fd)
-                fd = infer_frame(self.model, orbit_fis[i], self.m5, self.kp,
-                                 self.n_thresh, self.res, self.device)
+                fd = self._infer(orbit_fis[i])
                 if fd is None:
                     imgs.append(np.zeros((self.res, self.res, 3)))
                     continue
@@ -984,11 +1672,15 @@ class CinematicPipeline:
 
     def _overlay_kp_novel(self, img, fi, c2w, fxfy, w, h,
                            show_labels=False, show_legend=False,
-                           kp_filter=None):
+                           kp_filter=None, depth_map=None, occlusion_eps=0.02):
         """Overlay keypoints projected through a novel camera with depth-based opacity.
 
         kp_filter: optional list of KP indices to show (e.g. [8,12,16,19] for paws).
                    If None, all keypoints are shown.
+        depth_map: optional (H, W) float32 array — surface z-buffer from renderer.
+                   If provided: hide KPs whose cam-space z exceeds depth_map[v,u]+eps
+                   (i.e. KP is behind the rendered surface). Fixes back-of-head cam
+                   nose/ear/body bleed-through.
         """
         kp_3d = load_keypoints_gslrm(self.kp, fi)
         uv, valid = project_kp_to_novel_cam(kp_3d, c2w, fxfy, w, h)
@@ -1003,6 +1695,24 @@ class CinematicPipeline:
                 if idx < len(mask):
                     mask[idx] = True
             valid = valid & mask
+        # Depth occlusion test: hide KPs hidden by rendered surface
+        if depth_map is not None:
+            H, W = depth_map.shape[:2]
+            occ_valid = np.zeros_like(valid)
+            for i in range(len(uv)):
+                if not valid[i]:
+                    continue
+                u, v = int(round(uv[i, 0])), int(round(uv[i, 1]))
+                if not (0 <= u < W and 0 <= v < H):
+                    continue
+                surf_z = float(depth_map[v, u])
+                # Surface depth ~0 means no Gaussian splatted at this pixel — skip occlusion
+                if surf_z <= 1e-6:
+                    occ_valid[i] = True
+                    continue
+                # KP visible iff in front of (or co-located with) the surface
+                occ_valid[i] = depth[i] <= surf_z + occlusion_eps
+            valid = valid & occ_valid
         return overlay_keypoints(img, uv, valid, kp_depth=depth,
                                   show_labels=show_labels, show_legend=show_legend)
 
@@ -1099,6 +1809,13 @@ class CinematicPipeline:
                 if valid_mask[i] else img
                 for i, (img, fi) in enumerate(zip(imgs, fis))
             ]
+        # Save last camera as SLERP source for next segment (fixes "jump" when
+        # a downstream flow_novel/freeze_orbit looks at _last_orbit_c2w but the
+        # actual previous pose is from THIS segment, not the older orbit).
+        self._last_orbit_c2w = c2w_fixed.copy()
+        x, y = c2w_fixed[0, 3], c2w_fixed[1, 3]
+        self._last_orbit_az = (np.degrees(np.arctan2(y, x)) + 360) % 360
+        self._last_novel_c2w = c2w_fixed.copy()
         return imgs, fd
 
     def _seg_flow_head_kp(self, seg, n, prev_fd):
@@ -1135,24 +1852,27 @@ class CinematicPipeline:
                 e = prev_elev + (elev - prev_elev) * t_ease
                 trans_c2ws.append(self._cam_spherical(e, gt_az)[0])
 
-        # Progressive reveal: 3 stages within orbit portion
-        # Stage 1 (0-50%): face only
-        # Stage 2 (50-80%): face + tail
-        # Stage 3 (80-100%): full body (vis_mask)
+        # Progressive reveal: 1-stage (default = simplified) or 3-stage (legacy).
+        # 1-stage: face-only at start → smooth crossfade to full body, last final_full_pct
+        #   guaranteed full. Cleaner narrative than 3-stage.
+        # 3-stage (legacy): face → face+tail → full.
+        reveal_stages = seg.get("reveal_stages", 1)
+        final_full_pct = seg.get("final_full_pct", 0.20)
         stage1_end = int(orbit_n * 0.50)
         stage2_end = int(orbit_n * 0.80)
-
-        # Emit icon subevents for progressive reveal
-        self._pending_subevents.append((trans_n + stage1_end, "KP"))   # face+tail
-        self._pending_subevents.append((trans_n + stage2_end, "BODY")) # full body
+        full_start = int(orbit_n * (1.0 - final_full_pct))
+        if reveal_stages == 1:
+            self._pending_subevents.append((trans_n + full_start, "BODY"))
+        else:
+            self._pending_subevents.append((trans_n + stage1_end, "KP"))
+            self._pending_subevents.append((trans_n + stage2_end, "BODY"))
 
         imgs = []
         fd = prev_fd
         for i, fi in enumerate(fis):
             if fd:
                 free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
+            fd = self._infer(fi)
             if fd is None:
                 imgs.append(np.zeros((self.res, self.res, 3)))
                 continue
@@ -1166,16 +1886,25 @@ class CinematicPipeline:
 
             oi = max(0, i - trans_n)
             pm = fd["part_masks"]
-            if oi < stage1_end:
-                # Stage 1: face only
+            if reveal_stages == 1:
+                # Single-stage: face-only blend → full body. Last final_full_pct = full.
+                if oi >= full_start:
+                    face_mask = fd["vis_mask"]
+                else:
+                    # Smooth blend ratio: 0 at start, 1 at full_start
+                    face_part = pm.get("face", fd["vis_mask"])
+                    blend = oi / max(full_start, 1)
+                    if blend < 0.5:
+                        face_mask = fd["vis_mask"] & face_part
+                    else:
+                        face_mask = fd["vis_mask"]  # commit to full body in 2nd half
+            elif oi < stage1_end:
                 face_mask = fd["vis_mask"] & pm.get("face", fd["vis_mask"])
             elif oi < stage2_end:
-                # Stage 2: face + tail
                 face_part = pm.get("face", np.zeros(len(fd["vis_mask"]), dtype=bool))
                 tail_part = pm.get("tail", np.zeros(len(fd["vis_mask"]), dtype=bool))
                 face_mask = fd["vis_mask"] & (face_part | tail_part)
             else:
-                # Stage 3: full body
                 face_mask = fd["vis_mask"]
 
             img = render_cam(fd["gaussians"], c2w_i, fxfy_i, w, h,
@@ -1188,11 +1917,13 @@ class CinematicPipeline:
 
             if z < 0.99:
                 img = zoom_out_canvas(img, z, self.bg)
-                img = self._overlay_kp_novel_adjusted(
-                    img, fi, c2w_i, fxfy_i, w, h, uv_scale=z, show_legend=True)
+                if seg.get("show_kp", True):
+                    img = self._overlay_kp_novel_adjusted(
+                        img, fi, c2w_i, fxfy_i, w, h, uv_scale=z, show_legend=True)
             else:
-                img = self._overlay_kp_novel(img, fi, c2w_i, fxfy_i, w, h,
-                                              show_labels=True, show_legend=True)
+                if seg.get("show_kp", True):
+                    img = self._overlay_kp_novel(img, fi, c2w_i, fxfy_i, w, h,
+                                                  show_labels=True, show_legend=True)
             imgs.append(img)
         return imgs, fd
 
@@ -1204,6 +1935,7 @@ class CinematicPipeline:
             with crossfade to full-res GT at the end for quality.
         """
         mosaic_ratio = seg.get("mosaic_ratio", 0.5)
+        fg_only = seg.get("fg_only", False)  # If true, FG composited on bg (no raw)
         n1 = max(1, int(n * mosaic_ratio))
         n2 = n - n1
 
@@ -1218,7 +1950,7 @@ class CinematicPipeline:
             fd_path = self._fd(fi_use)
             canvas = np.ones((self.res, self.res, 3), dtype=np.float32) * np.array(self.bg)
             for v in range(6):
-                gt_img = load_gt(fd_path, v, self.bg, raw=True, res=self.res)
+                gt_img = load_gt(fd_path, v, self.bg, raw=(not fg_only), res=self.res, crop_margin=self.crop_margin, auto_trim_padding=self.gt_auto_trim, trim_pad_extra=self.gt_trim_extra)
                 row, col = v // 3, v % 3
                 sm = cv2.resize(gt_img, (cell, cell), interpolation=cv2.INTER_AREA)
                 y0 = pad_top + row * cell
@@ -1255,7 +1987,7 @@ class CinematicPipeline:
         if n2 > 0:
             fis = self._next_frames(n2, step=seg.get("frame_step", 1))
             full_gt_last = load_gt(self._fd(fis[-1]), gt_v, self.bg,
-                                   raw=True, res=self.res)
+                                   raw=True, res=self.res, crop_margin=self.crop_margin, auto_trim_padding=self.gt_auto_trim, trim_pad_extra=self.gt_trim_extra)
             for j, fi in enumerate(fis):
                 t = j / max(n2 - 1, 1)
                 t_ease = t * t * (3 - 2 * t)  # smoothstep
@@ -1283,174 +2015,7 @@ class CinematicPipeline:
 
         return imgs, prev_fd  # no inference performed
 
-    def _seg_flow_novel_extra(self, seg, n, prev_fd):
-        """Temporal flow cycling through multiple extrapolated novel view cameras.
 
-        Config:
-            cam_defs: list of {elevation, azimuth, label}
-            include_extreme: bool (default True) — include ±80° elevation cams
-            frames_per_cam: auto = n // len(cams), or override per cam
-            transition_frames: SLERP frames between consecutive cameras
-        """
-        step = seg.get("frame_step", 1)
-        include_extreme = seg.get("include_extreme", True)
-        trans_n = seg.get("transition_frames", 20)
-
-        # Default camera definitions
-        default_cams = [
-            {"elevation": -80, "azimuth": 0,   "label": "Bottom View"},
-            {"elevation":  80, "azimuth": 0,   "label": "Top View"},
-            {"elevation":   0, "azimuth": 90,  "label": "Side View (Right)"},
-            {"elevation": -40, "azimuth": 180, "label": "Rear-Bottom View"},
-        ]
-        cam_defs = seg.get("cam_defs", default_cams)
-
-        # Filter extreme views if not wanted
-        if not include_extreme:
-            cam_defs = [c for c in cam_defs if abs(c.get("elevation", 0)) < 70]
-        if not cam_defs:
-            # Fallback must also respect include_extreme to avoid ±80° sneaking back in
-            moderate_fallbacks = [c for c in default_cams if abs(c.get("elevation", 0)) < 70]
-            cam_defs = moderate_fallbacks[:2] if moderate_fallbacks else default_cams[:2]
-
-        n_cams = len(cam_defs)
-        base_fpk = n // n_cams
-        remainder = n - base_fpk * n_cams
-        frames_per_cam = [base_fpk + (1 if i < remainder else 0) for i in range(n_cams)]
-
-        fis = self._next_frames(n, step=step)
-
-        imgs = []
-        fd = prev_fd
-        fi_cursor = 0
-
-        for cam_idx, cam_def in enumerate(cam_defs):
-            cam_n = frames_per_cam[cam_idx]
-            cam_elev = cam_def.get("elevation", 0)
-            cam_azim = cam_def.get("azimuth", 0)
-            cam_label = cam_def.get("label", f"View {cam_idx+1}")
-            c2w_target, fxfy_target = self._cam_spherical(cam_elev, cam_azim)
-
-            # Smooth transition from previous camera via SLERP
-            if cam_idx > 0 and trans_n > 0 and imgs:
-                prev_elev = cam_defs[cam_idx - 1].get("elevation", 0)
-                prev_azim = cam_defs[cam_idx - 1].get("azimuth", 0)
-                c2w_prev, _ = self._cam_spherical(prev_elev, prev_azim)
-                trans_c2ws = interpolate_cameras(c2w_prev, c2w_target,
-                                                  min(trans_n, cam_n))
-            else:
-                trans_c2ws = []
-
-            for j in range(cam_n):
-                if fi_cursor >= len(fis):
-                    break
-                fi = fis[fi_cursor]
-                fi_cursor += 1
-                if fd:
-                    free_fd(fd)
-                fd = infer_frame(self.model, fi, self.m5, self.kp,
-                                 self.n_thresh, self.res, self.device)
-                if fd is None:
-                    imgs.append(np.zeros((self.res, self.res, 3)))
-                    continue
-
-                c2w_use = trans_c2ws[j] if j < len(trans_c2ws) else c2w_target
-                img = render_cam(fd["gaussians"], c2w_use, fxfy_target,
-                                 self.res, self.res, mask=fd["vis_mask"],
-                                 bg=self.bg, device=self.device)
-                img = add_label(img, cam_label)
-                imgs.append(img)
-
-        # Save last camera pose for SLERP continuity in flow_gt_zoom_out
-        if cam_defs:
-            last_cam = cam_defs[-1]
-            self._last_novel_c2w, _ = self._cam_spherical(
-                last_cam.get("elevation", 0), last_cam.get("azimuth", 0))
-
-        return imgs, fd
-
-    def _seg_flow_gt_zoom_out(self, seg, n, prev_fd):
-        """SLERP from last novel cam → GT cam, then zoom-out to reveal 6-cam GT mosaic.
-
-        Phase 1 (n//2): SLERP from _last_novel_c2w to GT view camera (temporal flow render)
-        Phase 2 (n - n//2): Zoom-out + crossfade from GT render to GT 6-cam mosaic
-        """
-        step = seg.get("frame_step", 1)
-        fis = self._next_frames(n, step=step)
-        n1 = n // 2
-        n2 = n - n1
-        fg_only = seg.get("fg_only", False)  # If true, use composited FG on white bg
-
-        # GT camera intrinsics (scaled to self.res)
-        fi_ref = fis[min(n1, len(fis) - 1)]
-        gt_c2w = gt_camera_c2w(self._fd(fi_ref), self.gt_view)
-        gt_fxfy_raw = gt_camera_fxfycxcy(self._fd(fi_ref), self.gt_view)
-        gt_fxfy = gt_fxfy_raw * (self.res / 512.0)
-
-        # Start camera: prefer last orbit cam (most recent inference segment),
-        # fallback to last novel cam, then default spherical
-        start_c2w = self._last_orbit_c2w
-        if start_c2w is None:
-            start_c2w = self._last_novel_c2w
-        if start_c2w is None:
-            start_c2w, _ = self._cam_spherical(0, 270)
-
-        # SLERP cameras for phase 1
-        slerp_c2ws = list(interpolate_cameras(start_c2w, gt_c2w, n1)) if n1 > 0 else []
-
-        # Mosaic layout constants
-        cell = self.res // 3
-        pad_top = (self.res - cell * 2) // 2
-
-        def make_mosaic_simple(fi_use):
-            fd_path = self._fd(fi_use)
-            canvas = np.ones((self.res, self.res, 3), dtype=np.float32) * np.array(self.bg)
-            for v in range(6):
-                # fg_only=True: composited on white bg; raw=True: original bg
-                gt_img = load_gt(fd_path, v, self.bg, raw=(not fg_only), res=self.res)
-                row, col = v // 3, v % 3
-                sm = cv2.resize(gt_img, (cell, cell), interpolation=cv2.INTER_AREA)
-                y0 = pad_top + row * cell
-                canvas[y0:y0 + cell, col * cell:(col + 1) * cell] = sm
-            return canvas
-
-        imgs = []
-        fd = prev_fd
-        for i, fi in enumerate(fis):
-            if fd:
-                free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
-            if fd is None:
-                imgs.append(np.zeros((self.res, self.res, 3)))
-                continue
-
-            if i < n1:
-                # Phase 1: SLERP camera approaching GT camera
-                c2w_i = slerp_c2ws[i] if i < len(slerp_c2ws) else gt_c2w
-                img = render_cam(fd["gaussians"], c2w_i, gt_fxfy,
-                                 self.res, self.res, mask=fd["vis_mask"],
-                                 bg=self.bg, device=self.device)
-            else:
-                # Phase 2: zoom-out + crossfade to GT mosaic
-                j = i - n1
-                t = j / max(n2 - 1, 1)
-                t_ease = t * t * (3 - 2 * t)  # smoothstep
-
-                gt_img = render_cam(fd["gaussians"], gt_c2w, gt_fxfy,
-                                    self.res, self.res, mask=fd["vis_mask"],
-                                    bg=self.bg, device=self.device)
-                mosaic = make_mosaic_simple(fi)
-
-                if t_ease < 0.05:
-                    img = gt_img
-                else:
-                    zoom_val = max(1.0 - 0.7 * t_ease, 0.3)  # 1.0 → 0.3
-                    gt_zoomed = zoom_out_canvas(gt_img, zoom_val, self.bg)
-                    img = crossfade(gt_zoomed, mosaic, min(t_ease * 1.5, 1.0))
-
-            imgs.append(img)
-        return imgs, fd
 
     def _seg_flow_render_mosaic(self, seg, n, prev_fd):
         """GS-LRM render at 6 GT cameras in 3×2 grid, with zoom-out + fade + hold.
@@ -1517,8 +2082,7 @@ class CinematicPipeline:
         fd = prev_fd
         first_fi = fis[0]
         if fd is None or "frame_dir" not in fd:
-            fd = infer_frame(self.model, first_fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
+            fd = self._infer(first_fi)
         if fd is not None:
             gt_c2w, gt_fxfy = self._cam_from_gt_view(
                 fd["frame_dir"], self.gt_view)
@@ -1532,8 +2096,7 @@ class CinematicPipeline:
             if fd and i > 0:
                 free_fd(fd)
             if i > 0 or fd is None:
-                fd = infer_frame(self.model, fi, self.m5, self.kp,
-                                 self.n_thresh, self.res, self.device)
+                fd = self._infer(fi)
             if fd is None:
                 imgs.append(np.zeros((self.res, self.res, 3)))
                 continue
@@ -1571,7 +2134,7 @@ class CinematicPipeline:
     def _seg_grid_novel_6views(self, seg, n, prev_fd):
         """6 fixed novel views in 3×2 grid (top/bottom/front/right/rear/left), temporal flow.
 
-        Layout: 3 cols × 2 rows, same cell layout as grid_multiview.
+        Layout: 3 cols × 2 rows.
         """
         step = seg.get("frame_step", 1)
         fis = self._next_frames(n, step=step)
@@ -1627,8 +2190,7 @@ class CinematicPipeline:
         for i, fi in enumerate(fis):
             if fd:
                 free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
+            fd = self._infer(fi)
             if fd is None:
                 imgs.append(np.zeros((self.res, self.res, 3)))
                 continue
@@ -1717,8 +2279,7 @@ class CinematicPipeline:
         for i, fi in enumerate(fis):
             if fd:
                 free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
+            fd = self._infer(fi)
             if fd is None:
                 imgs.append(np.zeros((self.res, self.res, 3)))
                 continue
@@ -1734,76 +2295,6 @@ class CinematicPipeline:
                 t_ease = t * t * (3 - 2 * t)
                 z = 1.0 - 0.3 * t_ease  # 1.0 → 0.7
                 grid = zoom_out_canvas(grid, z, self.bg)
-            imgs.append(grid)
-        return imgs, fd
-
-    def _seg_grid_multiview(self, seg, n, prev_fd):
-        """6-view grid: Phase 1 = GT views, Phase 2 = GS-LRM recon, Phase 3 = novel views.
-
-        Layout: 3 columns x 2 rows (256x256 cells at res=768), centered in canvas.
-        """
-        step = seg.get("frame_step", 1)
-        fis = self._next_frames(n, step=step)
-        n1 = n // 3       # GT grid
-        n2 = n // 3       # Recon grid
-        n3 = n - n1 - n2  # Novel grid
-
-        cell = self.res // 3  # 256 for 768
-        pad_top = (self.res - cell * 2) // 2  # 128 for 768
-
-        # 6 novel view cameras evenly spaced (2 elevations x 3 azimuths)
-        novel_elevs = [20, 20, 20, -40, -40, -40]
-        novel_azims = [0, 120, 240, 60, 180, 300]
-        novel_cams = [self._cam_spherical(e, a) for e, a in zip(novel_elevs, novel_azims)]
-
-        def make_grid(cells):
-            canvas = np.ones((self.res, self.res, 3), dtype=np.float32) * np.array(self.bg)
-            for idx, cell_img in enumerate(cells):
-                row, col = idx // 3, idx % 3
-                sm = cv2.resize(cell_img, (cell, cell), interpolation=cv2.INTER_AREA)
-                y0 = pad_top + row * cell
-                canvas[y0:y0 + cell, col * cell:(col + 1) * cell] = sm
-            return canvas
-
-        def add_phase_label(canvas, text):
-            return add_label(canvas, text, fontscale=0.55)
-
-        imgs = []
-        fd = prev_fd
-        for i, fi in enumerate(fis):
-            if fd:
-                free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
-            if fd is None:
-                imgs.append(np.zeros((self.res, self.res, 3)))
-                continue
-
-            phase = 0 if i < n1 else (1 if i < n1 + n2 else 2)
-            cells = []
-
-            if phase == 0:  # GT views (no inference needed for image loading)
-                for v in range(6):
-                    gt_img = load_gt(fd["frame_dir"], v, self.bg, raw=True, res=self.res)
-                    cells.append(gt_img)
-            elif phase == 1:  # GS-LRM recon from GT camera positions
-                for v in range(6):
-                    c2w_v, fxfy_v = self._cam_from_gt_view(fd["frame_dir"], v)
-                    r = render_cam(fd["gaussians"], c2w_v, fxfy_v,
-                                   self.res, self.res, mask=fd["vis_mask"],
-                                   bg=self.bg, device=self.device)
-                    cells.append(r)
-            else:  # Novel views
-                for nc2w, nfxfy in novel_cams:
-                    r = render_cam(fd["gaussians"], nc2w, nfxfy,
-                                   self.res, self.res, mask=fd["vis_mask"],
-                                   bg=self.bg, device=self.device)
-                    cells.append(r)
-
-            grid = make_grid(cells)
-            phase_labels = ["GT Views (6 Cameras)", "GS-LRM Reconstruction",
-                            "Novel Views (6 Angles)"]
-            grid = add_phase_label(grid, phase_labels[phase])
             imgs.append(grid)
         return imgs, fd
 
@@ -1836,8 +2327,7 @@ class CinematicPipeline:
 
     def _ensure_fd(self):
         fi = self._peek_frame()
-        return infer_frame(self.model, fi, self.m5, self.kp,
-                           self.n_thresh, self.res, self.device)
+        return self._infer(fi)
 
     def _render_temporal_flow(self, fis, c2w_fn, prev_fd):
         """Common render loop for temporal-flow handlers using render_cam + vis_mask.
@@ -1861,8 +2351,7 @@ class CinematicPipeline:
         for i, fi in enumerate(fis):
             if fd:
                 free_fd(fd)
-            fd = infer_frame(self.model, fi, self.m5, self.kp,
-                             self.n_thresh, self.res, self.device)
+            fd = self._infer(fi)
             if fd is None:
                 imgs.append(np.zeros((self.res, self.res, 3), dtype=np.float32))
                 continue
@@ -1877,9 +2366,69 @@ class CinematicPipeline:
 # CLI
 # ---------------------------------------------------------------------------
 
+def _reencode_h264(path: str) -> None:
+    """Re-encode mp4v → H.264 in-place via ffmpeg subprocess.
+    cv2.VideoWriter on Linux servers often lacks avc1 (no h264_v4l2m2m), so we
+    write mp4v first then convert. macOS/Linux QuickTime/Safari/iOS play H.264
+    smoothly; mp4v (MPEG-4 Part 2) stutters on many players.
+    Safe no-op if ffmpeg missing or conversion fails — original mp4v file kept."""
+    import shutil, subprocess, tempfile
+    if shutil.which("ffmpeg") is None:
+        print(f"    [reencode] ffmpeg not found, keeping mp4v: {path}")
+        return
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False).name
+    try:
+        r = subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", "-i", path,
+             "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+             "-pix_fmt", "yuv420p", "-movflags", "+faststart", tmp],
+            capture_output=True, text=True, timeout=600)
+        if r.returncode == 0 and Path(tmp).stat().st_size > 0:
+            shutil.move(tmp, path)
+            print(f"    [reencode] mp4v → H.264 OK: {path}")
+        else:
+            Path(tmp).unlink(missing_ok=True)
+            print(f"    [reencode] failed (rc={r.returncode}), kept mp4v: {r.stderr[:200]}")
+    except Exception as e:
+        Path(tmp).unlink(missing_ok=True)
+        print(f"    [reencode] exception, kept mp4v: {e}")
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override into base. Override wins on leaf conflicts.
+    Lists are NOT merged — override replaces base list entirely (segments semantics)."""
+    out = dict(base)
+    for k, v in override.items():
+        if k in out and isinstance(out[k], dict) and isinstance(v, dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def _load_yaml_with_extends(path: Path, _seen=None) -> dict:
+    """Load yaml, resolving `extends:` chain via sibling-relative deep merge.
+    Recursive: child extends parent extends grandparent. Cycle-guarded."""
+    seen = set(_seen) if _seen else set()
+    rp = path.resolve()
+    if rp in seen:
+        raise ValueError(f"extends cycle detected at {path}")
+    seen.add(rp)
+    with open(path) as f:
+        cfg = yaml.safe_load(f)
+    base_name = cfg.pop("extends", None)
+    if base_name is None:
+        return cfg
+    base_path = path.parent / base_name
+    if not base_path.exists():
+        raise FileNotFoundError(f"extends target not found: {base_path}")
+    base = _load_yaml_with_extends(base_path, _seen=seen)
+    return _deep_merge(base, cfg)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Cinematic Sequence v4")
-    parser.add_argument("--config", default="mouse_extensions/behavior/cinematic_default.yaml")
+    parser.add_argument("--config", default="configs/mouse/cinematic/cinematic_default.yaml")
     parser.add_argument("--output-dir", default="outputs/viz/cinematic/mouse/latest")
     parser.add_argument("--frame-range", default=None, help="Override: 'start:end[:step]'")
     parser.add_argument("--fps", type=int, default=None)
@@ -1893,16 +2442,14 @@ def main():
                         help="Write individual segment MP4s to output-dir/segments/")
     args = parser.parse_args()
 
-    # Load config
+    # Load config (with `extends:` deep-merge from sibling base yaml)
     cfg_path = Path(args.config)
-    if cfg_path.exists():
-        with open(cfg_path) as f:
-            cfg = yaml.safe_load(f)
-        print(f"Config: {cfg_path}")
-    else:
+    if not cfg_path.exists():
         print(f"Config not found: {cfg_path}, using defaults")
-        with open(Path(__file__).parent / "cinematic_default.yaml") as f:
-            cfg = yaml.safe_load(f)
+        # Default config moved to configs/ (2026-05-15 cleanup); resolve relative to repo root
+        cfg_path = Path(__file__).resolve().parents[2] / "configs/mouse/cinematic/cinematic_default.yaml"
+    cfg = _load_yaml_with_extends(cfg_path)
+    print(f"Config: {cfg_path}")
 
     # CLI overrides
     if args.frame_range:
@@ -1930,20 +2477,23 @@ def main():
             break
     output_name = f"cinematic_{_cfg_stem}_{_res}px_{_fps}fps_{_fr_tag}.mp4"
 
-    # Load model
-    print("Loading GS-LRM model...")
-    from mouse_extensions.inference.gslrm_pipeline import GSLRMInference
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = GSLRMInference(
-        config_path=cfg["model"]["config"],
-        checkpoint_path=cfg["model"]["checkpoint"],
-        device=device,
-    )
-    # Patch num_input_views from cinematic config if explicitly specified
-    if "num_input_views" in cfg.get("model", {}):
-        model.config.model.num_input_views = cfg["model"]["num_input_views"]
-        print(f"  Patched num_input_views: {cfg['model']['num_input_views']}")
-    print("  Model loaded")
+    if cfg["model"].get("ply_dir"):
+        # PLY mode: skip model loading entirely (precomputed Gaussians on disk)
+        print(f"PLY mode: {cfg['model']['ply_dir']} (skipping GS-LRM checkpoint)")
+        model = None
+    else:
+        print("Loading GS-LRM model...")
+        from mouse_extensions.inference.gslrm_pipeline import GSLRMInference
+        model = GSLRMInference(
+            config_path=cfg["model"]["config"],
+            checkpoint_path=cfg["model"]["checkpoint"],
+            device=device,
+        )
+        if "num_input_views" in cfg.get("model", {}):
+            model.config.model.num_input_views = cfg["model"]["num_input_views"]
+            print(f"  Patched num_input_views: {cfg['model']['num_input_views']}")
+        print("  Model loaded")
 
     pipeline = CinematicPipeline(model, cfg, device)
     pipeline.generate(

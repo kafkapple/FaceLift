@@ -1,0 +1,13 @@
+# FINAL paper preset — alpha=0.3, 16k count-matched (paper exact)
+# All v5 fixes inherited (face_follow upstream smoothing + reverse show-through)
+# 1024px / 20fps real-time
+extends: cinematic_v11.yaml
+
+model:
+  ply_dir: /node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/M5t2_6view_alpha03_v3_maskcarve16k
+
+global:
+  fps: 20
+  resolution: 1024
+  gt_auto_trim_padding: true
+  gt_trim_pad_extra: 4

@@ -1,6 +1,7 @@
-# Cinematic Sequence — Default config (v6 compatible, minimal)
-# For full demos use configs/mouse/cinematic/cinematic_demo_v6_A.yaml (controls+extreme)
-# or cinematic_demo_v6_C.yaml (clean standard)
+# Cinematic Sequence — Default config (minimal, smoke-test scale)
+# For production (NeurIPS demo, 768px/20fps, 17 segments): cinematic_v11.yaml
+# For paper-consistent PLY mode: cinematic_v11_FINAL_alpha03_16k.yaml (best alpha=0.3)
+# Spec: docs/specs/CINEMATIC_V11_SPEC.md
 
 global:
   fps: 15
@@ -16,8 +17,8 @@ global:
 model:
   config: configs/base/gslrm_mouse.yaml
   num_input_views: 6
-  checkpoint: checkpoints/gslrm/base_uniform_v2_6view_v2/best_psnr.pt
-  m5_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5t
+  checkpoint: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+  m5_dir: /home/joon/data/preprocessed/FaceLift_mouse/M5
   kp_path: ~/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz
 
 camera:
