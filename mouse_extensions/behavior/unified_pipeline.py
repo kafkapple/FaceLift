@@ -26,7 +26,6 @@ from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bo
 from mouse_extensions.behavior.preprocessing import (
     preprocess, PreprocessConfig, PRESETS,
 )
-from mouse_extensions.behavior.run_sparse_ablation import JOINT_GROUPS as JOINT_GROUPS_LEGACY
 from mouse_extensions.constants import MOUSE_KP_NAMES as KEYPOINT_NAMES
 
 # Expanded joint groups (fine-grained ablation)
