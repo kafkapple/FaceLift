@@ -203,3 +203,8 @@ alpha_analysis/
 \!configs/experiments/
 experiments/
 !docs/experiments/
+
+# gpu03 rsync junk — root-owned nested duplicate of configs/ (2026-04-16 incident)
+# 92 yaml files identical to configs/. sudo 없이 삭제 불가 → ignore로 우회.
+# 시스템 관리자 sudo rm -rf /home/joon/dev/FaceLift/configs/configs/ 요청 시 영구 제거.
+configs/configs/
