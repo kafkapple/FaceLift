@@ -229,15 +229,17 @@ E2E best:               PSNR_gt = 8.20,   IoU = 0.521  ← Current ceiling
 
 ## 5. Cross-Model Comparison (FaceLift vs Pose-Splatter)
 
+> 🔴 **PS 행 인용 동결 (260723).** `13.78`/`0.846`/`+10.06 dB` = 재현 불가 + 방법론 오분류. 인용 전 `FACELIFT_SSOT.md` §2.1 **C5** 확인. FL 자체 수치(23.84/20.66/8.20)는 유효.
+
 | Model | PSNR_gt ↑ | IoU ↑ | Type |
 |:---|:---:|:---:|:---|
 | **GS-LRM 6v (GT)** | **23.84** | **0.954** | GS-LRM only (upper bound) |
 | GS-LRM 4v (GT) | 20.66 | 0.926 | GS-LRM only |
-| Pose-Splatter (M5) | 13.78 | 0.846 | Baseline |
+| Pose-Splatter (M5) | 13.78 🔴 | 0.846 🔴 | Baseline (재현불가, C5) |
 | E2E best (e2_resume) | 8.20 | 0.521 | Full pipeline (n=1800) |
 | E2E baseline (5K) | 7.93 | 0.474 | Full pipeline (n=1800) |
 
-**GS-LRM 6v > PS by +10.06 dB** (GT input). But E2E is capped at ~8 dB by MVDiffusion.
+**GS-LRM 6v > PS by +10.06 dB** 🔴 (재검증 대상, C5). E2E is capped at ~8 dB by MVDiffusion.
 
 ---
 

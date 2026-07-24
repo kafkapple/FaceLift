@@ -1,8 +1,8 @@
 ---
-version: 1.1
+version: 1.2
 created: 2026-04-17
-last_validated: 2026-04-17
-next_review: 2026-05-01
+last_validated: 2026-07-23
+next_review: 2026-08-15
 status: canonical
 role: single_entry_moc
 ---

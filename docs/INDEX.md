@@ -215,10 +215,12 @@
 
 ### FL vs PS Fair Comparison (M5 Same-Camera, Fair Eval)
 
+> 🔴 PS 열(13.78/0.846) = 재현불가·방법론 오분류. 인용 전 서버 `FACELIFT_SSOT.md` §2.1 C5.
+
 | Metric | FL GS-LRM 6v (GT) | FL E2E Best | PS 6-cam |
 |--------|:-----------------:|:-----------:|:--------:|
-| PSNR_gt | **23.84** | 8.20 | 13.78 |
-| IoU | **0.954** | 0.521 | 0.846 |
+| PSNR_gt | **23.84** | 8.20 | 13.78 🔴 |
+| IoU | **0.954** | 0.521 | 0.846 🔴 |
 | Coverage | ~1.0 | ~0.75 | 0.919 |
 
 > FL GS-LRM >> PS by +10.06 dB. E2E bottleneck = Stage 1 MVDiffusion (86% of gap).

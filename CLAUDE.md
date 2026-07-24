@@ -476,7 +476,7 @@ python -m mouse_extensions.preprocessing.preprocess \
 # Load pre-computed metrics
 python -m mouse_extensions.scripts.eval.compare_with_baseline \
     --facelift_metrics outputs/h5_e2e/cfgr_ckpt10000/metrics_v2.json \
-    --baseline_metrics baselines/pose_splatter/paper_standard_evaluation.json \
+    --baseline_metrics <PS_FAIR_JSON>  # 🔴 260723 삭제됨(무효 run). 유효 PS baseline 없음 → 260724_ps_baseline_STATUS.md \
     --output_dir experiments/comparison/FL_vs_PS/
 ```
 

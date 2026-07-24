@@ -213,7 +213,7 @@ python scripts/eval/run_evaluation.sh \
 # FL 비교 (FaceLift repo에서 실행)
 cd /home/joon/dev/FaceLift
 python mouse_extensions/scripts/eval/compare_with_baseline.py \
-    --ps_results /home/joon/dev/pose-splatter/output/facelift_compare_5cam/latest/paper_standard_evaluation.json
+    --ps_results <PS_FAIR_JSON>  # 🔴 facelift_compare_5cam = 폐기 run(삭제). 신규 baseline 산출 후 지정
 ```
 
 **주의**: PS=masked(FG-only), FL=white-BG(full-image). 비교 가능 지표: L1(masked), IoU. PSNR/SSIM 직접 비교 불가.

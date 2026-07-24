@@ -265,7 +265,7 @@ SSIM03 best=21.10, current=19.69, declining but not collapsed. Baseline=21.71.
 
 | Model | PSNR_fg (A) | PSNR_fg (B) | IoU | Coverage | Status |
 |-------|:-----------:|:-----------:|:---:|:--------:|:------:|
-| 6v (holdout=[5]) | 13.78 | 13.16 | 0.846 | 0.893 | ✅ Complete |
+| 6v (holdout=[5]) | 13.78 🔴 | 13.16 | 0.846 | 0.893 | 🔴 재현불가(C5) |
 | 5v (holdout=[4,5]) | — | — | — | — | ⏳ Training (~25h) |
 | 4v (holdout=[3,4,5]) | — | — | — | — | ⏳ Queue (after 5v) |
 

@@ -60,7 +60,7 @@ Single Image ──→ [Multi-view Diffusion] ──→ 6-view Images ──→ 
              │   └─ DA1: Domain Adaptation (best 10.08 dB, +1.64)
              │
              └─ Phase 5: Fair Comparison (FL vs PS)
-                 ├─ FL GS-LRM 6v = 23.84 >> PS M5 = 13.78
+                 ├─ FL GS-LRM 6v = 23.84 >> PS M5 = 13.78 🔴(재현불가, SSOT C5)
                  └─ 9-Experiment Matrix (Temporal + Spatial)
 ```
 
@@ -93,7 +93,7 @@ Single Image ──→ [Multi-view Diffusion] ──→ 6-view Images ──→ 
 | **H5-E2** | Best Stage 1 | `M5t2_randref_sparse` | - | val 27.70 | ✅ |
 | **H3** | E2+Pose conditioning | `M5t2_H3_resume_pose` | 5 | — | 🔄 step 4200/10K |
 | **DA1** | Domain adaptation | `domain_adapt_E2_v1` | 6 | 10.08 | 🔄 학습중 |
-| **PS-6v** | Pose-Splatter 6v | PS config | - | 13.78 | ✅ |
+| **PS-6v** | Pose-Splatter 6v | PS config | - | 13.78 🔴 | ⚠️ 재현불가(C5) |
 | **PS-5v** | Pose-Splatter 5v | `m5_5view_holdout4` | joon | — | 🔄 epoch 35/50 |
 
 ---
