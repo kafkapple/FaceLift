@@ -6,14 +6,27 @@
 
 ## 1. Model Architecture Comparison
 
+> 🔴 **260723 `/fact --int` 정정 — 아래 표의 PS 열은 사실오류였음.** 수정본으로 대체. 근거는 표 하단.
+
 | Aspect | FaceLift (FL) | Pose-Splatter (PS) |
 |--------|:---:|:---:|
-| **Type** | Feed-forward generalization | Per-scene optimization |
-| **Pipeline** | Image → MVDiff (6 views) → GS-LRM (3DGS) | 6 GT views → 3DGS optimization |
+| **Type** | Feed-forward, **pretrain-generalizable** | Feed-forward, **dataset-trained** |
+| **Pipeline** | Image → MVDiff (6 views) → GS-LRM (3DGS) | 6 GT views → shape carving → **End-to-end 3D UNet** → 3DGS |
 | **Input at test** | 1 arbitrary image | 6 synchronized GT views |
-| **Training** | Pretrain on large data → finetune on M5 | Optimize per-frame on M5 |
-| **Inference** | ~1 sec/frame (single forward pass) | ~minutes/frame (iterative optimization) |
-| **Generalization** | Yes (unseen frames/subjects) | No (per-scene only) |
+| **Training** | Pretrain on large data → finetune on M5 | **Train/Val/Test split on target dataset** (consecutive thirds) |
+| **Inference** | ~1 sec/frame (single forward pass) | **~30ms/frame (single forward pass)** |
+| **Generalization** | Unseen frames/subjects **및 unseen dataset** | Unseen frames **within trained dataset** |
+
+**정정 근거 (본 문서 자체의 1차 인용)**
+- §1.4 가 PS 논문을 인용: *"Consecutive thirds of the video are used training, validation, and testing"* → **Train/Val/Test split 보유**. per-scene 최적화는 일반화 split이 성립하지 않음
+- §8 요약표: `| 접근법 | Pose Splatter: End-to-end 3D UNet | ... |`
+- 원 논문 = Goffinet et al., **NeurIPS 2025, arXiv 2505.18342**, ~30ms/frame
+
+~~**Why Direct Comparison Is Unfair**~~ → **진짜 비대칭은 "feed-forward vs optimization"이 아니라 아래 2가지**:
+1. **입력 정보량**: FL 1 view vs PS 6 views (ill-posed vs well-posed) — 이 축은 유효
+2. **학습 데이터 범위**: FL pretrain+finetune vs PS 해당 데이터셋 전용 학습 — **PS가 target dataset에 특화 학습되므로 in-domain 유리**
+
+> ⚠️ 기존 "FL만 feed-forward" 프레이밍(C4)은 성립하지 않음. 논문 기여 서술 재작성 필요.
 
 ### Why Direct Comparison Is Unfair
 
@@ -53,7 +66,7 @@ Comparing their outputs directly conflates **model capability** with **input inf
 
 | Stage | FaceLift (GS-LRM, α=0.3) | PoseSplatter | 비고 |
 |-------|:---:|:---:|------|
-| Raw model output | **1,572,866** | ~8,500 | FL: feed-forward, PS: per-scene opt |
+| Raw model output | **1,572,866** | ~8,500 | FL: pixel-aligned (H×W×V×2), PS: shape-carving 후 voxel grid |
 | After opacity > 0.05 | 15,757 | — | 배경 노이즈 98.5% 제거 |
 | After opacity > 0.1 | **11,920** | **~8,500** | **Comparable range** |
 | After apply_all_filters | 17,274 | ~8,500 | FL: opacity=0.04 threshold |
@@ -152,11 +165,17 @@ Our PSNR_whole = 29.00 (same protocol as PS paper, different data).
 
 **Q3: "8:1:1 split이 PS에 불리한 것 아닌가?"**
 
-> **A**: Split 비율은 양쪽에 동일하게 적용됩니다. 그러나 **모델 특성에 따른 영향은 비대칭**입니다:
-> - FL (feed-forward): 학습 데이터가 많을수록 유리 (generalization 학습)
-> - PS (per-scene optim): test frame에 직접 최적화하므로 train 데이터 양과 무관
+> 🔴 **260723 정정 — 기존 답변 무효.** 아래 취소선은 per-scene 오기재(§1) 기반이었음.
 >
-> 따라서 8:1:1은 이론적으로 FL에 **더 유리**합니다. 이를 검증하기 위해 H_Split 실험을 제안합니다 (§2.5).
+> ~~A: Split 비율은 양쪽에 동일 적용. 그러나 모델 특성상 영향은 비대칭.~~
+> ~~- FL (feed-forward): 학습 데이터가 많을수록 유리~~
+> ~~- PS (per-scene optim): test frame에 직접 최적화하므로 train 데이터 양과 무관~~
+> ~~따라서 8:1:1은 이론적으로 FL에 더 유리.~~
+>
+> **정정된 답변**: PS도 **dataset-trained** (Train/Val/Test split 보유) 이므로 **train 데이터 양에 민감**. "PS는 test frame에 직접 최적화"는 사실이 아님 — PS는 train split으로 3D UNet을 학습한 뒤 test frame에 **forward pass**를 수행.
+>
+> → 8:1:1이 FL에만 유리하다는 결론은 **성립하지 않음**. 양쪽 다 train 데이터 증가의 수혜자이며, 비대칭이 있다면 그 방향·크기는 **미측정**.
+> → Q3는 현재 **미해결 질문**. H_Split 실험(§2.5)의 귀무가설도 함께 재설계 필요.
 
 #### E. Metric Protocol 정리
 
@@ -180,7 +199,10 @@ Our PSNR_whole = 29.00 (same protocol as PS paper, different data).
 | Train frames | 2,880 | ~1,200 |
 | Test frames | 360 | ~1,200 |
 | FL expected | Best (most train data) | Worse (less data for generalization) |
-| PS expected | Same (per-scene, train-independent) | Same (per-scene) |
+| PS expected | ~~Same (per-scene, train-independent)~~ 🔴 **미측정** | ~~Same (per-scene)~~ 🔴 **미측정 (감소 예상)** |
+
+> 🔴 **260723**: PS = dataset-trained → train frames 2,880 → ~1,200 감소 시 **PS도 저하될 것으로 예상**. 기존 "Same" 예측은 per-scene 오기재 산물.
+> → 본 실험은 현 설계로 **split confound를 분리하지 못함**. PS/FL 양쪽 저하폭을 각각 측정하는 설계로 전환 필요.
 
 #### Proposed Experiment
 
@@ -198,7 +220,11 @@ Our PSNR_whole = 29.00 (same protocol as PS paper, different data).
 |-------|:---:|:---:|:---:|
 | FL GS-LRM 6v | 23.84 | ~21-22 | -1 to -3 dB (less train data) |
 | FL E2E | 8.20 | ~7-8 | -0.5 to -1 dB |
-| PS M5 6v | 13.78 | ~13-14 | ~0 dB (per-scene, train-independent) |
+| PS M5 6v | 13.78 🔴 | ~~~13-14~~ **예측 무효** | ~~~0 dB (per-scene, train-independent)~~ 🔴 |
+
+> 🔴 **260723 정정 — 이 행의 예측은 잘못된 전제에서 나옴.**
+> `per-scene, train-independent` 는 §1 정정으로 기각됨. PS는 **dataset-trained** (Train/Val/Test split 보유) 이므로 split ratio 변경에 **민감**해야 함 → `~0 dB` 귀무예측 성립 안 함.
+> **해석 반전 주의**: 아래 Success criterion 은 "PS는 안 변하고 FL만 변한다"를 가정. PS도 함께 변하면 gap 변화를 split confound로 귀속할 수 없음. **가설 재설계 필요.**
 
 > **Success criterion**: If FL 6v - PS gap **narrows** significantly (from +10.06 to <+7 dB), split ratio is a confound.
 > If gap **maintains** (>+8 dB), FL's advantage is robust to split ratio.
@@ -247,7 +273,7 @@ Phase 4: Fair comparison (FL vs PS, rat domain)
 | Coverage | **99.9%** | 99.3% | 89.3% | **+10.6%p** | +10.0%p |
 | PSNR_gt (whole img) | — | — | 29.00 | — | — |
 
-> **Conclusion (v11.0)**: With camera mismatch resolved (same M5 camera space), the FL advantage **widens** from v10.0: **+10.06 dB** PSNR_fg (was +7.13). GS-LRM 6v feedforward massively outperforms PS per-scene optimization. Even GS-LRM 4v exceeds PS by +6.88 dB.
+> **Conclusion (v11.0)**: With camera mismatch resolved (same M5 camera space), the FL advantage **widens** from v10.0: **+10.06 dB** PSNR_fg (was +7.13). GS-LRM 6v outperforms PS. 🔴 **단 260723 정정**: 원문의 'PS per-scene optimization' 은 오분류(§1) 이며, `13.78` 자체가 재현 불가(SSOT D11) → **본 결론 인용 동결**. Even GS-LRM 4v exceeds PS by +6.88 dB.
 >
 > **Coverage as primary gap driver**: PS coverage (89.3%) is significantly lower than FL (99.9%). The PSNR_intersection gap (+3.55 dB, pure color accuracy on overlapping regions) is much smaller than PSNR_fg gap (+10.06 dB), confirming coverage deficit as the dominant contributor.
 >
@@ -261,7 +287,7 @@ Phase 4: Fair comparison (FL vs PS, rat domain)
 | **Split** | Train 0-2879 (80%), Val 2880-3239 (10%), Test 3240-3599 (10%) | Same |
 | **Camera** | M5 (HFOV=50°, fx=549, cx=256, centered) | Same (converted via `convert_m5_for_ps.py`, verified) |
 | **Input** | 6 GT views (views 0-5) | 6 GT views (views 0-5) |
-| **Model type** | Feed-forward generalization | Per-scene optimization (50 epochs) |
+| **Model type** | Feed-forward, pretrain-generalizable | Feed-forward, **dataset-trained** (50 epochs 학습) |
 | **Training scope** | Pretrained on diverse data → M5 finetune (15840 steps) | Optimize from scratch per-frame on M5 |
 | **Checkpoint** | `6view_v2/best_psnr.pt` (PSNR=24.49 val) | `m5_baseline_gs/latest/` (epoch 50) |
 | **Test frames** | 360 frames (3240-3599) × views 1-5 (1800 renders) | 360 frames (3240-3599) × views 0-5 (2160 renders) |
@@ -270,7 +296,7 @@ Phase 4: Fair comparison (FL vs PS, rat domain)
 | **FG threshold** | >0 alpha | >0 alpha |
 
 **Caveats**:
-- **Model-type asymmetry** (inherent, not a fairness issue): GS-LRM generalizes from diverse pretraining; PS optimizes per-scene. This reflects fundamentally different approaches.
+- **Model-type asymmetry** (inherent, not a fairness issue): GS-LRM generalizes from **diverse pretraining**; PS is **trained on the target dataset itself**. Both are feed-forward at test time — the asymmetry is in *training data scope*, not in optimization paradigm. 🔴 260723 정정 (§1).
 - PS coverage (89.3%) significantly lower than FL (99.9%) — amplifies PSNR_fg gap
 - FL view 0 excluded from eval (used as input); PS evaluates all 6 views — minor asymmetry
 - View count monotonically improves GS-LRM quality (1v→6v): +5.48 (1→2v), +2.61 (2→3v), +2.10 (3→4v), +1.50 (4→5v), +1.68 (5→6v)
@@ -660,7 +686,7 @@ The A2 results confirm the model's effective view selection:
 
 ### 7.1 What FL Does Well
 - **Reconstruction backbone**: GS-LRM 6v GT beats PS M5 by **+10.06 dB** PSNR_fg (Tier A, same camera)
-- **Generalization**: Single image → 3D, no per-scene optimization
+- **Generalization**: Single image → 3D, **no dataset-specific retraining** (PS requires training on the target dataset). 🔴 260723 정정
 - **Speed**: Real-time inference (~1s) vs minutes of optimization
 - **Color accuracy under overlap**: PSNR_int +3.55 dB over PS (24.02 vs 20.47, pure color quality)
 - **Coverage**: 99.9% vs PS 89.3% — FL produces more complete reconstructions
@@ -687,7 +713,9 @@ With camera mismatch resolved (PS retrained on M5 data), **Tier A is now a valid
 
 ### 8.1 Narrative
 
-> "FaceLift demonstrates that a feed-forward, generalizable pipeline achieves **+10.06 dB** superior 3D reconstruction quality compared to per-scene optimization (Pose-Splatter) when given equivalent 6-view GT input, evaluated in the same M5 camera space (+3.55 dB pure color accuracy on overlapping regions). This advantage stems from both superior color prediction and significantly better coverage (99.9% vs 89.3%). Even with only 3 GT views, GS-LRM exceeds PS performance (+4.78 dB). Systematic ablations confirm the baseline loss configuration is optimal (H6: alpha supervision hurts, H7: SSIM weight increase causes instability). The remaining E2E bottleneck is MVDiff multi-view generation (silhouette IoU=0.58), which accounts for -15.64 dB of the total quality gap between oracle and end-to-end performance."
+> 🔴 **260723 — 아래 rebuttal 문안은 사용 금지.** (a) PS를 per-scene으로 오분류 (b) +10.06 dB 근거 데이터 재현 불가(D11). 재작성 전 인용 금지.
+>
+> ~~"FaceLift demonstrates that a feed-forward, generalizable pipeline achieves **+10.06 dB** superior 3D reconstruction quality compared to per-scene optimization (Pose-Splatter) when given equivalent 6-view GT input, evaluated in the same M5 camera space (+3.55 dB pure color accuracy on overlapping regions). This advantage stems from both superior color prediction and significantly better coverage (99.9% vs 89.3%). Even with only 3 GT views, GS-LRM exceeds PS performance (+4.78 dB). Systematic ablations confirm the baseline loss configuration is optimal (H6: alpha supervision hurts, H7: SSIM weight increase causes instability). The remaining E2E bottleneck is MVDiff multi-view generation (silhouette IoU=0.58), which accounts for -15.64 dB of the total quality gap between oracle and end-to-end performance."~~
 
 ### 8.2 Key Claims (Evidence-Backed)
 
@@ -935,14 +963,14 @@ python -m mouse_extensions.scripts.eval.comprehensive_eval \
 ```bash
 python -m mouse_extensions.scripts.eval.compare_with_baseline \
     --facelift_metrics experiments/comparison/gaussian_matched/metrics.json \
-    --baseline_metrics baselines/pose_splatter/posesplatter_fair.json \
+    --baseline_metrics <PS_FAIR_JSON>   # 260723: 기존 파일 삭제(무효 run). 재산출 필요 \
     --output_dir experiments/comparison/gaussian_matched_report/
 ```
 
 ### 4. Expected Outcomes
 
 #### Hypothesis A: FL still wins (per-Gaussian quality is better)
-- FL의 feed-forward prediction이 per-scene optimization보다 더 informative한 Gaussian 배치
+- FL의 pretrain 기반 prediction이 PS의 dataset-trained 예측보다 더 informative한 Gaussian 배치 🔴 260723 정정
 - GS-LRM의 transformer attention이 global context를 활용하여 각 Gaussian의 위치/색상이 더 정확
 
 #### Hypothesis B: FL advantage decreases significantly
@@ -951,13 +979,13 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 
 #### Hypothesis C: FL still wins on IoU but PS catches up on PSNR
 - FL의 silhouette prediction이 강점 (α loss training)
-- PS의 per-scene optimization이 texture detail에서 유리
+- PS의 dataset-specific 학습이 texture detail에서 유리 🔴 260723 정정
 
 ### 5. Input Views Clarification (SSOT)
 
 | 비교 유형 | FaceLift 입력 | PS 입력 | 공정성 |
 |-----------|:---:|:---:|:---:|
-| **Tier A: GS-LRM 6v vs PS 6v** | 6 GT views → GS-LRM (feed-forward) | 6 GT views → per-scene optimization | ✅ **Fair** (동일 입력) |
+| **Tier A: GS-LRM 6v vs PS 6v** | 6 GT views → GS-LRM (pretrained feed-forward) | 6 GT views → PS (dataset-trained feed-forward) | ⚠️ **입력은 동일하나 학습범위 비대칭** — PS는 M5 전용 학습, FL은 pretrain+finetune. 🔴 260723 |
 | Tier B: E2E vs PS | 1 image → MVDiff → GS-LRM | 6 GT views | ❌ Unfair (다른 task) |
 | View Ablation | 1-6 GT views → GS-LRM | N/A | FL 내부 비교 |
 

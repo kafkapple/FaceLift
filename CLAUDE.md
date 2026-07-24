@@ -448,11 +448,20 @@ python -m mouse_extensions.preprocessing.preprocess \
 
 | Item | Detail |
 |------|--------|
-| **Comparison script** | `mouse_extensions/scripts/eval/compare_with_baseline.py` |
+| **Comparison script** | ⚠️ `mouse_extensions/scripts/**_archive**/compare_with_baseline.py` — **`eval/`에 없음**(260723 확인). 아래 §Usage 명령 그대로는 실행 불가 |
 | **Config** | `mouse_extensions/scripts/eval/unified_eval_config.yaml` |
 | **Design doc** | `docs/experiments/FL_vs_PS_comparison.md` |
-| **PS metrics (joon)** | `output/facelift_compare_5cam/latest/paper_standard_evaluation.json` |
+| **PS metrics (joon)** | ⚠️ `paper_standard_evaluation.json` = **PSNR 24.68** (full-image, 구본). **13.78이 아님** |
 | **FL metrics (gpu03)** | `experiments/comparison/tier/*_fair.json` (fair eval) |
+
+> 🔴 **PS 아티팩트 현황 (260723 실측)** — SSOT §2.1 C5 참조
+> | 파일 | 값 | 상태 |
+> |---|---|---|
+> | `baselines/pose_splatter/paper_standard_evaluation.json` | PSNR **24.68** / IoU 0.829 | full-image 프로토콜, 260209 |
+> | `baselines/pose_splatter/posesplatter_fair.json` | PSNR_gt_masked **16.80** | fair v1, "different camera"로 **폐기됨** |
+> | **13.78 (SSOT 인용값)** | — | 🔴 **어느 아티팩트에도 없음**. 원천 체크포인트는 260619 삭제 |
+>
+> 복구 절차 = `baselines/pose_splatter/HANDOFF_260619.md` (**미실행**). 단 해당 핸드오프 Step 3-B는 `m5_4view`/`m5_5view`만 재생성 → **13.78을 낸 `m5_baseline_gs` 6-view는 재현 대상 누락**. 절차 보완 필요.
 
 ### Metric Protocol Warning
 
@@ -508,7 +517,9 @@ python -m mouse_extensions.scripts.eval.compare_with_baseline \
 - All E2E strategies converge: PSNR_gt 7.90-8.44, IoU 0.47-0.53
 - MVDiff = sole bottleneck (86% of quality loss, -15.64 dB from 6v GT)
 - Training strategy optimization is saturated → architecture change needed
-- GS-LRM 6v > PS by +7.13 dB (Tier A fair eval)
+- ~~GS-LRM 6v > PS by +7.13 dB (Tier A fair eval)~~ 🔴 **stale + 인용 동결 (260723)**
+  - `+7.13` → v11.0에서 `+10.06 dB`로 갱신됨 (`fl_vs_ps_comparison.md:250`)
+  - 단 **두 값 모두 인용 금지** — PS 비교 자체가 (a) 방법론 오기재 (b) 재현 불가 상태. → `docs/FACELIFT_SSOT.md` §2.1 **C5**
 
 ### Rat FT (RAT1→RAT2 v1→v2→v3)
 

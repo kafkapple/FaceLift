@@ -13,7 +13,11 @@
 |-------|------|:-----:|----------|
 | **FL GS-LRM** | Feed-forward | N GT views | Multi-view images → GS-LRM → 3D Gaussian |
 | **FL E2E** | Feed-forward | 1 image | Image → MVDiffusion → GS-LRM → 3D Gaussian |
-| **PS (Pose-Splatter)** | Per-scene optimization | N views | N views → per-scene 3DGS optimization (50 epochs) |
+| **PS (Pose-Splatter)** | **Feed-forward (dataset-trained)** | N views | N views → shape carving → End-to-end 3D UNet → 3DGS (**50 epochs = 학습**, 장면별 최적화 아님) |
+
+> 🔴 **260723 `/fact --int` 정정**: 본 문서 전반의 "Per-scene N-v" 표기는 **입력 뷰 구성**을 뜻하며, PS의 방법론 분류가 아님.
+> PS = feed-forward, dataset-trained (Goffinet et al., NeurIPS 2025, arXiv 2505.18342). 정본 = `docs/FACELIFT_SSOT.md` §2.1 **C5**.
+> Holdout-view 논리(§141 등) 자체는 유효 — holdout view가 학습에 미사용이라는 사실은 변하지 않음.
 
 ### 1.2 Dataset
 
@@ -104,9 +108,9 @@
 | 4 | FL E2E | 6v | 1 image | v5 | ✅ `e2_resume_20k_fair.json` | ✅ per_view `view_5` |
 | 5 | FL E2E | 5v | 1 image | v4 | ✅ same | ✅ per_view `view_4` |
 | 6 | FL E2E | 4v | 1 image | v3 | ✅ same | ✅ per_view `view_3` |
-| 7 | PS M5 | 6v | Per-scene 5v | v5 | ⚠️ Existing* | ❌ Need training |
-| 8 | PS M5 | 5v | Per-scene 4v | v4 | ❌ Need training | ❌ Need training |
-| 9 | PS M5 | 4v | Per-scene 3v | v3 | ❌ Need training | ❌ Need training |
+| 7 | PS M5 | 6v | PS 5v input | v5 | ⚠️ Existing* | ❌ Need training |
+| 8 | PS M5 | 5v | PS 4v input | v4 | ❌ Need training | ❌ Need training |
+| 9 | PS M5 | 4v | PS 3v input | v3 | ❌ Need training | ❌ Need training |
 
 *PS M5 6v: Existing `m5_baseline_gs` has holdout=[5] (matches!). Protocol A already done via `fair_test_only_evaluation.json`. Protocol B/C need extraction from existing results.
 
@@ -138,7 +142,7 @@ The FL GS-LRM "N-view" model takes N GT images as input. For fair comparison:
 | 5v | views [0,1,2,3] → 4v model | views 4,5 are novel | 4 |
 | 4v | views [0,1,2] → 3v model | views 3,4,5 are novel | 3 |
 
-**Key insight**: For Protocol B (NVS), the holdout view is always a "novel view" for FL GS-LRM since it was NOT provided as input. This is directly comparable to PS where the holdout view was NOT used during per-scene optimization.
+**Key insight**: For Protocol B (NVS), the holdout view is always a "novel view" for FL GS-LRM since it was NOT provided as input. This is directly comparable to PS where the holdout view was NOT used during **training** (PS = dataset-trained feed-forward, not per-scene optimization — see SSOT §2.1 C5).
 
 ---
 
@@ -147,9 +151,10 @@ The FL GS-LRM "N-view" model takes N GT images as input. For fair comparison:
 ### 5.1 Existing Experiment
 
 **PS M5 6v** (`m5_baseline_gs`):
-- Config: holdout_views=[5], 6 cameras, M5 data, 50 epochs
-- Status: ✅ Complete (trained 2026-02-20~21, ~25h)
-- Fair eval: ✅ `fair_test_only_evaluation.json` exists
+- Config: holdout_views=[5], 6 cameras, M5 data, 50 epochs — ✅ config 파일만 생존
+- ~~Status: ✅ Complete (trained 2026-02-20~21, ~25h)~~ → 🔴 **거짓 (260723 실측)**: 체크포인트 `output/m5_baseline_gs/20260220_143834` **소실**(260619 accidental deletion)
+- ~~Fair eval: ✅ `fair_test_only_evaluation.json` exists~~ → 🔴 **해당 파일 부재**. gpu03 `experiments/fair/` 의 3개 파일은 전부 **폐기된 `facelift_compare_5cam`** 산출 (16.71~16.80), `m5_baseline_gs` 산출 **0개**
+- 🔴 **재현 불가**: 전처리 데이터 `m5_for_ps_fj1` + 전처리 코드 `convert_m5_for_ps.py`(git 미커밋) 동시 소실 → `docs/FACELIFT_SSOT.md` §5.1
 
 ### 5.2 New Experiments Needed
 

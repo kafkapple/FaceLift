@@ -1,5 +1,13 @@
 # CH3: Experiments & Results
 
+> 🔴 **260723 `/fact --int` — PS 비교 인용 동결.** 본 문서의 Pose-Splatter 관련 서술·수치를 인용하기 전 반드시 확인:
+> 1. **방법론 오분류** — PS는 per-scene optimization이 아니라 **feed-forward (dataset-trained)** (Goffinet et al., NeurIPS 2025, arXiv 2505.18342)
+> 2. **재현 불가** — `13.78` 산출 체크포인트가 260619 삭제됨. 잔존 아티팩트는 24.68·16.80뿐
+> 3. **파생 gap 3종 공존** — `+7.13`(3건) / `+9.62`(7건) / `+10.06`(27건). 본 문서 값도 이 중 하나이며 정본 미확정
+>
+> 정본 = `docs/FACELIFT_SSOT.md` §2.1 **C5** · Drift Ledger **D10-D12**
+
+
 > 모든 실험의 가설, 근거, 설정, 명령어, 코드 흐름, 결과, 후속 실험 도출까지 시간순으로 상세히 설명합니다.
 > **"How" 관점** — 코드 재현에 초점. "Why" 관점은 [[RESEARCH_EXPERIMENT_NOTES]] 참조.
 > **정량 결과 SSOT**: [[experiments/MASTER_RESULTS_TABLE]] | **가설 SSOT**: [[experiments/hypothesis_roadmap]]
@@ -17,7 +25,7 @@
 ### 1.2 근거
 
 - FaceLift 논문: Objaverse 데이터로 pretrained된 GS-LRM을 domain-specific 데이터로 fine-tuning
-- GS-LRM은 feed-forward 모델 → per-scene optimization 불필요, inference 속도 빠름
+- GS-LRM은 pretrain-generalizable feed-forward → 새 데이터셋에 **재학습 불필요**
 
 ### 1.3 데이터셋
 
@@ -811,7 +819,7 @@ FL과 PS를 직접 비교할 때 발견된 불공정 요소:
 | # | Issue | 해결 |
 |---|-------|------|
 | 1 | PS `paper_standard_evaluation`이 80% 학습 데이터 포함 | Test-only (frames 3240-3599) |
-| 2 | 모델 타입 비대칭 (feed-forward vs per-scene) | 명시적 공시 |
+| 2 | 학습범위 비대칭 (pretrain-generalizable vs dataset-trained) | 명시적 공시 |
 | 3 | Mask source 비대칭 (GT alpha vs white-BG extraction) | 통일된 mask protocol |
 | 4 | Metric protocol 불일치 | Unified metrics |
 | 5 | FL silhouette threshold 민감도 | Fixed threshold |
@@ -880,7 +888,7 @@ def evaluate_fair(render_dir, gt_dir, frame_range):
 ```python
 """PS test-only evaluation (frames 3240-3599)
 
-PS는 per-scene optimization이므로 별도 렌더링 → eval 필요.
+PS는 별도 학습·렌더링 → eval 필요.
 동일한 unified metrics 사용.
 """
 # PS renders → fair_comparison과 동일 메트릭 계산
@@ -896,7 +904,7 @@ PS는 per-scene optimization이므로 별도 렌더링 → eval 필요.
 | PSNR_inter | ~23.84 | — | 20.47 |
 
 **핵심 발견**:
-- **F1**: FL GS-LRM 6v >> PS per-scene by +9.62 dB (GT input 기준)
+- **F1**: ~~FL GS-LRM 6v >> PS by +9.62 dB~~ 🔴 **보류** (D11 재현불가 / D14 gap 3종). SSOT §3 C5
 - **F9**: PS coverage 89.3%가 낮은 PSNR_fg 주 원인. PSNR_intersection으로 순수 색상 비교 필요.
 - E2E의 8.20 dB는 Stage 1 bottleneck (14% transfer) 때문
 

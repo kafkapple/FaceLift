@@ -2,6 +2,9 @@
 
 > **Purpose**: FaceLift 실험 비교 HTML 레포트 생성 시스템의 통합 가이드
 > ← [[INDEX]] | **Version**: v1.0 | **Updated**: 2026-02-23
+>
+> 🔴 **260723**: 본 문서의 PS 레이블("per-scene optimization baseline", "PS M5 6v (per-scene)")은 **사실오류**.
+> PS = feed-forward, dataset-trained. 레포트 생성 시 해당 라벨 문자열 수정 필요. 정본 = `docs/FACELIFT_SSOT.md` §2.1 **C5**.
 
 ---
 
@@ -341,7 +344,7 @@ Fair evaluation script의 출력 JSON 구조. 레포트 시스템의 입력이 �
 |-----------|--------|-------------|
 | FL GS-LRM 6v | `gslrm_6view` | GT input upper bound (Stage 2 only) |
 | FL E2E 1v | `e2e_1view` | Full pipeline (Stage 1 multi-view diffusion + Stage 2 GS-LRM) |
-| PS M5 6v | `ps_m5_6view` | Pose-Splatter per-scene optimization baseline |
+| PS M5 6v | `ps_m5_6view` | Pose-Splatter baseline (feed-forward, dataset-trained) |
 
 2개 protocol:
 - **Protocol A** (temporal): `type: overall`, `view_key: null`
@@ -366,7 +369,7 @@ experiments:
     render_pattern: "{frame:06d}/cam_{view:03d}.png"
     color: "#D94A4A"
 
-  - name: "PS M5 6v (per-scene)"
+  - name: "PS M5 6v"
     method: ps_m5_6view
     metrics_json: "/tmp/ps_m5_fair_results.json"
     render_dir: "/tmp/ps_renders/"

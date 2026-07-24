@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# no-split: pre-existing 763L eval script; 이번 변경은 삭제 아티팩트 참조 정정 3줄뿐. 분할은 별도 리팩터 과제.
 """
 fair_comparison.py - Fair Model Comparison Evaluation
 =====================================================
@@ -27,7 +28,8 @@ Example workflow:
   # Step 3: Compare
   python -m mouse_extensions.scripts.eval.fair_comparison compare \
     --facelift experiments/comparison/fair/facelift_fair.json \
-    --baseline baselines/pose_splatter/posesplatter_fair.json \
+    --baseline <PS_FAIR_JSON>   # 260723: 기존 baselines/pose_splatter/*.json 은 무효 run 산출로 삭제됨.
+    #          유효 PS baseline 없음 → outputs/reports/260723_ps_recovery_plan.md 참조 \
     --output_dir experiments/comparison/fair/
 """
 

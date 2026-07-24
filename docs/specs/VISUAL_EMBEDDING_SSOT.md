@@ -167,7 +167,7 @@ All standard `sklearn.metrics.cluster`: silhouette, davies_bouldin, calinski_har
 
 - **Module plan (ICML workshop)**: [`docs/experiments/ICML_CLUSTERING_MODULE_PLAN.md`](../experiments/ICML_CLUSTERING_MODULE_PLAN.md)
 - **Theory / PS comparison**: Obsidian `docs/research/260418_visual_embedding_ps_vs_fl.md`
-- **PS baseline metrics**: `baselines/pose_splatter/{paper_standard_evaluation,posesplatter_fair}.json`
+- **PS baseline metrics**: 🔴 **없음 (260723 삭제)** — 기존 2개 파일은 폐기된 `facelift_compare_5cam` 산출. 유효 PS baseline 부재 → `docs/FACELIFT_SSOT.md` §3 C5
 - **Canonical project entry**: [`docs/FACELIFT_SSOT.md`](../FACELIFT_SSOT.md)
 - **Index**: [`docs/INDEX.md`](../INDEX.md) (register this file under specs)
 

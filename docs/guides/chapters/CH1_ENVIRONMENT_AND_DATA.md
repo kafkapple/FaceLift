@@ -253,7 +253,7 @@ data:
 이전 M5t split (1:1:1)에서 M5t2 (80:10:10)로 변경한 이유:
 - **H1bis 실험**: M5t2가 M5t 대비 +2.9 dB, IoU 2배 향상
 - FaceLift GS-LRM은 feed-forward 모델이므로 학습 데이터가 많을수록 일반화 성능 향상
-- Pose-Splatter(per-scene optimization)는 split 비율 영향 적음
+- ~~Pose-Splatter(per-scene optimization)는 split 비율 영향 적음~~ 🔴 **260723 기각** — PS는 dataset-trained(Train/Val/Test split 보유)이므로 split 비율에 **민감**. SSOT §2.1 C5 / D12
 
 ---
 

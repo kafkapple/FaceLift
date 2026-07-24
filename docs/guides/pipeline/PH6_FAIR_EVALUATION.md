@@ -1,12 +1,20 @@
 # Phase 6: Fair Evaluation
 
+> 🔴 **260723 `/fact --int` — PS 비교 인용 동결.** 본 문서의 Pose-Splatter 관련 서술·수치를 인용하기 전 반드시 확인:
+> 1. **방법론 오분류** — PS는 per-scene optimization이 아니라 **feed-forward (dataset-trained)** (Goffinet et al., NeurIPS 2025, arXiv 2505.18342)
+> 2. **재현 불가** — `13.78` 산출 체크포인트가 260619 삭제됨. 잔존 아티팩트는 24.68·16.80뿐
+> 3. **파생 gap 3종 공존** — `+7.13`(3건) / `+9.62`(7건) / `+10.06`(27건). 본 문서 값도 이 중 하나이며 정본 미확정
+>
+> 정본 = `docs/FACELIFT_SSOT.md` §2.1 **C5** · Drift Ledger **D10-D12**
+
+
 > **Navigation**: [← Hub](../PIPELINE_DEEP_DIVE.md) | [Prev: PH5](PH5_E2E_INFERENCE.md) | [Next: PH7 →](PH7_3D_KEYPOINT.md)
 >
 > **핵심 파일**: `mouse_extensions/scripts/eval/fair_comparison.py`
 
 ---
 
-> **Why**: FaceLift (feed-forward) vs PoseSplatter (per-scene optimization)은
+> **Why**: FaceLift (pretrain-generalizable feed-forward) vs PoseSplatter (**dataset-trained feed-forward**)은
 > 근본적으로 다른 모델 유형. 공정한 비교를 위해 5가지 공정성 보장이 필요.
 
 ### 6.1 Fairness Guarantees

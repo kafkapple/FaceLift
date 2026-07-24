@@ -42,21 +42,33 @@ facelift:
 # ============================================================
 # Pose-Splatter experiment paths (joon)
 # ============================================================
+# 🔴 260723 감사: 아래 등록 실험은 전부 무효. 사용 금지.
+#    상세 = docs/FACELIFT_SSOT.md §2.1 C5 / §5.1, outputs/reports/260723_ps_recovery_plan.md
 posesplatter:
   repo_root: "/home/joon/dev/pose-splatter"
   experiments:
     facelift_compare_5cam:
-      output_dir: "output/facelift_compare_5cam/latest"
-      metrics_path: "output/facelift_compare_5cam/latest/paper_standard_evaluation.json"
-      description: "5cam baseline, ds2, holdout view 5"
-      config:
-        image_downsample: 2  # 576x512
-        frame_jump: 5
-        gaussian_mode: "3d"
+      output_dir: "output/facelift_compare_5cam/latest"   # 🔴 gpu03에서 삭제됨 (260619)
+      metrics_path: null   # was: .../paper_standard_evaluation.json — 경로 소실
+      description: >
+        🔴 INVALID — fl_vs_ps_comparison.md 가 'different camera' 로 폐기 선언한 run.
+        생존 fair eval 3종(16.71~16.80)이 모두 이 run 산출이며 비교에 사용 불가.
+      status: superseded
     facelift_512_5cam:
-      output_dir: "output/facelift_512_5cam/latest"
-      metrics_path: null  # Experiment failed (BrokenPipeError)
-      description: "512x512 center-crop, FAILED"
+      output_dir: null
+      metrics_path: null
+      description: >
+        🔴 REMOVED — PS repo 커밋 2e97d8d 가 camera mismatch 로 config·output 모두 삭제.
+        FaceLift 측 등록만 잔존했던 항목.
+      status: deleted_upstream
+
+    # ⚠️ 유효한 비교 대상이었던 m5_baseline_gs 는 의도적으로 미등록 상태로 둠.
+    #    체크포인트·전처리 데이터·전처리 코드 전부 소실 → 재현 불가 (SSOT D11).
+    #    변환기 재작성 후 신규 baseline 산출 시 여기에 등록할 것.
+    # m5_baseline_gs:
+    #   output_dir: "output/m5_baseline_gs/<TIMESTAMP>"
+    #   metrics_path: "<fair eval json>"
+    #   description: "M5 same-camera baseline (FL camera space). 재산출 필요."
 
 # ============================================================
 # Metrics to compute

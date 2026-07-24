@@ -1,5 +1,13 @@
 # FaceLift Mouse Experiment: Research Notes
 
+> 🔴 **260723 `/fact --int` — PS 비교 인용 동결.** 본 문서의 Pose-Splatter 관련 서술·수치를 인용하기 전 반드시 확인:
+> 1. **방법론 오분류** — PS는 per-scene optimization이 아니라 **feed-forward (dataset-trained)** (Goffinet et al., NeurIPS 2025, arXiv 2505.18342)
+> 2. **재현 불가** — `13.78` 산출 체크포인트가 260619 삭제됨. 잔존 아티팩트는 24.68·16.80뿐
+> 3. **파생 gap 3종 공존** — `+7.13`(3건) / `+9.62`(7건) / `+10.06`(27건). 본 문서 값도 이 중 하나이며 정본 미확정
+>
+> 정본 = `docs/FACELIFT_SSOT.md` §2.1 **C5** · Drift Ledger **D10-D12**
+
+
 > Lab meeting / 연구 노트용 실험 체계 정리
 > Updated: 2026-02-23
 
@@ -11,7 +19,7 @@
 
 **단일 이미지에서 3D mouse reconstruction을 feed-forward 방식으로 달성할 수 있는가?**
 
-생쥐 행동 분석(behavioral neuroscience)에서 3D 재구성은 multi-camera 시스템과 per-scene optimization에 의존해 왔다.
+생쥐 행동 분석(behavioral neuroscience)에서 3D 재구성은 multi-camera 시스템과 per-frame optimization·template 기반 방법에 의존해 왔다.
 본 프로젝트는 **단 1장의 이미지**에서 즉시 3D Gaussian Splatting을 생성하는 feed-forward 파이프라인으로,
 이 패러다임을 전환할 수 있는지 검증한다.
 
@@ -30,8 +38,8 @@ Single Image ──→ [Stage 1: Multi-view Diffusion] ──→ 6-view Images �
 
 ### Baseline Comparison
 
-**Pose Splatter**: Per-scene optimization 기반, 6-camera 입력, 50 epoch 최적화 필요.
-FL의 feed-forward 방식 대비 추론 시간이 수 배 길지만, per-scene 특화로 높은 품질 기대.
+**Pose Splatter**: **Feed-forward (dataset-trained)**, shape carving + 3DGS, 6-camera 입력, 50 epoch **학습**(장면별 최적화 아님).
+FL과 PS **양쪽 다 feed-forward**. 차이는 학습 범위 — FL=pretrain+finetune, PS=대상 데이터셋 전용 학습(in-domain 유리).
 
 ### Dataset
 
@@ -207,7 +215,7 @@ CUDA_VISIBLE_DEVICES=5 python train_gslrm.py \
 - **F5: 6-view = GT input upper bound** --- 23.84 dB. Multi-view Diffusion을 거치지 않고 GT 이미지를 직접 입력하면 이 수준까지 가능.
   - 이 값은 이후 모든 E2E 실험의 **ceiling**으로 기능.
 
-- **F6: 2-view is competitive with per-scene optimization** --- 2뷰 feed-forward(15.95 dB)가 Pose Splatter 6v per-scene(13.78 dB, PSNR_fg)과 비교 가능한 수준.
+- ~~**F6: 2-view is competitive with per-scene optimization**~~ 🔴 **보류** — PS는 per-scene 아님(오분류) + 13.78 재현 불가. SSOT §3 C5
 
 ### Implications
 
@@ -606,7 +614,7 @@ With DA:     GS-LRM retrain   → E2E +1.64dB (direct improvement)
 
 ### Why This Comparison?
 
-FaceLift의 연구적 가치를 입증하려면, 기존 per-scene optimization 방법과 공정하게 비교해야 한다.
+FaceLift의 연구적 가치를 입증하려면, 기존 **dataset-trained / template 기반** 방법과 공정하게 비교해야 한다.
 단순 숫자 비교가 아닌, **공정한 조건**에서의 비교가 핵심이다.
 
 ### 5 Fairness Issues Identified and Resolved
@@ -616,7 +624,7 @@ FaceLift의 연구적 가치를 입증하려면, 기존 per-scene optimization �
 | # | Issue | Problem | Solution |
 |---|-------|---------|----------|
 | 1 | **Evaluation data overlap** | PS `paper_standard_evaluation`이 80% train 데이터 포함 (frame_step=30 across ALL frames) | Test-only eval: frames 3240-3599 |
-| 2 | **Model type asymmetry** | FL=generalizing feed-forward vs PS=per-scene optimization | 명시적 구분, 각 모델 유형의 장단점 기술 |
+| 2 | **학습범위 asymmetry** | FL=pretrain-generalizable vs PS=dataset-trained (**둘 다 feed-forward**) | 명시적 구분 |
 | 3 | **Mask source asymmetry** | FL=GT RGBA alpha, PS=white-BG extraction | 동일 GT alpha mask 사용으로 통일 |
 | 4 | **Metric protocol mismatch** | PSNR/SSIM 계산 방식 상이 | Unified metrics: psnr_gt_masked, psnr_intersection, coverage, color_bias |
 | 5 | **Silhouette threshold sensitivity** | FL silhouette extraction threshold가 결과에 영향 (mouse = ~2.5% of image) | 고정 threshold + coverage 보고 |
@@ -650,7 +658,7 @@ Fair evaluation scripts:
 
 ### Final Results (M5, Test frames 3240-3599)
 
-| Metric | FL GS-LRM 6v (GT input) | FL E2E (Stage 1 input) | PS M5 6v (per-scene) |
+| Metric | FL GS-LRM 6v (GT input) | FL E2E (Stage 1 input) | PS M5 6v 🔴(재현불가) |
 |--------|:------------------------:|:----------------------:|:--------------------:|
 | PSNR_fg | **23.84** | 8.20 | 13.78 |
 | PSNR_whole | **36.97** | 28.50 | 29.00 |
@@ -681,7 +689,7 @@ Systematic 비교를 위해 3 methods x 3 view conditions로 구성:
 ### Key Findings from Comparison
 
 - **F1: FL GS-LRM (GT input) >> PS** --- +9.62 dB PSNR_fg, +2.93 dB PSNR_intersection.
-  Feed-forward 모델이 per-scene optimization을 압도적으로 이김 (단, GT input 조건).
+  🔴 **보류** — 비교 대상 분류 오류 + 근거 수치 재현 불가. SSOT §3 C5
 
 - **F9: Coverage 차이가 PSNR 격차의 주 원인** --- PS의 coverage 89.3%가 낮은 PSNR_fg의 핵심 원인.
   Mask 밖 영역이 penalty를 받기 때문. PSNR_intersection (순수 색상 비교)에서 gap이 줄어듦 (+2.93 vs +9.62).
@@ -752,7 +760,7 @@ Baseline (E0: 22.34 dB, 4-view GT)
 
 | ID | Finding | Source | Confidence |
 |----|---------|--------|:----------:|
-| **F1** | FL 6v feedforward >> PS per-scene by +9.62 dB (PSNR_fg) | Phase 5 | HIGH |
+| **F1** | ~~FL 6v >> PS by +9.62 dB~~ 🔴 **보류** (gap 3종 공존 D14 + 재현불가 D11) | Phase 5 | — |
 | **F2** | 1→2 view = phase transition (+5.48 dB, depth ambiguity 해소) | H4 | HIGH |
 | **F3** | MVDiff transfer rate ~14% (distribution mismatch 주 원인) | H5, DA1 | HIGH |
 | **F4** | View count vs PSNR: monotonic increase, diminishing returns | H4 | HIGH |
@@ -898,7 +906,7 @@ configs/mvdiffusion/
 | **Domain adaptation** | GS-LRM을 Stage 1 출력(non-GT)으로 재학습하여 distribution gap을 줄이는 전략. |
 | **Coverage** | Predicted silhouette area / GT silhouette area. 재구성 completeness 지표. |
 | **PSNR_intersection** | Predicted와 GT mask의 교집합 영역에서만 계산한 PSNR. Coverage에 무관한 순수 색상 정확도. |
-| **PS** | Pose Splatter. Per-scene optimization baseline (6-camera, 50 epoch). |
+| **PS** | Pose Splatter (Goffinet et al.). **Feed-forward, dataset-trained** baseline (6-camera, 50 epoch 학습). |
 
 ---
 
