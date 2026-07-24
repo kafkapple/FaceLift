@@ -79,7 +79,7 @@ role: single_entry_moc
 >
 > **Threat model**: NeurIPS D&B Track은 재현성이 심사 핵심. 헤드라인 우위 주장(+10.06 dB)의 근거 데이터가 부재하고, 동시에 비교 대상의 방법론 분류가 틀림 → 리뷰어가 둘 중 하나만 짚어도 baseline 비교 전체가 무효화.
 >
-> **해소 조건 (전부 충족 필요)**: ① PS `m5_baseline_gs` 6-view 재학습 → 13.78 재현 또는 신규 값 확정 ② 방법론 재기술 ③ 동일 하드웨어 속도 실측(현 "~minutes/frame" 주장도 미검증). 상세 원장 = Obsidian `30_Projects/FaceLift/_Agent/260723_FACT_LEDGER.md`
+> **해소 조건 (전부 충족 필요)**: ① PS `m5_baseline_gs` 6-view 재학습 → 13.78 재현 또는 신규 값 확정 ② 방법론 재기술 ③ 동일 하드웨어 속도 실측(현 "~minutes/frame" 주장도 미검증). 상세 원장 = Obsidian `30_Projects/FaceLift/_Agent/260723_FaceLift_curation_fact_log.md`
 
 ### 2.2 Paper-specific protocol (ICML main.tex:L280)
 **24.26** = 6v best-fit fg PSNR (n=2160, view 0 included) — **§2.1과 다른 eval**. Source pointer 부재 (D2 pending).
