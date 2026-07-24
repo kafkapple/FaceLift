@@ -108,7 +108,7 @@ Val vs test PSNR 다름, frame-level vs camera-level holdout 다름. **인용 �
 Full-image PSNR은 98% white BG로 +10-13 dB 인플레이션. Cross-model 비교는 **PSNR_gt만**. (MASTER §0 L26-36)
 
 ### C5. Pose-Splatter 비교 전면 인용 동결 🔴
-PS 방법론 오분류 + `13.78/0.846` 재현 불가. **전문 = §2.1 C5 블록**, 재현성 검사 = §5.1, 복구계획 = `outputs/reports/260723_ps_recovery_plan.md`.
+PS 방법론 오분류 + `13.78/0.846` 재현 불가. **전문 = §2.1 C5 블록**, 재현성 검사 = §5.1, 복구계획 = `outputs/reports/260724_ps_baseline_STATUS.md`.
 
 ---
 
@@ -142,11 +142,11 @@ Paper thesis: "PoseSplatter vs FaceLift Partial Decoupling". D-7 (Apr 21→24 Ao
 | D2 | 🔴 pending | `paper/main.tex:L280` | 24.26 source pointer 부재 → `% Source:` 주석 |
 | D3-D9 | ✅ fixed 260417 | — | 서버 INDEX 9.04→8.20, CLAUDE v7.0→v7.6, Obsidian INDEX L30 v7.4→v7.6, ALPHA §2.1 OBSOLETE stamp, UNIFIED §2 WARNING mirror, SERVER_KEY_REFERENCES → `_archive/`, FL vs PS JSON merged verified |
 | **D10** | 🔴 **pending** | PS 비교 전반 | **방법론 오기재** — PS를 per-scene으로 분류. ✅ 문서 정정 완료(guides 본문 포함 전수, `test_sph_harm_compat.py` 검증) / ❌ **논문 Contribution 4 프레이밍 재작성 미완** (§3 caveat C4와 별개 네임스페이스) |
-| **D11** | 🔴 **폐기 확정 → 신규 산출 필요** | `13.78` / `0.846` | **재현 불가**(체크포인트·전처리 데이터·전처리 코드 전부 소실, §5.1). 단 **신규 baseline 산출은 가능** — PS repo 실행 가능 상태 회복(260723) + `preprocess_generic.py --camera_params` 로 FL 카메라 직접 주입 가능. 상세 = `outputs/reports/260723_ps_repo_unblock.md` |
+| **D11** | 🔴 **폐기 확정 → 신규 산출 필요** | `13.78` / `0.846` | **재현 불가**(체크포인트·전처리 데이터·전처리 코드 전부 소실, §5.1). 단 **신규 baseline 산출은 가능** — PS repo 실행 가능 상태 회복(260723) + `preprocess_generic.py --camera_params` 로 FL 카메라 직접 주입 가능. 상세 = `outputs/reports/260724_ps_baseline_STATUS.md` |
 | **D12** | 🔴 **pending** | `fl_vs_ps_comparison` §2.5 H_Split | PS train-independence 전제 붕괴 → **실험 설계 무효**, 재설계 필요 |
 | **D13** | ✅ fixed 260723 | Obsidian vault | INDEX·Implementation_Notes E2E `9.04/0.577`→`8.20/0.521` (D3-D9가 서버만 고치고 vault 누락했던 건) |
 | **D14** | 🔴 **pending** | FL-PS gap 파생값 | **3종 공존** — `+7.13`(3건, v10.0) / `+9.62`(7건, 중간본) / `+10.06`(27건, v11.0). 정본 미확정. D11 해소 후 일괄 재산출 필요 |
-| **D15** | ✅ fixed 260724 | 파이프라인 조사 | `fix_m5_camera_params.py` = 소실된 convert 의 카메라부 완전 대체 확인. 재산출 계획 = `outputs/reports/260724_ps_pipeline_plan.md`. 잔여 격차 = 이미지→zarr |
+| **D15** | ✅ fixed 260724 | 파이프라인 조사 | `fix_m5_camera_params.py` = 소실된 convert 의 카메라부 완전 대체 확인. 재산출 계획 = `outputs/reports/260724_ps_baseline_STATUS.md`. 잔여 격차 = 이미지→zarr |
 
 **Cross-file consistency**: 23.84 / 20.66 / 8.20 / 0.954 / 0.956 = 5/5 PASS (grep verified).
 🔴 **13.78 은 consistency 대상에서 제외** — 값이 일관되게 인용되는 것과 값이 **재현 가능한 것**은 별개. D11 해소 전까지 인용 동결 (§2.1 C5).

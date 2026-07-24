@@ -21,5 +21,5 @@
 **유효한 PS baseline 아티팩트 = 0개.** 신규 산출 전까지 PS 비교 수치 인용 금지.
 
 - 상세: `docs/FACELIFT_SSOT.md` §2.1 **C5** · §3 **C5** · §5.1 · Drift Ledger **D10~D14**
-- 복구 계획: `outputs/reports/260723_ps_recovery_plan.md`
-- 감사 기록: `outputs/reports/260723_ps_baseline_integrity_audit.md`
+- 복구 계획: `outputs/reports/260724_ps_baseline_STATUS.md`
+- 감사 기록: `outputs/reports/260724_ps_baseline_STATUS.md`
