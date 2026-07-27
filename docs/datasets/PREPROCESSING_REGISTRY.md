@@ -410,7 +410,36 @@ python -m mouse_extensions.preprocessing.split_generator \
 
 ---
 
-## 11. 관련 문서
+## 11. M5 → PoseSplatter 변환 (Baseline 비교용, 🆕 260724)
+
+> **왜 여기 있나**: PoseSplatter baseline은 FaceLift M5 데이터의 파생 전처리다. 이 변환 코드가
+> **git 미커밋으로 소실**되어 baseline 재산출이 34일 막힌 사고(260619~) 재발 방지 위해 SSOT에 등재.
+
+**PS는 별도 데이터 포맷 요구** (FaceLift = 프레임별 PNG 디렉토리 / PS = 통합 배열):
+
+| PS 입력 | 스키마 | 생성 스크립트 (pose-splatter repo) |
+|---|---|---|
+| `images.zarr` | `[N,6,512,512,3]` uint8 (white-bg RGB) | `scripts/preprocessing/build_zarr_from_facelift.py` 🆕 |
+| `camera_params.h5` | `{intrinsic[6,3,3], rotation, translation}` (K at 2× res, fx=549) | `scripts/fix_m5_camera_params.py` (기존 재사용) |
+| `center_rotation.npz` | 프레임별 3D 중심 (auto_orient) | `scripts/recompute_m5_centers.py` (기존) |
+| `vertical_lines.npz` | up direction | `scripts/preprocessing/make_vertical_lines.py` 🆕 |
+
+**변환 절차** (M5 3600 frames 기준):
+```bash
+FULL=/node_data/joon/data/ps_m5_baseline_<date>/fj1   # ⚠️ fj{N} 서브디렉토리 필수 (resolve_preprocess_directory)
+python scripts/fix_m5_camera_params.py --fl_data_dir <M5> --ps_preprocess_dir $FULL --frame_id 003240
+python scripts/preprocessing/build_zarr_from_facelift.py --out $FULL       # 재투영 self-check 내장
+python scripts/recompute_m5_centers.py --ps_preprocess_dir $FULL --n_frames 3600
+python scripts/preprocessing/make_vertical_lines.py --ps_dir $FULL
+```
+- **환경**: `/node_data/joon/conda_envs/posesplatter` (torch 2.7, gsplat 1.5.3 **sm_120 재빌드 필요**)
+- **정합 검증**: 재투영 offset 1.3px = 카메라·이미지·좌표계 정합 (smoke 5ep 완주 실증)
+- **소실 원본**: `convert_m5_for_ps.py` (git 미커밋, 복구 불가) → 위 조합이 대체
+- **상세**: `outputs/reports/260724_ps_baseline_STATUS.md`, pose-splatter `c126220`
+
+> ⚠️ 산출 baseline = **신규값** (소실된 `13.78` 재현 아님. 환경·설정 차이 명시).
+
+## 12. 관련 문서
 
 | 문서 | 위치 | 내용 |
 |------|------|------|
@@ -419,6 +448,7 @@ python -m mouse_extensions.preprocessing.split_generator \
 | Raw Data | `./RAW_DATA.md` | 원본 데이터 정보 |
 | RAT Preprocessing | `../specs/RAT_PREPROCESSING_STRATEGY.md` | Zero-pad vs crop 3-model audit |
 | RAT2 Dataset Config | `../../configs/datasets/RAT2.yaml` | HLAC-stratified split 설정 |
+| PS baseline 재산출 | `../../outputs/reports/260724_ps_baseline_STATUS.md` | 전처리·학습·fair eval 현황 |
 
 ---
 

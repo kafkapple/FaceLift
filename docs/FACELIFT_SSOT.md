@@ -109,6 +109,7 @@ Full-image PSNR은 98% white BG로 +10-13 dB 인플레이션. Cross-model 비교
 
 ### C5. Pose-Splatter 비교 전면 인용 동결 🔴
 PS 방법론 오분류 + `13.78/0.846` 재현 불가. **전문 = §2.1 C5 블록**, 재현성 검사 = §5.1, 복구계획 = `outputs/reports/260724_ps_baseline_STATUS.md`.
+**M5→PS 전처리 정본** = `docs/datasets/PREPROCESSING_REGISTRY.md §11` (소실 재발 방지 등재, 260727).
 
 ---
 

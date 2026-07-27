@@ -260,7 +260,7 @@ FaceLift_rat_7m/v0 (PoC, 260415 진행 중)
 
 ---
 
-## 3. 절대 경로 SSOT (⭐ Quick Reference)
+## 4. 절대 경로 SSOT (⭐ Quick Reference)
 
 > **⚠️ Storage Tier 규칙** (CLAUDE.md §2.4): 학습 데이터는 **반드시 `/node_data/` (local NVMe)**.
 > NFS (`/home/joon/dev/`) 금지 — cgroup v2 page cache → oomd kill 위험.
@@ -280,7 +280,7 @@ FaceLift_rat_7m/v0 (PoC, 260415 진행 중)
 
 ---
 
-## 4. PoseSplatter 데이터와의 관계
+## 5. PoseSplatter 데이터와의 관계
 
 > ⚠️ PoseSplatter (Goffinet et al. 2025)는 DANNCE/MAMMAL 데이터를 사용하지 **않으며**, **자체 녹화한 별도 데이터**를 사용합니다
 > (Duke, 324K frames, 1536×2048, 30fps, 28cm 플라스틱 실린더, DOI: 10.7924/r4z323k2c).
@@ -288,7 +288,7 @@ FaceLift_rat_7m/v0 (PoC, 260415 진행 중)
 
 ---
 
-## 5. 전처리 명령어
+## 6. 전처리 명령어
 
 ### 5.1 Mouse (M5t2)
 
@@ -329,7 +329,7 @@ CUDA_VISIBLE_DEVICES=5 torchrun --standalone --nproc_per_node=1 \
 
 ---
 
-## 6. FPS 혼동 주의
+## 7. FPS 혼동 주의
 
 > ⚠️ **DANNCE/MAMMAL mouse 데이터는 항상 100fps**. 아래 "30fps" 출처는 전부 **다른 맥락**:
 > - PoseSplatter의 자체 rat 데이터 (30fps) — 다른 데이터셋
@@ -340,7 +340,7 @@ CUDA_VISIBLE_DEVICES=5 torchrun --standalone --nproc_per_node=1 \
 
 ---
 
-## 7. Frame Discontinuity
+## 8. Frame Discontinuity
 
 ```python
 DISCONTINUITY_FRAMES = {5900, 11800, 17700}
