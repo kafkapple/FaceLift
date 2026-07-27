@@ -435,7 +435,7 @@ python scripts/preprocessing/make_vertical_lines.py --ps_dir $FULL
 - **환경**: `/node_data/joon/conda_envs/posesplatter` (torch 2.7, gsplat 1.5.3 **sm_120 재빌드 필요**)
 - **정합 검증**: 재투영 offset 1.3px = 카메라·이미지·좌표계 정합 (smoke 5ep 완주 실증)
 - **소실 원본**: `convert_m5_for_ps.py` (git 미커밋, 복구 불가) → 위 조합이 대체
-- **상세**: `outputs/reports/260724_ps_baseline_STATUS.md`, pose-splatter `c126220`
+- **상세**: `Obsidian:30_Projects/FaceLift/_Agent/260724_ps_baseline_STATUS.md`, pose-splatter `c126220`
 
 > ⚠️ 산출 baseline = **신규값** (소실된 `13.78` 재현 아님. 환경·설정 차이 명시).
 
@@ -448,7 +448,7 @@ python scripts/preprocessing/make_vertical_lines.py --ps_dir $FULL
 | Raw Data | `./RAW_DATA.md` | 원본 데이터 정보 |
 | RAT Preprocessing | `../specs/RAT_PREPROCESSING_STRATEGY.md` | Zero-pad vs crop 3-model audit |
 | RAT2 Dataset Config | `../../configs/datasets/RAT2.yaml` | HLAC-stratified split 설정 |
-| PS baseline 재산출 | `../../outputs/reports/260724_ps_baseline_STATUS.md` | 전처리·학습·fair eval 현황 |
+| PS baseline 재산출 | `../../Obsidian:30_Projects/FaceLift/_Agent/260724_ps_baseline_STATUS.md` | 전처리·학습·fair eval 현황 |
 
 ---
 

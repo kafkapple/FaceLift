@@ -88,7 +88,7 @@ CUDA_VISIBLE_DEVICES=4 nohup python scripts/run_experiment.py \
 > ✅ **260723 해소됨 — Step 0~2 불필요.** repo 실행 가능 상태 회복.
 > 사용할 환경: `conda run -p /node_data/joon/conda_envs/posesplatter ...`
 > 수정 2건: `src/data_utils.py`(git 36b7fc2 복원) · `src/modules/embedding/spherical_harmonics.py`(scipy≥1.17 shim)
-> 상세 = `FaceLift/outputs/reports/260724_ps_baseline_STATUS.md`
+> 상세 = `FaceLift/Obsidian:30_Projects/FaceLift/_Agent/260724_ps_baseline_STATUS.md`
 
 ## ~~Step 0 — Conda env 재생성~~ (불필요, 위 참조)
 

@@ -29,7 +29,7 @@ Example workflow:
   python -m mouse_extensions.scripts.eval.fair_comparison compare \
     --facelift experiments/comparison/fair/facelift_fair.json \
     --baseline <PS_FAIR_JSON>   # 260723: 기존 baselines/pose_splatter/*.json 은 무효 run 산출로 삭제됨.
-    #          유효 PS baseline 없음 → outputs/reports/260724_ps_baseline_STATUS.md 참조 \
+    #          유효 PS baseline 없음 → Obsidian:30_Projects/FaceLift/_Agent/260724_ps_baseline_STATUS.md 참조 \
     --output_dir experiments/comparison/fair/
 """
 

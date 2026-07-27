@@ -43,7 +43,7 @@ facelift:
 # Pose-Splatter experiment paths (joon)
 # ============================================================
 # 🔴 260723 감사: 아래 등록 실험은 전부 무효. 사용 금지.
-#    상세 = docs/FACELIFT_SSOT.md §2.1 C5 / §5.1, outputs/reports/260724_ps_baseline_STATUS.md
+#    상세 = docs/FACELIFT_SSOT.md §2.1 C5 / §5.1, Obsidian:30_Projects/FaceLift/_Agent/260724_ps_baseline_STATUS.md
 posesplatter:
   repo_root: "/home/joon/dev/pose-splatter"
   experiments:

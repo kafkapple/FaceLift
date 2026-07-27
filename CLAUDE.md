@@ -35,6 +35,10 @@ GS-LRM 기반 Multi-view Mouse 3D Reconstruction
 
 **중복 금지**: 동일 내용을 양쪽에 두지 않음. 서버에서 Obsidian 참조 시 포인터만 남김.
 
+**연구노트·분석 보고 = Obsidian 일원화** (260727 신설): 세션 연구노트·현황 보고·진단·감사 문서는 **Obsidian `30_Projects/FaceLift/_Agent/`** 에 작성. 서버 `outputs/reports/` 는 **포인터 stub만** (`# MOVED → Obsidian` + 경로).
+- 이유: `outputs/` 는 **gitignore** (git 백업 없음, gpu03 미sync) → 로컬 소실 위험. Obsidian은 git 백업.
+- 예외 = 순수 실행 산출물(HTML 리포트·figure·metric JSON)은 `outputs/` 유지 (연구노트 아님).
+
 ### Obsidian 경로
 
 | 경로 | 내용 |
