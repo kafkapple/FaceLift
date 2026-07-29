@@ -23,6 +23,7 @@ import pyrender
 import trimesh
 import torch
 from PIL import Image
+from mouse_extensions.paths import M5_DATA
 
 M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])
 M5_DISTANCE_SCALE = 2.7 / 307.785
@@ -128,7 +129,7 @@ def main():
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--output-dir", default="outputs/analysis/mouse/neural_texture/pseudo_gt")
     parser.add_argument("--obj-dir", default="/home/joon/data/synthetic/textured_obj")
-    parser.add_argument("--m5-dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
+    parser.add_argument("--m5-dir", default=str(M5_DATA))
     parser.add_argument("--num-frames", type=int, default=100)
     parser.add_argument("--render-gt-views", action="store_true",
                         help="Also render at GT camera positions")

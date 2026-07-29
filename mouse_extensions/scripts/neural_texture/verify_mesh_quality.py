@@ -15,9 +15,10 @@ import json, numpy as np, trimesh
 from pathlib import Path
 from scipy.ndimage import binary_dilation
 from PIL import Image
+from mouse_extensions.paths import M5_DATA
 
 M5_SC=np.array([59.672,51.517,107.099]); M5_DS=2.7/307.785
-m5=Path("/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
+m5=M5_DATA
 obj_dir=Path("/home/joon/data/synthetic/textured_obj")
 
 bad, good = [], []

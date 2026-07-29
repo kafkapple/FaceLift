@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy as np
 import pyrender
 import trimesh
+from mouse_extensions.paths import M5_DATA
 
 M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])
 M5_DISTANCE_SCALE = 2.7 / 307.785
@@ -130,7 +131,7 @@ def main():
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--num-frames", type=int, default=100)
     parser.add_argument("--obj-dir", default="/home/joon/data/synthetic/textured_obj")
-    parser.add_argument("--m5-dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
+    parser.add_argument("--m5-dir", default=str(M5_DATA))
     args = parser.parse_args()
 
     if args.output_dir is None:

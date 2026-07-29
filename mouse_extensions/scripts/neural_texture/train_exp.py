@@ -28,6 +28,7 @@ from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 
 from mouse_extensions.model.neural_texture import NeuralTextureMLP, FourierEncoder
+from mouse_extensions.paths import M5_DATA
 
 
 class CoordTextureDataset(Dataset):
@@ -215,7 +216,7 @@ def render_image(model, coord_map, mask, device):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--map-dir", required=True)
-    parser.add_argument("--m5-dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
+    parser.add_argument("--m5-dir", default=str(M5_DATA))
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--exp-name", default="exp")
     parser.add_argument("--epochs", type=int, default=300)

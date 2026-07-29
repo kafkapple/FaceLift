@@ -21,6 +21,7 @@ import numpy as np
 import pyrender
 import trimesh
 from PIL import Image
+from mouse_extensions.paths import M5_DATA
 
 # MAMMAL → GS-LRM coordinate transform (from coordinate_utils.py)
 M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])
@@ -100,7 +101,7 @@ def main():
     parser.add_argument("--obj-dir", type=str,
                         default="/home/joon/data/synthetic/textured_obj")
     parser.add_argument("--m5-dir", type=str,
-                        default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
+                        default=str(M5_DATA))
     parser.add_argument("--save-preview", action="store_true",
                         help="Save UV map as PNG for visual inspection")
     args = parser.parse_args()

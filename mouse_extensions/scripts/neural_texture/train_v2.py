@@ -1,3 +1,6 @@
+# no-split: 405 lines before this commit, which only swaps a hardcoded dataset path
+# for the paths.py SSOT and adds the import. Splitting a training script to land a
+# one-line import would be unrelated churn in a module nobody asked to refactor.
 """Train Neural Texture MLP v2: mask intersection + LPIPS + wandb.
 
 Improvements over v1:
@@ -28,6 +31,7 @@ from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 
 from mouse_extensions.model.neural_texture import build_neural_texture
+from mouse_extensions.paths import M5_DATA
 
 
 class UVTextureDatasetV2(Dataset):
@@ -231,7 +235,7 @@ def render_comparison(model, uv_file, m5_dir, device, texture_img=None):
 def main():
     parser = argparse.ArgumentParser(description="Train Neural Texture v2")
     parser.add_argument("--uv-dir", default="outputs/analysis/mouse/neural_texture/uv_maps")
-    parser.add_argument("--m5-dir", default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
+    parser.add_argument("--m5-dir", default=str(M5_DATA))
     parser.add_argument("--kp-path", default="/home/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz")
     parser.add_argument("--texture-path", default="/home/joon/data/synthetic/mouse_mesh/FaceLift_mouse/texture_final.png")
     parser.add_argument("--output-dir", default="outputs/analysis/mouse/neural_texture/v2")

@@ -24,6 +24,7 @@ from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 
 from mouse_extensions.model.neural_texture import build_neural_texture
+from mouse_extensions.paths import M5_DATA
 
 
 class UVTextureDataset(Dataset):
@@ -231,7 +232,7 @@ def main():
     parser = argparse.ArgumentParser(description="Train Neural Texture MLP")
     parser.add_argument("--uv-dir", type=str, default="outputs/analysis/mouse/neural_texture/uv_maps")
     parser.add_argument("--m5-dir", type=str,
-                        default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
+                        default=str(M5_DATA))
     parser.add_argument("--kp-path", type=str,
                         default="/home/joon/data/results/MAMMAL_mouse/v012345_kp22_20260126/keypoints_22_3d.npz")
     parser.add_argument("--output-dir", type=str, default="outputs/analysis/mouse/neural_texture/checkpoints")

@@ -24,6 +24,7 @@ import torch
 from PIL import Image, ImageDraw, ImageFont
 
 from mouse_extensions.model.neural_texture import build_neural_texture
+from mouse_extensions.paths import M5_DATA
 
 # Coordinate transform
 M5_SCENE_CENTER = np.array([59.672, 51.517, 107.099])
@@ -246,7 +247,7 @@ def main():
     parser.add_argument("--obj-dir", type=str,
                         default="/home/joon/data/synthetic/textured_obj")
     parser.add_argument("--m5-dir", type=str,
-                        default="/home/joon/data/preprocessed/FaceLift_mouse/M5_4")
+                        default=str(M5_DATA))
     parser.add_argument("--output-dir", type=str,
                         default="outputs/analysis/mouse/neural_texture/visualizations")
     parser.add_argument("--frame", type=int, default=0,
