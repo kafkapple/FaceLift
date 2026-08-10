@@ -80,6 +80,8 @@ role: single_entry_moc
 > **Threat model**: NeurIPS D&B Track은 재현성이 심사 핵심. 헤드라인 우위 주장(+10.06 dB)의 근거 데이터가 부재하고, 동시에 비교 대상의 방법론 분류가 틀림 → 리뷰어가 둘 중 하나만 짚어도 baseline 비교 전체가 무효화.
 >
 > **해소 조건 (전부 충족 필요)**: ① PS `m5_baseline_gs` 6-view 재학습 → 13.78 재현 또는 신규 값 확정 ② 방법론 재기술 ③ 동일 하드웨어 속도 실측(현 "~minutes/frame" 주장도 미검증). 상세 원장 = Obsidian `30_Projects/FaceLift/_Agent/260723_FaceLift_curation_fact_log.md`
+>
+> 🔴 **260810 갱신**: ① 재학습 1차 시도(260724, 50ep, checkpoint 1.68GB)는 **whole-image PSNR 18.3-19.85dB로 "성공" 판정됐으나 반증됨** — FG(마우스) 렌더가 epoch 1부터 최종까지 완전 공백, IoU loss(가중치 1.0, 미분가능 확인)가 있었음에도 붕괴. **아직 유효한 신규값 없음**, 재재학습 필요. 상세 = Obsidian `30_Projects/FaceLift/_Agent/260810_FaceLift_ps-baseline-fair-eval-rootcause.md`
 
 ### 2.2 Paper-specific protocol (ICML main.tex:L280)
 **24.26** = 6v best-fit fg PSNR (n=2160, view 0 included) — **§2.1과 다른 eval**. Source pointer 부재 (D2 pending).
@@ -143,7 +145,7 @@ Paper thesis: "PoseSplatter vs FaceLift Partial Decoupling". D-7 (Apr 21→24 Ao
 | D2 | 🔴 pending | `paper/main.tex:L280` | 24.26 source pointer 부재 → `% Source:` 주석 |
 | D3-D9 | ✅ fixed 260417 | — | 서버 INDEX 9.04→8.20, CLAUDE v7.0→v7.6, Obsidian INDEX L30 v7.4→v7.6, ALPHA §2.1 OBSOLETE stamp, UNIFIED §2 WARNING mirror, SERVER_KEY_REFERENCES → `_archive/`, FL vs PS JSON merged verified |
 | **D10** | 🔴 **pending** | PS 비교 전반 | **방법론 오기재** — PS를 per-scene으로 분류. ✅ 문서 정정 완료(guides 본문 포함 전수, `test_sph_harm_compat.py` 검증) / ❌ **논문 Contribution 4 프레이밍 재작성 미완** (§3 caveat C4와 별개 네임스페이스) |
-| **D11** | 🔴 **폐기 확정 → 신규 산출 필요** | `13.78` / `0.846` | **재현 불가**(체크포인트·전처리 데이터·전처리 코드 전부 소실, §5.1). 단 **신규 baseline 산출은 가능** — PS repo 실행 가능 상태 회복(260723) + `preprocess_generic.py --camera_params` 로 FL 카메라 직접 주입 가능. 상세 = `Obsidian:30_Projects/FaceLift/_Agent/260724_ps_baseline_STATUS.md` |
+| **D11** | 🔴 **폐기 확정 → 신규 산출 필요, 1차 시도 260810 무효 확인** | `13.78` / `0.846` | **재현 불가**(체크포인트·전처리 데이터·전처리 코드 전부 소실, §5.1). PS repo 실행 가능 상태는 회복(260723)했으나 **1차 재학습(260724, 50ep)이 FG 붕괴로 무효**(whole-image 지표만 정상, 실제 render는 마우스 없음) — 재재학습 필요. 상세 = `Obsidian:30_Projects/FaceLift/_Agent/260724_ps_baseline_STATUS.md`, `260810_FaceLift_ps-baseline-fair-eval-rootcause.md` |
 | **D12** | 🔴 **pending** | `fl_vs_ps_comparison` §2.5 H_Split | PS train-independence 전제 붕괴 → **실험 설계 무효**, 재설계 필요 |
 | **D13** | ✅ fixed 260723 | Obsidian vault | INDEX·Implementation_Notes E2E `9.04/0.577`→`8.20/0.521` (D3-D9가 서버만 고치고 vault 누락했던 건) |
 | **D14** | 🔴 **pending** | FL-PS gap 파생값 | **3종 공존** — `+7.13`(3건, v10.0) / `+9.62`(7건, 중간본) / `+10.06`(27건, v11.0). 정본 미확정. D11 해소 후 일괄 재산출 필요 |
