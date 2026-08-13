@@ -6,7 +6,7 @@ Chains existing modules (no new logic):
            -> build_count_match_mask (cinematic_sequence, n-of-6 vote + top-K opacity)
            -> masked PLY write (same pattern as filter_ply.py)
 
-Reference: PARADIGM_COMPARISON_SSOT.md §36 / CINEMATIC_V11_SPEC.md
+Reference: docs/theory/GAUSSIAN_FILTERING_THEORY.md (method SSOT) / CINEMATIC_V11_SPEC.md
 (GS native ~100k -> 16k; defaults n_filter=5, top_k=16000).
 
 Usage:

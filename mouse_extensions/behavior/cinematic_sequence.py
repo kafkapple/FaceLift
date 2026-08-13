@@ -292,8 +292,9 @@ def infer_frame_from_ply(ply_dir, fi, m5_dir, kp_path, n_thresh=2, device="cuda"
 def build_count_match_mask(fd, n_filter: int = 5, top_k: int = 16000) -> np.ndarray:
     """Paper count-match: N-of-6 multi-view opacity vote + top-K opacity selection.
 
-    Reference: ICML workshop PARADIGM_COMPARISON_SSOT.md §36 — GS native ~100k →
-    16k (5/6 multi-view opacity-mask vote, top-K opacity, w_α=0.3 ckpt).
+    Reference: docs/theory/GAUSSIAN_FILTERING_THEORY.md §2 (method SSOT) — GS native
+    ~100k → 16k: 5/6 multi-view foreground vote + top-K opacity. (Historical
+    PARADIGM_COMPARISON_SSOT.md §36 is no longer in-tree.)
     """
     vis = fd["vis_counts"] >= n_filter
     opacity = fd["gaussians"].get_opacity.detach().cpu().numpy().squeeze()
