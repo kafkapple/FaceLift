@@ -1,0 +1,55 @@
+# Rat Fine-Tuning v7: Camera-Level Held-Out Test (Phase 1 of audit-driven plan)
+#
+# Purpose: Empirically verify whether 5.8° baseline rat data permits true novel view synthesis
+#
+# v6 retraction (260407): val PSNR 28.2 was frame-level holdout (same 6 cams)
+# v7 design: 4 train cams + 2 held-out test cams (camera-level holdout)
+#
+# Pre-committed pass criteria (DO NOT adjust after evaluation):
+#   1. Held-out test PSNR ≥ 24 dB AND
+#   2. Voluminous mesh extraction (NOT billboard) AND
+#   3. Occlusion test PASS (feature visible only in held-out cam correctly rendered)
+#
+# Expected outcome: Likely FAIL (parallax 2.63 px is at noise floor for depth disambiguation)
+# If FAIL: pivot to Plan B (external dataset OR mouse-only paper OR methods paper)
+#
+# Architecture: 4 input views (cams 0,1,2,3) → 3D Gaussians → render at all 6 cams
+# Loss: target_has_input=false → only cams 4,5 contribute to loss = camera-level held-out
+
+model:
+  num_input_views: 4              # Input: cams 0,1,2,3 (first 4 of 6)
+  num_views: 6                    # Total: 6 cameras available
+  clip_xyz: false                 # Inherit from v6
+mouse:
+  recenter_cameras: false
+  target_camera_distance: 0
+  normalize_cameras: false
+training:
+  dataset:
+    num_input_views: 4
+    num_views: 6
+    target_has_input: false       # 🔴 CRITICAL: held-out cams 4,5 only contribute to loss
+  losses:
+    alpha_loss_weight: 0.3
+    mask_mode: gt
+    masked_l2_loss: true          # Inherit BG-dominated loss fix from v6
+    masked_perceptual_loss: true
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  schedule:
+    max_fwdbwd_passes: 8000       # Shorter than v6 (15000) — fail-fast if doesn't converge
+    early_stop_patience: 1500
+  optimizer:
+    lr: 5e-5
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/rat2_v7_holdout
+    resume_from: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+wandb:
+  name: rat2_v7_holdout_4train_2test
+  tags:
+  - rat
+  - phase1_audit
+  - 4view_input
+  - 2cam_holdout
+  - narrow_baseline_test

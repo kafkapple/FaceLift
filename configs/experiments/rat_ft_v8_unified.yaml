@@ -1,0 +1,50 @@
+# Rat Fine-Tuning v8: Unified Preprocessing (Scene-Centered Recentering)
+#
+# Plan v2 Phase C: Test if scene-centric recentering compensates for narrow baseline
+#
+# v6 problem: Frame-level holdout, cameras off-center
+# v7 problem: Test design flaw (held-out cams 6° from train)
+# v8 fix: Same data, but cameras properly recentered around rat scene center
+#
+# Pre-committed evaluation criteria (sign before training):
+#   - Strong PASS: val PSNR > 22 dB on frame-level holdout (BUT compare to v6 27.74)
+#                  + qualitative turntable shows improved 3D structure
+#   - Marginal: val PSNR 18-22 dB, mixed turntable quality
+#   - Failed: val PSNR < 18 dB OR no qualitative improvement vs v6
+#
+# Note: v8 still uses frame-level holdout (val.txt = different time frames).
+# A SEPARATE camera-level test will be run after v8 if results warrant.
+
+model:
+  num_input_views: 6
+  num_views: 6
+  clip_xyz: false
+mouse:
+  recenter_cameras: false       # Recentering done in dataset adapter, not at training time
+  target_camera_distance: 0
+  normalize_cameras: false
+training:
+  losses:
+    alpha_loss_weight: 0.3
+    mask_mode: gt
+    masked_l2_loss: true        # Inherit BG-dominated loss fix from v6
+    masked_perceptual_loss: true
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  schedule:
+    max_fwdbwd_passes: 8000     # Match v7 (fail-fast vs v6's 15000)
+    early_stop_patience: 1500
+  optimizer:
+    lr: 5e-5
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/rat2_v8_unified
+    resume_from: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+wandb:
+  name: rat2_v8_unified_recentered
+  tags:
+  - rat
+  - v8_unified
+  - scene_centered
+  - audit_v2
+  - control_experiment

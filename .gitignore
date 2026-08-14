@@ -200,9 +200,13 @@ reports/*.jpg
 _archive/
 # experiments/ (output dir, not configs)
 alpha_analysis/
-\!configs/experiments/
 experiments/
+# 아래 negation 3줄이 위 규칙의 예외. 260814: configs 쪽이 `\!` 로 escape 돼 있어
+# 리터럴 패턴이 됐고(negation 무력화) rat_ft_v{6,7,8}.yaml + run_view_ablation_phase1_5.sh
+# 4건이 6ff1bd7(2026-03-03) 이후 5개월간 조용히 제외됐다. escape 제거로 복구.
+!configs/experiments/
 !docs/experiments/
+!mouse_extensions/scripts/experiments/
 
 # gpu03 rsync junk — root-owned nested duplicate of configs/ (2026-04-16 incident)
 # 92 yaml files identical to configs/. sudo 없이 삭제 불가 → ignore로 우회.

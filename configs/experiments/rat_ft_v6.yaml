@@ -1,0 +1,39 @@
+# Rat Fine-Tuning v6 (masked loss for small FG)
+# v5 failure: FG=1.6% → BG-dominated loss → PSNR 4.9 (train 24 = false convergence)
+# v6 fix: masked_l2 + masked_perceptual �� gradient focused on FG pixels only
+# Same data as v5: despilled + fx-normalized (rat2_s1despill_s2fxnorm)
+model:
+  num_input_views: 6
+  num_views: 6
+  clip_xyz: false                       # CRITICAL: rat cameras not origin-centered (v2 lesson)
+mouse:
+  recenter_cameras: false
+  target_camera_distance: 0
+  normalize_cameras: false
+training:
+  losses:
+    alpha_loss_weight: 0.3
+    mask_mode: gt                       # Use GT alpha as FG mask
+    masked_l2_loss: true                # L2 loss on FG pixels only
+    masked_perceptual_loss: true        # Perceptual loss with BG→gray neutralization
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+  schedule:
+    max_fwdbwd_passes: 15000
+    early_stop_patience: 2000
+  optimizer:
+    lr: 5e-5
+  checkpointing:
+    checkpoint_dir: /node_data/joon/checkpoints/FaceLift/gslrm/rat2_fxnorm_ft_v6_masked
+    resume_from: /node_data/joon/checkpoints/FaceLift/gslrm/M5t2_6view_alpha03_v3/best_psnr.pt
+wandb:
+  name: rat2_fxnorm_ft_v6_masked
+  tags:
+  - rat
+  - fine_tuning
+  - alpha_0.3
+  - 6view
+  - sdannce
+  - fx_normalized
+  - masked_loss
