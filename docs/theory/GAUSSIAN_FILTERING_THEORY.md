@@ -65,6 +65,29 @@ Smoke-verified 2026-08-13: 99,250–101,383 → exactly 16,000 per frame.
 | `match_16k` | stage 3 (early run) | none found (intermediate) |
 | `base_uniform_v2_6view_v2` | stage 1 full-res (281 frames) | none found — regenerable from ckpt |
 
+### 4.1 260814 서버 정리 기록 (gpu03 오프보딩)
+
+보존·회수한 것 (mac + win 이중, 크기 매니페스트 전건 대조 완료):
+
+| dir | frames | 소비처 |
+|---|---:|---|
+| `M5t2_6view_alpha03_v3_maskcarve16k` | 3,600 | BS `canonical.yaml` `gs_gaussian_dir` (논문 정본) · cinematic FINAL paper preset |
+| `filtered/a0.3_t0.2` | 3,600 | BS host config ×5 · `extract_per_frame_npz.py` |
+| `ply_a0.3` | 720 (test·val) | BS `visualization/canonical_compare.py` |
+
+서버에서 정리한 것 — **소비처 0 으로 판정**, 전량 stage 1~3 재생성 가능:
+
+| dir | files | size | 재생성 |
+|---|---:|---:|---|
+| `base_uniform_v2_6view_v2` | 281 | 49.25 GiB | stage 1 (full-res, 281프레임) |
+| `match_16k` | 3,600 | 12.83 GiB | stage 3 초기판 — `maskcarve16k` 가 대체 |
+| `M5t2_6view_alpha10_v3_maskcarve16k` | 3,600 | 12.79 GiB | stage 1(ckpt α=1.0) → stage 3 |
+| `filtered/a0.067` | 3,600 | 11.50 GiB | stage 1 → stage 2 (`--opacity_threshold 0.067`) |
+
+합계 11,081 files / 86.37 GiB. 판정 근거 = 두 레포 전수 grep (`canonical.yaml`·host config·
+`canonical_compare.py`·cinematic config 4종). 개별 파일 크기 원장은 남기지 않았다 —
+재추론 결과는 GPU 간 바이트 동일성이 보장되지 않아 프레임 수·shape 대조가 실질 판정 기준이다.
+
 ## 4.5 경로 규약 (260814, gpu03 오프보딩)
 
 cinematic config 의 `ply_dir` 은 **`${FL_GAUSSIAN_ROOT}` 환경변수 경유**로 통일했다.
