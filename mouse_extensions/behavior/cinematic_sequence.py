@@ -904,8 +904,12 @@ class CinematicPipeline:
         self.kp = os.path.expanduser(cfg["model"]["kp_path"])
         # PLY mode: if set, load precomputed Gaussians instead of running model.forward.
         # ckpt-independent, paper-consistent (uses _maskcarve16k or equivalent).
+        # 260814: expandvars 추가. gpu03 오프보딩으로 config 가 절대경로를 박아둘 수 없게 됐다
+        # (구 경로 /node_data/joon/... 은 개인 계정 경유라 계정 삭제와 함께 죽는다).
+        # 이제 ${FL_GAUSSIAN_ROOT} 로 호스트별 루트를 주입한다 — 미설정 시 원문 그대로 남아
+        # FileNotFoundError 로 조기 실패하므로 조용한 오작동은 없다.
         _pd = cfg["model"].get("ply_dir")
-        self.ply_dir = os.path.expanduser(_pd) if _pd else None
+        self.ply_dir = os.path.expandvars(os.path.expanduser(_pd)) if _pd else None
         self.kp_overlay = self.g.get("keypoint_overlay", False)
         self.border_color = self.g.get("mask_border_color", None)
         self._show_controls = self.g.get("show_controls", False)

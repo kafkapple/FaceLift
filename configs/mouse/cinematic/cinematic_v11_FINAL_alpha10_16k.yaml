@@ -2,7 +2,10 @@
 extends: cinematic_v11.yaml
 
 model:
-  ply_dir: /node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/M5t2_6view_alpha10_v3_maskcarve16k
+  # ⚠️ 260814: 이 변형의 gaussian 디렉토리는 서버 정리 대상이라 실물이 없을 수 있다.
+  # 재생성 = stage1(batch_ply_export, ckpt=M5t2_6view_alpha10_v3) → stage3(make_maskcarve16k).
+  # 절차 정본 = docs/theory/GAUSSIAN_FILTERING_THEORY.md §3.
+  ply_dir: ${FL_GAUSSIAN_ROOT}/M5t2_6view_alpha10_v3_maskcarve16k
 
 global:
   fps: 20

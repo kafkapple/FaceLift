@@ -4,7 +4,11 @@
 extends: cinematic_v11.yaml
 
 model:
-  ply_dir: /node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/M5t2_6view_alpha03_v3_maskcarve16k
+  # 260814: 구 경로 /node_data/joon/data/shared/... 는 개인 계정 경유라 오프보딩과 함께 죽는다.
+  # FL_GAUSSIAN_ROOT 예시:
+  #   win WSL  /mnt/d/data/derived/mac_backups_260813/gpu03_offserver_260813/FaceLift_gaussians_260814
+  #   gpu03    /node_data_2/dataset/animal_behavior/FaceLift_mouse_6view/gaussians
+  ply_dir: ${FL_GAUSSIAN_ROOT}/M5t2_6view_alpha03_v3_maskcarve16k
 
 global:
   fps: 20

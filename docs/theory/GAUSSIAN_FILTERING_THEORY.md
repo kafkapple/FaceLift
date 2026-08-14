@@ -65,6 +65,23 @@ Smoke-verified 2026-08-13: 99,250–101,383 → exactly 16,000 per frame.
 | `match_16k` | stage 3 (early run) | none found (intermediate) |
 | `base_uniform_v2_6view_v2` | stage 1 full-res (281 frames) | none found — regenerable from ckpt |
 
+## 4.5 경로 규약 (260814, gpu03 오프보딩)
+
+cinematic config 의 `ply_dir` 은 **`${FL_GAUSSIAN_ROOT}` 환경변수 경유**로 통일했다.
+
+```bash
+# win 개인 서버 (WSL)
+export FL_GAUSSIAN_ROOT=/mnt/d/data/derived/mac_backups_260813/gpu03_offserver_260813/FaceLift_gaussians_260814
+# gpu03 (랩 공용 절대경로)
+export FL_GAUSSIAN_ROOT=/node_data_2/dataset/animal_behavior/FaceLift_mouse_6view/gaussians
+```
+
+- 구 표기 `/node_data/joon/data/shared/…` 는 **개인 계정을 경유**해 계정 삭제와 함께 죽는다.
+  260813 인계 원칙(개인 계정 경유 금지, 랩 공용 절대경로만)에 어긋나 있던 것을 바로잡았다.
+- 미설정 시 `${FL_GAUSSIAN_ROOT}` 가 리터럴로 남아 `FileNotFoundError` 로 **조기 실패**한다.
+  조용히 빈 결과를 내지 않는다는 뜻이며, 이 동작을 260814 에 실측 확인했다.
+- 확장 지점 = `behavior/cinematic_sequence.py` 의 `expandvars`(기존 `expanduser` 옆).
+
 ## 5. History note
 An earlier write-up (`PARADIGM_COMPARISON_SSOT.md`, ICML-workshop era) described this
 method in §36 but is no longer in any tree; code comments that cited it now point here.

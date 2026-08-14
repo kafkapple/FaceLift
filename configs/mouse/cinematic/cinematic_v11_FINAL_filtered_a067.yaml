@@ -2,7 +2,10 @@
 extends: cinematic_v11.yaml
 
 model:
-  ply_dir: /node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/filtered/a0.067
+  # ⚠️ 260814: 이 변형의 gaussian 디렉토리는 서버 정리 대상이라 실물이 없을 수 있다.
+  # 재생성 = stage1(batch_ply_export) → stage2(filter_ply --opacity_threshold 0.067).
+  # 절차 정본 = docs/theory/GAUSSIAN_FILTERING_THEORY.md §3.
+  ply_dir: ${FL_GAUSSIAN_ROOT}/filtered/a0.067
 
 global:
   fps: 20
