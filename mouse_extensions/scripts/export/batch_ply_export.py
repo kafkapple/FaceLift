@@ -180,7 +180,9 @@ def main():
     )
     parser.add_argument(
         "--output-dir",
-        default="/home/joon/data/derived/FaceLift/novel_view/ply/mouse_6view_best",
+        # 260814: 구 기본값 "/home/joon/data/derived/..." 은 개인 계정 심링크 경유라
+        # 계정 정리와 함께 끊긴다. 호스트 중립 상대경로로 바꾸고, 필요하면 --output-dir 로 지정.
+        default="outputs/novel_view/ply/mouse_6view_best",
         help="Output directory for .ply files"
     )
     parser.add_argument(

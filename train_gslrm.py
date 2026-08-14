@@ -630,9 +630,14 @@ class GSLRMTrainer:
                 "max_steps": self.config.training.schedule.max_fwdbwd_passes,
             }
         
-        # Create wandb directory - prefer local storage to avoid NFS stale file handle errors
-        local_wandb_dir = "/node_data/joon/wandb_logs"
-        if os.path.isdir("/node_data/joon"):
+        # Create wandb directory - prefer node-local storage to avoid NFS stale file handles.
+        # 260814: the old hardcoded "/node_data/joon" dies with that account. Resolve in order:
+        #   FACELIFT_WANDB_DIR env > /node_data/$USER (node-local NVMe) > ./wandb_logs
+        local_wandb_dir = os.environ.get("FACELIFT_WANDB_DIR")
+        if not local_wandb_dir:
+            node_local = f"/node_data/{os.environ.get('USER', '')}"
+            local_wandb_dir = f"{node_local}/wandb_logs" if os.path.isdir(node_local) else None
+        if local_wandb_dir:
             wandb_dir = local_wandb_dir
         else:
             wandb_dir = "wandb_logs"

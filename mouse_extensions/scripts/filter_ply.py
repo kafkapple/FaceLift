@@ -11,8 +11,8 @@ Preserves all Gaussian properties, just removes low-opacity entries.
 
 Usage:
     python -m mouse_extensions.scripts.filter_ply \
-        --source /node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/ply_a0.3 \
-        --output /node_data/joon/data/shared/FaceLift_mouse_6view/gaussians/filtered/a0.3_t0.2 \
+        --source /node_data_2/dataset/animal_behavior/FaceLift_mouse_6view/gaussians/ply_a0.3 \
+        --output /node_data_2/dataset/animal_behavior/FaceLift_mouse_6view/gaussians/filtered/a0.3_t0.2 \
         --opacity_threshold 0.2
 
 Terminology (see docs/theory/GAUSSIAN_FILTERING_THEORY.md):
