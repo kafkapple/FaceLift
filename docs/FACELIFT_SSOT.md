@@ -82,6 +82,14 @@ role: single_entry_moc
 > **해소 조건 (전부 충족 필요)**: ① PS `m5_baseline_gs` 6-view 재학습 → 13.78 재현 또는 신규 값 확정 ② 방법론 재기술 ③ 동일 하드웨어 속도 실측(현 "~minutes/frame" 주장도 미검증). 상세 원장 = Obsidian `30_Projects/FaceLift/_Agent/260723_FaceLift_curation_fact_log.md`
 >
 > 🔴 **260810 갱신**: ① 재학습 1차 시도(260724, 50ep, checkpoint 1.68GB)는 **whole-image PSNR 18.3-19.85dB로 "성공" 판정됐으나 반증됨** — FG(마우스) 렌더가 epoch 1부터 최종까지 완전 공백, IoU loss(가중치 1.0, 미분가능 확인)가 있었음에도 붕괴. **아직 유효한 신규값 없음**, 재재학습 필요. 상세 = Obsidian `30_Projects/FaceLift/_Agent/260810_FaceLift_ps-baseline-fair-eval-rootcause.md`
+>
+> 🟡 **260817 갱신 — 조건 ① 부분 충족, 동결은 유지**
+>
+> **13.78 의 출처 확정** (이전엔 미상): FaceLift repo 커밋 **`d48d095`**(260312, "논문 초안, NeurIPS gap 분석…")의 `PAPER_DRAFT_BehaviorSplatter`·`NEURIPS_GAP_ANALYSIS` 에 최초 등장. 원문 표 = `| 6cam | 13.78 | 0.846 | Per-scene opt. |`. **venue 는 NeurIPS 이고 ICML workshop 과 무관** — `ICML_CLUSTERING_MODULE_PLAN.md`(260418) 전수 grep 0건.
+>
+> **260724 붕괴의 근본원인 규명·해소**: `recompute_m5_centers.py` 가 카메라를 h5 에서 직접 읽어 centers 를 **auto_orient 이전 좌표계**로 산출 → 학습(`train_script.py:1164`, `auto_orient=True`)과 불일치 → shape carving 큐브가 대상에서 half-edge 의 6.8배 이탈 → **초기 Gaussian 0개**. 수정 후 재학습 50ep 완주(final_loss 2.778→0.386), fair eval **psnr_gt_masked 1.84 → 11.79**(novel view 11.61). 커밋 `dd43bdb`·`beb66c0`·`eb25cb5`·`073a3a5`.
+>
+> ⚠️ **그래도 인용 금지 유지**: (a) 11.79 는 `m5_baseline_260724`(M5, 5-train + view5 holdout) 산출값으로, **13.78 을 낸 `m5_baseline_gs` 6-view 와 다른 프로토콜** — 재현이 아니라 신규 값. (b) 해소 조건 ②(방법론 재기술) ③(속도 실측) 미충족. (c) FL↔PS **eval 프로토콜 동일성 미검증** 상태이므로 gap 수치를 만들지 않았다. 상세 = Obsidian `30_Projects/FaceLift/_Agent/260816_FaceLift_ps_shape_carving_empty_init.md`
 
 ### 2.2 Paper-specific protocol (ICML main.tex:L280)
 **24.26** = 6v best-fit fg PSNR (n=2160, view 0 included) — **§2.1과 다른 eval**. Source pointer 부재 (D2 pending).
