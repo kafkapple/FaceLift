@@ -85,7 +85,7 @@ role: single_entry_moc
 >
 > 🟡 **260817 갱신 — 조건 ① 부분 충족, 동결은 유지**
 >
-> **13.78 의 출처 확정** (이전엔 미상): FaceLift repo 커밋 **`d48d095`**(260312, "논문 초안, NeurIPS gap 분석…")의 `PAPER_DRAFT_BehaviorSplatter`·`NEURIPS_GAP_ANALYSIS` 에 최초 등장. 원문 표 = `| 6cam | 13.78 | 0.846 | Per-scene opt. |`. **venue 는 NeurIPS 이고 ICML workshop 과 무관** — `ICML_CLUSTERING_MODULE_PLAN.md`(260418) 전수 grep 0건.
+> **13.78 의 출처 확정** (이전엔 미상 — 아래 (b) 의 "아티팩트에 없음"은 *metric JSON* 이야기이고, 여기는 *그 수치가 처음 기재된 문서*를 말한다): FaceLift repo 커밋 **`d48d095`**(260312, "논문 초안, NeurIPS gap 분석…")의 `PAPER_DRAFT_BehaviorSplatter`·`NEURIPS_GAP_ANALYSIS` 에 최초 등장. 원문 표 = `| 6cam | 13.78 | 0.846 | Per-scene opt. |`. **venue 는 NeurIPS 이고 ICML workshop 과 무관** — `ICML_CLUSTERING_MODULE_PLAN.md`(260418) 전수 grep 0건.
 >
 > **260724 붕괴의 근본원인 규명·해소**: `recompute_m5_centers.py` 가 카메라를 h5 에서 직접 읽어 centers 를 **auto_orient 이전 좌표계**로 산출 → 학습(`train_script.py:1164`, `auto_orient=True`)과 불일치 → shape carving 큐브가 대상에서 half-edge 의 6.8배 이탈 → **초기 Gaussian 0개**. 수정 후 재학습 50ep 완주(final_loss 2.778→0.386), fair eval **psnr_gt_masked 1.84 → 11.79**(novel view 11.61). 커밋 `dd43bdb`·`beb66c0`·`eb25cb5`·`073a3a5`.
 >
