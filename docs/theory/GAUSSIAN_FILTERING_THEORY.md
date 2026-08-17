@@ -1,4 +1,11 @@
-# Gaussian Filtering & Count-Match — Method SSOT
+# Gaussian Filtering & Count-Match — Toolchain (method moved 260817)
+
+> 🔴 **방법 정본은 여기가 아니다** (260817 이관). FaceLift 가 E2E 전용으로 축소되면서
+> count-match 는 BehaviorSplatter 소관이 됐다.
+> **방법** → 볼트 `30_Projects/2603_3D_animal_recon_BehaviorSplatter/docs/theory/gaussian_count_match.md`
+> 이 파일이 계속 소유하는 것 = **코드·CLI·아티팩트 경로**뿐. 코드가 BS 로 포팅되면 이 파일도 폐기.
+> ⚠️ 같은 이름의 볼트 사본(`FaceLift/docs/theory/GAUSSIAN_FILTERING_THEORY.md`, 260331,
+> opacity 이론)은 **다른 문서**다 — 동명이문서 드리프트 실례이며 별도 정리 대상.
 
 > Single entry point for every post-hoc Gaussian selection step in the mouse pipeline
 > (FaceLift `mouse_extensions` owns the code; BehaviorSplatter consumes the outputs by path).
