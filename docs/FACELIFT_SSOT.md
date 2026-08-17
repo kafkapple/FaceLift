@@ -89,7 +89,23 @@ role: single_entry_moc
 >
 > **260724 붕괴의 근본원인 규명·해소**: `recompute_m5_centers.py` 가 카메라를 h5 에서 직접 읽어 centers 를 **auto_orient 이전 좌표계**로 산출 → 학습(`train_script.py:1164`, `auto_orient=True`)과 불일치 → shape carving 큐브가 대상에서 half-edge 의 6.8배 이탈 → **초기 Gaussian 0개**. 수정 후 재학습 50ep 완주(final_loss 2.778→0.386), fair eval **psnr_gt_masked 1.84 → 11.79**(novel view 11.61). 커밋 `dd43bdb`·`beb66c0`·`eb25cb5`·`073a3a5`.
 >
-> ⚠️ **그래도 인용 금지 유지**: (a) 11.79 는 `m5_baseline_260724`(M5, 5-train + view5 holdout) 산출값으로, **13.78 을 낸 `m5_baseline_gs` 6-view 와 다른 프로토콜** — 재현이 아니라 신규 값. (b) 해소 조건 ②(방법론 재기술) ③(속도 실측) 미충족. (c) FL↔PS **eval 프로토콜 동일성 미검증** 상태이므로 gap 수치를 만들지 않았다. 상세 = Obsidian `30_Projects/FaceLift/_Agent/260816_FaceLift_ps_shape_carving_empty_init.md`
+> ⚠️ **그래도 인용 금지 유지**: (a) 11.79 는 `m5_baseline_260724`(M5, 5-train + view5 holdout) 산출값으로, **13.78 을 낸 `m5_baseline_gs` 6-view 와 다른 프로토콜** — 재현이 아니라 신규 값. (b) 해소 조건 ②(방법론 재기술) ③(속도 실측) 미충족. 상세 = Obsidian `30_Projects/FaceLift/_Agent/260816_FaceLift_ps_shape_carving_empty_init.md`
+>
+> 🔴 **FL↔PS gap 은 산출하지 않는다 — 기존 `fair_comparison_v1` 자체가 미정합 비교였음** (260817 실측)
+>
+> | 축 | FL `experiments/comparison/fair/facelift_fair.json` | PS `fair_eval_260816_v5.json` | 일치 |
+> |---|---|---|:--:|
+> | 대상 | **E2E**(MVDiff→GS-LRM) ckpt5000 | PS m5_baseline_260724 | ✗ |
+> | 프레임 | 3240-3439 연속 200 | 3240-3599 전수 360 | ✗ |
+> | 뷰 | 1-5 | 1-5 | ✓ |
+> | 마스크 | GT alpha 채널 | white-BG 추출 | ✗ |
+> | `gt_mask_used` | true | false | ✗ |
+> | n | 1,000 | 1,800 | ✗ |
+> | psnr_gt_masked | 7.83 | 11.79 | — |
+>
+> 원인 = `pose-splatter/scripts/eval/fair_comparison.py:316` 이 FL 쪽 프레임 집합을 `sorted([d for d in render_dir.iterdir() ...])` 로 **렌더 덤프에 있는 대로** 잡고, PS 쪽만 `--test_start/--frame_step` 인자를 쓴다. 같은 스크립트 안에서 선택 방식이 다르다. 공정성 검사(§496-512)는 `test_only`·`gt_mask_used` 2개만 보고 **경고만 출력**할 뿐 게이트가 아니다. 병합본의 PS 항목 16.80 도 `frame_step=5`·n=432 로 FL 항목과 정합하지 않는다.
+>
+> **결론**: 이 비교 스택은 폐기. PS baseline 소유권은 BehaviorSplatter `BS_OPEN §P1-4` 로 이관하며, 향후 비교는 BS 의 4축 프로토콜(`BehaviorSplatter/docs/eval/eval_protocol.md`) 아래에서만 수행한다. PS 260816 런의 정식 태그 = `recon[5→1·test·GT·luma]`.
 
 ### 2.2 Paper-specific protocol (ICML main.tex:L280)
 **24.26** = 6v best-fit fg PSNR (n=2160, view 0 included) — **§2.1과 다른 eval**. Source pointer 부재 (D2 pending).
