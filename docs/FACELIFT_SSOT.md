@@ -1,8 +1,8 @@
 ---
 version: 1.2
 created: 2026-04-17
-last_validated: 2026-07-23
-next_review: 2026-08-15
+last_validated: 2026-08-17
+next_review: 2026-09-15
 status: canonical
 role: single_entry_moc
 ---
@@ -12,7 +12,7 @@ role: single_entry_moc
 > **Purpose**: FL 수치·설계·caveat 인용 시 **단일 진입점**.
 > **Scope**: Mouse M5t2 (C57BL/6, 6 overhead cam, 3,600 frames). Rat = PoC only.
 > **Precedence**: 이 파일 ↔ 다른 파일 충돌 시, 여기 `canonical_source` 포인터가 이김. 이 파일은 pointer + caveat, raw data 아님.
-> **Owner**: `gpu03:/home/joon/dev/FaceLift/docs/FACELIFT_SSOT.md`.
+> **Owner**: `github.com/kafkapple/FaceLift` → `docs/FACELIFT_SSOT.md` (260817: origin 을 gpu03 에서 GitHub 로 전환. gpu03 은 9월 초 종료 예정).
 
 ---
 
